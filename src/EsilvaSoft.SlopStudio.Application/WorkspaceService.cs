@@ -2,8 +2,10 @@ using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Application;
 
-public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQueryHistoryRepository queryHistory, IScriptHistoryRepository scriptHistory, ISavedQueryRepository savedQueries, IAuditRepository audit, IMongoWorkspaceService mongo, IScriptExecutionService scripts, IScriptFileService scriptFiles, IConnectionSecretStore secrets, IEnvironmentVaultRepository? environments = null, IExplorerMetadataService? explorer = null, IConsoleRuntime? console = null, IConsoleHistoryRepository? consoleHistory = null, IApplicationOperationService? operations = null, ICodeFormatter? formatter = null, IResultPageExportService? resultExports = null)
+public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQueryHistoryRepository queryHistory, IScriptHistoryRepository scriptHistory, ISavedQueryRepository savedQueries, IAuditRepository audit, IMongoWorkspaceService mongo, IScriptExecutionService scripts, IScriptFileService scriptFiles, IConnectionSecretStore secrets, IEnvironmentVaultRepository? environments = null, IExplorerMetadataService? explorer = null, IConsoleRuntime? console = null, IConsoleHistoryRepository? consoleHistory = null, IApplicationOperationService? operations = null, ICodeFormatter? formatter = null, IResultPageExportService? resultExports = null, ICodeValidator? validator = null)
 {
+    public Task<CodeValidationResult> ValidateCodeAsync(string text, bool aggregation, CancellationToken token) =>
+        (validator ?? throw new InvalidOperationException("Validador indisponível.")).ValidateAsync(text, aggregation, token);
     public Task ExportResultPageAsync(string path, IReadOnlyList<string> documents, bool csv, Action<int, int> progress, CancellationToken cancellationToken) =>
         (resultExports ?? throw new InvalidOperationException("Exportador indisponível.")).ExportAsync(path, documents, csv, progress, cancellationToken);
 
@@ -37,6 +39,8 @@ public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQue
         (console ?? throw new InvalidOperationException("Runtime Console indisponível.")).GetStatement(script, caret);
     public Task<IReadOnlyList<ConsoleHistoryEntry>> GetConsoleHistoryAsync(CancellationToken token = default) =>
         TrackAsync("Carregando histórico do Console", operationToken => consoleHistory?.GetConsoleHistoryAsync(cancellationToken: operationToken) ?? Task.FromResult<IReadOnlyList<ConsoleHistoryEntry>>([]), token: token);
+    public Task SaveExecutionHistoryAsync(ConsoleHistoryEntry entry, CancellationToken token = default) =>
+        (consoleHistory ?? throw new InvalidOperationException("Armazenamento de histórico indisponível.")).SaveConsoleHistoryAsync(entry, token);
     public Task<TopologyInfo> GetExplorerTopologyAsync(ConnectionProfile profile, CancellationToken token = default) =>
         TrackAsync("Carregando topologia", operationToken => ExplorerMetadata.GetTopologyAsync(profile, operationToken), token: token);
     public Task<IReadOnlyList<IndexInfo>> GetExplorerIndexesAsync(ConnectionProfile profile, string database, string collection, CancellationToken token = default) =>
@@ -181,6 +185,8 @@ public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQue
 
     public Task<QueryPage> AggregateAsync(ConnectionProfile profile, AggregationQuery query, CancellationToken cancellationToken = default) =>
         TrackAsync($"Executando agregação — {profile.Name} › {query.Database} › {query.Collection}", operationToken => mongo.AggregateAsync(profile, query, operationToken), ApplicationOperationPriority.High, cancellationToken);
+    public Task<string> ExplainAggregationAsync(ConnectionProfile profile, AggregationQuery query, CancellationToken cancellationToken = default) =>
+        TrackAsync($"Analisando pipeline — {profile.Name} › {query.Database} › {query.Collection}", operationToken => mongo.ExplainAggregationAsync(profile, query, operationToken), ApplicationOperationPriority.High, cancellationToken);
 
     public Task<DatabaseExportResult> ExportDatabaseAsync(ConnectionProfile profile, DatabaseExportRequest request, CancellationToken cancellationToken = default) =>
         mongo.ExportDatabaseAsync(profile, request, cancellationToken);

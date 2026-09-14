@@ -65,6 +65,8 @@ public interface IMongoWorkspaceService
     Task<string> ExplainAsync(ConnectionProfile profile, MongoQuery query, CancellationToken cancellationToken = default);
 
     Task<QueryPage> AggregateAsync(ConnectionProfile profile, AggregationQuery query, CancellationToken cancellationToken = default);
+    Task<string> ExplainAggregationAsync(ConnectionProfile profile, AggregationQuery query, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Explain de aggregation indisponível neste executor.");
 
     Task<DatabaseExportResult> ExportDatabaseAsync(ConnectionProfile profile, DatabaseExportRequest request, CancellationToken cancellationToken = default);
 

@@ -9,6 +9,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<IApplicationOperationService, ApplicationOperationService>();
         services.AddSingleton<ICodeFormatter, MongoCodeFormatter>();
+        services.AddSingleton<ICodeValidator, MongoCodeValidator>();
         services.AddSingleton<IResultPageExportService, LocalResultPageExportService>();
         services.AddSingleton<MongoClientPool>();
         services.AddSingleton<IAutocompleteDiagnostics, AutocompleteDiagnostics>();

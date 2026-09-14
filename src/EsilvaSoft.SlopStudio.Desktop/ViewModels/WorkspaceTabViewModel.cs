@@ -24,6 +24,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
     public Task ExportResultPageAsync(string path, IReadOnlyList<string> documents, bool csv, Action<int, int> progress, CancellationToken cancellationToken) =>
         _workspace.ExportResultPageAsync(path, documents, csv, progress, cancellationToken);
     public Task<string> FormatCodeAsync(string text, CancellationToken cancellationToken) => _workspace.FormatCodeAsync(text, cancellationToken);
+    public Task<CodeValidationResult> ValidateCodeAsync(string text, bool aggregation, CancellationToken token) => _workspace.ValidateCodeAsync(text, aggregation, token);
     public IAutocompleteService Autocomplete { get; set; } = new AutocompleteService();
     private CancellationTokenSource? _cancellation;
     private bool _restoring;
@@ -296,7 +297,6 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
     private void ClearResults(string state)
     {
         _presentationCancellation?.Cancel();
-        _autocompleteResults = null; _autocompleteFields = [];
         _resultSets = [];
         _consoleSets.Clear();
         _documentViews.Clear();
@@ -486,6 +486,8 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
     public string Context => $"{Profile?.Name ?? "Sem conexão"} › {(string.IsNullOrWhiteSpace(Database) ? "Escolha um banco" : Database)}{(IsConsole || string.IsNullOrWhiteSpace(Collection) ? "" : " › " + Collection)}";
     public string AccessHint => Profile is null ? "Escolha uma conexão para esta aba." : !IsConnected ? "Desconectado — abra a conexão para executar." : Profile.IsReadOnly ? "Somente leitura · " + Profile.RoutingLabel : "Destino fixo desta aba · " + Profile.RoutingLabel;
     public bool IsScript => Mode == "Script";
+    public bool IsAggregation => Mode == "Agregação";
+    public bool CanExplainAggregation => IsAggregation && CanExecute;
     public bool IsQuery => Mode == "Consulta JSON";
     public double CodeLineHeight => CodeFontSize * 1.5;
     partial void OnCodeFontSizeChanged(double value) => OnPropertyChanged(nameof(CodeLineHeight));
@@ -527,6 +529,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
                 OnPropertyChanged(nameof(IsScript));
                 OnPropertyChanged(nameof(IsQuery));
                 OnPropertyChanged(nameof(IsConsole));
+                OnPropertyChanged(nameof(IsAggregation));
             }
             if (e.PropertyName is nameof(Profile) or nameof(IsConnected)) OnPropertyChanged(nameof(AccessHint));
             if (e.PropertyName is nameof(IsDirty) or nameof(FilePath) or nameof(Collection) or nameof(Mode)) OnPropertyChanged(nameof(Title));
@@ -536,6 +539,8 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
                 OnPropertyChanged(nameof(CanEditContext));
                 OnPropertyChanged(nameof(CanExport));
                 ExecuteCommand.NotifyCanExecuteChanged();
+                OnPropertyChanged(nameof(CanExplainAggregation));
+                ExplainAggregationCommand.NotifyCanExecuteChanged();
             }
         };
     }
@@ -552,7 +557,12 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
         var text = string.IsNullOrEmpty(selection) ? Text : selection;
         var input = InputJson;
         var query = BuildQuery(text);
+        var limit = Limit;
+        var maxTimeMs = MaxTimeMs;
+        var historyEnabled = HistoryEnabled && !ContainsResultData;
         var uuidPolicy = UuidPolicy;
+        var executedAt = DateTimeOffset.UtcNow;
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         using var operation = Operations.Begin($"Executando consulta em {profile.Name} › {database}", ApplicationOperationPriority.High);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(operation.Token);
         _cancellation = cancellation;
@@ -567,9 +577,9 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
         {
             if (mode == "Console")
             {
-                var result = await _workspace.ExecuteConsoleAsync(new(profile, database, text, Math.Clamp(Limit, 1, 1000), Math.Clamp(MaxTimeMs, 1, 300000), HistoryEnabled && !ContainsResultData), ConfirmConsoleWrite, cancellation.Token);
+                var result = await _workspace.ExecuteConsoleAsync(new(profile, database, text, Math.Clamp(limit, 1, 1000), Math.Clamp(maxTimeMs, 1, 300000), historyEnabled), ConfirmConsoleWrite, cancellation.Token);
                 _resultEmptyText = result.Results.Count == 0 ? "Nenhuma expressão retornou resultado. Consulte Mensagens." : null;
-                _resultMetrics = $"{result.Results.Count} resultado(s) · {result.Duration.TotalMilliseconds:F0} ms · {result.Environment} · máximo {Limit} documentos por cursor";
+                _resultMetrics = $"{result.Results.Count} resultado(s) · {result.Duration.TotalMilliseconds:F0} ms · {result.Environment} · máximo {Math.Clamp(limit, 1, 1000)} documentos por cursor";
                 await SetResultsAsync(() => result.Results.Select(StructuredResultSet.FromConsole).ToArray(), result.Results, cancellation.Token);
                 Messages = result.Messages; Errors = result.Error ?? "";
                 Status = result.IsCanceled ? "Cancelado" : result.IsTimedOut ? "Tempo limite excedido" : result.Error is null ? "Concluído" : "Erro";
@@ -590,7 +600,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
             {
                 var aggregation = mode == "Agregação";
                 var result = aggregation
-                    ? await _workspace.AggregateAsync(profile, new AggregationQuery(database, collection, text, Limit), cancellation.Token)
+                    ? await _workspace.AggregateAsync(profile, new AggregationQuery(database, collection, text, limit), cancellation.Token)
                     : await _workspace.QueryAsync(profile, query, cancellation.Token);
                 var completeness = aggregation ? ResultCompleteness.Derived
                     : query.ProjectionJson is null || ExtendedJsonComparer.AreEquivalent(query.ProjectionJson, "{}") ? ResultCompleteness.Complete : ResultCompleteness.PartialProjection;
@@ -600,7 +610,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
                     result.Documents, result.IsTruncated, completeness, aggregation ? "aggregate" : "find")], null, cancellation.Token);
                 Status = "Concluído";
                 ResultTabIndex = 0;
-                if (HistoryEnabled && mode == "Consulta JSON")
+                if (historyEnabled && mode == "Consulta JSON")
                 {
                     try
                     {
@@ -629,6 +639,21 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject
         }
         finally
         {
+            if (mode == "Agregação" && historyEnabled)
+            {
+                try
+                {
+                    var entry = new ConsoleHistoryEntry(1, Guid.NewGuid(), executedAt, profile.Id, profile.Name, database,
+                        "Ambiente não registrado", text, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds, Status, [profile.Id])
+                    { Mode = mode, Collection = collection, DocumentLimit = limit, TargetHost = profile.TargetHost };
+                    await _workspace.SaveExecutionHistoryAsync(entry, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    Messages += "\nHistórico não salvo: " + OperationErrorMessages.Describe(ex);
+                    if (Errors.Length == 0) ResultTabIndex = 1;
+                }
+            }
             operation.Complete(Status == "Cancelado" ? ApplicationOperationStatus.Cancelled : Errors.Length > 0 || Status.StartsWith("Falha", StringComparison.Ordinal) ? ApplicationOperationStatus.Error : ApplicationOperationStatus.Success,
                 $"{Status} — {profile.Name} › {database}");
             _cancellation = null; IsRunning = false; ApplyPendingUuidPolicy();

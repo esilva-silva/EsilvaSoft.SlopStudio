@@ -21,6 +21,12 @@ internal sealed class ConsoleDatabaseSession(IReadOnlyList<ConnectionProfile> pr
 
     public async Task<string> ExecuteAsync(ConsoleOperation operation, CancellationToken cancellationToken)
     {
+        try { return await ExecuteCoreAsync(operation, cancellationToken).ConfigureAwait(false); }
+        catch (MongoCommandException exception) { throw QueryServerDiagnostics.Describe(exception); }
+    }
+
+    private async Task<string> ExecuteCoreAsync(ConsoleOperation operation, CancellationToken cancellationToken)
+    {
         var profile = profiles.Single(p => p.Id == operation.ProfileId);
         var args = BsonSerializer.Deserialize<BsonArray>(operation.ArgumentsJson);
         Validate(operation, args, profile);
@@ -151,10 +157,12 @@ internal sealed class ConsoleDatabaseSession(IReadOnlyList<ConnectionProfile> pr
         if (operation.Method is "updateOne" or "updateMany" or "replaceOne" or "deleteOne" or "deleteMany")
             if (args.Count == 0 || !args[0].IsBsonDocument || args[0].AsBsonDocument.ElementCount == 0) throw new InvalidOperationException("Uma operação de alteração exige filtro não vazio.");
         if (operation.Method == "dropIndex" && (args.Count == 0 || args[0] == "_id_" || args[0] == "*")) throw new InvalidOperationException("Índice obrigatório ou remoção global protegida.");
-        if (operation.Method == "aggregate" && args[0].AsBsonArray.Any(HasWriteStage)) throw new InvalidOperationException("$out e $merge não são suportados no cursor de leitura.");
+        if (operation.Method == "aggregate")
+        {
+            if (args.Count == 0 || !args[0].IsBsonArray) throw new ArgumentException("aggregate exige um array de estágios.");
+            AggregationPipelineValidator.ValidateReadPipeline(args[0].AsBsonArray);
+        }
     }
-    private static bool HasWriteStage(BsonValue value) => value.IsBsonArray ? value.AsBsonArray.Any(HasWriteStage) : value.IsBsonDocument &&
-        value.AsBsonDocument.Elements.Any(e => e.Name is "$out" or "$merge" || HasWriteStage(e.Value));
     private static void ValidateOptions(BsonDocument options, params string[] allowed)
     {
         var unknown = options.Names.FirstOrDefault(n => !allowed.Contains(n, StringComparer.Ordinal));

@@ -164,7 +164,7 @@ public sealed class ConsoleRuntime(IConnectionProfileRepository profiles, IEnvir
             {
                 await history.SaveConsoleHistoryAsync(new(1, Guid.NewGuid(), occurredAt, request.Primary.Id, request.Primary.Name,
                     request.Database, environment.Vault.Name, request.Script, duration.TotalMilliseconds,
-                    canceled ? "Cancelado" : timedOut ? "Tempo limite" : error is null ? "Concluído" : "Erro", used.ToArray()) { TargetHost = request.Primary.TargetHost }, CancellationToken.None).ConfigureAwait(false);
+                    canceled ? "Cancelado" : timedOut ? "Tempo limite" : error is null ? "Concluído" : "Erro", used.ToArray()) { TargetHost = request.Primary.TargetHost, DocumentLimit = request.DocumentLimit }, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception ex) { messages.AppendLine("Histórico não salvo: " + ex.Message); }
         }

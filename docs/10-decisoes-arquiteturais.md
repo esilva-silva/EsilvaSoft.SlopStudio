@@ -1,5 +1,11 @@
 # Registro de decisões arquiteturais
 
+## ADR-040 — Validação local e explain de aggregation (14/09/2026)
+
+`ICodeValidator`/`MongoCodeValidator` oferece diagnóstico offline usando Acornima em worker, sem avaliar construtores ou resolver ambiente. Captura de texto/contexto e descarte de resposta obsoleta ficam na view; offsets relativos à seleção retornam para o documento original. Validação sintática não promete compatibilidade de servidor. `AggregationPipelineValidator` verifica estrutura e bloqueia stages de escrita no executor direto e no Console, percorrendo apenas posições reais de subpipelines, preservando `$literal`.
+
+`ExplainAggregationAsync` usa `queryPlanner` com 30 segundos, retorna BSON bruto e preserva resultados anteriores. A aba captura perfil, banco, coleção, pipeline e limite antes de awaits; execução/análise compartilham exclusão por aba e seu cancelamento, nunca um CTS entre abas. Sem nova persistência nem nova conexão LiteDB. [Escopo, evidência e pendências](27-consultas-avancadas.md).
+
 O quadro inicial preserva decisões de fundação; ADRs datadas registram revisões aceitas e propostas específicas. Para implementação atual, consultar o inventário e a matriz. A ADR-035 substitui o calendário F0–F7 pelo roadmap v0.5.0–v1.0.0; referências antigas de prazo não são compromissos vigentes.
 
 | ADR | Decisão | Motivo e consequência |

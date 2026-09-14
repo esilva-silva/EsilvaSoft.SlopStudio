@@ -1,13 +1,13 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:core="using:EsilvaSoft.SlopStudio.Core" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" x:Class="EsilvaSoft.SlopStudio.Desktop.HistoryWindow" x:DataType="vm:WorkspaceTabViewModel" Title="Histórico e consultas salvas" Width="720" Height="520" WindowStartupLocation="CenterOwner">
   <ScrollViewer>
     <StackPanel Spacing="12" Margin="20">
-      <TextBlock Text="Console — execuções" Classes="section-title"/>
+      <TextBlock Text="Console e Agregação — execuções" Classes="section-title"/>
       <TextBlock Text="O histórico guarda o script digitado, destino, ambiente, duração e status. Não guarda resultados nem valores resolvidos de ENV." TextWrapping="Wrap"/>
-      <CheckBox Content="Persistir histórico do Console" IsChecked="{Binding HistoryEnabled}"/>
-      <ComboBox ItemsSource="{Binding ConsoleHistory}" SelectedItem="{Binding SelectedConsoleHistory}" AutomationProperties.Name="Execuções do Console">
+      <CheckBox Content="Persistir histórico do Console e de Agregação" IsChecked="{Binding HistoryEnabled}"/>
+      <ComboBox ItemsSource="{Binding ConsoleHistory}" SelectedItem="{Binding SelectedConsoleHistory}" ToolTip.Tip="{Binding SelectedConsoleHistory.DisplayText}" AutomationProperties.Name="Execuções do Console e de Agregação">
         <ComboBox.ItemTemplate><DataTemplate x:DataType="core:ConsoleHistoryEntry"><TextBlock Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis"/></DataTemplate></ComboBox.ItemTemplate>
       </ComboBox>
-      <Button Content="Abrir execução em nova aba Console" Click="OpenConsoleHistory"/>
+      <Button Content="Abrir execução em nova aba" Click="OpenConsoleHistory"/>
       <TextBlock Text="Histórico desta conexão" Classes="section-title"/>
       <CheckBox Content="Persistir histórico de consultas" IsChecked="{Binding HistoryEnabled}"/>
       <ComboBox ItemsSource="{Binding History}" SelectedItem="{Binding SelectedHistory}">

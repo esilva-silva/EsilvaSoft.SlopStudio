@@ -1,5 +1,9 @@
 # Guia rápido de uso
 
+## Consultas avançadas — incremento de 14/09/2026
+
+Em **Opções → Validar sintaxe**, valide a seleção ou o editor inteiro sem conexão. Erros informam linha/coluna e selecionam o trecho. No modo **Agregação**, **Analisar pipeline (explain)** mostra o plano bruto estimado em Mensagens, no destino fixo da aba. `$out` e `$merge` são bloqueados no cursor de leitura. Ctrl+Espaço cobre os 12 stages da fase e predicados/acumuladores comuns. [Exemplos de uso, evidência e limites](27-consultas-avancadas.md).
+
 ## Disponibilidade e versões — 13/09/2026
 
 A base atual é alpha (última tag local v0.1.1-alpha, com desenvolvimento posterior). Próximo alvo: **v0.5.0**, ainda 🚧 Em desenvolvimento. ✅ Explorer/consultas/CRUD/JSON já têm caminhos integrados. Abrir coleção prepara o texto; use Executar para carregar documentos. Exportar resultados oferece **Extended JSON da página carregada**, não CSV. 🚧 Formatação de apresentação JSON existe; comando geral de formatar query/script e CSV continuam pendentes do MVP.

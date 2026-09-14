@@ -7,5 +7,6 @@ public enum MqlSuggestionKind
     Field,
     QueryOperator,
     UpdateOperator,
-    AggregationStage
+    AggregationStage,
+    AggregationExpression
 }

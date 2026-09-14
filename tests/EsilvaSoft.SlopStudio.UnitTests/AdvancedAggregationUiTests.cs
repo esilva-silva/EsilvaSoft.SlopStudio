@@ -1,0 +1,92 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Interactivity;
+using Avalonia.Styling;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using EsilvaSoft.SlopStudio.Desktop;
+using EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting;
+using EsilvaSoft.SlopStudio.Desktop.ViewModels;
+
+namespace EsilvaSoft.SlopStudio.UnitTests;
+
+[TestFixture, NonParallelizable]
+public sealed class AdvancedAggregationUiTests
+{
+    [Test]
+    public async Task AggregationHistoryRendersItsCapturedDestinationInBothThemes()
+    {
+        var session = HeadlessUnitTestSession.GetOrStartForAssembly(typeof(UiTestApp).Assembly);
+        await session.Dispatch<bool>(async () =>
+        {
+            using var context = new WorkspaceTestContext();
+            var entry = new EsilvaSoft.SlopStudio.Core.ConsoleHistoryEntry(1, Guid.NewGuid(), DateTimeOffset.UtcNow,
+                Guid.NewGuid(), "Production", "Commerce", "Ambiente não registrado", "[{ $match: { active: true } }]", 12, "Concluído", [])
+            { Mode = "Agregação", Collection = "customer-orders", DocumentLimit = 100 };
+            await context.Repository.SaveConsoleHistoryAsync(entry);
+            var tab = new WorkspaceTabViewModel(context.Workspace); await tab.LoadHistoryCommand.ExecuteAsync(null);
+            tab.SelectedConsoleHistory = tab.ConsoleHistory.Single();
+            var window = new HistoryWindow { DataContext = tab }; window.Show();
+            var directory = Path.Combine(TestContext.CurrentContext.WorkDirectory, "ui-evidence"); Directory.CreateDirectory(directory);
+            foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+                foreach (var size in new[] { new Size(600, 420), new Size(720, 520), new Size(900, 700) })
+                    foreach (var scale in new[] { 1d, 1.5, 2 })
+                    {
+                        Avalonia.Application.Current!.RequestedThemeVariant = theme;
+                        window.Width = size.Width; window.Height = size.Height; window.SetRenderScaling(scale);
+                        window.UpdateLayout(); Dispatcher.UIThread.RunJobs();
+                        Assert.That(window.GetVisualDescendants().OfType<TextBlock>().Any(block => block.Text?.Contains("Console e Agregação", StringComparison.Ordinal) == true), Is.True);
+                        using var frame = window.CaptureRenderedFrame();
+                        frame!.Save(Path.Combine(directory, $"aggregation-history-{theme}-{size.Width}-{scale.ToString(System.Globalization.CultureInfo.InvariantCulture)}.png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+                    }
+            window.Close(); return true;
+        }, CancellationToken.None);
+    }
+
+    [Test]
+    public async Task OfflineValidationSelectsStageErrorAndRendersBothThemes()
+    {
+        var session = HeadlessUnitTestSession.GetOrStartForAssembly(typeof(UiTestApp).Assembly);
+        await session.Dispatch<bool>(async () =>
+        {
+            using var context = new WorkspaceTestContext();
+            var networkCalls = 0;
+            context.Mongo.Handler = (method, _) => { networkCalls++; throw new InvalidOperationException(method); };
+            using var workspace = new WorkspaceViewModel(context.Workspace, context.Repository);
+            var window = new MainWindow { DataContext = workspace }; window.Show(); await window.InitializationTask;
+            var tab = workspace.ActiveTab!; tab.Mode = "Agregação";
+            tab.Text = "[\n  { $match: { active: true } },\n  { $group: { _id: '$customer', total: { $sum: '$price' } } },\n  { $out: 'copy' }\n]";
+            window.UpdateLayout(); Dispatcher.UIThread.RunJobs();
+            var view = window.GetVisualDescendants().OfType<WorkspaceTabView>().Single();
+            var editor = view.FindControl<MongoTextEditor>("CodeEditor")!;
+            view.FindControl<Button>("ValidateCodeButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await view.ValidationTask;
+            Assert.That(tab.Errors, Does.Contain("estágio 3"));
+            Assert.That(editor.SelectedText, Is.EqualTo("$out"));
+            Assert.That(networkCalls, Is.Zero);
+            var directory = Path.Combine(TestContext.CurrentContext.WorkDirectory, "ui-evidence"); Directory.CreateDirectory(directory);
+            foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+                foreach (var size in new[] { new Size(960, 620), new Size(1366, 768), new Size(1920, 1080) })
+                    foreach (var scale in new[] { 1d, 1.5, 2 })
+                    {
+                        Avalonia.Application.Current!.RequestedThemeVariant = theme;
+                        window.Width = size.Width; window.Height = size.Height; window.SetRenderScaling(scale);
+                        window.UpdateLayout(); Dispatcher.UIThread.RunJobs();
+                        Assert.That(editor.Bounds.Height, Is.GreaterThan(100));
+                        using var frame = window.CaptureRenderedFrame();
+                        frame!.Save(Path.Combine(directory, $"aggregation-diagnostic-{theme}-{size.Width}-{scale.ToString(System.Globalization.CultureInfo.InvariantCulture)}.png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+                    }
+            window.SetRenderScaling(1);
+            tab.Text = "[{ $match: {} }]";
+            editor.SelectionStart = editor.SelectionEnd = 0;
+            view.FindControl<Button>("ValidateCodeButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await view.ValidationTask;
+            Assert.That(tab.Messages, Does.Contain("Nenhuma consulta foi enviada"));
+            Assert.That(tab.Errors, Is.Empty);
+            Assert.That(networkCalls, Is.Zero);
+            typeof(MainWindow).GetField("_allowClose", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(window, true);
+            window.Close(); return true;
+        }, CancellationToken.None);
+    }
+}

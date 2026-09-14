@@ -10,7 +10,7 @@ using MongoDB.Driver;
 namespace EsilvaSoft.SlopStudio.UnitTests;
 
 [TestFixture, NonParallelizable]
-public sealed class ConsoleMongoIntegrationTests
+public sealed partial class ConsoleMongoIntegrationTests
 {
     [Test, Category("MongoReal")]
     public async Task MvpPagesProtectedEditingAndStreamingExportUseRealServer()

@@ -11,7 +11,7 @@ const assert = require('node:assert/strict');
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(pathToFileURL(path.resolve('docs/index.html')).href);
   await page.waitForSelector('#viewer-body h1');
-  assert.equal(await page.locator('.card').count(), 29);
+  assert.equal(await page.locator('.card').count(), 30);
   await page.locator('[data-file="03-catalogo-funcional.md"]').click();
   await page.waitForSelector('#viewer-body table');
   assert.ok(await page.locator('#viewer-body th').count() > 0);

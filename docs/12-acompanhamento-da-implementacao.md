@@ -1,5 +1,11 @@
 # Acompanhamento da implementação
 
+## Consultas avançadas — incremento de 14/09/2026
+
+Checkpoint final deste incremento: suíte regular **623 aprovados, 0 falhas, 0 ignorados**, `phase2-current.trx`. Testes Explicit de IA não integram esse total.
+
+Implementados catálogo dos 12 stages com distinção lexical, validação offline com seleção do erro, proteção compartilhada de `$out`/`$merge` e explain bruto do modo Agregação. Snapshots e cancelamento testados entre abas; resultados anteriores conservados durante explain. Fixture MongoDB 8.0.30 de joins/arrays/facet e plano real aprovada. Build sem avisos/erros; 29 testes focados aprovados. O primeiro checkpoint da suíte completa teve 617 aprovados antes da inclusão de validação/explain. [Escopo, evidência e trabalho restante](27-consultas-avancadas.md); o aceite completo da fase permanece aberto.
+
 ## Situação vigente e revisão documental — 13/09/2026
 
 🚧 Próxima entrega: **v0.5.0 MVP**. Última tag alpha identificada localmente: **v0.1.1-alpha**, seguida pelo checkout inspecionado `e806ae4`; publicação remota não verificada. [Roadmap](09-plano-de-implementacao.md) substitui F0–F7 por v0.5.0–v1.0.0, com exclusões/dependências/aceite; [catálogo](03-catalogo-funcional.md) e [inventário](24-inventario-roadmap.md) distinguem implementado, parcial, planejado e experimental.

@@ -29,7 +29,25 @@ public static class MqlAutocompleteService
         new("$group", "Agrupa documentos", MqlSuggestionKind.AggregationStage),
         new("$sort", "Ordena documentos", MqlSuggestionKind.AggregationStage),
         new("$limit", "Limita documentos", MqlSuggestionKind.AggregationStage),
-        new("$lookup", "Relaciona outra coleção", MqlSuggestionKind.AggregationStage)
+        new("$lookup", "Relaciona outra coleção", MqlSuggestionKind.AggregationStage),
+        new("$skip", "Pula documentos", MqlSuggestionKind.AggregationStage),
+        new("$unwind", "Expande elementos de um array", MqlSuggestionKind.AggregationStage),
+        new("$facet", "Executa subpipelines sobre a mesma entrada", MqlSuggestionKind.AggregationStage),
+        new("$set", "Adiciona ou substitui campos no pipeline", MqlSuggestionKind.AggregationStage),
+        new("$unset", "Remove campos no pipeline", MqlSuggestionKind.AggregationStage),
+        new("$count", "Conta os documentos do pipeline", MqlSuggestionKind.AggregationStage),
+        new("$expr", "Expressão em um filtro", MqlSuggestionKind.QueryOperator),
+        new("$sum", "Soma valores", MqlSuggestionKind.AggregationExpression),
+        new("$avg", "Média dos valores", MqlSuggestionKind.AggregationExpression),
+        new("$min", "Menor valor", MqlSuggestionKind.AggregationExpression),
+        new("$max", "Maior valor", MqlSuggestionKind.AggregationExpression),
+        new("$push", "Acumula valores em um array", MqlSuggestionKind.AggregationExpression),
+        new("$addToSet", "Acumula valores distintos", MqlSuggestionKind.AggregationExpression),
+        new("$first", "Primeiro valor", MqlSuggestionKind.AggregationExpression),
+        new("$last", "Último valor", MqlSuggestionKind.AggregationExpression),
+        new("$cond", "Seleciona valor por condição", MqlSuggestionKind.AggregationExpression),
+        new("$ifNull", "Valor alternativo para nulo ou ausente", MqlSuggestionKind.AggregationExpression),
+        new("$literal", "Valor literal sem interpretar operadores", MqlSuggestionKind.AggregationExpression)
     ];
 
     public static IReadOnlyList<MqlSuggestion> GetSuggestions(string input, IEnumerable<string>? knownFields = null, int maximum = 12)
@@ -54,18 +72,22 @@ public static class MqlAutocompleteService
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximum);
         var prefix = GetCurrentPrefix(input);
+        var context = AggregationCompletionContext.Read(input);
+        if (context.InComment) return [];
         var suggestions = new List<MqlSuggestion>();
-
-        if (!prefix.StartsWith('$'))
+        if (!context.StageKey)
         {
             suggestions.AddRange((knownFields ?? [])
+                .Select(field => context.FieldReference ? "$" + field : field)
                 .Where(field => field.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(field => field, StringComparer.OrdinalIgnoreCase)
                 .Select(field => new MqlSuggestion(field, "Campo observado nos resultados carregados", MqlSuggestionKind.Field)));
         }
-
-        suggestions.AddRange(Operators.Where(@operator => @operator.Kind == MqlSuggestionKind.AggregationStage
-            && @operator.Text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)));
+        if (!context.FieldReference)
+            suggestions.AddRange(Operators.Where(op => (context.StageKey ? op.Kind == MqlSuggestionKind.AggregationStage
+                : context.Stage == "$match" ? op.Kind == MqlSuggestionKind.QueryOperator
+                : op.Kind is MqlSuggestionKind.AggregationExpression or MqlSuggestionKind.QueryOperator)
+                && op.Text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)));
         return suggestions.Take(maximum).ToArray();
     }
 
@@ -135,11 +157,6 @@ public static class MqlAutocompleteService
 
         var end = input.Length;
 
-        while (end > 0 && !IsTokenCharacter(input[end - 1]))
-        {
-            end--;
-        }
-
         var start = end;
 
         while (start > 0 && IsTokenCharacter(input[start - 1]))
@@ -161,6 +178,7 @@ public static class MqlAutocompleteService
 
         if (element.ValueKind == JsonValueKind.Object)
         {
+            if (TryGetExtendedJsonType(element, out _)) return;
             foreach (var property in element.EnumerateObject())
             {
                 var current = string.IsNullOrEmpty(parent) ? property.Name : $"{parent}.{property.Name}";

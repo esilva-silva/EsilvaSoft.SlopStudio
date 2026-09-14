@@ -268,7 +268,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     {
         var root = Roots.FirstOrDefault(r => r.Profile.Id == entry.ProfileId);
         var tab = CreateTab();
-        tab.Restore(new WorkspaceDraft { ProfileId = entry.ProfileId, TargetHost = entry.TargetHost, Database = entry.Database, Mode = "Console", Text = entry.Script, HistoryEnabled = true }, root?.Profile is { } profile ? profile with { TargetHost = entry.TargetHost } : null);
+        tab.Restore(new WorkspaceDraft { ProfileId = entry.ProfileId, TargetHost = entry.TargetHost, Database = entry.Database, Collection = entry.Collection, Mode = entry.Mode, Limit = entry.DocumentLimit, Text = entry.Script, HistoryEnabled = true }, root?.Profile is { } profile ? profile with { TargetHost = entry.TargetHost } : null);
         tab.IsConnected = tab.Profile is not null && IsProfileConnected(tab.Profile);
         tab.Messages = $"Histórico de {entry.Environment}; uma nova execução usará o ambiente ativo atual.";
         Register(tab); ActiveTab = tab; ScheduleSave();

@@ -44,6 +44,8 @@
                 <ScrollViewer MaxHeight="340" Width="480" VerticalScrollBarVisibility="Auto">
                   <StackPanel Spacing="6" Margin="8" IsEnabled="{Binding CanEditContext}">
                     <Button x:Name="FormatCodeButton" Content="Formatar JSON/query/script" Click="FormatCode" ToolTip.Tip="Formata a seleção ou o editor inteiro; Ctrl+Z desfaz. Não executa o código." />
+                    <Button x:Name="ValidateCodeButton" Content="Validar sintaxe" Click="ValidateCode" ToolTip.Tip="Valida a seleção ou o editor inteiro sem conexão; seleciona o erro no texto. Não executa a consulta." />
+                    <Button Content="Analisar pipeline (explain)" Command="{Binding ExplainAggregationCommand}" IsVisible="{Binding IsAggregation}" ToolTip.Tip="Obtém queryPlanner do pipeline completo no destino desta aba. Exige conexão aberta; não mede a execução. Stages de escrita são bloqueados." />
                     <Grid IsVisible="{Binding IsScript}" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8">
                       <TextBlock Text="Entrada Extended JSON" />
                       <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Grid.Row="1" Text="{Binding InputJson}" Classes="code syntax" AutomationProperties.Name="Entrada Extended JSON" />

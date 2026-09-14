@@ -48,6 +48,8 @@ O [catálogo](03-catalogo-funcional.md) mantém IDs e status do requisito comple
 
 **Objetivo:** construir e analisar queries e pipelines complexos sem depender de outra ferramenta para o escopo declarado.
 
+**Incremento de 14/09/2026:** validação offline com localização, catálogo dos 12 stages e explain bruto de aggregation em `queryPlanner`; fixture real combinando os 12 stages aprovada. O aceite completo continua em aberto, sobretudo contexto do autocomplete, histórico de Agregação e diagnósticos de servidor. [Detalhes e evidência](27-consultas-avancadas.md).
+
 **Incluído:** criação/execução textual de aggregation com `$match`, `$group`, `$project`, `$sort`, `$limit`, `$skip`, `$lookup`, `$unwind`, `$set`, `$unset`, `$count` e `$facet`; formatação, validação, erros localizáveis, bracket matching, syntax highlighting, histórico e execução parcial quando aplicável. Autocomplete considera Connection, Database, Collection, schema conhecido, query, Input, campos de Results e vocabulário MongoDB. IA é opcional se estável. Revisar cliques, espaço, navegação, atalhos, menus e integração Explorer/Editor/Results.
 
 **Status:** 🚧 Em desenvolvimento. Driver/Console executam pipelines textuais; explain bruto existe nas ferramentas; autocomplete, seleção/statement, highlighting e delimitadores têm código. Não equivalem a cobertura completa por versão de servidor, explain gráfico ou construtor visual. Formatação geral depende da Fase 1. A migração atual do editor para AvaloniaEdit deve ter evidência própria, sem reutilizar conclusões antigas do TextBox.

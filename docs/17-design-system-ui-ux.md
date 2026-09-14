@@ -1,5 +1,9 @@
 # Design system e revisão de UI/UX
 
+## Consultas avançadas — incremento de 14/09/2026
+
+Opções do editor recebe **Validar sintaxe** (todos os modos) e **Analisar pipeline (explain)** (Agregação). Validação funciona offline sobre seleção ou documento, publica diagnóstico no painel Erros e seleciona o trecho; sucesso vai para Mensagens. Explain exige destino conectado e usa Mensagens, preservando Resultados. Mesmo estilo neutro, recursos semânticos e rolagem do menu existente. Evidência: 18 PNGs `aggregation-diagnostic-*`; inspeção de 960 claro e 1366 escuro confirmou seleção e leitura do erro, com rolagem local na janela mínima. [Comportamento e limites](27-consultas-avancadas.md).
+
 Decisão vigente em **10/09/2026**, aprovada para implementação. Este documento substitui as propostas anteriores de conexões permanentemente à esquerda, cadastro acima do editor e script/resultados lado a lado. Requisitos relacionados: CON-01/08, EDT-01/02/04/06 e UX-01/02.
 
 ## Objetivo e referências

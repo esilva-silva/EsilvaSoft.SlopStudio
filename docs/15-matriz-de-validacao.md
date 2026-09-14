@@ -1,5 +1,11 @@
 # Matriz de validação
 
+## Incremento de consultas avançadas — 14/09/2026
+
+Suíte completa após o incremento: **623 aprovados, 0 falhas, 0 ignorados** em `tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/phase2-current.trx`. Testes Explicit de modelos IA continuam fora da seleção regular.
+
+Restore locked e build com `-p:UsedAvaloniaProducts=` aprovados. `phase2-analysis.trx`: 29 testes aprovados, incluindo validação offline, proteção de escrita, autocomplete básico contextual, localização no editor e isolamento/cancelamento de explain. MongoDB portátil **8.0.30**: fixture independente dos 12 stages, join, unwind, facet, resultado Bia/5, contagem 2 e plano real aprovados; nenhuma coleção de saída criada. 18 PNGs `aggregation-diagnostic-*` gerados; inspeção de claro 960 e escuro 1366 confirmou seleção do erro e painel de diagnóstico. Validação Headless não comprova leitor de tela ou sessão nativa. [Pendências de aceite](27-consultas-avancadas.md).
+
 Este documento separa o que já possui evidência local do que exige um ambiente MongoDB/mongosh real. Nenhuma linha marcada como pendente deve ser apresentada como homologada.
 
 | Área | Windows | Linux | Evidência local | Validação externa necessária |

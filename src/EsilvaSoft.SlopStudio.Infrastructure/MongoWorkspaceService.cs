@@ -635,11 +635,18 @@ public sealed class MongoWorkspaceService : IMongoWorkspaceService
 
     public async Task<QueryPage> AggregateAsync(ConnectionProfile profile, AggregationQuery query, CancellationToken cancellationToken = default)
     {
+        try { return await AggregateCoreAsync(profile, query, cancellationToken).ConfigureAwait(false); }
+        catch (MongoCommandException exception) { throw QueryServerDiagnostics.Describe(exception); }
+    }
+
+    private async Task<QueryPage> AggregateCoreAsync(ConnectionProfile profile, AggregationQuery query, CancellationToken cancellationToken)
+    {
         _operation.Value = new OperationEnvironment(_environments, _secrets, profile.Id);
         await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
         await _operation.Value.PrepareAsync(profile, cancellationToken).ConfigureAwait(false);
         query.Validate();
         var stages = ParsePipeline(query.PipelineJson);
+        AggregationPipelineValidator.ValidateReadPipeline(new BsonArray(stages));
         var startedAt = Stopwatch.GetTimestamp();
         var pipeline = PipelineDefinition<BsonDocument, BsonDocument>.Create(stages);
         using var cursor = await GetCollection(profile, query.Database, query.Collection)
@@ -666,6 +673,31 @@ public sealed class MongoWorkspaceService : IMongoWorkspaceService
         }
 
         return new QueryPage(documents, Stopwatch.GetElapsedTime(startedAt), documents.Count == query.Limit);
+    }
+
+    public async Task<string> ExplainAggregationAsync(ConnectionProfile profile, AggregationQuery query, CancellationToken cancellationToken = default)
+    {
+        try { return await ExplainAggregationCoreAsync(profile, query, cancellationToken).ConfigureAwait(false); }
+        catch (MongoCommandException exception) { throw QueryServerDiagnostics.Describe(exception); }
+    }
+
+    private async Task<string> ExplainAggregationCoreAsync(ConnectionProfile profile, AggregationQuery query, CancellationToken cancellationToken)
+    {
+        _operation.Value = new OperationEnvironment(_environments, _secrets, profile.Id);
+        await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+        await _operation.Value.PrepareAsync(profile, cancellationToken).ConfigureAwait(false);
+        query.Validate();
+        var pipeline = new BsonArray(ParsePipeline(query.PipelineJson));
+        AggregationPipelineValidator.ValidateReadPipeline(pipeline);
+        var command = new BsonDocument
+        {
+            ["explain"] = new BsonDocument { ["aggregate"] = query.Collection, ["pipeline"] = pipeline, ["cursor"] = new BsonDocument() },
+            ["verbosity"] = "queryPlanner",
+            ["maxTimeMS"] = 30000
+        };
+        var result = await CreateClient(profile).GetDatabase(query.Database)
+            .RunCommandAsync<BsonDocument>(command, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return result.ToJson(CanonicalJsonSettings);
     }
 
     public async Task<DatabaseExportResult> ExportDatabaseAsync(ConnectionProfile profile, DatabaseExportRequest request, CancellationToken cancellationToken = default)

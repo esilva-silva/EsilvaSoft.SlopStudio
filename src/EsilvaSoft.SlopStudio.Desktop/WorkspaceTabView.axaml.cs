@@ -57,6 +57,48 @@ public partial class WorkspaceTabView : UserControl
         if (top + bottom > 0 && TopLevel.GetTopLevel(this) is MainWindow { WorkspaceModel: { } vm }) vm.EditorRatio = top / (top + bottom);
     }
     private CancellationTokenSource? _formatCancellation;
+    private CancellationTokenSource? _validationCancellation;
+    public Task ValidationTask { get; private set; } = Task.CompletedTask;
+    private async void ValidateCode(object? sender, RoutedEventArgs e) { ValidationTask = ValidateCoreAsync(); await ValidationTask; }
+    private async Task ValidateCoreAsync()
+    {
+        if (DataContext is not WorkspaceTabViewModel { IsRunning: false } tab) return;
+        _validationCancellation?.Cancel();
+        using var operation = tab.Operations.Begin("Validando sintaxe local", ApplicationOperationPriority.Normal);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(operation.Token);
+        _validationCancellation = cancellation;
+        var document = CodeEditor.Document;
+        var original = document.Text;
+        var mode = tab.Mode;
+        var profile = tab.Profile; var database = tab.Database; var collection = tab.Collection;
+        var start = CodeEditor.SelectionLength > 0 ? CodeEditor.SelectionStart : 0;
+        var length = CodeEditor.SelectionLength > 0 ? CodeEditor.SelectionLength : original.Length;
+        try
+        {
+            var result = await tab.ValidateCodeAsync(original.Substring(start, length), mode == "Agregação", cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (DataContext != tab || CodeEditor.Document != document || document.Text != original || tab.IsRunning || tab.Mode != mode ||
+                tab.Profile != profile || tab.Database != database || tab.Collection != collection)
+            { operation.Complete(ApplicationOperationStatus.Warning, "Texto ou contexto alterado; diagnóstico descartado."); return; }
+            var message = (length == original.Length ? "Editor: " : "Seleção: ") + result.Message;
+            if (result.IsValid) { tab.Messages = message; tab.Errors = ""; tab.ResultTabIndex = 1; }
+            else
+            {
+                tab.Errors = message; tab.ResultTabIndex = 2;
+                CodeEditor.SelectionStart = start + Math.Clamp(result.Offset, 0, length);
+                CodeEditor.SelectionEnd = start + Math.Clamp(result.Offset + result.Length, 0, length);
+                CodeEditor.CaretIndex = CodeEditor.SelectionStart;
+                CodeEditor.Focus();
+            }
+            operation.Complete(result.IsValid ? ApplicationOperationStatus.Success : ApplicationOperationStatus.Warning,
+                result.IsValid ? "Sintaxe válida localmente" : "Diagnóstico disponível em Erros");
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        { operation.Complete(ApplicationOperationStatus.Cancelled, "Validação cancelada"); }
+        catch (Exception ex)
+        { tab.Errors = "Validação não concluída: " + OperationErrorMessages.Describe(ex); tab.ResultTabIndex = 2; operation.Complete(ApplicationOperationStatus.Error); }
+        finally { if (ReferenceEquals(_validationCancellation, cancellation)) _validationCancellation = null; }
+    }
     public Task FormattingTask { get; private set; } = Task.CompletedTask;
     private async void FormatCode(object? sender, RoutedEventArgs e) { FormattingTask = FormatCoreAsync(); await FormattingTask; }
     private async Task FormatCoreAsync()
@@ -214,10 +256,10 @@ public partial class WorkspaceTabView : UserControl
         var mode = tab.Mode;
         _completionCancellation?.Cancel();
         using var cancellation = new CancellationTokenSource(); _completionCancellation = cancellation;
-        var profile = tab.Profile; var database = tab.Database;
+        var profile = tab.Profile; var database = tab.Database; var collection = tab.Collection;
         var menu = new MenuFlyout();
         bool IsCurrent() => _completionSession.Version == version && CodeEditor.CaretIndex == caret && tab.Text == original
-            && DataContext == tab && tab.Profile == profile && tab.Database == database && tab.Mode == mode && !cancellation.IsCancellationRequested;
+            && DataContext == tab && tab.Profile == profile && tab.Database == database && tab.Collection == collection && tab.Mode == mode && !cancellation.IsCancellationRequested;
         void AddInsertion(string text, string description, int start, int length, string? label = null)
         {
             var item = new MenuItem { Header = label ?? text };
@@ -240,6 +282,14 @@ public partial class WorkspaceTabView : UserControl
             if (completion is not null) AddInsertion(completion.Text, completion.Description, caret, 0);
             if (tab.IsConsole)
             {
+                var fields = tab.GetObservedCompletionFields(prefix);
+                var suggestions = prefix.Contains(".aggregate(", StringComparison.Ordinal)
+                    ? MqlAutocompleteService.GetAggregationSuggestions(prefix, fields) : MqlAutocompleteService.GetSuggestions(prefix, fields);
+                foreach (var suggestion in suggestions)
+                {
+                    var insertion = MqlAutocompleteService.ApplySuggestion(prefix, suggestion);
+                    AddInsertion(insertion, suggestion.Description, 0, caret, suggestion.Text);
+                }
                 try
                 {
                     var completions = await tab.GetConsoleCompletionsAsync(prefix, cancellation.Token);
@@ -251,7 +301,7 @@ public partial class WorkspaceTabView : UserControl
             }
             else
             {
-                var fields = MqlAutocompleteService.InferFieldPaths(tab.Documents);
+                var fields = tab.GetObservedCompletionFields(prefix);
                 var suggestions = tab.Mode == "Agregação" ? MqlAutocompleteService.GetAggregationSuggestions(prefix, fields) : MqlAutocompleteService.GetSuggestions(prefix, fields);
                 foreach (var suggestion in suggestions)
                 {
