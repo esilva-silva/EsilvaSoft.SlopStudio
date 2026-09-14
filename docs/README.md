@@ -24,7 +24,7 @@ Ao editar ou adicionar arquivos `.md`, execute `node scripts/build-docs-index.cj
 | Contratos e arquitetura | [04 — Compatibilidade](04-compatibilidade-e-capacidades.md), [05 — Arquitetura](05-arquitetura.md), [10 — ADRs](10-decisoes-arquiteturais.md) |
 | Dados e operação | [06 — Editor/BSON/UUID](06-editor-bson-e-uuid.md), [07 — Segurança/administração](07-dados-seguranca-e-administracao.md), [13 — Transferência lógica](13-exportacao-logica.md) |
 | Editor e exploração | [19 — Explorer](19-database-explorer.md), [20 — Console](20-console.md), [22 — Highlighting](22-syntax-highlighting.md) |
-| Inteligência opcional | [21 — Autocomplete local](21-autocomplete-local.md), [23 — ONNX/chat](23-onnx-slopcoder.md), [26 — IA local multimodelo](26-ia-local-multimodelo.md) |
+| Inteligência opcional | [21 — Autocomplete local](21-autocomplete-local.md), [23 — ONNX/chat](23-onnx-slopcoder.md), [26 — IA local multimodelo](26-ia-local-multimodelo.md), [Autocomplete MongoDB — padrão e plano](auto-complite/README.md) |
 | Qualidade e histórico | [08 — Testes](08-testes-e-qualidade.md), [11 — Fontes/evidências](11-fontes-e-evidencias.md), [12 — Acompanhamento](12-acompanhamento-da-implementacao.md) |
 
 ## Rastreabilidade e manutenção
