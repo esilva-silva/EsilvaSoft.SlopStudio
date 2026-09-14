@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net.Http.Headers;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -8,63 +9,86 @@ using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Infrastructure;
 
+/// <summary>When to choose a published folder; the list order is the display order.</summary>
+public sealed record RemoteModelVariantHint(string Folder, string Hint);
+
+/// <summary>A repository of ONNX GenAI exports and the transformers repository it was exported from.</summary>
+public sealed record RemoteModelRepository(string Repository, string? BaseRepository, IReadOnlyList<RemoteModelVariantHint> Variants);
+
 /// <summary>
-/// Lists the ONNX GenAI variants of a Hugging Face repository (top-level folders containing genai_config.json) and installs one
-/// into the models directory. The listing is pinned to one commit and every file is verified against the hash published by the hub.
+/// Lists the ONNX GenAI variants of Hugging Face repositories (top-level folders containing genai_config.json) and installs one
+/// into the models directory. Each listing is pinned to one commit and every file is verified against the hash published by the hub.
 /// </summary>
 public sealed class HuggingFaceModelSource : IRemoteModelSource, IDisposable
 {
-    public const string DefaultRepository = "esilva/SlopCoder-Mongo-0.5B-ONNX";
+    /// <summary>
+    /// SlopCoder-Mongo exports runnable by this build. The transformers repositories (SlopCoder-Mongo-0.5B and -1.5B-full) publish only
+    /// safetensors, which ONNX Runtime GenAI cannot load: they name the family and link to the model card.
+    /// </summary>
+    public static IReadOnlyList<RemoteModelRepository> DefaultRepositories { get; } =
+    [
+        new("esilva/SlopCoder-Mongo-0.5B-ONNX", "esilva/SlopCoder-Mongo-0.5B",
+        [
+            new("int4", "padrão em CPU: menor e mais rápido"),
+            new("int8", "CPU: autocomplete um pouco melhor, mais memória"),
+            new("dml-fp16", "padrão com GPU: melhor qualidade e menor latência"),
+            new("dml-int4", "GPU com pouca memória livre")
+        ]),
+        new("esilva/SlopCoder-Mongo-1.5B-full-ONNX", "esilva/SlopCoder-Mongo-1.5B-full",
+        [
+            new("int8", "recomendado em CPU: melhor no Assistente IA, cerca de 3,8 GB de RAM"),
+            new("int4", "CPU com pouca memória: perde precisão em pedidos livres"),
+            new("dml-fp16", "recomendado com GPU: precisão do modelo original e baixa latência"),
+            new("dml-int4", "GPU com menos memória livre: mais tokens por segundo")
+        ])
+    ];
+
     private static readonly Uri DefaultBaseAddress = new("https://huggingface.co/");
     private static readonly TimeSpan ListTimeout = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan StallTimeout = TimeSpan.FromSeconds(60);
     private const long ProgressIntervalMilliseconds = 100;
-    private readonly string _repository;
+    private readonly IReadOnlyList<RemoteModelRepository> _repositories;
     private readonly Uri _baseAddress;
     private readonly HttpClient _http;
 
-    public HuggingFaceModelSource(string repository = DefaultRepository, HttpMessageHandler? handler = null, Uri? baseAddress = null)
+    public HuggingFaceModelSource(IReadOnlyList<RemoteModelRepository>? repositories = null, HttpMessageHandler? handler = null, Uri? baseAddress = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(repository);
-        _repository = repository;
+        _repositories = repositories ?? DefaultRepositories;
+        if (_repositories.Count == 0 || _repositories.Any(repository => !IsSafeRelativePath(repository.Repository) || !repository.Repository.Contains('/')))
+            throw new ArgumentException("Informe repositórios no formato dono/nome.", nameof(repositories));
         _baseAddress = baseAddress ?? DefaultBaseAddress;
+        RepositoryUrls = _repositories.Select(repository => new Uri(_baseAddress, repository.Repository)).ToArray();
         _http = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
         // Per-request limits: a timeout for the listing, a stall timeout for large files.
         _http.Timeout = Timeout.InfiniteTimeSpan;
         _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("EsilvaSoft.SlopStudio", "1"));
     }
 
-    public Uri RepositoryUrl => new(_baseAddress, _repository);
+    public IReadOnlyList<Uri> RepositoryUrls { get; }
 
     public async Task<IReadOnlyList<RemoteModelVariant>> ListAsync(CancellationToken cancellationToken)
     {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(ListTimeout);
-        try
+        var variants = new List<RemoteModelVariant>();
+        Exception? failure = null;
+        foreach (var repository in _repositories)
         {
-            using var info = await GetJsonAsync($"api/models/{_repository}", timeout.Token);
-            var revision = TryString(info.RootElement, "sha");
-            if (!IsHex(revision, 40)) throw new InvalidDataException("O repositório não informou uma revisão válida.");
-            var license = info.RootElement.TryGetProperty("cardData", out var card) && card.ValueKind == JsonValueKind.Object
-                ? TryString(card, "license_name") ?? TryString(card, "license") : null;
-            using var tree = await GetJsonAsync($"api/models/{_repository}/tree/{revision}?recursive=true", timeout.Token);
-            return BuildVariants(tree.RootElement, revision!, license);
+            try { variants.AddRange(await ListRepositoryAsync(repository, cancellationToken)); }
+            // One unreachable repository must not hide the models of the others.
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested && ex is HttpRequestException or TimeoutException or InvalidDataException or IOException)
+            {
+                failure ??= ex;
+            }
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new TimeoutException("O Hugging Face não respondeu a tempo.");
-        }
-        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or FormatException)
-        {
-            throw new InvalidDataException("Resposta inesperada do Hugging Face.", ex);
-        }
+        if (variants.Count == 0 && failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+        return variants;
     }
 
     public async Task<string> DownloadAsync(RemoteModelVariant variant, string modelsDirectory, IProgress<RemoteModelProgress>? progress, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(variant);
         ArgumentException.ThrowIfNullOrWhiteSpace(modelsDirectory);
-        if (!IsHex(variant.Revision, 40) || !IsSafeRelativePath(variant.Variant) || !IsSafeRelativePath(variant.FolderName) || variant.FolderName.Contains('/')
+        if (_repositories.All(repository => repository.Repository != variant.Repository) || !IsHex(variant.Revision, 40)
+            || !IsSafeRelativePath(variant.Variant) || !IsSafeRelativePath(variant.FolderName) || variant.FolderName.Contains('/')
             || variant.Files.Any(file => !file.Path.StartsWith(variant.Variant + "/", StringComparison.Ordinal) || !IsSafeRelativePath(file.Path)))
             throw new InvalidDataException("Descrição de modelo inválida.");
         var root = Path.GetFullPath(modelsDirectory);
@@ -98,7 +122,31 @@ public sealed class HuggingFaceModelSource : IRemoteModelSource, IDisposable
 
     public void Dispose() => _http.Dispose();
 
-    private RemoteModelVariant[] BuildVariants(JsonElement tree, string revision, string? license)
+    private async Task<RemoteModelVariant[]> ListRepositoryAsync(RemoteModelRepository repository, CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(ListTimeout);
+        try
+        {
+            using var info = await GetJsonAsync($"api/models/{repository.Repository}", timeout.Token);
+            var revision = TryString(info.RootElement, "sha");
+            if (!IsHex(revision, 40)) throw new InvalidDataException("O repositório não informou uma revisão válida.");
+            var license = info.RootElement.TryGetProperty("cardData", out var card) && card.ValueKind == JsonValueKind.Object
+                ? TryString(card, "license_name") ?? TryString(card, "license") : null;
+            using var tree = await GetJsonAsync($"api/models/{repository.Repository}/tree/{revision}?recursive=true", timeout.Token);
+            return BuildVariants(repository, tree.RootElement, revision!, license);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException($"O Hugging Face não respondeu a tempo para {repository.Repository}.");
+        }
+        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or FormatException)
+        {
+            throw new InvalidDataException($"Resposta inesperada do Hugging Face para {repository.Repository}.", ex);
+        }
+    }
+
+    private RemoteModelVariant[] BuildVariants(RemoteModelRepository repository, JsonElement tree, string revision, string? license)
     {
         var files = new List<(string Variant, RemoteModelFile File)>();
         foreach (var entry in tree.EnumerateArray())
@@ -114,12 +162,27 @@ public sealed class HuggingFaceModelSource : IRemoteModelSource, IDisposable
             if (size < 0) throw new InvalidDataException($"Tamanho inválido para {path}.");
             files.Add((path[..separator], new RemoteModelFile(path, size, sha256?.ToLowerInvariant(), oid!.ToLowerInvariant())));
         }
-        var repositoryName = _repository[(_repository.LastIndexOf('/') + 1)..];
+        var repositoryName = NameOf(repository.Repository);
+        var family = repository.BaseRepository is { } source ? NameOf(source)
+            : repositoryName.EndsWith("-ONNX", StringComparison.OrdinalIgnoreCase) ? repositoryName[..^5] : repositoryName;
+        var baseModelUrl = repository.BaseRepository is null ? null : new Uri(_baseAddress, repository.BaseRepository);
+        var repositoryUrl = new Uri(_baseAddress, repository.Repository).AbsoluteUri;
+        int Order(string folder)
+        {
+            for (var index = 0; index < repository.Variants.Count; index++)
+                if (repository.Variants[index].Folder == folder) return index;
+            return int.MaxValue;
+        }
         return files.GroupBy(item => item.Variant, StringComparer.Ordinal)
             .Where(group => group.Any(item => item.File.Path == group.Key + "/genai_config.json"))
-            .OrderBy(group => group.Key, StringComparer.Ordinal)
-            .Select(group => new RemoteModelVariant(_repository, revision, group.Key, $"{repositoryName}-{group.Key}", group.Sum(item => item.File.Size),
-                license, new Uri($"{RepositoryUrl.AbsoluteUri}/tree/{revision}/{Uri.EscapeDataString(group.Key)}"), group.Select(item => item.File).ToArray()))
+            .OrderBy(group => Order(group.Key)).ThenBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => new RemoteModelVariant(repository.Repository, revision, group.Key, $"{repositoryName}-{group.Key}", group.Sum(item => item.File.Size),
+                license, new Uri($"{repositoryUrl}/tree/{revision}/{Uri.EscapeDataString(group.Key)}"), group.Select(item => item.File).ToArray())
+            {
+                Family = family,
+                Hint = repository.Variants.FirstOrDefault(hint => hint.Folder == group.Key)?.Hint,
+                BaseModelUrl = baseModelUrl
+            })
             .ToArray();
     }
 
@@ -137,7 +200,7 @@ public sealed class HuggingFaceModelSource : IRemoteModelSource, IDisposable
         var part = destination + ".part";
         try
         {
-            var address = new Uri(_baseAddress, $"{_repository}/resolve/{variant.Revision}/{string.Join('/', file.Path.Split('/').Select(Uri.EscapeDataString))}");
+            var address = new Uri(_baseAddress, $"{variant.Repository}/resolve/{variant.Revision}/{string.Join('/', file.Path.Split('/').Select(Uri.EscapeDataString))}");
             using var response = await _http.GetAsync(address, HttpCompletionOption.ResponseHeadersRead, token);
             response.EnsureSuccessStatusCode();
             await using var source = await response.Content.ReadAsStreamAsync(token);
@@ -207,6 +270,8 @@ public sealed class HuggingFaceModelSource : IRemoteModelSource, IDisposable
         if (available < required)
             throw new IOException(string.Create(CultureInfo.CurrentCulture, $"Espaço insuficiente em {root}: são necessários {required / 1_000_000:N0} MB."));
     }
+
+    private static string NameOf(string repository) => repository[(repository.LastIndexOf('/') + 1)..];
 
     private static bool IsSafeRelativePath(string path) =>
         path.Length > 0 && !path.Contains('\\') && !path.Contains(':')

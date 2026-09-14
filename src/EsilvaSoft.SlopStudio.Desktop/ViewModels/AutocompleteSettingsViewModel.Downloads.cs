@@ -8,11 +8,23 @@ using EsilvaSoft.SlopStudio.Core;
 namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 /// <summary>A downloadable variant; installed means a folder with its name already exists in the models directory.</summary>
-public sealed class RemoteModelOption(RemoteModelVariant variant, bool isInstalled)
+public sealed class RemoteModelOption(RemoteModelVariant variant, bool isInstalled, bool hardwareMissing = false)
 {
     public RemoteModelVariant Variant { get; } = variant;
     public bool IsInstalled { get; } = isInstalled;
-    public string Display => $"{Variant.Variant} · {AutocompleteSettingsViewModel.FormatSize(Variant.SizeBytes)}" + (IsInstalled ? " — instalado" : "");
+
+    /// <summary>The variant needs a GPU and the runtime reported none available on this machine.</summary>
+    public bool HardwareMissing { get; } = hardwareMissing;
+
+    public string Title => Variant.Title;
+
+    public string Subtitle => string.Join(" · ", new[]
+    {
+        AutocompleteSettingsViewModel.FormatSize(Variant.SizeBytes), Variant.Hint,
+        HardwareMissing ? "GPU não detectada nesta máquina" : null, IsInstalled ? "instalado" : null
+    }.Where(part => !string.IsNullOrEmpty(part)));
+
+    public string Display => $"{Title} · {AutocompleteSettingsViewModel.FormatSize(Variant.SizeBytes)}" + (IsInstalled ? " — instalado" : "");
     public override string ToString() => Display;
 }
 
@@ -20,18 +32,24 @@ public sealed partial class AutocompleteSettingsViewModel
 {
     public ObservableCollection<RemoteModelOption> RemoteModels { get; } = [];
     public bool HasRemoteSource => _remote is not null;
+    public bool HasSelectedRemoteModel => SelectedRemoteModel is not null;
     public bool HasRemoteModelDetails => RemoteModelDetails.Length > 0;
     public bool HasDownloadStatus => DownloadStatus.Length > 0;
     public string DownloadPercent => $"{DownloadProgress:F0}%";
+
+    /// <summary>Card of the source model, falling back to the folder of the export.</summary>
+    public Uri? SelectedRemoteModelCardUrl => SelectedRemoteModel?.Variant.BaseModelUrl ?? SelectedRemoteModel?.Variant.PageUrl;
+
     public string RemoteSourceNotice => _remote is null ? ""
-        : $"Fonte: {_remote.RepositoryUrl.Host}{_remote.RepositoryUrl.AbsolutePath}. Ao baixar, você aceita a licença publicada no repositório. "
-          + "O download continua se esta janela for fechada; acompanhe ou cancele na barra inferior.";
+        : "Fonte: Hugging Face (" + string.Join(", ", _remote.RepositoryUrls.Select(url => url.AbsolutePath.Trim('/'))) + "), versões ONNX dos modelos SlopCoder-Mongo. "
+          + "Ao baixar, você aceita a licença publicada no repositório. O download continua se esta janela for fechada; acompanhe ou cancele na barra inferior.";
 
     public string RemoteModelDetails => SelectedRemoteModel is not { } option ? ""
-        : $"{option.Variant.FolderName} · {FormatSize(option.Variant.SizeBytes)} · licença {option.Variant.License ?? "não informada"} · "
-          + (option.IsInstalled ? "já instalado em " : "instala em ") + Path.Combine(EffectiveModelDirectory, option.Variant.FolderName);
+        : $"Licença {option.Variant.License ?? "não informada"} · " + (option.IsInstalled ? "já instalado em " : "instala em ")
+          + Path.Combine(EffectiveModelDirectory, option.Variant.FolderName);
 
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(RemoteModelDetails), nameof(HasRemoteModelDetails)), NotifyCanExecuteChangedFor(nameof(DownloadModelCommand))]
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(RemoteModelDetails), nameof(HasRemoteModelDetails), nameof(HasSelectedRemoteModel), nameof(SelectedRemoteModelCardUrl))]
+    [NotifyCanExecuteChangedFor(nameof(DownloadModelCommand))]
     private RemoteModelOption? _selectedRemoteModel;
     [ObservableProperty] private string _remoteModelsPlaceholder = "Lista de modelos não carregada";
     [ObservableProperty, NotifyCanExecuteChangedFor(nameof(DownloadModelCommand))] private bool _isDownloadingModel;
@@ -49,6 +67,23 @@ public sealed partial class AutocompleteSettingsViewModel
         return Task.CompletedTask;
     }
 
+    /// <summary>Creates the effective models directory when missing, so the file manager can open it.</summary>
+    public string? EnsureModelsDirectory()
+    {
+        var directory = EffectiveModelDirectory;
+        if (directory.Length == 0)
+        {
+            OperationStatus = "Diretório de modelos não definido.";
+            return null;
+        }
+        try { return Directory.CreateDirectory(directory).FullName; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            OperationStatus = $"Não foi possível criar {directory}: {ex.Message}";
+            return null;
+        }
+    }
+
     internal static string FormatSize(long bytes) => bytes >= 1_000_000_000
         ? string.Create(CultureInfo.CurrentCulture, $"{bytes / 1_000_000_000d:0.##} GB")
         : string.Create(CultureInfo.CurrentCulture, $"{Math.Max(1, Math.Round(bytes / 1_000_000d)):0} MB");
@@ -61,8 +96,8 @@ public sealed partial class AutocompleteSettingsViewModel
         try
         {
             var variants = await _remote.ListAsync(cancellationToken);
-            ShowRemoteModels(variants, SelectedRemoteModel?.Variant.Variant);
-            RemoteModelsPlaceholder = variants.Count == 0 ? "Nenhum modelo publicado no repositório" : "Escolha um modelo para baixar";
+            ShowRemoteModels(variants, SelectedRemoteModel?.Variant);
+            RemoteModelsPlaceholder = variants.Count == 0 ? "Nenhum modelo publicado nos repositórios" : "Escolha um modelo para baixar";
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { RemoteModelsPlaceholder = "Lista de modelos não carregada"; }
         catch (Exception) { RemoteModelsPlaceholder = "Lista indisponível. Confira a conexão e use Atualizar lista."; }
@@ -78,28 +113,28 @@ public sealed partial class AutocompleteSettingsViewModel
         var directory = EffectiveModelDirectory;
         IsDownloadingModel = true;
         DownloadProgress = 0;
-        DownloadStatus = $"Baixando {variant.FolderName} para {directory}…";
-        using var operation = _operations?.Begin($"Baixando modelo {variant.FolderName}", ApplicationOperationPriority.Normal, canCancel: true, cancellationToken);
+        DownloadStatus = $"Baixando {variant.Title} para {directory}…";
+        using var operation = _operations?.Begin($"Baixando modelo {variant.Title}", ApplicationOperationPriority.Normal, canCancel: true, cancellationToken);
         var token = operation?.Token ?? cancellationToken;
         var progress = new Progress<RemoteModelProgress>(update =>
         {
             if (!IsDownloadingModel) return;
             DownloadProgress = update.TotalBytes > 0 ? Math.Clamp(100d * update.CompletedBytes / update.TotalBytes, 0, 100) : 0;
-            DownloadStatus = $"Baixando {variant.FolderName}: {FormatSize(update.CompletedBytes)} de {FormatSize(update.TotalBytes)}.";
+            DownloadStatus = $"Baixando {variant.Title}: {FormatSize(update.CompletedBytes)} de {FormatSize(update.TotalBytes)}.";
             operation?.Report(update.CompletedBytes, update.TotalBytes);
         });
         try
         {
             // Hashing gigabytes stays off the UI thread; Progress<T> marshals updates back.
             var path = await Task.Run(() => remote.DownloadAsync(variant, directory, progress, token), CancellationToken.None);
-            operation?.Complete(ApplicationOperationStatus.Success, $"Modelo {variant.FolderName} baixado");
+            operation?.Complete(ApplicationOperationStatus.Success, $"Modelo {variant.Title} baixado");
             IsDownloadingModel = false;
             DownloadProgress = 100;
             await RefreshModelsCommand.ExecuteAsync(null);
             if (Models.FirstOrDefault(model => !model.IsExternal && string.Equals(model.Reference, variant.FolderName, PathComparison)) is { } installed)
             {
                 SelectedModelOption = installed;
-                DownloadStatus = $"Modelo instalado em {path} e selecionado. Clique em Salvar para usá-lo.";
+                DownloadStatus = $"{variant.Title} instalado em {path} e selecionado. Clique em Salvar para usá-lo.";
             }
             else DownloadStatus = $"Modelo baixado em {path}, mas o catálogo não o reconheceu. Confira as pastas ignoradas.";
         }
@@ -122,17 +157,20 @@ public sealed partial class AutocompleteSettingsViewModel
 
     private void RefreshInstalledRemoteModels()
     {
-        if (RemoteModels.Count > 0) ShowRemoteModels(RemoteModels.Select(option => option.Variant).ToArray(), SelectedRemoteModel?.Variant.Variant);
+        if (RemoteModels.Count > 0) ShowRemoteModels(RemoteModels.Select(option => option.Variant).ToArray(), SelectedRemoteModel?.Variant);
     }
 
-    private void ShowRemoteModels(IEnumerable<RemoteModelVariant> variants, string? selectedVariant)
+    private void ShowRemoteModels(IEnumerable<RemoteModelVariant> variants, RemoteModelVariant? selected)
     {
         var directory = EffectiveModelDirectory;
-        var options = variants.Select(variant => new RemoteModelOption(variant, IsInstalled(directory, variant))).ToArray();
+        // Only a completed detection that found no usable GPU marks GPU exports; an unknown state never warns.
+        var gpuMissing = _hardware.Count > 0 && !_hardware.Any(device => device.Kind == AiAccelerationMode.Gpu && device.IsAvailable);
+        var options = variants.Select(variant => new RemoteModelOption(variant, IsInstalled(directory, variant),
+            gpuMissing && variant.Flavor?.Hardware == AiAccelerationMode.Gpu)).ToArray();
         RemoteModels.Clear();
         foreach (var option in options) RemoteModels.Add(option);
-        SelectedRemoteModel = options.FirstOrDefault(option => option.Variant.Variant == selectedVariant)
-            ?? options.FirstOrDefault(option => !option.IsInstalled) ?? options.FirstOrDefault();
+        SelectedRemoteModel = options.FirstOrDefault(option => selected is not null && option.Variant.FolderName == selected.FolderName)
+            ?? options.FirstOrDefault(option => !option.IsInstalled && !option.HardwareMissing) ?? options.FirstOrDefault();
     }
 
     private static bool IsInstalled(string directory, RemoteModelVariant variant)

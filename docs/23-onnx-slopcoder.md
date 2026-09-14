@@ -85,6 +85,45 @@ Limites e pendências conhecidas:
 - ~~Contexto que excede a janela no chat descarrega o modelo~~ — corrigido na mesma revisão: `LocalModelContextException` é erro do pedido; o
   modelo continua carregado para o autocomplete.
 
+## Pacotes SlopCoder-Mongo DirectML (GPU) — 14/09/2026
+
+O pipeline externo gerou exportações compatíveis com DirectML, validadas nesta GPU (AMD Radeon RX 7800 XT) com o mesmo ONNX Runtime GenAI WinML
+0.15.2 do build Windows: `SlopCoder-Mongo-1.5B-full-ONNX-DML-FP16`, `-1.5B-full-ONNX-DML-INT4`, `-0.5B-ONNX-DML-FP16` e `-0.5B-ONNX-DML-INT4`.
+A falha em `DmlFusedNode_0_0` do pacote INT8 vinha de uma exportação feita para CPU; os pacotes DML são exportados com o provider `dml` do
+builder, e o INT4 mantém a embedding fora da quantização (`GatherBlockQuantized` não roda sob a captura de grafo do DirectML).
+
+Todos os pacotes do pipeline (inclusive os CPU, versão 1.1.0) trazem `slopstudio-model.json`: `hardware` `["gpu"]` nos DML e `["cpu"]` nos
+INT4/INT8, `capabilities` autocomplete/chat/fim, contexto recomendado 2048, 32 tokens no autocomplete e 256 no chat.
+
+Medições do pipeline externo (um processo por vez na GPU; chat livre nos mesmos 120 pedidos escritos à mão da seção anterior):
+
+| pacote | chat livre (120) | cego (40) | TTFT médio / p95 | tokens/s (chat) | disco |
+|---|---:|---:|---:|---:|---:|
+| **SlopCoder-Mongo-1.5B-full DML-FP16** | **87** | **29** | ~156 / ~178 ms | ~95 | 2,9 GB |
+| SlopCoder-Mongo-1.5B-full DML-INT4 | 85 | 27 | ~168 / ~202 ms | ~139 | 1,3 GB |
+| SlopCoder-Mongo-0.5B DML-FP16 | 72 | 21 | ~113 / ~133 ms | ~141 | 963 MB |
+| SlopCoder-Mongo-1.5B-full INT8 (CPU, referência) | 87 | 29 | ~486 / ~578 ms | ~32 | 2,5 GB |
+
+O DML-FP16 acerta os mesmos pedidos que o modelo mesclado; com GPU, o 1.5B-full responde mais rápido que o 0.5B INT4 em CPU (~206 ms). O
+0.5B DML-INT4 perde precisão no autocomplete sem ganhar TTFT; prefira o DML-FP16 do 0.5B.
+
+Evidência neste checkout (build Debug WinML existente, sem alteração de código):
+
+| Verificação | Resultado |
+|---|---|
+| `RealModelTestRunsOnTheRequestedHardware(Gpu)` com `SLOP_QWEN_MODEL` = 1.5B-full DML-FP16, 1.5B-full DML-INT4 e 0.5B DML-FP16 | Aprovado nos três: provider DirectML, etapas pasta/tokenizer/sessão/geração OK |
+| `RealModelTestRunsOnTheRequestedHardware(Auto)` com 1.5B-full DML-FP16 | Aprovado em DirectML |
+| `RealModelTestRunsOnTheRequestedHardware(Auto)` com 1.5B-full INT8 (`hardware` `["cpu"]`) | Aprovado direto em CPU, sem tentativa DirectML |
+| Harness externo (DLLs da IDE, GPU explícita, 120 pedidos por pacote DML) | 0 nulos, 0 falhas do runtime, texto idêntico ao benchmark Python |
+
+TRX em TestResults do projeto de testes: `slopcoder-1.5b-full-dml-fp16-gpu.trx`, `slopcoder-1.5b-full-dml-int4-gpu.trx`,
+`slopcoder-0.5b-dml-fp16-gpu.trx`, `slopcoder-1.5b-full-dml-fp16-auto.trx`, `slopcoder-1.5b-full-int8-cpu-auto.trx`.
+
+Limites: não houve uso interativo da janela com esses pacotes; desde 14/09/2026 os pacotes DML dos dois tamanhos constam na lista do
+**Baixar modelo** ([ADR-039](10-decisoes-arquiteturais.md)), sem download completo homologado pela janela. Nos testes do pipeline externo, carregar um segundo modelo DirectML no mesmo processo depois de liberar o primeiro encerrou o
+processo; a troca de modelo da [IA local multimodelo](26-ia-local-multimodelo.md) com dois pacotes DML não foi exercitada — se o carregamento
+falhar após a troca, reinicie a aplicação. NPU e CUDA seguem não homologados.
+
 ## Enquadramento de versão — 13/09/2026
 
 🧪 Experimental no roadmap v0.9.0: integração local disponível, mas fidelidade conversacional, cobertura pt-BR/en das ações e GPU continuam gates próprios. O MVP v0.5.0 usa autocomplete determinístico sem exigir modelo. Consolidação de release v1.0.0 não deve depender de experimentos não aprovados. [Roadmap](09-plano-de-implementacao.md) e [inventário](24-inventario-roadmap.md).

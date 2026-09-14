@@ -16,19 +16,28 @@
         <TextBlock Text="Modo"/>
         <ComboBox ItemsSource="{Binding Modes}" SelectedIndex="{Binding ModeIndex}" HorizontalAlignment="Stretch" AutomationProperties.Name="Modo de autocomplete"/>
         <TextBlock Text="Diretório de modelos"/>
-        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
           <TextBox Text="{Binding ModelDirectory}" PlaceholderText="{Binding DefaultDirectory}" AutomationProperties.Name="Diretório de modelos"/>
           <Button Grid.Column="1" Content="Procurar…" Click="ChooseModelsDirectory"/>
+          <Button Grid.Column="2" Content="Abrir pasta" Click="OpenModelsDirectory" ToolTip.Tip="Abre o diretório de modelos no gerenciador de arquivos. Os downloads são salvos nele." AutomationProperties.Name="Abrir diretório de modelos"/>
         </Grid>
         <TextBlock Text="Cada subpasta é um modelo. Vazio usa o diretório padrão indicado no campo." Classes="metadata" TextWrapping="Wrap"/>
         <TextBlock Text="Modelo"/>
         <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-          <ComboBox ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModelOption}" PlaceholderText="Nenhum modelo selecionado" HorizontalAlignment="Stretch" AutomationProperties.Name="Modelo">
+          <ComboBox ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModelOption}" PlaceholderText="Nenhum modelo selecionado" HorizontalAlignment="Stretch" ToolTip.Tip="{Binding SelectedModelOption.Title, FallbackValue={x:Null}}" AutomationProperties.Name="Modelo">
             <ComboBox.ItemTemplate>
               <DataTemplate x:DataType="vm:LocalModelOption">
-                <TextBlock Text="{Binding Display}" TextTrimming="CharacterEllipsis"/>
+                <StackPanel Spacing="1">
+                  <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
+                  <TextBlock Text="{Binding Subtitle}" Classes="metadata" TextTrimming="CharacterEllipsis" IsVisible="{Binding HasSubtitle}"/>
+                </StackPanel>
               </DataTemplate>
             </ComboBox.ItemTemplate>
+            <ComboBox.SelectionBoxItemTemplate>
+              <DataTemplate x:DataType="vm:LocalModelOption">
+                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
+              </DataTemplate>
+            </ComboBox.SelectionBoxItemTemplate>
           </ComboBox>
           <Button Grid.Column="1" Content="Atualizar" Command="{Binding RefreshModelsCommand}"/>
           <Button Grid.Column="2" Content="Outra pasta…" Click="ChooseExternalModel" AutomationProperties.Name="Usar pasta de modelo externa"/>
@@ -37,22 +46,32 @@
         <TextBlock Text="{Binding ModelDiagnostics}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding HasModelDiagnostics}"/>
         <TextBlock Text="Baixar modelo" IsVisible="{Binding HasRemoteSource}"/>
         <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" IsVisible="{Binding HasRemoteSource}">
-          <ComboBox ItemsSource="{Binding RemoteModels}" SelectedItem="{Binding SelectedRemoteModel}" PlaceholderText="{Binding RemoteModelsPlaceholder}" HorizontalAlignment="Stretch" AutomationProperties.Name="Modelo para baixar">
+          <ComboBox ItemsSource="{Binding RemoteModels}" SelectedItem="{Binding SelectedRemoteModel}" PlaceholderText="{Binding RemoteModelsPlaceholder}" HorizontalAlignment="Stretch" ToolTip.Tip="{Binding SelectedRemoteModel.Title, FallbackValue={x:Null}}" AutomationProperties.Name="Modelo para baixar">
             <ComboBox.ItemTemplate>
               <DataTemplate x:DataType="vm:RemoteModelOption">
-                <TextBlock Text="{Binding Display}" TextTrimming="CharacterEllipsis"/>
+                <StackPanel Spacing="1">
+                  <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
+                  <TextBlock Text="{Binding Subtitle}" Classes="metadata" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
               </DataTemplate>
             </ComboBox.ItemTemplate>
+            <ComboBox.SelectionBoxItemTemplate>
+              <DataTemplate x:DataType="vm:RemoteModelOption">
+                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
+              </DataTemplate>
+            </ComboBox.SelectionBoxItemTemplate>
           </ComboBox>
           <Button Grid.Column="1" Content="Baixar" Command="{Binding DownloadModelCommand}" IsVisible="{Binding !IsDownloadingModel}" ToolTip.Tip="Baixa o modelo escolhido para o diretório de modelos" AutomationProperties.Name="Baixar modelo"/>
           <Button Grid.Column="1" Content="Cancelar" Command="{Binding DownloadModelCancelCommand}" IsVisible="{Binding IsDownloadingModel}" AutomationProperties.Name="Cancelar download do modelo"/>
           <Button Grid.Column="2" Content="Atualizar lista" Command="{Binding LoadRemoteModelsCommand}" IsEnabled="{Binding !IsDownloadingModel}" AutomationProperties.Name="Atualizar lista de modelos para baixar"/>
         </Grid>
+        <TextBlock Text="{Binding SelectedRemoteModel.Subtitle, FallbackValue=''}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding HasSelectedRemoteModel}"/>
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding IsDownloadingModel}">
           <ProgressBar MinWidth="0" Height="6" Minimum="0" Maximum="100" Value="{Binding DownloadProgress}" VerticalAlignment="Center" AutomationProperties.Name="Progresso do download do modelo"/>
           <TextBlock Grid.Column="1" Text="{Binding DownloadPercent}" Classes="metadata" VerticalAlignment="Center"/>
         </Grid>
         <TextBlock Text="{Binding RemoteModelDetails}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding HasRemoteModelDetails}"/>
+        <HyperlinkButton Content="Ver detalhes do modelo no Hugging Face" NavigateUri="{Binding SelectedRemoteModelCardUrl}" IsVisible="{Binding HasSelectedRemoteModel}" Padding="0" AutomationProperties.Name="Ver detalhes do modelo no Hugging Face"/>
         <TextBlock Text="{Binding DownloadStatus}" TextWrapping="Wrap" IsVisible="{Binding HasDownloadStatus}" AutomationProperties.Name="Estado do download do modelo"/>
         <TextBlock Text="{Binding RemoteSourceNotice}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding HasRemoteSource}"/>
         <TextBlock Text="Hardware"/>

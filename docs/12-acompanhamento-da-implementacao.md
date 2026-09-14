@@ -405,3 +405,21 @@ Implementada a [ADR-039](10-decisoes-arquiteturais.md): `RemoteModelVariant` (Co
 Build 0 avisos/erros; suíte regular **582 aprovados, 0 falhas, 2 ignorados**. Novos: `HuggingFaceModelSourceTests` (agrupamento por `genai_config.json`, revisão fixada, caminho inseguro ignorado, vetores independentes SHA-1 de blob git e SHA-256, pasta instalada não sobrescrita, arquivo corrompido sem instalação e retomada sem novo download do verificado, cancelamento oculto do catálogo) e `ModelDownloadUiTests` (lista, pré-seleção, progresso, operação na barra, seleção após instalar, cancelamento pela barra, 18 PNGs). Verificação real contra o Hugging Face nesta máquina: listagem `int4` 415 MB e `int8` 1124 MB (10 arquivos, 3 LFS, revisão `9e2775a`) e download parcial de `genai_config.json`, `tokenizer_config.json` e `tokenizer.json` (LFS via CDN), com hashes conferidos e sem pasta temporária restante.
 
 Não homologado: download completo de 415 MB/1,1 GB seguido de Testar modelo, retomada após queda real de rede, Linux e espaço em disco insuficiente em volume real.
+
+## Modelos SlopCoder 0.5B e 1.5B-full, nomes e pasta — 14/09/2026
+
+Revisão da ADR-039: download de `esilva/SlopCoder-Mongo-0.5B-ONNX` e `esilva/SlopCoder-Mongo-1.5B-full-ONNX` (CPU INT4/INT8 e GPU DirectML INT4/FP16). Os repositórios safetensors `SlopCoder-Mongo-0.5B` e `-1.5B-full` viram família e link do card, sem download, porque o runtime não os carrega. `ModelDisplayNames` aplica "família — hardware precisão" ao download e à seleção; itens em duas linhas, dica com nome completo, aviso de GPU não detectada, link para o card e botão **Abrir pasta**.
+
+Build 0 avisos/erros; suíte regular **592 aprovados, 0 falhas, 2 ignorados**. Novos ou revistos: `ModelDisplayNamesTests` (convenção de pasta, metadata, hardware declarado, nomes fora da convenção preservados), `HuggingFaceModelSourceTests` (família do repositório base, ordem e dica do publicador, repositório inacessível sem esconder os demais, repositório não configurado recusado) e `ModelDownloadUiTests` (quatro títulos, dica, link do card, pasta criada pelo Abrir pasta, mesmo nome na seleção após instalar, 18 PNGs). Os `Display` de `LocalAiModelServiceTests` continuam iguais para pastas fora da convenção. Listagem real nesta máquina: 8 variantes com nomes, dicas, tamanhos e cards corretos (0.5B `f706662`, 1.5B-full `e683025`).
+
+Não homologado: abertura real da pasta pelo gerenciador de arquivos (Windows/Linux), download completo das variantes 1.5B e DirectML, e aviso de GPU com detecção real sem GPU.
+
+## Pacotes SlopCoder-Mongo DirectML homologados em GPU — 14/09/2026
+
+Sem alteração de código. O pipeline externo produziu pacotes `-ONNX-DML-FP16` e `-ONNX-DML-INT4` (1.5B-full e 0.5B) com `slopstudio-model.json`
+(`hardware` `["gpu"]`); os pacotes CPU passaram a declarar `["cpu"]`. Com o build Debug WinML existente (sem rebuild) e `SLOP_QWEN_MODEL`
+apontando para cada pacote: `RealModelTestRunsOnTheRequestedHardware(Gpu)` **aprovado** em DirectML para 1.5B-full DML-FP16, 1.5B-full DML-INT4
+e 0.5B DML-FP16; `(Auto)` aprovado em DirectML com o 1.5B-full DML-FP16 e direto em CPU com o 1.5B-full INT8. Isso resolve, para esses pacotes,
+a falha de geração em GPU explícita registrada na IA local multimodelo (a exportação anterior era para CPU). Métricas, TRX e limites em
+[23](23-onnx-slopcoder.md#pacotes-slopcoder-mongo-directml-gpu--14092026). Não homologados: uso interativo da janela, troca entre dois pacotes
+DirectML no mesmo processo, download pelo **Baixar modelo**, NPU e CUDA.

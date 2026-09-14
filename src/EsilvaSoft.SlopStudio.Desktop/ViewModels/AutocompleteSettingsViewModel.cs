@@ -11,22 +11,33 @@ public sealed partial class LocalModelOption(string reference, bool isExternal, 
 {
     public string Reference { get; } = reference;
     public bool IsExternal { get; } = isExternal;
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(Display), nameof(Model))] private LocalModelValidation? _validation = validation;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(Display), nameof(Title), nameof(Subtitle), nameof(HasSubtitle), nameof(Model))]
+    private LocalModelValidation? _validation = validation;
     public LocalModelDefinition? Model => Validation?.Model;
     public string FolderName => IsExternal ? Path.GetFileName(Path.TrimEndingDirectorySeparator(Reference)) : Reference;
 
-    /// <summary>Folder name by default, or the metadata name; unusable folders are labeled, never hidden when selected.</summary>
-    public string Display
+    /// <summary>
+    /// Family, hardware and precision when the folder or metadata follows the SlopCoder naming ("SlopCoder-Mongo-0.5B — CPU INT4");
+    /// otherwise the metadata name or folder. Unusable folders are labeled, never hidden when selected.
+    /// </summary>
+    public string Title
     {
         get
         {
             var state = Validation is null || Model is not null ? ""
                 : Validation.Status.State == LocalModelState.NotInstalled ? " — não encontrado"
                 : " — " + LocalAiStatusFormatter.ValidityLabel(Validation.Validity);
-            return (Model?.Name ?? FolderName) + (IsExternal ? " — externo" : "") + state;
+            var name = ModelDisplayNames.ForInstalled(FolderName, Model?.Metadata) ?? Model?.Name ?? FolderName;
+            return name + (IsExternal ? " — externo" : "") + state;
         }
     }
 
+    /// <summary>Parameters, architecture and the folder that identifies the model.</summary>
+    public string Subtitle => Model is not { } model ? ""
+        : string.Join(" · ", new[] { model.Metadata?.Parameters, model.Architecture, "pasta " + FolderName }.Where(part => !string.IsNullOrEmpty(part)));
+
+    public bool HasSubtitle => Subtitle.Length > 0;
+    public string Display => Title;
     public override string ToString() => Display;
 }
 
@@ -236,6 +247,8 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
             option.Label = device is null ? LocalAiStatusFormatter.HardwareLabel(option.Mode) + " — indisponível" : LocalAiStatusFormatter.DeviceLine(device);
         }
         DetectedHardware = string.Join("\n", _hardware.Select(LocalAiStatusFormatter.DeviceLine));
+        // GPU exports are marked only after the runtime reported which devices exist.
+        RefreshInstalledRemoteModels();
         RefreshStatus();
     }
 

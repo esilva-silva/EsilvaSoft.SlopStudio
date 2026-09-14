@@ -54,6 +54,16 @@ public partial class AutocompleteSettingsWindow : Window
         catch (Exception) { model.OperationStatus = "Não foi possível abrir o seletor de pasta."; }
     }
 
+    private async void OpenModelsDirectory(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not AutocompleteSettingsViewModel model || model.EnsureModelsDirectory() is not { } directory) return;
+        try
+        {
+            if (!await Launcher.LaunchDirectoryInfoAsync(new DirectoryInfo(directory))) model.OperationStatus = $"Não foi possível abrir a pasta. Caminho: {directory}";
+        }
+        catch (Exception) { model.OperationStatus = $"Não foi possível abrir a pasta. Caminho: {directory}"; }
+    }
+
     private void CloseDialog(object? sender, RoutedEventArgs e) => Close();
     protected override void OnKeyDown(KeyEventArgs e)
     {
