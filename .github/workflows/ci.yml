@@ -1,29 +1,43 @@
-name: build-and-test
+name: ci
 
 on:
   push:
+    branches: ['**']
   pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
-  validate:
-    name: ${{ matrix.os }}
+  test:
+    name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
+      # The product targets both systems; Windows also compiles the WinML (DirectML) backend.
       matrix:
-        os: [windows-latest, ubuntu-latest]
-
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages*.lock.json'
       - run: dotnet restore EsilvaSoft.SlopStudio.slnx --locked-mode
-      - run: dotnet build EsilvaSoft.SlopStudio.slnx --no-restore
-      - run: dotnet test EsilvaSoft.SlopStudio.slnx --no-build --no-restore
-      - if: runner.os == 'Windows'
-        run: dotnet publish src/EsilvaSoft.SlopStudio.Desktop/EsilvaSoft.SlopStudio.Desktop.csproj --no-restore -r win-x64 --self-contained true -o artifacts/win-x64
-      - if: runner.os == 'Windows'
-        run: dotnet publish src/EsilvaSoft.SlopStudio.Desktop/EsilvaSoft.SlopStudio.Desktop.csproj --no-restore -r win-arm64 --self-contained true -o artifacts/win-arm64
-      - if: runner.os == 'Linux'
-        run: dotnet publish src/EsilvaSoft.SlopStudio.Desktop/EsilvaSoft.SlopStudio.Desktop.csproj --no-restore -r linux-x64 --self-contained true -o artifacts/linux-x64
+      - run: dotnet build EsilvaSoft.SlopStudio.slnx --no-restore -c Release
+      - run: dotnet test EsilvaSoft.SlopStudio.slnx --no-build --no-restore -c Release --logger trx --results-directory TestResults
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: TestResults

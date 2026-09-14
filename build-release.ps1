@@ -91,14 +91,18 @@ try {
         $packageName = "EsilvaSoft.SlopStudio-$Version-$rid"
         Remove-Item $publishDir -Recurse -Force -ErrorAction Ignore
 
-        # --no-restore: o restore travado acima já inclui os RIDs do Desktop; um restore
-        # implícito com -r propagaria o RID aos projetos referenciados e quebraria os lock files.
+        # Cada família usa seu backend ONNX e lock file (WinML no Windows, CPU no Linux), como no release.yml.
+        # O restore sem -r já inclui os RIDs do Desktop; um restore implícito com -r propagaria o RID
+        # aos projetos referenciados e quebraria os lock files.
+        $backend = if ($rid.StartsWith('win-')) { 'WinML' } else { 'Cpu' }
+        Invoke-Step "restore $rid ($backend)" { dotnet restore $DesktopProject --locked-mode "-p:SlopOnnxBackend=$backend" }
         Invoke-Step "publish $rid" {
             dotnet publish $DesktopProject `
                 --no-restore `
                 -c Release `
                 -r $rid `
                 --self-contained true `
+                "-p:SlopOnnxBackend=$backend" `
                 -p:PublishSingleFile=true `
                 -p:IncludeNativeLibrariesForSelfExtract=true `
                 -p:DebugType=none `
@@ -108,7 +112,7 @@ try {
                 -o $publishDir
         }
 
-        Remove-Item (Join-Path $publishDir '*.pdb'), (Join-Path $publishDir '*.xml') -ErrorAction Ignore
+        Remove-Item (Join-Path $publishDir '*.pdb'), (Join-Path $publishDir '*.xml'), (Join-Path $publishDir '*.lib') -ErrorAction Ignore
 
         Write-Host "==> package $rid" -ForegroundColor Cyan
         if ($rid.StartsWith('win-')) {
@@ -121,6 +125,9 @@ try {
             New-TarGz $publishDir (Join-Path $distDir "$packageName.tar.gz")
         }
     }
+
+    # Devolve o workspace ao backend padrão desta máquina para builds normais sem restore.
+    Invoke-Step 'restore (backend padrão)' { dotnet restore $Solution --locked-mode }
 
     Write-Host "`n==> checksums" -ForegroundColor Cyan
     $packages = Get-ChildItem $distDir -File | Where-Object { $_.Name -like '*.zip' -or $_.Name -like '*.tar.gz' } | Sort-Object Name
