@@ -271,6 +271,21 @@ Inspeção estática do checkout `e806ae4`, serviços concretos, chamadas de UI,
 
 Verificação documental: 68 requisitos originais preservados e EDT-08 acrescentado; status e versão nas 69 definições; seis fases com objetivo, escopo, exclusões, aceite, dependências e documentação. Links locais, tabelas e blocos de código conferidos. Três links antigos para TRX ausentes foram convertidos em referências textuais explícitas, preservando o registro sem oferecer download inexistente. Referências comparativas removidas conforme o escopo; não houve auditoria jurídica de terceiros nem alteração de avisos/licenças.
 
+## Homologação nativa Windows — 14/09/2026
+
+| Cenário | Evidência | Estado |
+| --- | --- | --- |
+| Conectar e navegar | Perfil `MvpNative` em MongoDB 8.0.30 local; databases `admin`, `config` e `local` carregados após expansão | ✅ Homologado |
+| Consulta e barra inferior | `system.version` retornou 1 documento; barra mostrou execução, cancelamento disponível e conclusão | ✅ Homologado |
+| Exportação JSON | Seletor nativo salvou Extended JSON válido | ✅ Homologado |
+| Exportação CSV | Seletor nativo salvou cabeçalho `_id,version` e linha `featureCompatibilityVersion,8.0`; extensão digitada prevalece sobre filtro inicial | ✅ Homologado |
+| Cancelamento de consulta | Ação **Cancelar** da barra inferior acionada durante execução; IDE retornou a `Pronto` e informou que efeitos já enviados não são revertidos | ✅ Homologado |
+| Cancelamento de exportação | Testes de streaming cancelam após escrita parcial, propagam `CancellationToken` e removem o arquivo incompleto | ✅ Homologado |
+| Linux visual | Validação visual dispensada por decisão de escopo | ⏭️ Fora do aceite |
+| Clipboard Windows | Botão **Copiar JSON** retornou o documento completo no clipboard nativo, sem credenciais | ✅ Homologado |
+| Leitor de tela/cold start CPU-RAM | Leitor de tela não executado; startup/CPU-RAM possui uma amostra nativa | ⚠️ Parcial |
+| Medição de inicialização Windows | 1.396 ms até janela; 220,3 MiB e 3.734,4 ms de CPU após 2 s, uma amostra sem inspeção visual | ⚠️ Medição inicial |
+
 ## Polimento MVP — 13/09/2026
 
 Restore locked e build sem restore com `-p:UsedAvaloniaProducts=` aprovados, zero avisos/erros. Suíte `mvp-polish.trx`: **549 testes executados/aprovados, zero falhas**; 555 descobertos, seis casos explícitos de IA fora desta execução/MVP. Arquivo local: `tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/mvp-polish.trx`.

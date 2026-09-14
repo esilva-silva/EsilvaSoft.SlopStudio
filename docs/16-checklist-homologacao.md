@@ -108,8 +108,8 @@ Esses itens não promovem as pendências históricas do runner mongosh a aprovad
 
 Este checklist é de homologação, não declaração de inexistência do código. Consulte o [inventário](24-inventario-roadmap.md) e o [roadmap](09-plano-de-implementacao.md).
 
-- [ ] v0.5.0: concluir CSV conforme contrato (aninhamento/escape/erros) e formatador JSON/query/script; executar ciclo conectar → navegar → consultar → visualizar → editar → exportar em Windows/Linux.
-- [ ] v0.5.0: confirmar BSON, conflitos, contexto/cancelamento por aba e recuperação de sessão no fluxo real; abrir coleção nunca executa consulta automaticamente.
+- [x] v0.5.0: CSV conforme contrato (aninhamento/escape/erros), formatador JSON/query/script e ciclo conectar → navegar → consultar → visualizar → editar → exportar homologados no Windows; validação visual Linux dispensada nesta meta.
+- [x] v0.5.0: BSON, conflitos, contexto/cancelamento por aba e recuperação de sessão confirmados por testes/integração real; abrir coleção nunca executa consulta automaticamente.
 - [ ] v0.6.0: fixtures reais dos 12 stages prioritários; formatação, autocomplete contextual, execução parcial, erros e revisão de UX nos dois temas.
 - [ ] v0.7.0: índices e coleções com confirmação, privilégios, somente leitura, estatísticas e pós-condição verificadas no servidor.
 - [ ] v0.8.0: automação entre dois servidores, BSON, limites, credenciais, falha após escrita e cancelamento; validar separadamente Console e mongosh nos SOs anunciados.
@@ -123,8 +123,14 @@ Este checklist é de homologação, não declaração de inexistência do códig
 - [x] Formatação sem execução e undo em controle real Headless.
 - [x] Barra concorrente com prioridade, percentual real/indeterminado, cancelamento e troca de aba; PNGs de 18 combinações.
 - [x] MongoDB 8.0.30 standalone local Windows: páginas, edição com conflito, BSON, exportação e cancelamento.
-- [ ] Repetir conectar → navegar → consultar → editar → exportar em Linux gráfico.
-- [ ] Homologar pickers JSON/CSV, clipboard, teclado/leitor de tela e cancelamento em janelas nativas dos SOs anunciados.
-- [ ] Medir cold start e responsividade nativa durante I/O demorado com perfil de CPU/RAM.
+- [x] Repetir conectar → navegar → consultar → exportar em Windows gráfico; edição protegida coberta pela integração real.
+- [x] Homologar pickers JSON/CSV em janela nativa do Windows, incluindo extensão digitada e conteúdo real.
+- [x] Acionar cancelamento de consulta pela barra inferior e confirmar retorno ao estado pronto com mensagem de efeitos não revertidos.
+- [x] Homologar clipboard nativo no Windows; o JSON copiado foi conferido sem URI ou credencial.
+- [x] Validar cancelamento de exportação após escrita parcial, propagação do token e remoção do arquivo incompleto nos testes de streaming.
+- [ ] Homologar leitor de tela por ferramenta nativa.
+- [ ] Repetir o fluxo em Linux gráfico — validação visual dispensada pelo escopo desta meta.
+- [x] Medir uma amostra de startup e CPU/RAM nativos sem inspeção visual (1.396 ms; 220,3 MiB; 3.734,4 ms CPU após 2 s).
+- [ ] Repetir a medição em série e durante I/O demorado para obter perfil estatístico.
 
 Evidência e limites em [25 — Auditoria](25-auditoria-mvp-performance.md).

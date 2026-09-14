@@ -4,6 +4,10 @@ Referência: **13/09/2026**. Produto desktop .NET 10/Avalonia, Windows/Linux, Li
 
 ## Comece por aqui
 
+Abra [o índice HTML](index.html) para navegar pelo índice lateral e ler documentos, tabelas e exemplos no painel principal. O leitor acompanha o tema do sistema e funciona sem internet. Links entre Markdown permanecem no próprio painel.
+
+Ao editar ou adicionar arquivos `.md`, execute `node scripts/build-docs-index.cjs` na raiz do repositório para atualizar a cópia de leitura local. Quando servido por HTTP, o leitor busca o conteúdo atual dos arquivos; a lista de documentos continua sendo gerada por esse comando. O renderizador Marked e sua licença MIT estão em `docs/assets/`.
+
 1. [Roadmap por versão](09-plano-de-implementacao.md): seis fases, objetivos, inclusões/exclusões, aceite, dependências e status.
 2. [Inventário de implementação](24-inventario-roadmap.md): recortes verificados em código e testes; lacunas reais.
 3. [Catálogo funcional](03-catalogo-funcional.md): IDs preservados, versão e status de cada requisito.

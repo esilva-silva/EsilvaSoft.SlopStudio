@@ -96,8 +96,10 @@ public partial class WorkspaceTabView : UserControl
                 Title = "Exportar página carregada — JSON ou CSV", SuggestedFileName = "resultados.json", DefaultExtension = "json",
                 FileTypeChoices = [new FilePickerFileType("Extended JSON") { Patterns = ["*.json"] }, new FilePickerFileType("CSV · proteção de fórmulas") { Patterns = ["*.csv"] }] });
             if (selection.File is not { } file) return;
-            var csv = selection.SelectedFileType is { } selectedType ? selectedType.Patterns?.Contains("*.csv") == true
-                : string.Equals(Path.GetExtension(file.Path.LocalPath), ".csv", StringComparison.OrdinalIgnoreCase);
+            // O nome digitado pelo usuário deve prevalecer sobre o filtro inicial
+            // do diálogo quando a extensão indicar explicitamente CSV.
+            var csv = string.Equals(Path.GetExtension(file.Path.LocalPath), ".csv", StringComparison.OrdinalIgnoreCase)
+                || (selection.SelectedFileType is { } selectedType && selectedType.Patterns?.Contains("*.csv") == true);
             using var operation = tab.Operations.Begin($"Exportando página — {documents.Length} documentos", ApplicationOperationPriority.High);
             try
             {

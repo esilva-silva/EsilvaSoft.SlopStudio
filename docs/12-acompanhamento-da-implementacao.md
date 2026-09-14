@@ -390,6 +390,12 @@ CPU e Automático e `RealQwenGeneratesWithCpuAndReusesNativeSession` aprovados; 
 sem fallback — incompatibilidade do pacote, registrada como não homologada. Evidência visual: PNGs Headless da modal nos dois temas e três tamanhos.
 Não homologado: NPU, CUDA, Linux, diálogo nativo de pasta e uso interativo com MongoDB real.
 
+## Homologação do MVP no Windows — 14/09/2026
+
+Após a correção da seleção de formato por extensão, o build passou com 0 avisos/erros e a suíte completa passou com **594 aprovados, 0 falhas** usando o fixture MongoDB portátil 8.0.30. Os dois testes `MongoReal` confirmaram paginação, CRUD, edição protegida com conflito, tipos BSON, UUIDs, índices, somente leitura, exportação e cancelamento.
+
+Na aplicação nativa, o perfil `MvpNative` conectou em `127.0.0.1:55440`, a árvore carregou `admin/config/local`, a consulta de `system.version` retornou 1 documento e a barra inferior exibiu execução, cancelamento disponível e conclusão. O cancelamento foi acionado durante outra consulta e a IDE voltou ao estado pronto com a mensagem de efeitos não revertidos automaticamente. **Copiar JSON** foi validado no clipboard do Windows e retornou o documento completo sem credenciais. O seletor do Windows produziu JSON válido e CSV real (`"_id","version"` / `"featureCompatibilityVersion","8.0"`). Os testes de streaming confirmaram cancelamento de exportação após escrita parcial e limpeza do arquivo incompleto. Uma medição sem inspeção visual abriu a janela em 1.396 ms; após 2 s o processo usava 220,3 MiB e acumulava 3.734,4 ms de CPU. A validação visual Linux está dispensada; leitor de tela permanece fora da homologação disponível.
+
 ## Atualização automática — 14/09/2026
 
 Implementada a [ADR-038](10-decisoes-arquiteturais.md): `AppVersion`/`AppUpdateSelector` (Core), `IAppUpdateService` (Application), `GitHubAppUpdateService` (Infrastructure), `AppUpdateViewModel`, botão **Atualizar** na barra superior e troca de arquivos em `Program.Main` após o fechamento, com opção Reiniciar agora. Canal estável; pré-release só para instalação em pré-release. SHA-256 obrigatório, rollback por renomeação e erro persistido no pendente.

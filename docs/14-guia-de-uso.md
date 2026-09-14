@@ -213,6 +213,12 @@ Use `{ "CreatedAt": ISODate("2024-12-30T20:56:44.999Z") }` em documentos e `db.C
 
 Limites de homologação e medições: [auditoria do MVP](25-auditoria-mvp-performance.md).
 
+## Homologação nativa do MVP no Windows — 14/09/2026
+
+O fluxo validado conecta o perfil `MvpNative`, expande databases sob demanda, executa a consulta somente após **Executar** e mostra o estado da operação na barra inferior. O seletor **Exportar página…** salvou Extended JSON e CSV usando o filtro escolhido ou a extensão digitada; CSV produz cabeçalhos e linhas com valores BSON convertidos para strings conforme a política documentada.
+
+A validação visual Linux está dispensada. O clipboard nativo do Windows foi validado no fluxo de resultados. Exportações canceladas após escrita parcial removem o arquivo incompleto, conforme os testes de streaming. Uma medição inicial sem inspeção visual abriu a janela em 1.396 ms e registrou 220,3 MiB de working set após estabilização; leitor de tela ainda não faz parte da evidência desta máquina.
+
 ## Atualizações
 
 Nos pacotes publicados (zip/tar.gz dos releases), o Slop Studio consulta os releases do GitHub 10 s após abrir e a cada 6 h. Havendo versão nova, aparece **Atualizar** à direita da barra superior (só o ícone em janelas estreitas; a dica mostra a versão). Clique para baixar: o progresso e **Cancelar** ficam na barra inferior. Ao concluir, o botão vira **Reiniciar**: escolha **Reiniciar agora** ou **Depois**. Em ambos os casos a nova versão é instalada quando o programa fecha, com as confirmações habituais de execuções e rascunhos.

@@ -1,0 +1,38 @@
+// Browser smoke checks: node scripts/check-docs-reader.cjs <playwright module path>
+const { chromium } = require(process.argv[2] || 'playwright');
+const { pathToFileURL } = require('node:url');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+(async () => {
+  const browser = await chromium.launch({ headless: true, channel: 'msedge' });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto(pathToFileURL(path.resolve('docs/index.html')).href);
+  await page.waitForSelector('#viewer-body h1');
+  assert.equal(await page.locator('.card').count(), 29);
+  await page.locator('[data-file="03-catalogo-funcional.md"]').click();
+  await page.waitForSelector('#viewer-body table');
+  assert.ok(await page.locator('#viewer-body th').count() > 0);
+  await page.screenshot({ path: 'docs-reader-dark.png' });
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.screenshot({ path: 'docs-reader-light.png' });
+  await page.locator('[data-file="17-design-system-ui-ux.md"]').click();
+  await page.waitForSelector('#viewer-body pre');
+  assert.equal(await page.locator('pre p, pre h2').count(), 0);
+  assert.ok((await page.locator('pre').first().textContent()).includes('Conexões'));
+  await page.locator('#search').fill('design');
+  assert.equal(await page.locator('[aria-current="page"]').count(), 1);
+  await page.locator('#search').fill('');
+  await page.locator('[data-file="README.md"]').click();
+  await page.waitForFunction(() => document.querySelector('#viewer-body h1')?.textContent.includes('Documentação'));
+  await page.locator('#viewer-body a[href$="03-catalogo-funcional.md"]').first().click();
+  await page.waitForSelector('#viewer-body table');
+  assert.ok(page.url().includes('03-catalogo-funcional.md'));
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  assert.deepEqual(errors, []);
+  await browser.close();
+  console.log('PASS: local reading, 29 entries, tables, code, selection, internal links, narrow layout; no JS errors.');
+})().catch(error => { console.error(error); process.exitCode = 1; });
