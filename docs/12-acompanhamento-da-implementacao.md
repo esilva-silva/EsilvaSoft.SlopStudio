@@ -389,3 +389,11 @@ Build 0 avisos/erros; suíte regular **564 aprovados, 0 falhas, 2 ignorados**. R
 CPU e Automático e `RealQwenGeneratesWithCpuAndReusesNativeSession` aprovados; teste em GPU explícita falhou na geração DirectML e reportou o motivo
 sem fallback — incompatibilidade do pacote, registrada como não homologada. Evidência visual: PNGs Headless da modal nos dois temas e três tamanhos.
 Não homologado: NPU, CUDA, Linux, diálogo nativo de pasta e uso interativo com MongoDB real.
+
+## Atualização automática — 14/09/2026
+
+Implementada a [ADR-038](10-decisoes-arquiteturais.md): `AppVersion`/`AppUpdateSelector` (Core), `IAppUpdateService` (Application), `GitHubAppUpdateService` (Infrastructure), `AppUpdateViewModel`, botão **Atualizar** na barra superior e troca de arquivos em `Program.Main` após o fechamento, com opção Reiniciar agora. Canal estável; pré-release só para instalação em pré-release. SHA-256 obrigatório, rollback por renomeação e erro persistido no pendente.
+
+Build 0 avisos/erros; suíte regular **577 aprovados, 0 falhas, 2 ignorados**. Novos: `AppUpdateSelectorTests` (SemVer, canal, drafts, RID, checksums), `AppUpdateServiceTests` (zip e tar.gz sintéticos via `HttpMessageHandler`, hash divergente, cancelamento, rate limit, troca com executável aberto com compartilhamento de exclusão, rollback com `lastError` e nova tentativa, pendente obsoleto, detecção de build local) e `AppUpdateUiTests` (estados, barra de operações, cancelamento, 36 PNGs). A inspeção dos PNGs mostrou sobreposição Atualizar/Ambientes/Ferramentas em 960, corrigida com rótulo compacto abaixo de 1100.
+
+Não homologado: download real do GitHub seguido de troca e reinício em Windows e Linux (roteiro no plano: pacote local 0.4.9 → release v0.5.0), pasta sem escrita em instalação real e comportamento com antivírus bloqueando a renomeação.

@@ -3,6 +3,7 @@ namespace EsilvaSoft.SlopStudio.Infrastructure;
 public static class LocalWorkspacePaths
 {
     public static string GetModelsDirectory() => Path.Combine(Path.GetDirectoryName(GetDatabasePath())!, "Models");
+    public static string GetUpdatesDirectory() => Path.Combine(Path.GetDirectoryName(GetDatabasePath())!, "updates");
     public static string GetDatabasePath()
     {
         var root = OperatingSystem.IsWindows()

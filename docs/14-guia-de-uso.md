@@ -203,3 +203,13 @@ Use `{ "CreatedAt": ISODate("2024-12-30T20:56:44.999Z") }` em documentos e `db.C
 - A árvore mostra até 256 campos por grupo; expanda **Próximos campos…** para continuar. JSON e exportação continuam completos. Consultas permanecem limitadas no servidor; em páginas acima de 8 milhões de caracteres, reduza `limit` ou use projeção. Arquivos acima de 16 milhões de caracteres exigem um trecho menor.
 
 Limites de homologação e medições: [auditoria do MVP](25-auditoria-mvp-performance.md).
+
+## Atualizações
+
+Nos pacotes publicados (zip/tar.gz dos releases), o Slop Studio consulta os releases do GitHub 10 s após abrir e a cada 6 h. Havendo versão nova, aparece **Atualizar** à direita da barra superior (só o ícone em janelas estreitas; a dica mostra a versão). Clique para baixar: o progresso e **Cancelar** ficam na barra inferior. Ao concluir, o botão vira **Reiniciar**: escolha **Reiniciar agora** ou **Depois**. Em ambos os casos a nova versão é instalada quando o programa fecha, com as confirmações habituais de execuções e rascunhos.
+
+- Instalação estável recebe apenas versões estáveis; instalação em pré-release recebe também pré-releases mais novas.
+- O pacote só é instalado se o SHA-256 conferir com o publicado no release.
+- Se a pasta do programa não permitir escrita, o botão abre a página do release para download manual.
+- Falha na troca restaura os arquivos originais; a dica do botão mostra o motivo e uma nova tentativa ocorre no próximo fechamento.
+- Execução pelo código-fonte (`dotnet run`) não se atualiza. Para desativar numa instalação, defina `SLOPSTUDIO_DISABLE_UPDATES=1`. [Decisão e limites](10-decisoes-arquiteturais.md).

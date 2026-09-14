@@ -20,6 +20,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     private readonly Dictionary<Guid, UuidRepresentation> _profileUuidRepresentations = [];
     public WorkspaceService Workspace => _workspace;
     public ApplicationStatusViewModel Operations { get; }
+    public AppUpdateViewModel Updates { get; }
     public UuidPreferenceViewModel UuidPreferences { get; }
     public IdentifierPreferenceViewModel IdentifierPreferences { get; }
     public IAutocompleteService AutocompleteService { get; }
@@ -51,9 +52,10 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public event EventHandler? LayoutChanged;
 
     public WorkspaceViewModel(WorkspaceService workspace, IWorkspaceSessionRepository sessions, IAutocompleteService? autocomplete = null, ILocalModelCatalog? modelCatalog = null, IAiChatService? aiChat = null,
-        ILocalAiModelService? localModels = null)
+        ILocalAiModelService? localModels = null, IAppUpdateService? updates = null)
     {
         _workspace = workspace; _sessions = sessions; Operations = new(workspace.Operations); Details = new ExplorerDetailsViewModel(workspace);
+        Updates = new(updates, workspace.Operations);
         AutocompleteService = autocomplete ?? new AutocompleteService();
         AiChatService = aiChat ?? new AiChatService();
         AutocompletePreferences = new(AutocompleteService, modelCatalog, async settings =>
@@ -438,6 +440,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         if (_disposed) return;
         _disposed = true;
         Operations.Dispose();
+        Updates.Dispose();
         _debounce?.Cancel(); _debounce?.Dispose();
         foreach (var root in Roots) root.Invalidate();
         Details.Clear();

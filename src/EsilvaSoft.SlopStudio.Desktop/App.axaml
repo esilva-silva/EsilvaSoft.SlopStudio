@@ -162,6 +162,10 @@
       <Setter Property="Background" Value="{DynamicResource SecondaryBackground}" />
       <Setter Property="Foreground" Value="{DynamicResource SecondaryText}" />
     </Style>
+    <!-- Narrow windows keep the icon; tooltip and accessible name still carry the text. -->
+    <Style Selector="Button.compact TextBlock.command-label">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
     <Style Selector="Button.danger">
       <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
     </Style>

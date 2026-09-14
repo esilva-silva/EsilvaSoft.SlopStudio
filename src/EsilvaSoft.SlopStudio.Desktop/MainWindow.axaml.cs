@@ -15,6 +15,7 @@ public partial class MainWindow : Window
 {
     private bool _allowClose;
     private bool _closing;
+    private bool _restartAfterClose;
     public Task InitializationTask { get; private set; } = Task.CompletedTask;
     public Task ConnectionDialogTask { get; private set; } = Task.CompletedTask;
     public MainWindow()
@@ -218,6 +219,44 @@ public partial class MainWindow : Window
         }
         else if (e.Key == Key.Escape && vm.ActiveTab is { IsRunning: true } tab) { e.Handled = true; tab.CancelCommand.Execute(null); }
     }
+    private const double CompactTopBarWidth = 1100;
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        // Near the minimum width the top bar has no room for another labelled command.
+        if (change.Property == ClientSizeProperty && UpdateButton is not null) UpdateButton.Classes.Set("compact", ClientSize.Width < CompactTopBarWidth);
+    }
+
+    /// <summary>Action started by the update button; exposed for UI verification.</summary>
+    public Task UpdateActionTask { get; private set; } = Task.CompletedTask;
+    private void UpdateButtonClick(object? sender, RoutedEventArgs e) => UpdateActionTask = HandleUpdateAsync();
+    private async Task HandleUpdateAsync()
+    {
+        if (WorkspaceModel?.Updates is not { } updates) return;
+        switch (updates.State)
+        {
+            case AppUpdateUiState.Available:
+                await updates.DownloadCommand.ExecuteAsync(null);
+                break;
+            case AppUpdateUiState.ManualOnly when updates.Release is { } release:
+                await Launcher.LaunchUriAsync(release.PageUrl);
+                break;
+            case AppUpdateUiState.Ready:
+                var choice = await Dialogs.ChooseAsync(this, "Atualização pronta",
+                    $"A versão {updates.ReadyVersion} será instalada quando o Slop Studio fechar. Reiniciar agora? Abas em execução e rascunhos seguem as confirmações de um fechamento normal.",
+                    "Reiniciar agora", "Depois");
+                if (choice == "Reiniciar agora") RestartForUpdate();
+                break;
+        }
+    }
+
+    /// <summary>Closes through the normal flow; the entry point installs the update and starts the new version.</summary>
+    public void RestartForUpdate()
+    {
+        _restartAfterClose = true;
+        Close();
+    }
+
     protected override async void OnClosing(WindowClosingEventArgs e)
     {
         if (_allowClose) { base.OnClosing(e); return; }
@@ -242,10 +281,16 @@ public partial class MainWindow : Window
             {
                 if (await Dialogs.ChooseAsync(this, "Sessão não salva", ex.Message + "\nFechar sem recuperar as alterações desta sessão?", "Fechar sem recuperar", "Cancelar") != "Fechar sem recuperar") return;
             }
+            Program.RestartAfterExit = _restartAfterClose;
             _allowClose = true;
             vm.Dispose();
             Close();
         }
-        finally { _closing = false; }
+        finally
+        {
+            _closing = false;
+            // A cancelled close must not turn a later ordinary exit into a restart.
+            if (!_allowClose) _restartAfterClose = false;
+        }
     }
 }

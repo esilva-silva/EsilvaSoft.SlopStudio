@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:syntax="using:EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" x:Class="EsilvaSoft.SlopStudio.Desktop.MainWindow" x:DataType="vm:WorkspaceViewModel" Title="EsilvaSoft.SlopStudio" Icon="/Assets/slop-studio.ico" Width="1440" Height="900" MinWidth="960" MinHeight="620">
   <Grid RowDefinitions="40,*,36">
     <Border Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Padding="8,3">
-      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto,Auto" ColumnSpacing="4">
+      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="4">
         <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,12,0" VerticalAlignment="Center" AutomationProperties.Name="Slop Studio">
           <Image Source="{StaticResource BrandSymbol}" Width="32" Height="32" />
           <TextBlock Text="slop studio" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" />
@@ -37,8 +37,14 @@
           </StackPanel>
         </Button>
         <Button Grid.Column="6" Content="Ambientes" Click="OpenEnvironments" HorizontalAlignment="Center" ToolTip.Tip="Ambientes / Key Vault"/>
-        <ComboBox Grid.Column="7" ItemsSource="{Binding Themes}" SelectedItem="{Binding Theme}" Width="100" AutomationProperties.Name="Tema" />
-        <Button Grid.Column="8" Content="···" ToolTip.Tip="Mais ações" AutomationProperties.Name="Mais ações">
+        <Button Grid.Column="7" x:Name="UpdateButton" Classes="primary" Click="UpdateButtonClick" IsVisible="{Binding Updates.IsVisible}" ToolTip.Tip="{Binding Updates.ToolTip}" AutomationProperties.Name="Atualizar o Slop Studio" AutomationProperties.HelpText="{Binding Updates.ToolTip}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Path Classes="command-icon" Data="{StaticResource DownloadIcon}" />
+            <TextBlock Classes="command-label" Text="{Binding Updates.Label}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <ComboBox Grid.Column="8" ItemsSource="{Binding Themes}" SelectedItem="{Binding Theme}" Width="100" AutomationProperties.Name="Tema" />
+        <Button Grid.Column="9" Content="···" ToolTip.Tip="Mais ações" AutomationProperties.Name="Mais ações">
           <Button.Flyout>
             <MenuFlyout>
               <MenuItem Header="Salvar como…" Click="SaveAs" />

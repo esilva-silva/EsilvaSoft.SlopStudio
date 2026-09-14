@@ -13,7 +13,7 @@ Uma IDE de MongoDB para uso prolongado, com navegação previsível, destino exp
 ## Composição e medidas
 
 ```text
-Conexões | Nova aba | Abrir | Salvar | Ferramentas        Tema | …
+Conexões | Nova aba | Abrir | Salvar | Ferramentas   Ambientes   [Atualizar] | Tema | …
 ────────────────────────────────────────────────────────────────
 Bancos                  │ Abas de script/consulta/agregação
 Buscar / Atualizar      │ Conexão › Banco › Coleção | Contexto
@@ -221,3 +221,9 @@ A barra inferior passa a ter 36 unidades para comportar a ação Cancelar com al
 Os botões do editor usam quebra de linha na largura mínima, evitando sobreposição com Opções/Histórico. Opções contém Formatar JSON/query/script: seleção ou conteúdo completo, sem execução e com Ctrl+Z. Exportar página oferece JSON e CSV; a dica explicita página e proteção de fórmulas. Árvores carregam campos em grupos de 256, com Próximos campos…, sem cortar o JSON/exportação. Textos enormes são apresentados por trecho visual próximo ao cursor, mantendo o documento e a seleção completos.
 
 Evidência de controles reais: `MvpPolishUiTests`, 18 PNGs `mvp-status-<tema>-<largura>-<escala>.png`, nas três larguras/alturas e escalas do sistema. Inspeção revelou e corrigiu sobreposição da ProgressBar e da barra do editor. A fixture da barra usa operações sintéticas para tornar progresso e concorrência reproduzíveis; não é uma captura de produção. A matriz e a auditoria registram execução e limites.
+
+## Atualização do aplicativo — 14/09/2026
+
+A barra superior ganha a ação **Atualizar** entre Ambientes e Tema. Ela só aparece com versão nova ou pacote pronto; sem atualização, a composição anterior não muda. Botão `primary` (AccentBrush/OnAccentBrush), ícone de download 16, altura 32 e alvo mínimo 28. Rótulos curtos por estado: Atualizar, Baixando N%, Reiniciar. A dica e o HelpText trazem versão, motivo de falha e consequência (instalação ao fechar). Abaixo de 1100 de largura, a classe `compact` oculta o texto e mantém o ícone: em 960 o rótulo sobrepunha Ambientes a Ferramentas. Progresso e cancelamento reutilizam a barra inferior; Reiniciar pede confirmação (Reiniciar agora/Depois) e segue o fechamento normal.
+
+Evidência: `AppUpdateUiTests`, 36 PNGs `update-<available|downloading>-<tema>-<largura>-<escala>.png`. Inspeção de 960 claro/escuro (escala 1 e 2), 1366 escuro e 1920 claro confirmou ausência de sobreposição e contraste do rótulo no tema escuro. A fixture usa um serviço de atualização sintético; não é captura de download real.

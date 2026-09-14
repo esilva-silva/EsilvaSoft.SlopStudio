@@ -147,6 +147,8 @@ SLOP_QWEN_MODEL=/path/to/model dotnet test tests/EsilvaSoft.SlopStudio.UnitTests
 
 On Windows, `build-release.bat` wraps the same script. It produces self-contained single-file packages (`.zip` for Windows, `.tar.gz` for Linux) and `SHA256SUMS.txt` in `artifacts/release/<version>`.
 
+Published packages update themselves: the app checks GitHub Releases, shows an **Atualizar** button in the top bar when a newer version exists, downloads and verifies it (SHA-256) on click, and swaps the executable when it closes. Stable installs only receive stable releases. `dotnet run` never updates; set `SLOPSTUDIO_DISABLE_UPDATES=1` to opt out. Details: [ADR-038](docs/10-decisoes-arquiteturais.md) (Portuguese).
+
 ### CI/CD
 
 Everything runs on GitHub-hosted runners; no self-hosted or ARM hardware is required.
