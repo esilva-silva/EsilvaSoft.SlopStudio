@@ -39,9 +39,12 @@ public sealed partial class HardwareOption(AiAccelerationMode mode, string label
 }
 
 public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService service, ILocalModelCatalog? catalog,
-    Func<AutocompleteSettings, Task> save, ILocalAiModelService? models = null) : ObservableObject
+    Func<AutocompleteSettings, Task> save, ILocalAiModelService? models = null, IRemoteModelSource? remote = null,
+    IApplicationOperationService? operations = null) : ObservableObject
 {
     private static readonly StringComparison PathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+    private readonly IRemoteModelSource? _remote = remote;
+    private readonly IApplicationOperationService? _operations = operations;
     private IReadOnlyList<AiHardwareDevice> _hardware = [];
     private AiExecutionProvider _executionProvider;
     private string _chatModel = "";

@@ -35,6 +35,26 @@
         </Grid>
         <TextBlock Text="{Binding ModelDetails}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding HasModelDetails}"/>
         <TextBlock Text="{Binding ModelDiagnostics}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding HasModelDiagnostics}"/>
+        <TextBlock Text="Baixar modelo" IsVisible="{Binding HasRemoteSource}"/>
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" IsVisible="{Binding HasRemoteSource}">
+          <ComboBox ItemsSource="{Binding RemoteModels}" SelectedItem="{Binding SelectedRemoteModel}" PlaceholderText="{Binding RemoteModelsPlaceholder}" HorizontalAlignment="Stretch" AutomationProperties.Name="Modelo para baixar">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:RemoteModelOption">
+                <TextBlock Text="{Binding Display}" TextTrimming="CharacterEllipsis"/>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <Button Grid.Column="1" Content="Baixar" Command="{Binding DownloadModelCommand}" IsVisible="{Binding !IsDownloadingModel}" ToolTip.Tip="Baixa o modelo escolhido para o diretório de modelos" AutomationProperties.Name="Baixar modelo"/>
+          <Button Grid.Column="1" Content="Cancelar" Command="{Binding DownloadModelCancelCommand}" IsVisible="{Binding IsDownloadingModel}" AutomationProperties.Name="Cancelar download do modelo"/>
+          <Button Grid.Column="2" Content="Atualizar lista" Command="{Binding LoadRemoteModelsCommand}" IsEnabled="{Binding !IsDownloadingModel}" AutomationProperties.Name="Atualizar lista de modelos para baixar"/>
+        </Grid>
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding IsDownloadingModel}">
+          <ProgressBar MinWidth="0" Height="6" Minimum="0" Maximum="100" Value="{Binding DownloadProgress}" VerticalAlignment="Center" AutomationProperties.Name="Progresso do download do modelo"/>
+          <TextBlock Grid.Column="1" Text="{Binding DownloadPercent}" Classes="metadata" VerticalAlignment="Center"/>
+        </Grid>
+        <TextBlock Text="{Binding RemoteModelDetails}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding HasRemoteModelDetails}"/>
+        <TextBlock Text="{Binding DownloadStatus}" TextWrapping="Wrap" IsVisible="{Binding HasDownloadStatus}" AutomationProperties.Name="Estado do download do modelo"/>
+        <TextBlock Text="{Binding RemoteSourceNotice}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding HasRemoteSource}"/>
         <TextBlock Text="Hardware"/>
         <ComboBox ItemsSource="{Binding HardwareOptions}" SelectedIndex="{Binding HardwareIndex}" HorizontalAlignment="Stretch" AutomationProperties.Name="Hardware da IA local">
           <ComboBox.ItemTemplate>
@@ -59,7 +79,7 @@
           <TextBlock Grid.Row="2" Text="Atraso (ms)"/>
           <NumericUpDown Grid.Row="3" Minimum="50" Maximum="2000" Value="{Binding DelayMilliseconds}" AutomationProperties.Name="Atraso do autocomplete"/>
         </Grid>
-        <TextBlock Text="A sugestão aparece no cursor. Tab avança; Esc descarta. Ctrl+Espaço mantém as sugestões de Console/MQL. Os modelos são instalados separadamente." Classes="metadata" TextWrapping="Wrap"/>
+        <TextBlock Text="A sugestão aparece no cursor. Tab avança; Esc descarta. Ctrl+Espaço mantém as sugestões de Console/MQL. Baixe um modelo acima ou copie uma exportação ONNX GenAI para o diretório de modelos." Classes="metadata" TextWrapping="Wrap"/>
         <TextBlock Text="Estado do modelo" Classes="section-title"/>
         <TextBlock Text="{Binding Status}" TextWrapping="Wrap" AutomationProperties.Name="Estado do modelo"/>
         <TextBlock Text="Resultado do teste" Classes="section-title" IsVisible="{Binding HasTestReport}"/>

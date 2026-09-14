@@ -42,7 +42,7 @@ No phase has passed its formal acceptance gate yet: automated tests (including h
 - **Windows** (x64/ARM64) or **Linux** (x64/ARM64).
 - A reachable **MongoDB** server.
 - Optional: **mongosh** on `PATH` for the Script mode.
-- Optional: an external **ONNX Runtime GenAI** model export for local AI. Model weights are never downloaded or bundled.
+- Optional: an **ONNX Runtime GenAI** model export for local AI. Weights are never bundled; **Preferences → Autocomplete** can download the SlopCoder-Mongo 0.5B variants from Hugging Face on request, verified by hash.
 
 ## Getting started
 

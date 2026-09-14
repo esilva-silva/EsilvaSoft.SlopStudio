@@ -19,13 +19,14 @@ public partial class AutocompleteSettingsWindow : Window
             EnableAutocomplete.Focus();
             _statusTimer.Start();
             // Opening the AI preferences rescans the models directory and asks the runtime which hardware exists.
-            if (DataContext is AutocompleteSettingsViewModel model) await model.OpenedAsync();
+            if (DataContext is AutocompleteSettingsViewModel model) await Task.WhenAll(model.OpenedAsync(), model.LoadRemoteModelsIfNeededAsync());
         };
         Closed += (_, _) =>
         {
             _statusTimer.Stop();
             if (DataContext is not AutocompleteSettingsViewModel model) return;
-            model.TestCommand.Cancel(); model.RefreshModelsCommand.Cancel(); model.DetectHardwareCommand.Cancel();
+            // A model download keeps running after the dialog closes; the status bar shows and cancels it.
+            model.TestCommand.Cancel(); model.RefreshModelsCommand.Cancel(); model.DetectHardwareCommand.Cancel(); model.LoadRemoteModelsCommand.Cancel();
         };
     }
 

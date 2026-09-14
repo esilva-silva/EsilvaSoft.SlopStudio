@@ -13,6 +13,7 @@ Nenhuma parte da aplicação fora de `LocalAiModelService` e `OnnxLocalModelRunt
 - **Diretório de modelos**: padrão `%LOCALAPPDATA%\EsilvaSoft\SlopStudio\Models` (Linux: `$XDG_DATA_HOME/EsilvaSoft/SlopStudio/Models`). Pode ser trocado em Preferências; vazio usa o padrão.
 - **Modelo**: cada subpasta do diretório é um candidato. O nome exibido é o nome da pasta, ou `name` do metadata opcional.
 - **Pasta externa** (**Outra pasta…**): aceita um modelo fora do diretório. Se a pasta escolhida estiver diretamente dentro do diretório de modelos, é gravada pelo nome, não pelo caminho absoluto.
+- **Baixar modelo** (14/09/2026, [ADR-039](10-decisoes-arquiteturais.md)): lista as variantes publicadas em `esilva/SlopCoder-Mongo-0.5B-ONNX` (pastas de primeiro nível com `genai_config.json`) e instala a escolhida no diretório efetivo como `SlopCoder-Mongo-0.5B-ONNX-<variante>`. Baixa em `.<pasta>.download`, verifica cada arquivo pelo hash do hub, move a pasta pronta e reescaneia; nunca sobrescreve uma pasta existente. As variantes não publicam `slopstudio-model.json`: nome exibido e orçamentos seguem o padrão do catálogo.
 
 ```text
 Models/

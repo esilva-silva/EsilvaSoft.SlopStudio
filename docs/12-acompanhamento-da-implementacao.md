@@ -397,3 +397,11 @@ Implementada a [ADR-038](10-decisoes-arquiteturais.md): `AppVersion`/`AppUpdateS
 Build 0 avisos/erros; suíte regular **577 aprovados, 0 falhas, 2 ignorados**. Novos: `AppUpdateSelectorTests` (SemVer, canal, drafts, RID, checksums), `AppUpdateServiceTests` (zip e tar.gz sintéticos via `HttpMessageHandler`, hash divergente, cancelamento, rate limit, troca com executável aberto com compartilhamento de exclusão, rollback com `lastError` e nova tentativa, pendente obsoleto, detecção de build local) e `AppUpdateUiTests` (estados, barra de operações, cancelamento, 36 PNGs). A inspeção dos PNGs mostrou sobreposição Atualizar/Ambientes/Ferramentas em 960, corrigida com rótulo compacto abaixo de 1100.
 
 Não homologado: download real do GitHub seguido de troca e reinício em Windows e Linux (roteiro no plano: pacote local 0.4.9 → release v0.5.0), pasta sem escrita em instalação real e comportamento com antivírus bloqueando a renomeação.
+
+## Download de modelos SlopCoder — 14/09/2026
+
+Implementada a [ADR-039](10-decisoes-arquiteturais.md): `RemoteModelVariant` (Core), `IRemoteModelSource` (Application), `HuggingFaceModelSource` (Infrastructure) e seção **Baixar modelo** em Preferências → Autocomplete, com seletor de variantes, Baixar/Cancelar, Atualizar lista, progresso na modal e na barra inferior, verificação por hash, retomada e seleção do modelo instalado.
+
+Build 0 avisos/erros; suíte regular **582 aprovados, 0 falhas, 2 ignorados**. Novos: `HuggingFaceModelSourceTests` (agrupamento por `genai_config.json`, revisão fixada, caminho inseguro ignorado, vetores independentes SHA-1 de blob git e SHA-256, pasta instalada não sobrescrita, arquivo corrompido sem instalação e retomada sem novo download do verificado, cancelamento oculto do catálogo) e `ModelDownloadUiTests` (lista, pré-seleção, progresso, operação na barra, seleção após instalar, cancelamento pela barra, 18 PNGs). Verificação real contra o Hugging Face nesta máquina: listagem `int4` 415 MB e `int8` 1124 MB (10 arquivos, 3 LFS, revisão `9e2775a`) e download parcial de `genai_config.json`, `tokenizer_config.json` e `tokenizer.json` (LFS via CDN), com hashes conferidos e sem pasta temporária restante.
+
+Não homologado: download completo de 415 MB/1,1 GB seguido de Testar modelo, retomada após queda real de rede, Linux e espaço em disco insuficiente em volume real.

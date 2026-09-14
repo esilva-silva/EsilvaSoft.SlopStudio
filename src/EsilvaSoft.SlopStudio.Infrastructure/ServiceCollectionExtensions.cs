@@ -13,6 +13,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<MongoClientPool>();
         services.AddSingleton<IAutocompleteDiagnostics, AutocompleteDiagnostics>();
         services.AddSingleton<ILocalModelCatalog>(_ => new LocalModelCatalog());
+        services.AddSingleton<IRemoteModelSource>(_ => new HuggingFaceModelSource());
         services.AddSingleton<IAiHardwareProbe, OnnxHardwareProbe>();
         // One model service shared by autocomplete, chat and the preferences window.
         services.AddSingleton<ILocalAiModelService>(provider => new LocalAiModelService(

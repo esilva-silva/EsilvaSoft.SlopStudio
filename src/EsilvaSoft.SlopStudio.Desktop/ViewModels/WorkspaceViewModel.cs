@@ -52,7 +52,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public event EventHandler? LayoutChanged;
 
     public WorkspaceViewModel(WorkspaceService workspace, IWorkspaceSessionRepository sessions, IAutocompleteService? autocomplete = null, ILocalModelCatalog? modelCatalog = null, IAiChatService? aiChat = null,
-        ILocalAiModelService? localModels = null, IAppUpdateService? updates = null)
+        ILocalAiModelService? localModels = null, IAppUpdateService? updates = null, IRemoteModelSource? remoteModels = null)
     {
         _workspace = workspace; _sessions = sessions; Operations = new(workspace.Operations); Details = new ExplorerDetailsViewModel(workspace);
         Updates = new(updates, workspace.Operations);
@@ -65,7 +65,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
             try { await SaveSessionAsync(); }
             catch { _autocompleteSettings = previous; throw; }
             await AutocompleteService.ConfigureAsync(settings);
-        }, localModels);
+        }, localModels, remoteModels, workspace.Operations);
         Roots.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasNoConnections));
         UuidPreferences = new("Representação UUID · Binary BSON", allowInherit: false, () => UuidRepresentation, value => SetUuidRepresentationAsync(value ?? UuidRepresentation.Standard));
         IdentifierPreferences = new(() => UuidRepresentation, SetIdentifierModeAsync);
