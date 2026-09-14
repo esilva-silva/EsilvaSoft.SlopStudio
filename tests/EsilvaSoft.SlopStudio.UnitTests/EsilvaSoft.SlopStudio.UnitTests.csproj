@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/EsilvaSoft.SlopStudio.Desktop/EsilvaSoft.SlopStudio.Desktop.csproj" />
+    <ProjectReference Include="../../src/EsilvaSoft.SlopStudio.Core/EsilvaSoft.SlopStudio.Core.csproj" />
+    <ProjectReference Include="../../src/EsilvaSoft.SlopStudio.Application/EsilvaSoft.SlopStudio.Application.csproj" />
+    <ProjectReference Include="../../src/EsilvaSoft.SlopStudio.Infrastructure/EsilvaSoft.SlopStudio.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="Avalonia.Headless" />
+    <PackageReference Include="NUnit3TestAdapter" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,29 @@
+name: build-and-test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet restore EsilvaSoft.SlopStudio.slnx --locked-mode
+      - run: dotnet build EsilvaSoft.SlopStudio.slnx --no-restore
+      - run: dotnet test EsilvaSoft.SlopStudio.slnx --no-build --no-restore
+      - if: runner.os == 'Windows'
+        run: dotnet publish src/EsilvaSoft.SlopStudio.Desktop/EsilvaSoft.SlopStudio.Desktop.csproj --no-restore -r win-x64 --self-contained true -o artifacts/win-x64
+      - if: runner.os == 'Windows'
+        run: dotnet publish src/EsilvaSoft.SlopStudio.Desktop/EsilvaSoft.SlopStudio.Desktop.csproj --no-restore -r win-arm64 --self-contained true -o artifacts/win-arm64
+      - if: runner.os == 'Linux'
+        run: dotnet publish src/EsilvaSoft.SlopStudio.Desktop/EsilvaSoft.SlopStudio.Desktop.csproj --no-restore -r linux-x64 --self-contained true -o artifacts/linux-x64

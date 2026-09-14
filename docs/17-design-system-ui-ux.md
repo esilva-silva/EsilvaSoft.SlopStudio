@@ -1,0 +1,223 @@
+# Design system e revisão de UI/UX
+
+Decisão vigente em **10/09/2026**, aprovada para implementação. Este documento substitui as propostas anteriores de conexões permanentemente à esquerda, cadastro acima do editor e script/resultados lado a lado. Requisitos relacionados: CON-01/08, EDT-01/02/04/06 e UX-01/02.
+
+## Objetivo e referências
+
+Uma IDE de MongoDB para uso prolongado, com navegação previsível, destino explícito e área de edição prioritária. Não há nova implementação web: o produto permanece .NET 10/Avalonia para Windows e Linux.
+
+- [Fluent 2: cores](https://fluent2.microsoft.design/color) e [tipografia](https://fluent2.microsoft.design/typography): papéis semânticos e hierarquia compacta. Os tamanhos abaixo são decisões deste produto, não medidas prescritas por essas fontes.
+- [WCAG 2.2: contraste](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html): referência quantitativa aplicada aos controles desktop; não constitui certificação completa de acessibilidade.
+- [Avalonia: variantes de tema](https://docs.avaloniaui.net/docs/styling/theme-variants): recursos dinâmicos e alternância em tempo de execução.
+
+## Composição e medidas
+
+```text
+Conexões | Nova aba | Abrir | Salvar | Ferramentas        Tema | …
+────────────────────────────────────────────────────────────────
+Bancos                  │ Abas de script/consulta/agregação
+Buscar / Atualizar      │ Conexão › Banco › Coleção | Contexto
+                        │ Editor textual | Executar | Cancelar
+Conexão aberta          │ Editor
+ └ Banco                │
+    └ Coleções          ├───────────────────────────────────────
+                        │ Quantidade / limite / duração / exportar
+                        │ Resultados | Mensagens | Erros
+────────────────────────────────────────────────────────────────
+Estado | Origem                          Estado do rascunho local
+```
+
+Todas as medidas são unidades lógicas, escaladas pelo Avalonia:
+
+| Elemento | Decisão |
+| --- | --- |
+| Janela inicial / mínima | 1440 × 900 / 960 × 620 |
+| Barra superior / status | 40 / 36 (revisão MVP abaixo) |
+| Explorer | Inicial 260; ajuste entre 200 e 420 |
+| Editor / resultados | Inicial 60% / 40%; painéis mínimos 180 / 140 |
+| Divisores | 5; posições persistidas |
+| Modal de conexões | 800 × 560, limitada à janela proprietária; conteúdo com rolagem |
+| Controles / linhas do explorer | 32 / 28 |
+| Espaçamento / cantos | Múltiplos de 4 / raio 4 |
+
+A área central não usa rolagem global. Editor e saídas possuem rolagem independente. Consultas não abrem um popup de opções nem exibem campos separados para filtro, ordenação, banco ou limite: todos esses elementos são escritos no editor textual, com autocomplete e diagnóstico contextual. Ferramentas menos frequentes ficam em uma janela contextual proprietária. Formulários administrativos extensos mantêm rolagem local; docking complexo permanece fora desta entrega.
+
+## Cores e tipografia
+
+A identidade usa as referências locais de docs/ui: superfícies frias, azul para ação/foco e violeta para marca e títulos de abas selecionadas. O símbolo vetorial simplifica o recipiente inclinado com líquido azul/roxo. Veja o [manual de identidade](18-identidade-visual.md). Verde, âmbar e vermelho indicam estados acompanhados de texto. Cor personalizada de ambiente não substitui o nome do destino ou determina a cor do texto operacional.
+
+| Token | Claro | Escuro |
+| --- | --- | --- |
+| WorkspaceBackground | #F7F9FC | #0B1020 |
+| PanelBackground | #FFFFFF | #151D2E |
+| SecondaryBackground | #EEF3F9 | #111827 |
+| PrimaryText | #162033 | #F1F5F9 |
+| SecondaryText | #475569 | #94A3B8 |
+| AccentBrush | #1B6EDC | #38A8FF |
+| OnAccentBrush | #FFFFFF | #0F172A |
+| SelectionBrush | #D9EAFE | #193B67 |
+| SuccessBrush | #166534 | #3DDC97 |
+| WarningBrush | #92400E | #FBBF24 |
+| ErrorBrush | #B91C1C | #FB7185 |
+| DividerBrush | #CBD5E1 | #334155 |
+| ControlBorderBrush | #64748B | #94A3B8 |
+| HoverBrush | #E6EEF8 | #26334A |
+| AccentHoverBrush | #155EC4 | #60B9FF |
+| AccentPressedBrush | #124FA6 | #2589E8 |
+| BrandAccentBrush | #7357E8 | #9B7BFF |
+
+Texto comum e placeholders: contraste mínimo 4,5:1. Foco e limites necessários à identificação dos controles: 3:1. Divisores puramente decorativos e controles desabilitados têm papéis diferentes. Em seleção, metadados usam PrimaryText para preservar contraste.
+
+Texto sobre botão primário validado em normal, hover e pressionado nos dois temas (mínimo 4,5:1). O azul claro da referência foi escurecido para #1B6EDC no tema claro; o tema escuro usa texto #0F172A sobre #38A8FF. Estados têm recursos próprios e os adornos de foco do Fluent são preservados.
+
+- Interface: Inter embarcada, 13; metadados: 12; títulos de modal: 16 semibold; abas: 13 medium.
+- Código/resultados: 14 e entrelinha 21; ajuste de 12 a 20, com entrelinha proporcional de 1,5.
+- Fallback monoespaçado: Cascadia Mono, JetBrains Mono, Consolas, DejaVu Sans Mono, monospace. A fonte de código não é uma nova dependência distribuída.
+- Temas Sistema, Claro e Escuro; Sistema é o padrão. Preferência aplicada imediatamente e persistida.
+- O controle de texto atual permanece; syntax highlighting foi integrado em 12/09/2026 (revisão abaixo). Folding textual e nova grade BSON não são anunciados como entregues.
+
+## Jornadas e regras de interação
+
+### Conexões e explorer
+
+Conexões abre modal com busca por nome/host/pasta/ambiente, favoritos e edição completa. A lista mostra somente o host; usuário, senha e query string não aparecem no resumo. Nova conexão permite preencher a partir da URI, revisar e salvar. Testar valida o perfil selecionado. Abrir conexão carrega bancos e fecha a modal somente no sucesso; falha fica na modal.
+
+O explorer lista todos os perfis cadastrados; bancos aparecem sob as conexões abertas. Expandir banco busca suas coleções; atualizar permite repetir após falha. A busca filtra apenas nós já carregados. Selecionar navega; Enter ou duplo clique em coleção abre/ativa o Console com `db.getCollection("colecao").find({}).limit(100)`, sem executar. Conexão/banco formam o contexto; a coleção fica no script.
+
+Editar/remover um perfil invalida o explorer antigo e exige reabrir sua conexão antes de executar novamente. Isso impede reutilizar um banco listado de outro host ou uma política de acesso antiga. Os rascunhos continuam disponíveis.
+
+### Abas e execução
+
+Nova aba cria um editor. Cada aba possui ID, contexto, texto, arquivo, estado de alteração, resultados, mensagens, erros e cancelamento próprios. O contexto muda somente por ação explícita ou por carregar uma consulta da própria conexão; não há um modo paralelo de campos para montar a consulta.
+
+Uma execução por aba; abas diferentes podem executar simultaneamente. O executor captura os parâmetros antes do primeiro await. Retornos fora de ordem atualizam apenas a aba originária. Scripts recebem o banco explicitamente: o runner inicializa `db` por `getSiblingDB` com literal serializado, mantendo URI e authSource. O próprio script ainda pode escolher outro banco explicitamente.
+
+Resultados permanecem em Extended JSON, separados de stdout/stderr; consultas mantêm paginação e exportação da página. Agregação também usa o editor textual e o painel inferior. Quantidade, limite efetivo e duração aparecem junto à saída, sem transformar esses dados em campos obrigatórios do editor. Scripts sem documentos indicam o console. Erros não provocam nova execução de outro trecho.
+
+| Atalho | Comportamento |
+| --- | --- |
+| F5 | Executar conteúdo completo da aba |
+| Ctrl+Enter | Console: seleção ou statement no cursor; Script/Agregação: seleção ou conteúdo completo |
+| Ctrl+Espaço | Sugestões no editor; não substitui trecho se o texto mudou |
+| Ctrl+T / Ctrl+O / Ctrl+S | Criar aba / abrir arquivo / salvar arquivo |
+| Ctrl+Tab / Ctrl+Shift+Tab | Alternar abas |
+| Ctrl+W | Fechar aba com tratamento de alterações e execução |
+| F6 | Alternar foco entre editor e explorer, permitindo sair do editor que aceita Tab |
+| Escape | Fechar modal; no workspace, cancelar operação da aba ativa |
+
+Ao fechar uma aba executando: interromper e aguardar ou cancelar o fechamento. Cancelamento informa que efeitos no servidor não são revertidos e podem ser incertos. Abas alteradas oferecem salvar, descartar ou cancelar. Confirmações destrutivas, auditoria e bloqueios de somente leitura continuam nas ferramentas existentes.
+
+### Recuperação e privacidade
+
+Coleção LiteDB adicional `workspaceSession`, documento `current`, JSON de versão 1. O mesmo repositório continua proprietário da conexão LiteDB; a migração é aditiva. Contratos: `IWorkspaceSessionRepository`, `WorkspaceSession`, `WorkspacePreferences`, `WorkspaceDraft`.
+
+Autosave após 750 ms sem edição e no encerramento. Recuperar ordem, aba ativa, texto, contexto e arquivo; não recuperar resultados, credenciais ou conexões abertas. A entrada JSON só entra no snapshot mediante a opção Persistir entrada. Preferências de histórico são independentes do autosave.
+
+Recuperação ligada por decisão do usuário, desativável globalmente e por conexão em Preferências. A política também é aplicada no repositório. Descartar aba remove seu rascunho. Falha de gravação permanece visível e conserva o conteúdo em memória; sessão ilegível não é sobrescrita por defaults. Texto SQL/MQL/JavaScript digitado pelo usuário pode conter dados sensíveis: o armazenamento de rascunhos não é um cofre nem promete remover segredos arbitrários do código.
+
+## Validação e limites
+
+Testes cobrem isolamento, resposta fora de ordem, seleção sem fallback, cancelamento, somente leitura, perfil alterado, migração aditiva, autosave, opt-in de entrada, recuperação, descarte e falhas de persistência. Renderização Avalonia Headless/Skia usa controles reais e dados de teste em 960 × 620, 1366 × 768 e 1920 × 1080, escalas 100%, 150% e 200%, nos dois temas.
+
+As imagens ficam em `ui-evidence` no diretório de execução dos testes, excluído do controle de versão. Build, contagem final por sistema e pendências estão na [matriz de validação](15-matriz-de-validacao.md) e no [acompanhamento](12-acompanhamento-da-implementacao.md).
+
+Homologação contra MongoDB/mongosh real, leitor de tela, diálogos nativos de arquivo e gerenciadores de janela reais continuam separadas da renderização automatizada. Não declarar suporte integral a essas jornadas apenas com testes simulados. Tabela tabular, editor avançado, cofre nativo e virtualização de documentos permanecem no backlog; a árvore de inspeção da página foi acrescentada na revisão Database Explorer abaixo.
+
+## Prévias da implementação
+
+Renderização automatizada com dados sintéticos, 1366 × 768, escala 100%.
+
+![Tema claro](ui/preview-claro.png)
+
+![Tema escuro](ui/preview-escuro.png)
+
+
+## Ambientes e credenciais — revisão de 10/09/2026
+
+A barra superior oferece **Ambientes**, abrindo modal proprietária **Ambientes / Key Vault**. Seletor de ambiente, criação customizada, lista de chaves e editor com valor mascarado; controles tipados e recursos semânticos compartilhados. **Salvar e ativar ambiente** é explícito; selecionar para editar não altera o ambiente de execução. Erros de leitura/gravação ficam visíveis. Escape fecha apenas a modal e descarta o formulário não salvo. Layout inicial 760 × 540, mínimo 600 × 420, com rolagem local; evidência em 600 × 420, 760 × 540 e 900 × 650, escalas 100/150/200%, claro/escuro.
+
+Conexões aceita URI direta com senha ou interpolação opcional. Campos de usuário/senha são opcionais; valores digitados são codificados para URI, sem converter referências já existentes. O rótulo de ambiente no perfil não escolhe o Key Vault. Salvar ambientes invalida destinos explorados e requer reabertura; textos e operações em andamento são preservados. O estado do ambiente ativo aparece na modal. A interface informa armazenamento local sem criptografia nativa, sem confundir esse módulo com CSFLE.
+
+
+## Database Explorer — revisão de 10/09/2026
+
+O explorer passa a listar todos os perfis, inclusive desconectados, e inclui Documentos/Índices sob cada coleção. Estados de conexão/carga/erro têm texto. Botão direito e Shift+F10 dão acesso a menus específicos. **Detalhes do item** ocupa uma região recolhível de até 240 unidades, com conteúdo rolável; o restante da árvore conserva sua própria rolagem. Mantida a janela mínima 960 × 620 e o editor acima dos resultados.
+
+A saída ganha **Documentos**, com lista da página à esquerda, campos estruturados à direita e ações compactas em WrapPanel. Resultados JSON, mensagens e erros continuam separados. Editor de documento em modal proprietária de 760 × 560 (mínimo 600 × 420), destino visível, confirmação explícita e bloqueio de fechamento durante operação. Seleção de instância é uma modal contextual com host/papel e explicação de capacidade; a aba identifica seleção automática, direta na URI ou host explícito.
+
+Evidência: 18 PNGs de explorer/documentos (claro/escuro × 960/1366/1920 × 100/150/200%), editor de documento nos dois temas, menus reais e encaminhamento às ferramentas testados. Não houve modificação de golden files. [Guia e prévias](19-database-explorer.md).
+
+## Console — revisão de 11/09/2026
+
+Console é o modo inicial da aba e substitui Consulta JSON na seleção. Cabeçalho conexão › banco; Destino… permite trocar ambos. Coleção não é campo obrigatório. Os comandos de consulta ficam no texto; Opções contém apenas limites de segurança do Console e preferência de histórico.
+
+Resultados mostram expressões numeradas e a conexão/namespace quando conhecidos. Documentos oferece seletor do conjunto e conserva a origem para edição. Mensagens recebe console.log/warn/error. Confirmação de escrita é uma modal proprietária com contexto real; Escape nega o envio e cancelamento/timeout fecha a confirmação.
+
+Ctrl+Enter usa seleção ou statement identificado pelo parser; F5 executa tudo. Autocomplete obtém metadados assincronamente e descarta sugestões se texto/destino mudar. Rascunho JSON convertido fica alterado, sem execução automática. Renderização e teclado são verificados em controles reais, nos 18 cenários de tema/tamanho/escala. [Console](20-console.md).
+
+## Autocomplete local — revisão de 11/09/2026
+
+Preferências contém Autocomplete…, modal proprietária 660 × 680, mínimo 520 × 420, conteúdo rolável e ações/status no rodapé. Campos tipados em pt-BR: modo, diretório externo, modelos encontrados, hardware, contexto/geração/atraso. Estados do runtime e falhas de gravação são textuais. Recursos semânticos dos temas existentes; nenhum indicador apenas por cor.
+
+TextBox preservado. Ghost text no cursor, com fonte/entrelinha do código e SecondaryText; contexto existente conserva PrimaryText. Projeção visual recortada ao viewport, incluindo múltiplas linhas e sufixo, sem alterar documento. Tab avança por partes lógicas, Escape descarta antes de cancelar consulta e Ctrl+Espaço conserva menu com metadados. F6 continua saindo do editor. Preferências oferece opções independentes para dicionário, Input, campos dos Resultados, contexto ampliado e Tab incremental. Renderização em 18 combinações do workspace e 18 da modal, com controles reais, escalas 100/150/200% e dois temas. [Especificação e limites](21-autocomplete-local.md).
+
+## UUID/GUID — revisão de 11/09/2026
+
+Preferências passa a ter largura 560 (mínimo 460 × 420, altura máxima 760) e conteúdo rolável; Escape fecha. **Representação UUID padrão** fica após as opções de rascunho. O editor de conexão recebe **Representação UUID desta conexão**, com **Usar preferência global**, abaixo de Favorita/Somente leitura. Os dois usam `UuidRepresentationPanel`: seletor tipado, prévia do UUID `00112233-4455-6677-8899-aabbccddeeff` nas quatro formas em fonte de código 13, subtype e bytes em metadados. A linha efetiva recebe semibold e o texto “Selecionada”, sem depender só de cor. O literal ocupa a largura inteira da linha e não é truncado. Status de gravação usa ErrorBrush apenas junto de mensagem textual.
+
+A métrica dos resultados acrescenta “UUID <representação>” e a contagem de legados de origem desconhecida; o texto trunca com reticências e mantém a dica completa. A árvore de Documentos exibe UUID binário como folha com o construtor. Evidência: 18 PNGs para cada superfície (Documentos 960/1366/1920, Preferências 460×420/560×680/900×760, conexão 600×420/800×560/900×650; claro/escuro; 100/150/200%) em `ui-evidence/uuid-*.png`.
+
+## Resultados JSON e árvore — revisão de 11/09/2026
+
+O cabeçalho da saída recebe o seletor segmentado **JSON | Árvore** antes das métricas: `RadioButton.segment`, altura 32, opção ativa com SelectionBrush, borda AccentBrush e semibold, sem depender só de cor. **Copiar JSON** age no documento selecionado e explica por dica quando não há seleção. Escolher uma visualização traz Resultados à frente. Visualização, seleção e expansão ficam por aba, apenas em memória.
+
+- **JSON:** TextBox somente leitura, fonte de código configurável, rolagem horizontal e vertical. Indentação de 2; wrappers Extended JSON (`$oid`, `$date`, `$binary`, `$numberLong`…) em uma linha e tokens copiados sem conversão. No Console, cada conjunto recebe o comentário `// [n] conexão › banco › coleção · método · N documento(s) · limitado · projeção parcial`. O cursor seleciona o documento; seleção feita na árvore ou em Documentos reposiciona o cursor.
+- **Árvore:** TreeView com PanelBackground e borda ControlBorderBrush. Cada linha tem nome (semibold em conjunto e documento), chip de tipo (metadata 12 sobre SecondaryBackground; PrimaryText quando selecionada) e valor em fonte de código, truncado em 240 caracteres com dica completa. Console agrupa por conjunto; demais modos listam documentos. Filhos são criados ao expandir; o primeiro conjunto com documentos e um documento único abrem por padrão. Avisos são linhas de texto: sem documentos, resultado limitado, projeção parcial, agregação e JSON inválido.
+- **Menu do documento:** botão direito, Shift+F10 e tecla Menu, na árvore (item apontado ou selecionado) e no JSON (documento no cursor; o clique direito move o cursor). Legenda com documento e `_id`; **Visualizar documento em JSON**, **Abrir documento para edição** com motivo textual quando indisponível e **Copiar JSON**; no JSON também **Copiar texto selecionado**. Fechar o menu devolve o foco.
+- **Visualização JSON:** modal proprietária 760 × 560, mínimo 600 × 420; título 16 semibold, aviso de somente leitura, origem, conexão › banco › coleção, identidade e apresentação UUID; TextBox somente leitura; **Copiar JSON** primário, **Fechar** e Escape.
+- **Edição:** a modal de documento existente ganha linha de política, texto indentado sem quebra e **Salvar…**, desabilitado com dica em conexão somente leitura ou fechada.
+
+Evidência: 72 PNGs (JSON e árvore em 960 × 620, 1366 × 768 e 1920 × 1080; modais em 600 × 420, 760 × 560 e 900 × 650; claro/escuro; 100/150/200%) em `ui-evidence/results-*.png` e `ui-evidence/result-document-*.png`.
+
+![Resultados em árvore, tema claro](ui/resultados-arvore-claro.png)
+
+![Resultados em árvore, tema escuro](ui/resultados-arvore-escuro.png)
+
+
+## Syntax highlighting — revisão de 12/09/2026
+
+TextBox.syntax conserva edição/undo e usa SyntaxTextPresenter. Recursos Syntax.* nos dois temas diferenciam propriedades/strings, valores, operadores/stages, tipos BSON e namespaces conhecidos. Delimitadores junto do cursor recebem cor e sublinhado; ghost text usa recurso próprio e conserva as cores do texto existente. Resultados, modais, árvores e ferramentas reutilizam o mecanismo. Classificação em worker, cache por linha e spans do viewport protegem documentos extensos; o layout nativo do TextBox ainda não é virtualizado. Contraste mínimo 4,5:1 sobre PanelBackground e matrizes de PNGs reais de workspace/modal. [Arquitetura e limites](22-syntax-highlighting.md).
+
+## Identificadores — revisão de 12/09/2026
+
+Preferências mostram primeiro **Representação padrão de identificadores** e depois **Representação UUID · Binary BSON**. O seletor de modo usa os rótulos “Standard · ObjectId + UUID v4”, “ObjectId · MongoDB ObjectId” e “UUID v4 · BSON subtype 4”; abaixo vêm a explicação do modo selecionado (texto quebrável) e o card **Prévia do modo selecionado**, com as seções **ObjectId** (construtor, hex e UUID equivalente; cada linha com rótulo `metadata`, código em CodeFont 13 e detalhe) e **UUID** (UUID v4 na representação atual). Standard mostra as duas seções; ObjectId oculta a seção UUID e troca a comparação das quatro formas por uma frase; UUID v4 oculta a seção ObjectId. O status de gravação usa a mesma cor de erro do painel UUID. A árvore de Resultados acrescenta “· UUID …” (o UUID equivalente) ao valor do ObjectId somente em UUID v4, curto o bastante para a coluna de valor de 720 px; a dica mantém o texto integral; a métrica passa a “IDs <modo> · UUID <representação>”. O menu do documento ganha **Copiar _id**, **Copiar consulta por _id** e, em UUID v4, **Copiar UUID equivalente do _id**. Nas Ferramentas, **Gerar identificador** e a linha **Interpretar** ficam na aba Documentos, com rótulo truncável e dica. Evidência: `ui-evidence/identifier-results-*.png` (960/1366/1920) e `identifier-preferences-<modo>-*.png` (460×420, 560×680, 900×760), claro/escuro, 100/150/200%.
+
+## IA ONNX compartilhada — revisão de 13/09/2026
+
+A composição do editor e do Assistente IA permanece. Preferências → Autocomplete seleciona modelo e CPU/GPU para ambas as jornadas. O status identifica o provider efetivo e o fallback GPU → CPU; modo básico no chat é explicitamente identificado. Propostas ONNX exigem revisão e confirmação existentes; resposta incompleta ou contexto acima do limite gera erro textual. O pacote SlopCoder é FIM, com fidelidade a instruções de chat ainda não homologada. [Uso e limites](23-onnx-slopcoder.md).
+
+
+## IA local multimodelo — revisão de 13/09/2026
+
+A modal passa a se chamar Autocomplete e IA local, mantendo 660 × 680, mínimo 520 × 420, conteúdo rolável e ações no rodapé. Ordem: opções do autocomplete e do Assistente, modo, diretório de modelos (placeholder com o padrão, Procurar…), modelo (lista pelo nome da pasta ou do metadata, Atualizar, Outra pasta…), detalhes e pastas ignoradas em texto metadata, hardware com dispositivos detectados, orçamentos, estado do modelo e resultado do teste. O rodapé mostra só a última mensagem (até três linhas) e os botões; estado e relatório longos ficam no conteúdo rolável para não ocupar a janela mínima.
+
+Hardware ausente aparece como "GPU — indisponível" e fica desabilitado na lista; nenhum estado depende só de cor. Estados de modelo, fallback e falha de provider são frases com motivo e alternativa. A carga usa a barra inferior global existente. Relatório de teste é selecionável para cópia. [Especificação](26-ia-local-multimodelo.md).
+
+## Datas BSON — revisão de 13/09/2026
+
+Resultados, árvore, visualização, edição e cópias apresentam datas como `ISODate("2024-12-30T20:56:44.999Z")`, com data, hora, segundos, milissegundos e timezone UTC explícito. BSON não conserva o fuso original; entradas com offset são normalizadas para o instante UTC equivalente. Strings comuns permanecem strings; valores fora do intervalo do .NET conservam Extended JSON na saída textual e milissegundos na árvore. Mesmos tokens de código e layout. PNGs reais da modal de documento inspecionados em claro/escuro, 760 × 560, 100%.
+
+## Enquadramento de entrega e editor atual — 13/09/2026
+
+✅ Implementado: estrutura desktop, temas, navegação sem consulta automática, contexto fixo e cancelamento por aba. A v0.5.0 consolida o fluxo básico; v0.6.0 revisa produtividade; v1.0.0 exige acessibilidade e integração nativas. IA permanece opcional/experimental na v0.9.0. [Roadmap](09-plano-de-implementacao.md).
+
+O checkout atual utiliza MongoTextEditor derivado de AvaloniaEdit.TextEditor e LongLineElementGenerator. Descrições datadas de TextBox/TextPresenter acima são históricas e não descrevem a base atual do editor. A presença de linhas visuais virtualizadas não encerra a homologação de arquivos extensos, folding ou acessibilidade. Esta revisão documental não altera medidas, temas, atalhos, navegação ou sessão e não gera nova evidência visual; testes/PNGs anteriores conservam sua data e limites.
+
+
+## Polimento do MVP — 13/09/2026
+
+A barra inferior passa a ter 36 unidades para comportar a ação Cancelar com alvo de 28. Apresenta estado textual, progresso de 100 unidades (indeterminado quando não há total), percentual separado quando conhecido, descrição truncável com dica completa e quantidade de operações adicionais. Rascunho local continua visível à direita. Sem overlay global: abas e Explorer permanecem navegáveis. Prioridade Alta para consulta manual, conexão, exportação e escrita; Normal para carga/metadados; Baixa para sugestões locais. Estados terminais duram seis segundos quando não há operação ativa.
+
+Os botões do editor usam quebra de linha na largura mínima, evitando sobreposição com Opções/Histórico. Opções contém Formatar JSON/query/script: seleção ou conteúdo completo, sem execução e com Ctrl+Z. Exportar página oferece JSON e CSV; a dica explicita página e proteção de fórmulas. Árvores carregam campos em grupos de 256, com Próximos campos…, sem cortar o JSON/exportação. Textos enormes são apresentados por trecho visual próximo ao cursor, mantendo o documento e a seleção completos.
+
+Evidência de controles reais: `MvpPolishUiTests`, 18 PNGs `mvp-status-<tema>-<largura>-<escala>.png`, nas três larguras/alturas e escalas do sistema. Inspeção revelou e corrigiu sobreposição da ProgressBar e da barra do editor. A fixture da barra usa operações sintéticas para tornar progresso e concorrência reproduzíveis; não é uma captura de produção. A matriz e a auditoria registram execução e limites.

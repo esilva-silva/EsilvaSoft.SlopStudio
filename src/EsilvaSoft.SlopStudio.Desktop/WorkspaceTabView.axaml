@@ -1,0 +1,269 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:syntax="using:EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" xmlns:core="using:EsilvaSoft.SlopStudio.Core" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" x:Class="EsilvaSoft.SlopStudio.Desktop.WorkspaceTabView" x:DataType="vm:WorkspaceTabViewModel">
+  <Grid RowDefinitions="Auto,*">
+    <Border Padding="12,6" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Background="{DynamicResource SecondaryBackground}">
+      <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
+        <TextBlock Text="{Binding Context}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Context}" />
+        <Button Grid.Column="1" Grid.RowSpan="2" Click="ChooseTarget" IsEnabled="{Binding CanEditContext}" AutomationProperties.Name="Destino…">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Path Classes="command-icon" Data="{StaticResource TargetIcon}" />
+            <TextBlock Text="Destino…" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <TextBlock Grid.Row="1" Text="{Binding AccessHint}" Classes="metadata" />
+      </Grid>
+    </Border>
+    <Grid Grid.Row="1" ColumnDefinitions="*,240" ColumnSpacing="0">
+    <Grid x:Name="SplitGrid" Grid.Column="0">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="3*" MinHeight="180" />
+        <RowDefinition Height="5" />
+        <RowDefinition Height="2*" MinHeight="140" />
+      </Grid.RowDefinitions>
+      <Grid RowDefinitions="Auto,*,Auto" Margin="8,4,8,0">
+        <WrapPanel Orientation="Horizontal" Margin="0,0,0,4">
+          <ComboBox Margin="0,0,6,4" Width="140" ItemsSource="{Binding Modes}" SelectedItem="{Binding Mode}" IsEnabled="{Binding CanEditContext}" AutomationProperties.Name="Modo do editor" />
+          <Button Margin="0,0,6,4" Classes="primary" Command="{Binding ExecuteCommand}" ToolTip.Tip="Executar conteúdo completo (F5)" AutomationProperties.Name="Executar">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Path Classes="command-icon" Data="{StaticResource PlayIcon}" />
+              <TextBlock Text="Executar" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Margin="0,0,6,4" Command="{Binding CancelCommand}" IsEnabled="{Binding IsRunning}" ToolTip.Tip="Interromper execução desta aba (Esc)" AutomationProperties.Name="Cancelar">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Path Classes="command-icon" Data="{StaticResource StopIcon}" />
+              <TextBlock Text="Cancelar" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Margin="0,0,6,4" AutomationProperties.Name="Opções">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Path Classes="command-icon" Data="{StaticResource CodeIcon}" />
+              <TextBlock Text="Opções" VerticalAlignment="Center" />
+            </StackPanel>
+            <Button.Flyout>
+              <Flyout>
+                <ScrollViewer MaxHeight="340" Width="480" VerticalScrollBarVisibility="Auto">
+                  <StackPanel Spacing="6" Margin="8" IsEnabled="{Binding CanEditContext}">
+                    <Button x:Name="FormatCodeButton" Content="Formatar JSON/query/script" Click="FormatCode" ToolTip.Tip="Formata a seleção ou o editor inteiro; Ctrl+Z desfaz. Não executa o código." />
+                    <Grid IsVisible="{Binding IsScript}" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8">
+                      <TextBlock Text="Entrada Extended JSON" />
+                      <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Grid.Row="1" Text="{Binding InputJson}" Classes="code syntax" AutomationProperties.Name="Entrada Extended JSON" />
+                      <CheckBox Grid.Row="1" Grid.Column="1" Content="Persistir entrada" IsChecked="{Binding PersistInput}" />
+                    </Grid>
+                    <Grid IsVisible="{Binding IsQuery}" RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,*" ColumnSpacing="8" RowSpacing="4">
+                      <TextBlock Text="Projeção" />
+                      <TextBlock Grid.Column="1" Text="Ordenação" />
+                      <syntax:MongoTextEditor Classes="syntax" syntax:SyntaxSettings.Language="Json" Grid.Row="1" Text="{Binding Projection}" />
+                      <syntax:MongoTextEditor Classes="syntax" syntax:SyntaxSettings.Language="Json" Grid.Row="1" Grid.Column="1" Text="{Binding Sort}" />
+                      <TextBlock Grid.Row="2" Text="Limite" />
+                      <TextBlock Grid.Row="2" Grid.Column="1" Text="Pular documentos" />
+                      <NumericUpDown Grid.Row="3" Value="{Binding Limit}" Minimum="1" Maximum="1000" />
+                      <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding Skip}" Minimum="0" Maximum="1000000" />
+                    </Grid>
+                    <Grid IsVisible="{Binding IsQuery}" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="4">
+                      <TextBlock Text="Hint (BSON)" />
+                      <TextBlock Grid.Column="1" Text="Collation (BSON)" />
+                      <syntax:MongoTextEditor Classes="syntax" syntax:SyntaxSettings.Language="Json" Grid.Row="1" Text="{Binding Hint}" />
+                      <syntax:MongoTextEditor Classes="syntax" syntax:SyntaxSettings.Language="Json" Grid.Row="1" Grid.Column="1" Text="{Binding Collation}" />
+                      <TextBlock Grid.Row="2" Text="Batch size" />
+                      <TextBlock Grid.Row="2" Grid.Column="1" Text="Tempo máximo (ms)" />
+                      <NumericUpDown Grid.Row="3" Value="{Binding BatchSize}" Minimum="1" Maximum="10000" />
+                      <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding MaxTimeMs}" Minimum="1" Maximum="600000" />
+                      <TextBlock Grid.Row="4" Text="Comentário da consulta" />
+                      <TextBox Grid.Row="5" Grid.ColumnSpan="2" Text="{Binding Comment}" />
+                    </Grid>
+                    <WrapPanel>
+                      <Button Content="Sugestões (Ctrl+Espaço)" Click="ShowSuggestions" />
+                      <Button Content="Ver primeiros documentos" Command="{Binding FirstDocumentsCommand}" IsVisible="{Binding IsQuery}" />
+                    </WrapPanel>
+                    <StackPanel IsVisible="{Binding IsConsole}" Spacing="4">
+                      <TextBlock Text="Escreva filtro, sort, project, skip e limit no Console." TextWrapping="Wrap"/>
+                      <TextBlock Text="Ctrl+Enter: seleção ou statement no cursor. F5: script completo." TextWrapping="Wrap"/>
+                      <TextBlock Text="Limite de segurança por cursor (1–1000)"/>
+                      <NumericUpDown Value="{Binding Limit}" Minimum="1" Maximum="1000"/>
+                      <TextBlock Text="Tempo máximo da execução (ms)"/>
+                      <NumericUpDown Value="{Binding MaxTimeMs}" Minimum="1" Maximum="300000"/>
+                      <CheckBox Content="Persistir histórico do Console" IsChecked="{Binding HistoryEnabled}"/>
+                    </StackPanel>
+                  </StackPanel>
+                </ScrollViewer>
+              </Flyout>
+            </Button.Flyout>
+          </Button>
+          <Button Margin="0,0,6,4" Click="OpenHistory" AutomationProperties.Name="Histórico…">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Path Classes="command-icon" Data="{StaticResource HistoryIcon}" />
+              <TextBlock Text="Histórico…" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </WrapPanel>
+        <Grid Grid.Row="1" ClipToBounds="True">
+          <syntax:MongoTextEditor x:Name="CodeEditor" Text="{Binding Text}" Classes="code syntax" FontSize="{Binding CodeFontSize}" LineHeight="{Binding CodeLineHeight}" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Editor de script ou consulta" />
+          <Canvas x:Name="GhostLayer" IsHitTestVisible="False" ClipToBounds="True">
+            <Border x:Name="CompletionPanel" IsVisible="False" Background="{Binding #CodeEditor.Background}" ClipToBounds="True">
+              <local:InlineCompletionTextBlock x:Name="CompletionText" VerticalAlignment="Top" FontFamily="{StaticResource CodeFont}" FontSize="{Binding CodeFontSize}" LineHeight="{Binding CodeLineHeight}" TextWrapping="NoWrap" Foreground="{DynamicResource Syntax.GhostText}" AutomationProperties.Name="Sugestão: Tab avança; Esc descarta"/>
+            </Border>
+            <Border x:Name="GhostCaret" IsVisible="{Binding #CompletionPanel.IsVisible}" Width="1" Height="{Binding CodeLineHeight}" Background="{DynamicResource PrimaryText}"/>
+          </Canvas>
+        </Grid>
+      </Grid>
+      <GridSplitter Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DragCompleted="SplitResized" />
+      <Grid Grid.Row="2" RowDefinitions="Auto,*" Margin="8,0,8,8">
+        <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="6" Margin="0,4">
+          <StackPanel x:Name="ResultViewChoice" Orientation="Horizontal" VerticalAlignment="Center" AutomationProperties.Name="Visualização dos resultados">
+            <RadioButton x:Name="JsonViewButton" Classes="segment" Content="JSON" CornerRadius="4,0,0,4" IsChecked="{Binding IsJsonResultView}" ToolTip.Tip="JSON formatado de todos os resultados" AutomationProperties.Name="Resultados em JSON" />
+            <RadioButton x:Name="TreeViewButton" Classes="segment" Content="Árvore" CornerRadius="0,4,4,0" Margin="-1,0,0,0" IsChecked="{Binding IsTreeResultView}" ToolTip.Tip="Documentos, objetos e arrays expansíveis" AutomationProperties.Name="Resultados em árvore" />
+          </StackPanel>
+          <TextBlock Grid.Column="1" Text="{Binding Metrics}" Classes="metadata" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Metrics}" />
+          <Button Grid.Column="2" x:Name="CopyResultJsonButton" Content="Copiar JSON" Click="CopySelectedResultJson" IsEnabled="{Binding HasSelectedDocument}" ToolTip.Tip="{Binding CopyJsonHint}" ToolTip.ShowOnDisabled="True" AutomationProperties.Name="Copiar JSON do documento selecionado" />
+          <Button Grid.Column="3" Content="Anterior" Command="{Binding PreviousPageCommand}" IsVisible="{Binding IsQuery}" IsEnabled="{Binding CanExecute}" />
+          <Button Grid.Column="4" Content="Próxima" Command="{Binding NextPageCommand}" IsVisible="{Binding IsQuery}" IsEnabled="{Binding CanExecute}" />
+          <Button Grid.Column="5" Click="ExportResults" IsEnabled="{Binding CanExport}" ToolTip.Tip="Exportar somente a página carregada em Extended JSON ou CSV (proteção de fórmulas)" AutomationProperties.Name="Exportar página…">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Path Classes="command-icon" Data="{StaticResource ExportIcon}" />
+              <TextBlock Text="Exportar página…" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </Grid>
+        <TabControl Grid.Row="1" SelectedIndex="{Binding ResultTabIndex}">
+          <TabItem AutomationProperties.Name="Resultados">
+            <TabItem.Header>
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Path Classes="command-icon" Data="{StaticResource ResultsIcon}" />
+                <TextBlock Text="Resultados" />
+              </StackPanel>
+            </TabItem.Header>
+            <Grid>
+              <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" x:Name="ResultJson" IsVisible="{Binding IsJsonResultView}" Text="{Binding Results}" Classes="code syntax" FontSize="{Binding CodeFontSize}" LineHeight="{Binding CodeLineHeight}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" ContextFlyout="{x:Null}" AutomationProperties.Name="Resultados em JSON formatado" />
+              <Grid IsVisible="{Binding IsTreeResultView}">
+                <TreeView x:Name="ResultTree" Classes="results" ItemsSource="{Binding ResultTree}" SelectedItem="{Binding SelectedResultNode}" AutomationProperties.Name="Árvore de resultados">
+                  <TreeView.Styles>
+                    <Style Selector="TreeViewItem" x:DataType="vm:ResultNodeViewModel">
+                      <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                      <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}" />
+                    </Style>
+                  </TreeView.Styles>
+                  <TreeView.ItemTemplate>
+                    <TreeDataTemplate x:DataType="vm:ResultNodeViewModel" ItemsSource="{Binding Children}">
+                      <StackPanel Orientation="Horizontal" Spacing="8" ToolTip.Tip="{Binding ToolTip}">
+                        <TextBlock Text="{Binding Name}" Classes.heading="{Binding IsHeading}" Classes.notice="{Binding IsNotice}" VerticalAlignment="Center" />
+                        <Border Classes="type-chip" IsVisible="{Binding HasType}">
+                          <TextBlock Text="{Binding TypeName}" Classes="metadata" />
+                        </Border>
+                        <syntax:SyntaxTextBlock Text="{Binding Value}" Classes="result-value" Classes.notice="{Binding IsNotice}" FontSize="{Binding $parent[TreeView].((vm:WorkspaceTabViewModel)DataContext).CodeFontSize}" MaxWidth="720" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </TreeDataTemplate>
+                  </TreeView.ItemTemplate>
+                </TreeView>
+                <TextBlock Text="{Binding ResultTreeStatus}" IsVisible="{Binding !HasResultTree}" Classes="muted" Margin="12,8" TextWrapping="Wrap" />
+              </Grid>
+            </Grid>
+          </TabItem>
+          <TabItem AutomationProperties.Name="Mensagens">
+            <TabItem.Header>
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Path Classes="command-icon" Data="{StaticResource MessageIcon}" />
+                <TextBlock Text="Mensagens" />
+              </StackPanel>
+            </TabItem.Header>
+            <TextBox Text="{Binding Messages}" Classes="code" FontSize="{Binding CodeFontSize}" LineHeight="{Binding CodeLineHeight}" IsReadOnly="True" AcceptsReturn="True" ScrollViewer.VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Mensagens de execução" />
+          </TabItem>
+          <TabItem AutomationProperties.Name="Erros">
+            <TabItem.Header>
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Path Classes="command-icon" Data="{StaticResource WarningIcon}" />
+                <TextBlock Text="Erros" />
+              </StackPanel>
+            </TabItem.Header>
+            <TextBox Text="{Binding Errors}" Classes="code" FontSize="{Binding CodeFontSize}" LineHeight="{Binding CodeLineHeight}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Erros de execução" />
+          </TabItem>
+          <TabItem Header="Documentos" AutomationProperties.Name="Documentos estruturados">
+            <Grid RowDefinitions="Auto,*" RowSpacing="4">
+              <StackPanel>
+              <ComboBox ItemsSource="{Binding ConsoleResults}" SelectedItem="{Binding SelectedConsoleResult}" IsVisible="{Binding IsConsole}" AutomationProperties.Name="Resultado da execução">
+                <ComboBox.ItemTemplate><DataTemplate x:DataType="core:ConsoleResultSet"><TextBlock Text="{Binding DisplayText}"/></DataTemplate></ComboBox.ItemTemplate>
+              </ComboBox>
+              <WrapPanel>
+                <Button Content="Copiar" Click="CopySelectedDocument"/>
+                <Button Content="Abrir no editor" Click="OpenSelectedDocument"/>
+                <Button Content="Inserir…" Click="MutateDocument" Tag="Inserir"/>
+                <Button Content="Editar…" Click="MutateDocument" Tag="Editar"/>
+                <Button Content="Excluir…" Click="MutateDocument" Tag="Excluir" Classes="danger"/>
+                <Button Content="Atualizar página" Command="{Binding ExecuteCommand}" IsVisible="{Binding !IsConsole}"/>
+                <Button Content="Executar script" Command="{Binding ExecuteCommand}" IsVisible="{Binding IsConsole}" ToolTip.Tip="Executa novamente o script completo; escritas exigem confirmação."/>
+              </WrapPanel>
+              </StackPanel>
+              <Grid Grid.Row="1" ColumnDefinitions="150,*" ColumnSpacing="8">
+                <ListBox ItemsSource="{Binding ResultDocuments}" SelectedItem="{Binding SelectedDocument}" AutomationProperties.Name="Documentos da página">
+                  <ListBox.ItemTemplate><DataTemplate x:DataType="vm:ResultDocumentViewModel"><TextBlock Text="{Binding Label}"/></DataTemplate></ListBox.ItemTemplate>
+                </ListBox>
+                <TreeView Grid.Column="1" ItemsSource="{Binding SelectedDocument.Fields}" AutomationProperties.Name="Campos do documento">
+                  <TreeView.ItemTemplate><TreeDataTemplate x:DataType="vm:ResultFieldViewModel" ItemsSource="{Binding Children}"><syntax:SyntaxTextBlock Text="{Binding Label}" MaxWidth="720" ToolTip.Tip="{Binding Json}" TextTrimming="CharacterEllipsis"/></TreeDataTemplate></TreeView.ItemTemplate>
+                </TreeView>
+              </Grid>
+            </Grid>
+          </TabItem>
+        </TabControl>
+      </Grid>
+    </Grid>
+      <Border Grid.Column="1" Background="{DynamicResource SecondaryBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1,0,0,0" Padding="12,8">
+        <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+            <TextBlock Text="Assistente IA" Classes="section-title" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="por aba" Classes="metadata" VerticalAlignment="Center" />
+            <Button Grid.Column="2" Content="i" Classes="quiet" ToolTip.Tip="A IA recebe a instrução, o editor e o contexto desta aba. Nada é executado automaticamente." AutomationProperties.Name="Informações sobre o contexto da IA" />
+          </Grid>
+          <TextBlock Grid.Row="1" Text="Analise, crie ou refatore o código com uma proposta revisável." Classes="muted" TextWrapping="Wrap" />
+          <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="8">
+              <TextBlock Text="Conversa" Classes="metadata" IsVisible="{Binding HasChatMessages}" />
+              <ItemsControl ItemsSource="{Binding ChatMessages}" IsVisible="{Binding HasChatMessages}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="core:AiChatMessage">
+                    <Border Classes="card" Padding="8" Margin="0,0,0,4">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding Author}" FontWeight="SemiBold" Classes="metadata" />
+                        <TextBlock Text="{Binding Content}" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Border Classes="card" Padding="8" IsVisible="{Binding HasAiProposal}">
+                <StackPanel Spacing="6">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="{Binding AiProposalTitle}" FontWeight="SemiBold" />
+                    <TextBlock Grid.Column="1" Text="revisão" Classes="metadata" />
+                  </Grid>
+                  <TextBlock Text="{Binding AiProposal.Explanation}" TextWrapping="Wrap" />
+                  <Border Background="{DynamicResource SecondaryBackground}" Padding="6" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" MaxHeight="220">
+                    <syntax:MongoTextEditor syntax:SyntaxSettings.Language="MongoScript" Text="{Binding AiProposal.ProposedContent}" Classes="code syntax" FontSize="12" LineHeight="18" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Código proposto pela IA" />
+                  </Border>
+                  <TextBlock Text="{Binding AiProposal.Diff}" FontFamily="{StaticResource CodeFont}" FontSize="12" TextWrapping="Wrap" MaxHeight="120" />
+                  <TextBlock Text="{Binding AiProposal.Warning}" Classes="warning" TextWrapping="Wrap" IsVisible="{Binding AiProposal.RequiresAdditionalConfirmation}" />
+                  <TextBlock Text="{Binding AiProposalHint}" Classes="muted" TextWrapping="Wrap" />
+                  <WrapPanel Orientation="Horizontal">
+                    <Button Content="Aplicar proposta" Classes="primary" Click="ApplyAiProposal" AutomationProperties.Name="Aplicar proposta da IA" />
+                    <Button Content="Descartar" Command="{Binding DismissAiProposalCommand}" AutomationProperties.Name="Descartar proposta da IA" />
+                  </WrapPanel>
+                </StackPanel>
+              </Border>
+              <TextBlock Grid.Row="3" Text="{Binding ChatStatusMessage}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding !HasAiProposal}" />
+            </StackPanel>
+          </ScrollViewer>
+          <Border Grid.Row="3" Classes="card" Padding="6">
+            <Grid RowDefinitions="*,Auto" RowSpacing="6">
+              <TextBox Text="{Binding ChatInput}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="68" MaxHeight="120" PlaceholderText="Peça uma análise ou alteração…" AutomationProperties.Name="Instrução para o chat com IA" />
+              <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                <TextBlock Text="A proposta nunca é aplicada automaticamente." Classes="metadata" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <WrapPanel Grid.Column="1">
+                  <Button Content="Cancelar" Command="{Binding CancelAiChatCommand}" IsVisible="{Binding IsChatBusy}" />
+                  <Button Content="Enviar" Classes="primary" Command="{Binding SendAiChatCommand}" IsVisible="{Binding !IsChatBusy}" AutomationProperties.Name="Enviar instrução para a IA" />
+                </WrapPanel>
+              </Grid>
+            </Grid>
+          </Border>
+        </Grid>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

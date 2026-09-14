@@ -1,0 +1,15 @@
+bin/
+obj/
+TestResults/
+*.user
+*.suo
+workspace.db
+workspace.db-*
+.cache/
+.vs/
+# Model weights are external user installations, never repository assets.
+*.onnx
+*.onnx.data
+*.safetensors
+*.gguf
+artifacts/

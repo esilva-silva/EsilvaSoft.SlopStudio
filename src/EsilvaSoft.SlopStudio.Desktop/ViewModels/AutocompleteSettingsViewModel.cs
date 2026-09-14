@@ -1,0 +1,305 @@
+using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using EsilvaSoft.SlopStudio.Application;
+using EsilvaSoft.SlopStudio.Core;
+
+namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
+
+/// <summary>A model in preferences. Catalog entries persist only the folder name; external entries keep their path.</summary>
+public sealed partial class LocalModelOption(string reference, bool isExternal, LocalModelValidation? validation = null) : ObservableObject
+{
+    public string Reference { get; } = reference;
+    public bool IsExternal { get; } = isExternal;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(Display), nameof(Model))] private LocalModelValidation? _validation = validation;
+    public LocalModelDefinition? Model => Validation?.Model;
+    public string FolderName => IsExternal ? Path.GetFileName(Path.TrimEndingDirectorySeparator(Reference)) : Reference;
+
+    /// <summary>Folder name by default, or the metadata name; unusable folders are labeled, never hidden when selected.</summary>
+    public string Display
+    {
+        get
+        {
+            var state = Validation is null || Model is not null ? ""
+                : Validation.Status.State == LocalModelState.NotInstalled ? " — não encontrado"
+                : " — " + LocalAiStatusFormatter.ValidityLabel(Validation.Validity);
+            return (Model?.Name ?? FolderName) + (IsExternal ? " — externo" : "") + state;
+        }
+    }
+
+    public override string ToString() => Display;
+}
+
+public sealed partial class HardwareOption(AiAccelerationMode mode, string label) : ObservableObject
+{
+    public AiAccelerationMode Mode { get; } = mode;
+    [ObservableProperty] private string _label = label;
+    [ObservableProperty] private bool _isAvailable = true;
+    public override string ToString() => Label;
+}
+
+public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService service, ILocalModelCatalog? catalog,
+    Func<AutocompleteSettings, Task> save, ILocalAiModelService? models = null) : ObservableObject
+{
+    private static readonly StringComparison PathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+    private IReadOnlyList<AiHardwareDevice> _hardware = [];
+    private AiExecutionProvider _executionProvider;
+    private string _chatModel = "";
+    private bool _loading;
+    private long _refreshGeneration;
+
+    public IReadOnlyList<string> Modes { get; } = ["Automático (recomendado)", "Básico", "IA local"];
+    public ObservableCollection<HardwareOption> HardwareOptions { get; } =
+    [
+        new(AiAccelerationMode.Auto, "Automático"), new(AiAccelerationMode.Cpu, "CPU"),
+        new(AiAccelerationMode.Gpu, "GPU"), new(AiAccelerationMode.Npu, "NPU")
+    ];
+    public ObservableCollection<LocalModelOption> Models { get; } = [];
+    public string DefaultDirectory => catalog?.DefaultDirectory ?? models?.DefaultDirectory ?? "";
+    public string EffectiveModelDirectory => string.IsNullOrWhiteSpace(ModelDirectory) ? DefaultDirectory : ModelDirectory.Trim();
+    public bool HasModelDetails => ModelDetails.Length > 0;
+    public bool HasModelDiagnostics => ModelDiagnostics.Length > 0;
+    public bool HasTestReport => TestReport.Length > 0;
+
+    [ObservableProperty] private bool _enabled = true;
+    [ObservableProperty] private int _modeIndex;
+    [ObservableProperty] private int _hardwareIndex;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(EffectiveModelDirectory))] private string _modelDirectory = "";
+    /// <summary>External model folder; setting it selects that folder.</summary>
+    [ObservableProperty] private string _modelPath = "";
+    [ObservableProperty] private LocalModelOption? _selectedModelOption;
+    [ObservableProperty] private bool _chatEnabled = true;
+    [ObservableProperty] private int _contextTokens = 2048;
+    [ObservableProperty] private int _maximumTokens = 32;
+    [ObservableProperty] private int _delayMilliseconds = 150;
+    [ObservableProperty] private bool _useDictionary = true;
+    [ObservableProperty] private bool _useInputPanelContext = true;
+    [ObservableProperty] private bool _useResultPanelContext = true;
+    [ObservableProperty] private bool _useEditorContext = true;
+    [ObservableProperty] private bool _incrementalTab = true;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasModelDetails))] private string _modelDetails = "";
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasModelDiagnostics))] private string _modelDiagnostics = "";
+    [ObservableProperty] private string _detectedHardware = "Hardware ainda não consultado.";
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasTestReport))] private string _testReport = "";
+    [ObservableProperty] private string _status = "Nenhum modelo carregado. Autocomplete básico disponível.";
+    [ObservableProperty] private string _operationStatus = "";
+    [ObservableProperty] private bool _isBusy;
+
+    partial void OnHardwareIndexChanged(int value) => RefreshStatus();
+
+    partial void OnModelPathChanged(string value)
+    {
+        if (_loading || string.IsNullOrWhiteSpace(value)) return;
+        var path = value.Trim();
+        if (SelectedModelOption is { IsExternal: true } current && current.Reference == path) return;
+        SelectedModelOption = Models.FirstOrDefault(option => option.IsExternal && option.Reference == path) ?? Add(new(path, true));
+    }
+
+    partial void OnSelectedModelOptionChanged(LocalModelOption? value)
+    {
+        UpdateModelDetails();
+        RefreshStatus();
+        // A deliberate choice applies the model's recommended budgets; loading saved preferences never overrides them.
+        if (_loading || value?.Model?.Metadata is not { } metadata) return;
+        if (metadata.RecommendedContextTokens is { } context) ContextTokens = context;
+        if (metadata.RecommendedCompletionTokens is { } completion) MaximumTokens = completion;
+    }
+
+    public void Load(AutocompleteSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        _loading = true;
+        try
+        {
+            Enabled = settings.Enabled; ModeIndex = (int)settings.Mode; HardwareIndex = (int)settings.Acceleration;
+            ContextTokens = settings.ContextTokens; MaximumTokens = settings.MaximumCompletionTokens;
+            DelayMilliseconds = settings.DelayMilliseconds; _executionProvider = settings.ExecutionProvider;
+            UseDictionary = settings.UseDictionary; UseInputPanelContext = settings.UseInputPanelContext;
+            UseResultPanelContext = settings.UseResultPanelContext; UseEditorContext = settings.UseEditorContext;
+            IncrementalTab = settings.IncrementalTab; ChatEnabled = settings.ChatEnabled; _chatModel = settings.ChatModel;
+            ModelDirectory = settings.ModelDirectory; ModelPath = settings.ModelPath;
+            Models.Clear();
+            SelectedModelOption = settings.SelectedModel.Length > 0 ? Add(new(settings.SelectedModel, false))
+                : !string.IsNullOrWhiteSpace(settings.ModelPath) ? Add(new(settings.ModelPath.Trim(), true)) : null;
+            TestReport = "";
+        }
+        finally { _loading = false; }
+        UpdateModelDetails();
+        RefreshStatus();
+    }
+
+    public void RefreshStatus()
+    {
+        var hardware = Enum.IsDefined((AiAccelerationMode)HardwareIndex) ? (AiAccelerationMode)HardwareIndex : AiAccelerationMode.Auto;
+        Status = LocalAiStatusFormatter.Format(service.Status, SelectedModelOption is { } option ? option.Model?.Name ?? option.FolderName : null, hardware, _hardware);
+    }
+
+    public AutocompleteSettings Snapshot()
+    {
+        var option = SelectedModelOption;
+        return new AutocompleteSettings
+        {
+            Enabled = Enabled, Mode = (AutocompleteMode)ModeIndex, Acceleration = (AiAccelerationMode)HardwareIndex,
+            ModelDirectory = ModelDirectory.Trim(), SelectedModel = option is { IsExternal: false } ? option.Reference : "",
+            ModelPath = option is { IsExternal: true } ? option.Reference : "", ChatModel = _chatModel, ChatEnabled = ChatEnabled,
+            ContextTokens = ContextTokens, MaximumCompletionTokens = MaximumTokens,
+            DelayMilliseconds = DelayMilliseconds, ExecutionProvider = _executionProvider,
+            UseDictionary = UseDictionary, UseInputPanelContext = UseInputPanelContext,
+            UseResultPanelContext = UseResultPanelContext, UseEditorContext = UseEditorContext, IncrementalTab = IncrementalTab
+        }.Validate();
+    }
+
+    /// <summary>Scans the directory and detects hardware when the window opens; the loaded model is not touched.</summary>
+    public Task OpenedAsync() => Task.WhenAll(RefreshModelsCommand.ExecuteAsync(null), DetectHardwareCommand.ExecuteAsync(null));
+
+    /// <summary>A folder directly inside the models directory is stored by name; any other folder stays external.</summary>
+    public async Task SelectExternalModelAsync(string path)
+    {
+        string full;
+        try { full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)); }
+        catch (Exception) { OperationStatus = "Caminho de modelo inválido."; return; }
+        var directory = EffectiveModelDirectory;
+        if (directory.Length > 0 && string.Equals(Path.GetDirectoryName(full), Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory)), PathComparison))
+        {
+            var name = Path.GetFileName(full);
+            SelectedModelOption = Models.FirstOrDefault(option => !option.IsExternal && string.Equals(option.Reference, name, PathComparison)) ?? Add(new(name, false));
+            await RefreshModelsCommand.ExecuteAsync(null);
+            return;
+        }
+        ModelPath = full;
+        if (SelectedModelOption is not { IsExternal: true } external || Validate(full) is not { } validation) return;
+        try
+        {
+            external.Validation = await validation;
+            UpdateModelDetails();
+            RefreshStatus();
+            OperationStatus = external.Model is { } model ? $"Modelo externo válido: {model.Name}. Salve para usar."
+                : "Pasta externa não utilizável: " + external.Validation.Status.Message;
+        }
+        catch (Exception) { OperationStatus = "Não foi possível validar a pasta externa."; }
+    }
+
+    [RelayCommand]
+    private async Task RefreshModelsAsync(CancellationToken cancellationToken)
+    {
+        if (catalog is null && models is null) return;
+        var generation = ++_refreshGeneration;
+        var directory = EffectiveModelDirectory;
+        OperationStatus = $"Procurando modelos em {directory}…";
+        try
+        {
+            var found = catalog is not null ? await catalog.DiscoverAsync(directory, cancellationToken) : await models!.DiscoverModelsAsync(directory, cancellationToken);
+            var selected = SelectedModelOption;
+            var external = selected is { IsExternal: true } && Validate(selected.Reference) is { } validation ? await validation : null;
+            if (generation != _refreshGeneration) return;
+            _loading = true;
+            try
+            {
+                Models.Clear();
+                foreach (var model in found.Where(candidate => candidate.Model is not null)) Models.Add(new(FolderOf(model.Path), false, model));
+                LocalModelOption? restored = null;
+                if (selected is { IsExternal: true }) restored = Add(new(selected.Reference, true, external));
+                else if (selected is not null)
+                    restored = Models.FirstOrDefault(option => string.Equals(option.Reference, selected.Reference, PathComparison))
+                        ?? Add(new(selected.Reference, false, found.FirstOrDefault(candidate => string.Equals(FolderOf(candidate.Path), selected.Reference, PathComparison))
+                            ?? new LocalModelValidation(null, new(LocalModelState.NotInstalled, $"Modelo {selected.Reference} não encontrado em {directory}."))));
+                SelectedModelOption = restored;
+            }
+            finally { _loading = false; }
+            UpdateModelDetails();
+            RefreshStatus();
+            var invalid = found.Where(candidate => candidate.Model is null).ToArray();
+            ModelDiagnostics = invalid.Length == 0 ? ""
+                : "Pastas ignoradas: " + string.Join("; ", invalid.Select(candidate => $"{FolderOf(candidate.Path)} — {LocalAiStatusFormatter.ValidityLabel(candidate.Validity)}"));
+            OperationStatus = found.Count == 0 && !Directory.Exists(directory) ? $"Diretório de modelos não encontrado: {directory}"
+                : $"{found.Count - invalid.Length} modelo(s) encontrado(s)" + (invalid.Length > 0 ? $"; {invalid.Length} pasta(s) ignorada(s)." : ".");
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception) { OperationStatus = "Não foi possível ler o diretório de modelos. Confira permissões e caminho."; }
+    }
+
+    [RelayCommand]
+    private async Task DetectHardwareAsync(CancellationToken cancellationToken)
+    {
+        if (models is null) { DetectedHardware = "Detecção de hardware indisponível nesta composição."; return; }
+        DetectedHardware = "Consultando ONNX Runtime…";
+        try { _hardware = await models.GetAvailableHardwareAsync(cancellationToken); }
+        catch (OperationCanceledException) { return; }
+        catch (Exception) { DetectedHardware = "Não foi possível consultar o ONNX Runtime. CPU permanece disponível."; return; }
+        foreach (var option in HardwareOptions.Where(option => option.Mode != AiAccelerationMode.Auto))
+        {
+            var device = _hardware.FirstOrDefault(device => device.Kind == option.Mode && device.IsAvailable);
+            option.IsAvailable = device is not null;
+            option.Label = device is null ? LocalAiStatusFormatter.HardwareLabel(option.Mode) + " — indisponível" : LocalAiStatusFormatter.DeviceLine(device);
+        }
+        DetectedHardware = string.Join("\n", _hardware.Select(LocalAiStatusFormatter.DeviceLine));
+        RefreshStatus();
+    }
+
+    [RelayCommand]
+    private async Task ApplyAsync()
+    {
+        IsBusy = true;
+        try { await save(Snapshot()); OperationStatus = "Preferências de autocomplete salvas."; RefreshStatus(); }
+        catch (Exception) { OperationStatus = "Preferências não salvas. Confira os valores e o estado da sessão local."; }
+        finally { IsBusy = false; }
+    }
+
+    [RelayCommand]
+    private async Task TestAsync(CancellationToken cancellationToken)
+    {
+        IsBusy = true;
+        try
+        {
+            await save(Snapshot());
+            OperationStatus = "Testando modelo: pasta, tokenizer, sessão ONNX, provider e geração…";
+            TestReport = "";
+            var report = await service.RunModelTestAsync(cancellationToken);
+            TestReport = LocalAiStatusFormatter.FormatReport(report);
+            OperationStatus = report.Message;
+            RefreshStatus();
+        }
+        catch (OperationCanceledException) { OperationStatus = "Teste cancelado."; }
+        catch (Exception) { OperationStatus = "Teste não concluído. Confira a configuração e a persistência da sessão."; }
+        finally { IsBusy = false; }
+    }
+
+    private Task<LocalModelValidation>? Validate(string path) => catalog?.ValidateAsync(path) ?? models?.ValidateModelAsync(path);
+
+    private LocalModelOption Add(LocalModelOption option)
+    {
+        Models.Add(option);
+        return option;
+    }
+
+    private static string FolderOf(string path) => Path.GetFileName(Path.TrimEndingDirectorySeparator(path));
+
+    private void UpdateModelDetails()
+    {
+        var option = SelectedModelOption;
+        if (option?.Model is not { } model)
+        {
+            ModelDetails = option?.Validation is { Model: null } rejected ? rejected.Status.Message : "";
+            return;
+        }
+        var metadata = model.Metadata;
+        var parts = new List<string> { model.Architecture };
+        if (metadata?.Parameters is { } parameters) parts.Add(parameters);
+        if (metadata?.Version is { } version) parts.Add("versão " + version);
+        parts.Add("capacidades: " + CapabilityText(model.Capabilities));
+        if (metadata is { Domain.Count: > 0 }) parts.Add("domínio: " + string.Join(", ", metadata.Domain));
+        if (metadata?.Hardware is { } hardware) parts.Add("hardware declarado: " + string.Join(", ", hardware.Select(LocalAiStatusFormatter.HardwareLabel)));
+        parts.Add(model.Path);
+        ModelDetails = string.Join(" · ", parts);
+    }
+
+    private static string CapabilityText(LocalModelCapabilities capabilities)
+    {
+        var names = new (LocalModelCapabilities Flag, string Name)[]
+        {
+            (LocalModelCapabilities.Autocomplete, "autocomplete"), (LocalModelCapabilities.Chat, "chat"),
+            (LocalModelCapabilities.Fim, "FIM"), (LocalModelCapabilities.Embeddings, "embeddings")
+        }.Where(entry => capabilities.HasFlag(entry.Flag)).Select(entry => entry.Name).ToArray();
+        return names.Length == 0 ? "nenhuma" : string.Join(", ", names);
+    }
+}

@@ -1,0 +1,53 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:core="using:EsilvaSoft.SlopStudio.Core" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" x:Class="EsilvaSoft.SlopStudio.Desktop.HistoryWindow" x:DataType="vm:WorkspaceTabViewModel" Title="Histórico e consultas salvas" Width="720" Height="520" WindowStartupLocation="CenterOwner">
+  <ScrollViewer>
+    <StackPanel Spacing="12" Margin="20">
+      <TextBlock Text="Console — execuções" Classes="section-title"/>
+      <TextBlock Text="O histórico guarda o script digitado, destino, ambiente, duração e status. Não guarda resultados nem valores resolvidos de ENV." TextWrapping="Wrap"/>
+      <CheckBox Content="Persistir histórico do Console" IsChecked="{Binding HistoryEnabled}"/>
+      <ComboBox ItemsSource="{Binding ConsoleHistory}" SelectedItem="{Binding SelectedConsoleHistory}" AutomationProperties.Name="Execuções do Console">
+        <ComboBox.ItemTemplate><DataTemplate x:DataType="core:ConsoleHistoryEntry"><TextBlock Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis"/></DataTemplate></ComboBox.ItemTemplate>
+      </ComboBox>
+      <Button Content="Abrir execução em nova aba Console" Click="OpenConsoleHistory"/>
+      <TextBlock Text="Histórico desta conexão" Classes="section-title"/>
+      <CheckBox Content="Persistir histórico de consultas" IsChecked="{Binding HistoryEnabled}"/>
+      <ComboBox ItemsSource="{Binding History}" SelectedItem="{Binding SelectedHistory}">
+        <ComboBox.ItemTemplate>
+          <DataTemplate>
+            <TextBlock Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis"/>
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <Button Content="Carregar consulta do histórico" Click="ApplyHistory"/>
+      <TextBlock Text="Consultas salvas" FontWeight="SemiBold"/>
+      <ComboBox ItemsSource="{Binding SavedQueries}" SelectedItem="{Binding SelectedSavedQuery}">
+        <ComboBox.ItemTemplate>
+          <DataTemplate>
+            <TextBlock Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis"/>
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <Button Content="Carregar consulta salva" Click="ApplySavedQuery"/>
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+        <TextBox Text="{Binding SavedQueryName}" PlaceholderText="Nome da consulta"/>
+        <Button Grid.Column="1" Content="Salvar consulta atual" Command="{Binding SaveQueryCommand}" IsEnabled="{Binding IsQuery}"/>
+      </Grid>
+      <WrapPanel>
+        <CheckBox Content="Favorita" IsChecked="{Binding SavedQueryIsFavorite}"/>
+        <Button Content="Nova consulta salva" Command="{Binding NewSavedQueryCommand}"/>
+        <Button Content="Remover consulta salva…" Click="DeleteSaved"/>
+      </WrapPanel>
+      <TextBlock Text="Arquivos recentes" FontWeight="SemiBold"/>
+      <CheckBox Content="Persistir caminhos de arquivos" IsChecked="{Binding ScriptHistoryEnabled}"/>
+      <ComboBox ItemsSource="{Binding ScriptHistory}" SelectedItem="{Binding SelectedScriptHistory}">
+        <ComboBox.ItemTemplate>
+          <DataTemplate>
+            <TextBlock Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis"/>
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <Button Content="Abrir arquivo recente em nova aba" Click="OpenRecent"/>
+      <Button Content="Atualizar histórico" Command="{Binding LoadHistoryCommand}"/>
+      <TextBlock Text="{Binding Errors}" Foreground="{DynamicResource ErrorBrush}" TextWrapping="Wrap"/>
+    </StackPanel>
+  </ScrollViewer>
+</Window>

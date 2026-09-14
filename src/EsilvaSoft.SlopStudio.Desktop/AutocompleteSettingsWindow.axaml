@@ -1,0 +1,78 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" x:Class="EsilvaSoft.SlopStudio.Desktop.AutocompleteSettingsWindow" x:DataType="vm:AutocompleteSettingsViewModel" Title="Preferências · Autocomplete e IA local" Width="660" Height="680" MinWidth="520" MinHeight="420" WindowStartupLocation="CenterOwner">
+  <Grid Margin="20" RowDefinitions="Auto,*,Auto" RowSpacing="12">
+    <StackPanel Spacing="4">
+      <TextBlock Text="Autocomplete e IA local" Classes="section-title"/>
+      <TextBlock Text="Processamento local. Código e consultas não são enviados a serviços de IA." Classes="muted" TextWrapping="Wrap"/>
+    </StackPanel>
+    <ScrollViewer Grid.Row="1">
+      <StackPanel Spacing="8" Margin="0,0,16,0" IsEnabled="{Binding !IsBusy}">
+        <CheckBox x:Name="EnableAutocomplete" Content="Habilitar autocomplete" IsChecked="{Binding Enabled}"/>
+        <CheckBox Content="Usar dicionário local" IsChecked="{Binding UseDictionary}"/>
+        <CheckBox Content="Usar contexto do Input" IsChecked="{Binding UseInputPanelContext}"/>
+        <CheckBox Content="Usar campos dos Resultados" IsChecked="{Binding UseResultPanelContext}"/>
+        <CheckBox Content="Usar contexto ampliado do editor e histórico" IsChecked="{Binding UseEditorContext}"/>
+        <CheckBox Content="Aceitar sugestão em partes com Tab" IsChecked="{Binding IncrementalTab}"/>
+        <CheckBox Content="Usar o modelo local no Assistente IA" IsChecked="{Binding ChatEnabled}"/>
+        <TextBlock Text="Modo"/>
+        <ComboBox ItemsSource="{Binding Modes}" SelectedIndex="{Binding ModeIndex}" HorizontalAlignment="Stretch" AutomationProperties.Name="Modo de autocomplete"/>
+        <TextBlock Text="Diretório de modelos"/>
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+          <TextBox Text="{Binding ModelDirectory}" PlaceholderText="{Binding DefaultDirectory}" AutomationProperties.Name="Diretório de modelos"/>
+          <Button Grid.Column="1" Content="Procurar…" Click="ChooseModelsDirectory"/>
+        </Grid>
+        <TextBlock Text="Cada subpasta é um modelo. Vazio usa o diretório padrão indicado no campo." Classes="metadata" TextWrapping="Wrap"/>
+        <TextBlock Text="Modelo"/>
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+          <ComboBox ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModelOption}" PlaceholderText="Nenhum modelo selecionado" HorizontalAlignment="Stretch" AutomationProperties.Name="Modelo">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:LocalModelOption">
+                <TextBlock Text="{Binding Display}" TextTrimming="CharacterEllipsis"/>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <Button Grid.Column="1" Content="Atualizar" Command="{Binding RefreshModelsCommand}"/>
+          <Button Grid.Column="2" Content="Outra pasta…" Click="ChooseExternalModel" AutomationProperties.Name="Usar pasta de modelo externa"/>
+        </Grid>
+        <TextBlock Text="{Binding ModelDetails}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding HasModelDetails}"/>
+        <TextBlock Text="{Binding ModelDiagnostics}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding HasModelDiagnostics}"/>
+        <TextBlock Text="Hardware"/>
+        <ComboBox ItemsSource="{Binding HardwareOptions}" SelectedIndex="{Binding HardwareIndex}" HorizontalAlignment="Stretch" AutomationProperties.Name="Hardware da IA local">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:HardwareOption">
+              <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis"/>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+          <ComboBox.Styles>
+            <Style Selector="ComboBoxItem" x:DataType="vm:HardwareOption">
+              <Setter Property="IsEnabled" Value="{Binding IsAvailable}"/>
+            </Style>
+          </ComboBox.Styles>
+        </ComboBox>
+        <TextBlock Text="Detectado"/>
+        <TextBlock Text="{Binding DetectedHardware}" Classes="metadata" TextWrapping="Wrap"/>
+        <TextBlock Text="Automático tenta NPU, GPU e CPU, nessa ordem, entre os disponíveis e compatíveis com o modelo, e registra o provider usado. CPU, GPU ou NPU escolhidos explicitamente não recorrem a outro hardware: uma falha é informada. Sem modelo válido, as sugestões básicas continuam disponíveis." Classes="metadata" TextWrapping="Wrap"/>
+        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="4">
+          <TextBlock Text="Tokens de contexto"/>
+          <TextBlock Grid.Column="1" Text="Máximo de tokens gerados"/>
+          <NumericUpDown Grid.Row="1" Minimum="64" Maximum="8192" Value="{Binding ContextTokens}" AutomationProperties.Name="Tokens de contexto"/>
+          <NumericUpDown Grid.Row="1" Grid.Column="1" Minimum="1" Maximum="256" Value="{Binding MaximumTokens}" AutomationProperties.Name="Máximo de tokens gerados"/>
+          <TextBlock Grid.Row="2" Text="Atraso (ms)"/>
+          <NumericUpDown Grid.Row="3" Minimum="50" Maximum="2000" Value="{Binding DelayMilliseconds}" AutomationProperties.Name="Atraso do autocomplete"/>
+        </Grid>
+        <TextBlock Text="A sugestão aparece no cursor. Tab avança; Esc descarta. Ctrl+Espaço mantém as sugestões de Console/MQL. Os modelos são instalados separadamente." Classes="metadata" TextWrapping="Wrap"/>
+        <TextBlock Text="Estado do modelo" Classes="section-title"/>
+        <TextBlock Text="{Binding Status}" TextWrapping="Wrap" AutomationProperties.Name="Estado do modelo"/>
+        <TextBlock Text="Resultado do teste" Classes="section-title" IsVisible="{Binding HasTestReport}"/>
+        <SelectableTextBlock Text="{Binding TestReport}" TextWrapping="Wrap" IsVisible="{Binding HasTestReport}" AutomationProperties.Name="Resultado do teste do modelo"/>
+      </StackPanel>
+    </ScrollViewer>
+    <StackPanel Grid.Row="2" Spacing="8">
+      <TextBlock Text="{Binding OperationStatus}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis"/>
+      <WrapPanel HorizontalAlignment="Right">
+        <Button Content="Fechar" Click="CloseDialog" Margin="0,0,8,0"/>
+        <Button Content="Testar modelo" Command="{Binding TestCommand}" IsEnabled="{Binding !IsBusy}" Margin="0,0,8,0"/>
+        <Button Content="Salvar" Classes="primary" Command="{Binding ApplyCommand}" IsEnabled="{Binding !IsBusy}"/>
+      </WrapPanel>
+    </StackPanel>
+  </Grid>
+</Window>

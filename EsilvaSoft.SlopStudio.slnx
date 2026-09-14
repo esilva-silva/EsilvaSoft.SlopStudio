@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="src/EsilvaSoft.SlopStudio.Core/EsilvaSoft.SlopStudio.Core.csproj" />
+  <Project Path="src/EsilvaSoft.SlopStudio.Application/EsilvaSoft.SlopStudio.Application.csproj" />
+  <Project Path="src/EsilvaSoft.SlopStudio.Infrastructure/EsilvaSoft.SlopStudio.Infrastructure.csproj" />
+  <Project Path="src/EsilvaSoft.SlopStudio.Desktop/EsilvaSoft.SlopStudio.Desktop.csproj" />
+  <Project Path="tests/EsilvaSoft.SlopStudio.UnitTests/EsilvaSoft.SlopStudio.UnitTests.csproj" />
+</Solution>

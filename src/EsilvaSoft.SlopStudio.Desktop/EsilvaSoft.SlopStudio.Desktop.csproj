@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets/slop-studio.ico</ApplicationIcon>
+    <RuntimeIdentifiers>win-x64;win-arm64;linux-x64;linux-arm64</RuntimeIdentifiers>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../EsilvaSoft.SlopStudio.Application/EsilvaSoft.SlopStudio.Application.csproj" />
+    <ProjectReference Include="../EsilvaSoft.SlopStudio.Infrastructure/EsilvaSoft.SlopStudio.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.AvaloniaEdit" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Assets/**/*.png" />
+    <AvaloniaResource Include="Assets/*.ico" />
+  </ItemGroup>
+  <Target Name="RejectBundledAiModels" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <BundledAiModel Include="@(ResolvedFileToPublish)" Condition="'%(ResolvedFileToPublish.Extension)' == '.onnx' Or '%(ResolvedFileToPublish.Extension)' == '.safetensors' Or '%(ResolvedFileToPublish.Extension)' == '.gguf'" />
+    </ItemGroup>
+    <Error Condition="'@(BundledAiModel)' != ''" Text="Modelos de IA devem ser instalados externamente; remova os pesos da publicação." />
+  </Target>
+</Project>

@@ -1,0 +1,310 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:syntax="using:EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" x:Class="EsilvaSoft.SlopStudio.Desktop.WorkspaceToolsWindow" x:DataType="vm:MainWindowViewModel" Title="Ferramentas do banco" Width="1100" Height="740" MinWidth="800" MinHeight="540">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="12" RowSpacing="8">
+    <StackPanel>
+      <TextBlock Text="Ferramentas do banco" Classes="section-title"/>
+      <TextBlock Text="{Binding SelectedProfileDetails}" Classes="muted"/>
+      <TextBlock Text="{Binding SelectedDatabase}" FontWeight="SemiBold"/>
+    </StackPanel>
+    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+      <TabControl MinWidth="760" MinHeight="520">
+        <TabItem Header="Consulta e schema">
+          <StackPanel Spacing="12" Margin="12">
+            <TextBlock Text="Filtro Extended JSON"/>
+            <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Text="{Binding QueryFilter}" Classes="code syntax" AcceptsReturn="True" MinHeight="96"/>
+            <WrapPanel>
+              <Button Content="Explain (executionStats)" Command="{Binding ExplainQueryCommand}"/>
+              <Button Content="Contagem exata" Command="{Binding CountExactDocumentsCommand}"/>
+              <Button Content="Estimar coleção" Command="{Binding CountEstimatedDocumentsCommand}"/>
+            </WrapPanel>
+            <TextBlock Text="{Binding CountResults}" TextWrapping="Wrap"/>
+            <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Text="{Binding ExplainResults}" Classes="code syntax" IsReadOnly="True" AcceptsReturn="True" Height="180" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+            <TextBlock Text="Documentos na amostra de schema"/>
+            <NumericUpDown Value="{Binding SchemaSampleMaximumDocuments}" Minimum="1" Maximum="1000" Width="150" HorizontalAlignment="Left"/>
+            <WrapPanel>
+              <Button Content="Amostrar campos" Command="{Binding SampleSchemaFieldsCommand}"/>
+              <Button Content="Inferir validador" Command="{Binding InferCollectionValidatorCommand}"/>
+              <Button Content="Sugerir MQL" Command="{Binding SuggestMqlCommand}"/>
+            </WrapPanel>
+            <TextBlock Text="{Binding AutocompleteSuggestions}" TextWrapping="Wrap"/>
+            <ComboBox ItemsSource="{Binding QuerySuggestions}" SelectedItem="{Binding SelectedQuerySuggestion}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Text}"/>
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <Button Content="Aplicar sugestão" Command="{Binding ApplyQuerySuggestionCommand}"/>
+            <TextBlock Text="Validador inferido: revise antes de aplicar na ferramenta Coleções."/>
+            <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Text="{Binding CollectionValidatorJson}" Classes="code syntax" AcceptsReturn="True" Height="160" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+          </StackPanel>
+        </TabItem>
+        <TabItem Header="Análise">
+          <TabControl>
+            <TabItem Header="Valores distintos">
+              <Grid Margin="8" RowDefinitions="Auto,Auto,*" RowSpacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="Campo:" VerticalAlignment="Center"/>
+                  <TextBox Text="{Binding DistinctField}" Width="280" PlaceholderText="Ex.: status ou endereco.cidade"/>
+                  <TextBlock Text="Máximo:" VerticalAlignment="Center"/>
+                  <NumericUpDown Minimum="1" Maximum="10000" Value="{Binding DistinctMaximumValues}" Width="110"/>
+                  <Button Content="Buscar valores distintos" Command="{Binding GetDistinctValuesCommand}" IsEnabled="{Binding CanGetDistinctValues}"/>
+                </StackPanel>
+                <TextBlock Grid.Row="1" Text="Executa $match, $group e $limit no servidor com o filtro atual; o limite é aplicado antes de transferir os valores." TextWrapping="Wrap" Opacity="0.75"/>
+                <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Grid.Row="2" Classes="code syntax" Text="{Binding DistinctResults}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+              </Grid>
+            </TabItem>
+            <TabItem Header="Explain">
+              <Grid Margin="8" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" RowSpacing="8">
+                <TextBlock Text="Plano e estatísticas da consulta (comando somente leitura)" FontSize="16" FontWeight="SemiBold"/>
+                <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Grid.Row="1" Classes="code syntax" Text="{Binding ExplainResults}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
+              </Grid>
+            </TabItem>
+            <TabItem Header="Agregações">
+              <Grid Margin="8" RowDefinitions="Auto,*,Auto,*" RowSpacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="Limite:" VerticalAlignment="Center"/>
+                  <NumericUpDown Minimum="1" Maximum="10000" Value="{Binding AggregationLimit}" Width="110"/>
+                  <Button Content="Sugerir estágios" Command="{Binding SuggestAggregationCommand}"/>
+                  <Button Content="Executar pipeline" Command="{Binding ExecuteAggregationCommand}" IsEnabled="{Binding CanExecuteQuery}"/>
+                </StackPanel>
+                <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Aggregation" Classes="syntax" Grid.Row="1" Text="{Binding AggregationPipeline}" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="{DynamicResource CodeFont}" PlaceholderText="Pipeline JSON, por exemplo: [{ &quot;$match&quot;: { &quot;ativo&quot;: true } }]"/>
+                <TextBlock Grid.Row="2" Text="Resultado do pipeline" FontWeight="SemiBold"/>
+                <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Row="3" Text="{Binding AggregationResults}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="{DynamicResource CodeFont}"/>
+              </Grid>
+            </TabItem>
+          </TabControl>
+        </TabItem>
+        <TabItem Header="Operações e dados">
+          <TabControl>
+            <TabItem Header="Transferir">
+              <Grid Margin="8" RowDefinitions="Auto,Auto,*,Auto,Auto,*" RowSpacing="8">
+                <TextBlock Text="A exportação cria uma pasta com um manifesto e um arquivo Extended JSON por coleção no workspace local." TextWrapping="Wrap" Opacity="0.8"/>
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="Limite por coleção:" VerticalAlignment="Center"/>
+                  <NumericUpDown Minimum="1" Maximum="1000000" Value="{Binding ExportDocumentsPerCollectionLimit}" Width="130"/>
+                  <Button Content="Exportar banco selecionado" Command="{Binding ExportDatabaseCommand}" IsEnabled="{Binding CanExportDatabase}"/>
+                </StackPanel>
+                <TextBox Grid.Row="2" Text="{Binding ExportResults}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="{DynamicResource CodeFont}"/>
+                <TextBlock Grid.Row="3" Text="Importação: informe uma pasta criada pela exportação. Os documentos são aplicados por upsert de _id; nada é apagado." TextWrapping="Wrap" Opacity="0.8"/>
+                <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="8">
+                  <TextBox Text="{Binding ImportSourceDirectory}" Width="460" PlaceholderText="Pasta que contém manifest.json"/>
+                  <Button Content="Escolher pasta" Click="SelectImportDirectory"/>
+                  <Button Content="Importar no banco selecionado" Command="{Binding ImportDatabaseCommand}" IsEnabled="{Binding CanImportDatabase}"/>
+                </StackPanel>
+                <TextBox Grid.Row="5" Text="{Binding ImportResults}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="{DynamicResource CodeFont}"/>
+              </Grid>
+            </TabItem>
+            <TabItem Header="Administração">
+              <Grid Margin="8" RowDefinitions="Auto,Auto,Auto,Auto,*" RowSpacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Content="Status do servidor" Command="{Binding LoadServerStatusCommand}" IsEnabled="{Binding HasSelectedProfile}"/>
+                  <Button Content="Topologia" Command="{Binding LoadTopologyCommand}" IsEnabled="{Binding HasSelectedProfile}"/>
+                  <Button Content="Operações correntes" Command="{Binding LoadCurrentOperationsCommand}" IsEnabled="{Binding HasSelectedProfile}"/>
+                  <Button Content="Profiler atual" Command="{Binding LoadProfilerStatusCommand}" IsEnabled="{Binding CanLoadDatabaseStats}"/>
+                  <Button Content="Usuários" Command="{Binding LoadUsersCommand}" IsEnabled="{Binding HasSelectedProfile}"/>
+                  <Button Content="Papéis" Command="{Binding LoadRolesCommand}" IsEnabled="{Binding HasSelectedProfile}"/>
+                  <Button Content="Auditoria local" Command="{Binding LoadAuditCommand}"/>
+                  <TextBox Text="{Binding AuditExportPath}" Width="220" PlaceholderText="Arquivo JSON da auditoria"/>
+                  <Button Content="Exportar auditoria" Command="{Binding ExportAuditCommand}"/>
+                  <Button Content="Estatísticas do banco" Command="{Binding LoadDatabaseStatsCommand}" IsEnabled="{Binding CanLoadDatabaseStats}"/>
+                  <Button Content="Estatísticas da coleção" Command="{Binding LoadCollectionStatsCommand}" IsEnabled="{Binding CanLoadCollectionStats}"/>
+                  <TextBlock Text="A disponibilidade depende dos privilégios do usuário MongoDB." VerticalAlignment="Center" Opacity="0.7"/>
+                </StackPanel>
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+                  <TextBox Text="{Binding OperationIdToKill}" Width="180" PlaceholderText="ID numérico da operação"/>
+                  <TextBox Text="{Binding OperationKillConfirmation}" Width="180" PlaceholderText="Repita o ID para confirmar"/>
+                  <Button Content="Interromper operação" Classes="danger" Command="{Binding KillOperationCommand}" IsEnabled="{Binding CanKillOperation}"/>
+                  <TextBlock Text="A interrupção não pode ser desfeita." VerticalAlignment="Center" Opacity="0.7"/>
+                </StackPanel>
+                <Grid Grid.Row="2" ColumnDefinitions="*,*,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="6" RowSpacing="5">
+                  <TextBox Text="{Binding DropDatabaseConfirmation}" Width="260" PlaceholderText="Digite o nome do banco selecionado"/>
+                  <Button Grid.Column="1" Content="Remover banco" Classes="danger" Command="{Binding DropDatabaseCommand}" IsEnabled="{Binding CanDropDatabase}"/>
+                  <TextBlock Grid.Column="2" Grid.ColumnSpan="2" Text="Bancos admin, config e local são protegidos." VerticalAlignment="Center" Opacity="0.7"/>
+                  <TextBox Grid.Row="1" Text="{Binding NewDatabaseName}" PlaceholderText="Novo banco"/>
+                  <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding NewDatabaseInitialCollection}" PlaceholderText="Coleção inicial"/>
+                  <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding NewDatabaseConfirmation}" PlaceholderText="Repita o banco"/>
+                  <Button Grid.Row="1" Grid.Column="3" Content="Criar banco" Command="{Binding CreateDatabaseCommand}" IsEnabled="{Binding CanCreateDatabase}"/>
+                </Grid>
+                <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8">
+                  <TextBox Text="{Binding CollectionIntegrityConfirmation}" Width="260" PlaceholderText="Digite a coleção selecionada para validar"/>
+                  <Button Content="Validar integridade" Command="{Binding ValidateCollectionIntegrityCommand}" IsEnabled="{Binding CanValidateCollectionIntegrity}"/>
+                  <TextBlock Text="A validação completa pode ser demorada e exige confirmação." VerticalAlignment="Center" Opacity="0.7"/>
+                </StackPanel>
+                <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="8">
+                  <TextBox Text="{Binding CollectionCompactConfirmation}" Width="260" PlaceholderText="Digite a coleção selecionada para compactar"/>
+                  <CheckBox Content="Forçar" IsChecked="{Binding CollectionCompactForce}" VerticalAlignment="Center"/>
+                  <Button Content="Compactar coleção" Classes="danger" Command="{Binding CompactCollectionCommand}" IsEnabled="{Binding CanCompactCollection}"/>
+                  <TextBlock Text="Pode estar indisponível pela topologia ou versão do servidor." VerticalAlignment="Center" Opacity="0.7"/>
+                </StackPanel>
+                <Grid Grid.Row="5" ColumnDefinitions="*,*,*,*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="6" RowSpacing="5">
+                  <TextBox Text="{Binding NewDatabaseUsername}" PlaceholderText="Novo usuário"/>
+                  <TextBox Grid.Column="1" PasswordChar="●" Text="{Binding NewDatabaseUserPassword}" PlaceholderText="Senha (não persistida)"/>
+                  <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Column="2" Text="{Binding NewDatabaseUserRoles}" PlaceholderText="Papéis JSON" FontFamily="{DynamicResource CodeFont}"/>
+                  <TextBox Grid.Column="3" Text="{Binding NewDatabaseUserConfirmation}" PlaceholderText="Repita o usuário"/>
+                  <Button Grid.Column="4" Content="Criar usuário" Command="{Binding CreateDatabaseUserCommand}" IsEnabled="{Binding CanCreateDatabaseUser}"/>
+                  <TextBox Grid.Row="1" Text="{Binding DatabaseUsernameToDrop}" PlaceholderText="Usuário a remover"/>
+                  <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding DatabaseUserDropConfirmation}" PlaceholderText="Repita o usuário"/>
+                  <Button Grid.Row="1" Grid.Column="2" Content="Remover usuário" Classes="danger" Command="{Binding DropDatabaseUserCommand}" IsEnabled="{Binding CanDropDatabaseUser}"/>
+                  <TextBlock Grid.Row="1" Grid.Column="3" Grid.ColumnSpan="2" Text="A remoção é irreversível e exige confirmação." VerticalAlignment="Center" Opacity="0.7"/>
+                  <TextBox Grid.Row="2" Text="{Binding DatabaseRoleUsername}" PlaceholderText="Usuário para alterar papéis"/>
+                  <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Row="2" Grid.Column="1" Text="{Binding DatabaseRolePayload}" PlaceholderText="Papéis JSON" FontFamily="{DynamicResource CodeFont}"/>
+                  <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding DatabaseRoleConfirmation}" PlaceholderText="Repita o usuário"/>
+                  <CheckBox Grid.Row="2" Grid.Column="3" Content="Revogar" IsChecked="{Binding RevokeDatabaseRoles}" VerticalAlignment="Center"/>
+                  <Button Grid.Row="2" Grid.Column="4" Content="Atualizar papéis" Command="{Binding UpdateDatabaseUserRolesCommand}" IsEnabled="{Binding CanUpdateDatabaseUserRoles}"/>
+                </Grid>
+                <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Row="6" Text="{Binding AdministrationResults}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="{DynamicResource CodeFont}"/>
+              </Grid>
+            </TabItem>
+            <TabItem Header="Documentos">
+              <Grid Margin="8" ColumnDefinitions="*,10,*">
+                <Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                  <TextBlock Text="Documento Extended JSON (inserir/substituir)" FontWeight="SemiBold"/>
+                  <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Row="1" Text="{Binding DocumentJson}" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="{DynamicResource CodeFont}"/>
+                  <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
+                    <Button Content="Inserir" Command="{Binding InsertDocumentCommand}" IsEnabled="{Binding CanExecuteQuery}"/>
+                    <Button Content="Substituir pelo filtro" Click="ConfirmDestructive" Tag="ReplaceDocumentCommand" IsEnabled="{Binding CanExecuteQuery}"/>
+                  </StackPanel>
+                  <TextBlock Grid.Row="3" Text="Atualização parcial: use operadores como $set, $unset, $inc ou $push na aba de filtro à direita." TextWrapping="Wrap" Opacity="0.7"/>
+                  <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="8">
+                    <Button Content="Gerar identificador" Command="{Binding GenerateIdentifierCommand}"/>
+                    <TextBlock Text="{Binding IdentifierLabel}" VerticalAlignment="Center" Opacity="0.7" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding IdentifierLabel}"/>
+                  </StackPanel>
+                  <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Row="5" Text="{Binding IdentifierSnippet}" IsReadOnly="True" FontFamily="{DynamicResource CodeFont}" AutomationProperties.Name="Identificador no construtor configurado"/>
+                  <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Row="6" Text="{Binding IdentifierExtendedJsonSnippet}" IsReadOnly="True" FontFamily="{DynamicResource CodeFont}" AutomationProperties.Name="Identificador em Extended JSON canônico"/>
+                  <Grid Grid.Row="7" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBox Text="{Binding IdentifierInput}" PlaceholderText="ObjectId, UUID, 24 dígitos hexadecimais ou UUID com 32 dígitos" FontFamily="{DynamicResource CodeFont}" AutomationProperties.Name="Identificador para interpretar"/>
+                    <Button Grid.Column="1" Content="Interpretar" Command="{Binding InterpretIdentifierCommand}"/>
+                  </Grid>
+                  <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Row="8" Text="{Binding IdentifierInterpretation}" IsReadOnly="True" TextWrapping="Wrap" FontFamily="{DynamicResource CodeFont}" AutomationProperties.Name="Tipo e formas do identificador interpretado"/>
+                </Grid>
+                <GridSplitter Grid.Column="1" Width="10"/>
+                <Grid Grid.Column="2" RowDefinitions="Auto,*,Auto,Auto,Auto,Auto,120,Auto,120" RowSpacing="8">
+                  <TextBlock Text="Filtro obrigatório para alterar/excluir" FontWeight="SemiBold"/>
+                  <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Row="1" Text="{Binding MutationFilter}" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="{DynamicResource CodeFont}"/>
+                  <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Row="2" Text="{Binding UpdateJson}" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="{DynamicResource CodeFont}" PlaceholderText="Update JSON: operadores ou pipeline, por exemplo [{ &quot;$set&quot;: { &quot;ativo&quot;: true } }]"/>
+                  <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8">
+                    <Button Content="Carregar prévia" Command="{Binding PreviewDocumentCommand}" IsEnabled="{Binding CanPreviewDocument}"/>
+                    <Button Content="Duplicar prévia" Command="{Binding DuplicatePreviewDocumentCommand}" IsEnabled="{Binding CanDuplicatePreviewDocument}"/>
+                    <Button Content="Atualizar campos" Command="{Binding UpdateDocumentCommand}" IsEnabled="{Binding CanExecuteQuery}"/>
+                    <Button Content="Find-and-modify" Command="{Binding FindAndModifyCommand}" IsEnabled="{Binding CanExecuteQuery}"/>
+                    <CheckBox Content="Upsert" IsChecked="{Binding UpdateUpsert}"/>
+                    <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Text="{Binding UpdateArrayFiltersJson}" Width="280" PlaceholderText="arrayFilters JSON opcional" FontFamily="{DynamicResource CodeFont}"/>
+                  </StackPanel>
+                  <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="8">
+                    <Button Content="Excluir pelo filtro" Classes="danger" Click="ConfirmDestructive" Tag="DeleteDocumentCommand" IsEnabled="{Binding CanExecuteQuery}"/>
+                    <CheckBox Content="Excluir todos os correspondentes" IsChecked="{Binding DeleteManyDocuments}" VerticalAlignment="Center"/>
+                  </StackPanel>
+                  <TextBlock Grid.Row="5" Text="Primeiro documento correspondente (prévia somente leitura)" FontWeight="SemiBold"/>
+                  <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Row="6" Text="{Binding DocumentPreview}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="{DynamicResource CodeFont}"/>
+                  <TextBlock Grid.Row="7" Text="Documento após find-and-modify" FontWeight="SemiBold"/>
+                  <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Row="8" Text="{Binding FindAndModifyResult}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="{DynamicResource CodeFont}"/>
+                </Grid>
+              </Grid>
+            </TabItem>
+            <TabItem Header="CRUD em lote">
+              <Grid Margin="8" RowDefinitions="Auto,*,Auto" RowSpacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="Array de documentos Extended JSON" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                  <TextBlock Text="Máximo:" VerticalAlignment="Center"/>
+                  <NumericUpDown Minimum="1" Maximum="10000" Value="{Binding BulkMaximumDocuments}" Width="100"/>
+                  <CheckBox Content="Ordenado" IsChecked="{Binding BulkOrdered}"/>
+                  <Button Content="Inserir lote" Command="{Binding InsertManyDocumentsCommand}" IsEnabled="{Binding CanExecuteQuery}"/>
+                </StackPanel>
+                <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Row="1" Text="{Binding BulkDocumentsJson}" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="{DynamicResource CodeFont}" PlaceholderText="[ { &quot;campo&quot;: &quot;valor&quot; } ]"/>
+                <TextBlock Grid.Row="2" Text="A operação é limitada ao número configurado e respeita o modo somente leitura." Opacity="0.7"/>
+              </Grid>
+            </TabItem>
+            <TabItem Header="Índices">
+              <Grid Margin="8" ColumnDefinitions="*,10,*">
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                  <TextBlock Text="Chaves do índice" FontWeight="SemiBold"/>
+                  <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Row="1" Text="{Binding IndexKeys}" FontFamily="{DynamicResource CodeFont}"/>
+                  <TextBox Grid.Row="2" Text="{Binding IndexName}" PlaceholderText="Nome opcional"/>
+                  <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8">
+                    <CheckBox Content="Único" IsChecked="{Binding IndexIsUnique}"/>
+                    <CheckBox Content="Esparso" IsChecked="{Binding IndexIsSparse}"/>
+                    <CheckBox Content="Oculto" IsChecked="{Binding IndexIsHidden}"/>
+                    <TextBlock Text="TTL (segundos):" VerticalAlignment="Center"/>
+                    <NumericUpDown Minimum="0" Maximum="2147483647" Value="{Binding IndexExpireAfterSeconds}" Width="150"/>
+                  </StackPanel>
+                  <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Row="4" Text="{Binding IndexPartialFilter}" PlaceholderText="Filtro parcial BSON opcional, por exemplo: { &quot;ativo&quot;: true }" FontFamily="{DynamicResource CodeFont}"/>
+                  <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Row="5" Text="{Binding IndexCollation}" PlaceholderText="Collation BSON opcional, por exemplo: { &quot;locale&quot;: &quot;pt&quot;, &quot;strength&quot;: 1 }" FontFamily="{DynamicResource CodeFont}"/>
+                  <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Row="6" Text="{Binding IndexWildcardProjection}" PlaceholderText="Projeção wildcard opcional; requer { &quot;$**&quot;: 1 }, por exemplo: { &quot;atributos.cor&quot;: 1 }" FontFamily="{DynamicResource CodeFont}"/>
+                  <StackPanel Grid.Row="7" Orientation="Horizontal" Spacing="8">
+                    <Button Content="Criar índice" Command="{Binding CreateIndexCommand}" IsEnabled="{Binding CanExecuteQuery}"/>
+                    <Button Content="Atualizar lista" Command="{Binding LoadIndexesCommand}" IsEnabled="{Binding CanExecuteQuery}"/>
+                    <Button Content="Uso dos índices" Command="{Binding LoadIndexUsageStatsCommand}" IsEnabled="{Binding CanExecuteQuery}"/>
+                  </StackPanel>
+                  <StackPanel Grid.Row="8" Orientation="Horizontal" Spacing="8">
+                    <TextBox Text="{Binding IndexNameToDrop}" Width="220" PlaceholderText="Nome do índice a remover"/>
+                    <Button Content="Remover índice" Classes="danger" Click="ConfirmDestructive" Tag="DropIndexCommand" IsEnabled="{Binding CanDropIndex}"/>
+                    <TextBox Text="{Binding IndexNameForVisibility}" Width="180" PlaceholderText="Índice para ocultar/exibir"/>
+                    <TextBox Text="{Binding IndexVisibilityConfirmation}" Width="160" PlaceholderText="Repita o índice"/>
+                    <CheckBox Content="Oculto" IsChecked="{Binding IndexVisibilityHidden}"/>
+                    <Button Content="Alterar visibilidade" Command="{Binding SetIndexVisibilityCommand}" IsEnabled="{Binding CanSetIndexVisibility}"/>
+                    <TextBlock Text="_id_ é protegido" VerticalAlignment="Center" Opacity="0.7"/>
+                  </StackPanel>
+                </Grid>
+                <GridSplitter Grid.Column="1" Width="10"/>
+                <Grid Grid.Column="2" RowDefinitions="Auto,*" RowSpacing="8">
+                  <TextBlock Text="Índices no servidor" FontWeight="SemiBold"/>
+                  <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Grid.Row="1" Text="{Binding IndexResults}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="{DynamicResource CodeFont}"/>
+                </Grid>
+              </Grid>
+            </TabItem>
+          </TabControl>
+        </TabItem>
+        <TabItem Header="Coleções">
+          <Expander Header="Gerenciar coleções e validação (avançado)">
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="5" Margin="0,8,0,0">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBox Text="{Binding NewCollectionName}" Width="220" PlaceholderText="Nome da nova coleção"/>
+                <CheckBox Content="Capped" IsChecked="{Binding NewCollectionIsCapped}" VerticalAlignment="Center"/>
+                <CheckBox Content="View" IsChecked="{Binding NewCollectionIsView}" VerticalAlignment="Center"/>
+                <CheckBox Content="Clustered" IsChecked="{Binding NewCollectionIsClustered}" VerticalAlignment="Center"/>
+                <TextBlock Text="Máx. bytes:" VerticalAlignment="Center"/>
+                <NumericUpDown Minimum="1" Maximum="1099511627776" Value="{Binding NewCollectionMaxSizeBytes}" Width="145"/>
+                <TextBlock Text="Máx. docs:" VerticalAlignment="Center"/>
+                <NumericUpDown Minimum="1" Maximum="1000000000" Value="{Binding NewCollectionMaxDocuments}" Width="120"/>
+                <Button Content="Criar coleção" Command="{Binding CreateCollectionCommand}" IsEnabled="{Binding CanCreateCollection}"/>
+              </StackPanel>
+              <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
+                <TextBox Text="{Binding NewCollectionViewOn}" Width="220" PlaceholderText="Origem da view (quando View)"/>
+                <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Aggregation" Classes="syntax" Text="{Binding NewCollectionViewPipeline}" Width="430" PlaceholderText="Pipeline da view, por exemplo: []" FontFamily="{DynamicResource CodeFont}"/>
+                <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Text="{Binding NewCollectionCollation}" Width="250" PlaceholderText="Collation BSON opcional" FontFamily="{DynamicResource CodeFont}"/>
+                <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Text="{Binding NewCollectionClusteredIndexKey}" Width="180" PlaceholderText="Chave clustered BSON" FontFamily="{DynamicResource CodeFont}"/>
+              </StackPanel>
+              <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+                <TextBox Text="{Binding RenameCollectionName}" Width="220" PlaceholderText="Novo nome da coleção selecionada"/>
+                <CheckBox Content="Substituir destino" IsChecked="{Binding RenameDropTarget}" VerticalAlignment="Center"/>
+                <Button Content="Renomear coleção" Command="{Binding RenameCollectionCommand}" IsEnabled="{Binding CanRenameCollection}"/>
+              </StackPanel>
+              <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8">
+                <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Aggregation" Classes="syntax" Text="{Binding ViewUpdatePipeline}" Width="430" PlaceholderText="Novo pipeline da view, por exemplo: []" FontFamily="{DynamicResource CodeFont}"/>
+                <TextBox Text="{Binding ViewUpdateConfirmation}" Width="200" PlaceholderText="Digite a view selecionada"/>
+                <Button Content="Atualizar view" Command="{Binding UpdateViewCommand}" IsEnabled="{Binding CanUpdateView}"/>
+              </StackPanel>
+              <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="8">
+                <Button Content="Carregar validação" Command="{Binding LoadCollectionValidationCommand}" IsEnabled="{Binding CanExecuteQuery}"/>
+                <syntax:MongoTextEditor syntax:SyntaxSettings.Language="Json" Classes="syntax" Text="{Binding CollectionValidatorJson}" Width="430" PlaceholderText="Validador JSON, por exemplo: { &quot;$jsonSchema&quot;: { &quot;bsonType&quot;: &quot;object&quot; } }" FontFamily="{DynamicResource CodeFont}"/>
+                <ComboBox ItemsSource="{Binding CollectionValidationLevels}" SelectedItem="{Binding CollectionValidationLevel}" Width="105"/>
+                <ComboBox ItemsSource="{Binding CollectionValidationActions}" SelectedItem="{Binding CollectionValidationAction}" Width="90"/>
+                <TextBox Text="{Binding CollectionValidationConfirmation}" Width="200" PlaceholderText="Digite a coleção selecionada"/>
+                <Button Content="Aplicar validação" Command="{Binding ConfigureCollectionValidationCommand}" IsEnabled="{Binding CanConfigureCollectionValidation}"/>
+              </StackPanel>
+              <StackPanel Grid.Row="5" Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Remover coleção:" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                <TextBox Text="{Binding DropCollectionConfirmation}" Width="220" PlaceholderText="Digite a coleção selecionada"/>
+                <Button Content="Remover coleção" Classes="danger" Command="{Binding DropCollectionCommand}" IsEnabled="{Binding CanDropCollection}" ToolTip.Tip="Esta ação remove permanentemente a coleção após a confirmação"/>
+              </StackPanel>
+            </Grid>
+          </Expander>
+        </TabItem>
+      </TabControl>
+    </ScrollViewer>
+    <DockPanel Grid.Row="2">
+      <Button DockPanel.Dock="Right" Content="Cancelar operação" Command="{Binding CancelOperationCommand}"/>
+      <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"/>
+    </DockPanel>
+  </Grid>
+</Window>

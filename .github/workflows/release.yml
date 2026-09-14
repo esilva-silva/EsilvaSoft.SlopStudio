@@ -1,0 +1,123 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: prepare
+    runs-on: [self-hosted, Linux, X64]
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - id: version
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag '$tag' inválida. Use vMAJOR.MINOR.PATCH ou vMAJOR.MINOR.PATCH-sufixo."
+            exit 1
+          fi
+          version="${tag#v}"
+          prerelease=false
+          [[ "$version" == *-* ]] && prerelease=true
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.rid }}
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - rid: win-x64
+            runner: [self-hosted, Windows, X64]
+          - rid: linux-x64
+            runner: [self-hosted, Linux, X64]
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PACKAGE_NAME: EsilvaSoft.SlopStudio-${{ needs.prepare.outputs.version }}-${{ matrix.rid }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - run: dotnet restore EsilvaSoft.SlopStudio.slnx --locked-mode
+      - run: dotnet build EsilvaSoft.SlopStudio.slnx --no-restore -c Release -p:Version=${{ env.VERSION }}
+      - run: dotnet test EsilvaSoft.SlopStudio.slnx --no-build --no-restore -c Release
+      # --no-restore: o restore travado acima já inclui os RIDs do Desktop; um restore
+      # implícito com -r propagaria o RID aos projetos referenciados e quebraria os lock files.
+      - run: >-
+          dotnet publish src/EsilvaSoft.SlopStudio.Desktop/EsilvaSoft.SlopStudio.Desktop.csproj
+          --no-restore
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=none
+          -p:PublishDocumentationFiles=false
+          -p:PublishReferencesDocumentationFiles=false
+          -p:Version=${{ env.VERSION }}
+          -o artifacts/publish/${{ matrix.rid }}
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Remove-Item "artifacts/publish/${{ matrix.rid }}/*.pdb", "artifacts/publish/${{ matrix.rid }}/*.xml" -ErrorAction Ignore
+          Compress-Archive -Path "artifacts/publish/${{ matrix.rid }}/*" -DestinationPath "artifacts/$env:PACKAGE_NAME.zip" -Force
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          rm -f artifacts/publish/${{ matrix.rid }}/*.pdb artifacts/publish/${{ matrix.rid }}/*.xml
+          chmod +x "artifacts/publish/${{ matrix.rid }}/EsilvaSoft.SlopStudio.Desktop"
+          tar -czf "artifacts/$PACKAGE_NAME.tar.gz" -C "artifacts/publish/${{ matrix.rid }}" .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.rid }}
+          path: |
+            artifacts/*.zip
+            artifacts/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: release
+    needs: [prepare, build]
+    runs-on: [self-hosted, Linux, X64]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          merge-multiple: true
+          path: dist
+
+      - name: Checksums
+        shell: bash
+        working-directory: dist
+        run: sha256sum -- *.zip *.tar.gz > SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: EsilvaSoft.SlopStudio ${{ needs.prepare.outputs.version }}
+          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: dist/*
