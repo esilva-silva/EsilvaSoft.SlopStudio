@@ -63,7 +63,7 @@ public sealed record CatalogSymbol(
     public ServerVersionRange Versions { get; init; }    // desde/até; depreciação
     public SnippetId? Snippet { get; init; }
     public EvidenceSet Evidence { get; init; }           // validator, índice, amostra, resultado, histórico
-    public SymbolFlags Flags { get; init; }              // Write, Deprecated, AtlasOnly, RequiresQuotes…
+    public SymbolTraits Flags { get; init; }             // Write, Deprecated, AtlasOnly, Stale
 }
 ```
 
@@ -132,7 +132,7 @@ A estrutura sugerida na meta, no modelo proposto:
 
 ### Arquivo embutido
 
-`Application/Language/Catalog/Data/mongodb-language.v1.json`, recurso embutido, carregado uma vez e congelado (`FrozenDictionary`). Contém símbolos, assinaturas, shapes e snippets. Descrições em pt-BR; identificadores em inglês. Versão do arquivo e testes de schema garantem integridade.
+[`Application/Language/mongodb-language.v1.json`](../../src/EsilvaSoft.SlopStudio.Application/Language/mongodb-language.v1.json), recurso embutido carregado uma vez por [`LanguageDefinition`](../../src/EsilvaSoft.SlopStudio.Application/Language/LanguageDefinition.cs) e congelado (`FrozenDictionary`). Contém símbolos, assinaturas, shapes e snippets. Descrições em pt-BR; identificadores em inglês. Versão do arquivo e testes de schema garantem integridade.
 
 ```json
 {
@@ -206,10 +206,10 @@ Teste de contrato na suíte regular: executa o bootstrap em Jint com host falso 
 ConnectionCatalog (imutável, por identidade de perfil)
   Databases: FreshnessBox<NameTable<DatabaseEntry>>
   DatabaseEntry
-    Collections: FreshnessBox<NameTable<CollectionEntry>>     ← listCollections nameOnly
-    Validators:  FreshnessBox<IReadOnlyDictionary<string, CollectionSchema>>  ← listCollections sem nameOnly, lazy
+    Collections: FreshnessBox<NameTable<CollectionEntry>>     ← listCollections nameOnly + authorizedCollections
   CollectionEntry(Name, Type: collection|view|timeseries)
-    Indexes: FreshnessBox<IReadOnlyList<IndexInfo>>           ← listIndexes
+    Definition: FreshnessBox<CollectionMetadata>              ← listCollections filtrado pelo nome: tipo + validator (LRU)
+    Indexes: FreshnessBox<IReadOnlyList<IndexInfo>>           ← listIndexes (LRU)
     Schema:  FreshnessBox<CollectionSchema>                   ← mescla de evidências
   ServerVersion?                                               ← topologia já carregada
 ```
@@ -226,7 +226,7 @@ public sealed record FieldNode(
     FieldPath Path,
     BsonTypeCounts Types,              // contagem por tipo observado/declarado; subtype de binData quando conhecido
     double? Occurrence,                // fração de documentos amostrados com o campo
-    FieldFlags Flags,                  // Required (validator), Indexed, Array, ArrayOfDocuments, Enum
+    FieldTraits Flags,                 // Required (validator), Indexed, Array, ArrayOfDocuments, Enum, Truncated
     NameTable<FieldNode> Children,     // campos de subdocumentos; para arrays de documentos, campos do elemento
     EvidenceSet Evidence)
 {
@@ -257,7 +257,7 @@ Mesclagem por união de nós: tipos somados por fonte, `Required` apenas do vali
 | --- | --- | --- | --- | --- |
 | Bancos | `listDatabases` (`nameOnly`) | Baixo | Primeiro contexto que espere banco na conexão, ou escrita pelo Explorer | Somente perfil conectado da aba |
 | Coleções | `listCollections` `nameOnly: true` (fallback `authorizedCollections: true`) | Baixo, sem locks no 5.0+ | Contexto esperando coleção, ou Explorer | Idem |
-| Validators e tipos | `listCollections` sem `nameOnly`, **uma chamada por banco** | Médio | Contexto esperando campos sem schema carregado | Idem; timeout curto |
+| Tipo e validator | `listCollections` filtrado pelo nome, **uma chamada por coleção editada** | Baixo | Contexto esperando campos da coleção | Idem; entra no LRU |
 | Índices | `listIndexes` | Baixo | Contexto esperando campo/índice da coleção, ou Explorer | Idem |
 | Resultados | Memória da aba | Nenhum remoto | Ao concluir execução | Somente a aba de origem |
 | Amostra de schema | Pipeline de nomes/tipos no servidor | Médio/alto | **Ação explícita** ("Amostrar schema") ou opt-in por conexão | Nunca automática por padrão ([AC-05](decisions.md)) |
@@ -307,7 +307,7 @@ stateDiagram-v2
 | --- | --- | --- |
 | Bancos | 5 min | Mudam raramente |
 | Coleções | 2 min | DDL da própria IDE invalida imediatamente |
-| Validators por banco | 10 min | Alterados pela ferramenta de validação invalidam |
+| Definição (tipo + validator) por coleção | 10 min | Alterada pela ferramenta de validação invalida |
 | Índices | 5 min | Criação/remoção pela IDE invalida |
 | Amostra de schema | 30 min | Só existe após ação explícita |
 | Campos de resultados | Enquanto o conjunto existir | Liberados com o resultado |
@@ -320,7 +320,7 @@ Valores iniciais para calibração com as métricas `metadata.cache.*`; não sã
 - **Single-flight:** um `Task` por chave; consultas concorrentes aguardam o mesmo resultado sem bloquear a UI.
 - **Backoff:** falha → 30 s, 2 min, 10 min; erro de autorização em `listCollections` tenta uma vez `authorizedCollections: true`.
 - **Imutabilidade:** cada carga produz novo snapshot e troca atômica de referência; leitores nunca travam.
-- **Orçamento de memória (provisório):** schema completo para até 64 coleções por conexão em LRU; nomes de bancos/coleções sem LRU até 20 000 coleções por conexão; meta de ≤ 64 MB no cenário 1 000 × 1 000 da [matriz de benchmark](performance.md#benchmarks).
+- **Orçamento de memória:** definições, índices e schemas amostrados compartilham um LRU de 64 entradas por conexão; nomes de bancos e coleções não entram no LRU. Medido em 14/09/2026: **29,9 MB** retidos no cenário 1 000 coleções × 1 000 campos com validator em todas ([performance](performance.md#baseline-medida--fase-1)). A primeira implementação carregava todos os validators do banco em uma chamada e retinha 99,7 MB fora do LRU; foi substituída pela carga por coleção.
 - **Persistência:** adiada. Uma coleção LiteDB `schemaCache` (já prevista em [05](../05-arquitetura.md)) poderá guardar nomes e tipos com versão, por opt-in e respeitando o proprietário único do arquivo. Não guarda valores.
 
 ## Invalidação
@@ -332,7 +332,7 @@ Valores iniciais para calibração com as métricas `metadata.cache.*`; não sã
 | `CreateCollection`, `DropCollection`, `RenameCollection`, views | Coleções do banco; schema da coleção | Forte |
 | `DropDatabase`, `CreateDatabase` | Bancos da conexão | Forte |
 | `CreateIndex`, `DropIndex`, visibilidade | Índices da coleção | Forte |
-| Validação configurada | Validators do banco | Forte |
+| Validação configurada | Definição da coleção | Forte |
 | Escrita bem-sucedida (insert/update) | Nenhuma (schema amostrado vira `Stale` só se a amostra existir) | Suave |
 | Métodos DDL executados pelo Console | Mesmas regras, pela operação auditada | Forte |
 | Perfil editado/removido, desconexão | Todo o `ConnectionCatalog` | Forte |
@@ -381,20 +381,36 @@ public interface ICatalogSource
     void Collect(in CatalogQuery query, ICandidateSink sink, CancellationToken cancellationToken);
 }
 
+// Implementado na Fase 1 (resumo): leituras nunca bloqueiam; Peek nunca agenda carga remota.
 public interface IMetadataCache
 {
-    MetadataView<T> Get<T>(MetadataKey key) where T : class; // nunca bloqueia; agenda carga quando necessário
-    void Invalidate(MetadataKey key, InvalidationStrength strength);
     event EventHandler<MetadataChangedEventArgs>? Changed;
+    bool IsConnected(ConnectionIdentity connection);
+    void Connect(ConnectionProfile profile);          // somente perfis conectados carregam remotamente
+    void Disconnect(Guid profileId);                  // cancela cargas e remove tudo do perfil
+    void SetSchemaSamplingAllowed(Guid profileId, bool allowed);
+    MetadataView<IReadOnlyList<string>> GetDatabases(ConnectionIdentity connection, MetadataAccess access = MetadataAccess.LoadIfNeeded);
+    MetadataView<IReadOnlyList<CollectionEntry>> GetCollections(ConnectionIdentity connection, string database, MetadataAccess access = MetadataAccess.LoadIfNeeded);
+    MetadataView<CollectionMetadata> GetDefinition(ConnectionIdentity connection, string database, string collection, MetadataAccess access = MetadataAccess.LoadIfNeeded);
+    MetadataView<IReadOnlyList<IndexInfo>> GetIndexes(ConnectionIdentity connection, string database, string collection, MetadataAccess access = MetadataAccess.LoadIfNeeded);
+    MetadataView<CollectionSchema> GetSampledSchema(ConnectionIdentity connection, string database, string collection, MetadataAccess access = MetadataAccess.LoadIfNeeded);
+    void PutDatabases(ConnectionProfile profile, IReadOnlyList<string> databases);                         // write-through do Explorer
+    void PutCollections(ConnectionProfile profile, string database, IReadOnlyList<string> collections);
+    void PutIndexes(ConnectionProfile profile, string database, string collection, IReadOnlyList<IndexInfo> indexes);
+    Task RefreshAsync(MetadataKey key, CancellationToken cancellationToken = default);                     // força carga, ignora TTL e backoff
+    Task<CollectionSchema> SampleSchemaAsync(ConnectionProfile profile, string database, string collection, SchemaSampleOptions? options = null, CancellationToken cancellationToken = default);
+    void Invalidate(MetadataInvalidation invalidation);
+    IReadOnlyList<MetadataNamespace> SnapshotNamespaces(int maximum);
 }
 
-public readonly record struct MetadataView<T>(T? Value, Freshness Freshness, DateTimeOffset? LoadedAt) where T : class;
+public readonly record struct MetadataView<T>(T? Value, MetadataFreshness Freshness, DateTimeOffset? LoadedAt, bool IsRefreshing) where T : class;
 
 // Infrastructure, via driver; recebe o perfil capturado, nunca a URI no contrato
 public interface IMongoMetadataSource
 {
     Task<IReadOnlyList<string>> ListDatabaseNamesAsync(ConnectionProfile profile, CancellationToken cancellationToken);
-    Task<IReadOnlyList<CollectionEntry>> ListCollectionsAsync(ConnectionProfile profile, string database, bool includeOptions, CancellationToken cancellationToken);
+    Task<IReadOnlyList<string>> ListCollectionNamesAsync(ConnectionProfile profile, string database, CancellationToken cancellationToken);
+    Task<CollectionDefinition?> GetCollectionDefinitionAsync(ConnectionProfile profile, string database, string collection, CancellationToken cancellationToken);
     Task<IReadOnlyList<IndexInfo>> ListIndexesAsync(ConnectionProfile profile, string database, string collection, CancellationToken cancellationToken);
     Task<SchemaSample> SampleSchemaAsync(ConnectionProfile profile, string database, string collection, SchemaSampleOptions options, CancellationToken cancellationToken);
 }
@@ -404,7 +420,7 @@ public interface IMongoMetadataSource
 
 | Existente | Integração |
 | --- | --- |
-| `IMongoWorkspaceService`/`MongoWorkspaceService` | `IMongoMetadataSource` reutiliza clientes e `OperationEnvironment`; acrescenta listagem com tipo/options |
+| `IMongoWorkspaceService`/`MongoWorkspaceService` | Inalterados; [`MongoMetadataSource`](../../src/EsilvaSoft.SlopStudio.Infrastructure/MongoMetadataSource.cs) reutiliza `MongoClientPool`, `OperationEnvironment` e `ExplorerMetadataService.ParseIndex` |
 | `ExplorerMetadataService.ParseIndex` | Reutilizado para `IndexInfo` |
 | `ExplorerNodeViewModel` | Após carregar, escreve no cache; ao atualizar, invalida |
 | `WorkspaceViewModel.KnownSyntaxNamespaces` | Passa a derivar do cache (highlighting mantém `SyntaxContext`) |

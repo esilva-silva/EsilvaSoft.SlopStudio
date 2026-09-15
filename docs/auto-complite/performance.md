@@ -18,6 +18,96 @@ Nenhum número final é fixado sem medir a implementação atual e as novas. Est
 | Highlighting por tecla | `RefreshHighlighting` + `Highlight` | BenchmarkDotNet + Headless |
 | IA | Tokenização, TTFT, total, tokens/s, working set | `Explicit` com modelos reais |
 
+## Baseline medida — Fase 1
+
+Execução de 14/09/2026 em AMD Ryzen 9 7900 (12 núcleos), Windows 11 25H2, .NET 10.0.12 x64, BenchmarkDotNet 0.15.8 com `--job short --inProcess` (3 iterações; o erro fica entre 5% e 50% da média, então as médias indicam ordem de grandeza, não p95). Médias em µs, alocação por chamada entre parênteses. Reproduzir:
+
+```bash
+dotnet run -c Release --project tests/EsilvaSoft.SlopStudio.Benchmarks -- --filter "*" --job short --inProcess
+```
+
+```bash
+dotnet run -c Release --project tests/EsilvaSoft.SlopStudio.Benchmarks -- memory
+```
+
+### Caminho atual por evento do editor
+
+Script sintético do Console com o cursor no fim; oito documentos de resultado do mesmo tamanho.
+
+| Operação | 1 KiB | 16 KiB | 64 KiB |
+| --- | ---: | ---: | ---: |
+| `MongoCompletionTarget.Resolve` (re-lex do prefixo) | 29,3 (111 KB) | 872,6 (1,63 MB) | 0,000002 — não resolve¹ |
+| Highlight completo do documento | 23,2 (93 KB) | 488,0 (1,35 MB) | 3 581,0 (5,42 MB) |
+| `InferFieldPaths`, 8 documentos | 49,3 (48 KB) | 651,1 (431 KB) | 2 485,6 (1,66 MB) |
+| `AutocompleteContextBuilder.Build` | 30,3 (49 KB) | 30,8 (55 KB) | 29,7 (55 KB) |
+| `BasicAutocompleteProvider` | 23,0 (33 KB) | 57,8 (120 KB) | 58,3 (120 KB) |
+| `CompletionPrivacy` sobre prefixo + sufixo | 0,2 (2 KB) | 2,2 (33 KB) | 13,9 (132 KB) |
+| `GetCompletionAsync` sem dicionário (JSON + SHA-256) | 13,0 (25 KB) | 18,0 (37 KB) | 18,0 (37 KB) |
+
+¹ `MongoCompletionTarget.Resolve` devolve `null` quando o prefixo passa de 65 536 caracteres: acima de 64 KiB o alvo simplesmente não é resolvido, e as sugestões de coleção e campo deixam de ter escopo. É um limite funcional, não um ganho de desempenho.
+
+Leitura:
+
+- Resolução de alvo e highlight crescem com o documento inteiro. Em 16 KiB, a soma das operações síncronas desta tabela chega a cerca de 1,5 ms e 3 MB alocados por evento. Em 64 KiB, só o highlight passa de 3,5 ms, acima do orçamento de 2 ms por tecla. É esse o custo que a análise por statement da Fase 2 precisa remover.
+- A inferência de campos dos resultados custa até 2,5 ms e agora é memoizada por conjunto de resultados na aba (Incremento 1.4); antes da Fase 1 ela se repetia a cada captura.
+- Construção de contexto, dicionário e chave de cache ficam limitados pela janela de contexto e não crescem com o documento.
+- O tempo real no dispatcher (`ui.autocomplete.dispatcher_time`) ainda não foi medido em Headless nem nativo; a soma acima é uma estimativa de componentes.
+
+### Catálogo
+
+Consultas respondidas da memória: 10, 100 e 1 000 coleções × 100, 1 000 e 10 000 campos, com o schema já mesclado.
+
+| Consulta | 100 campos | 1 000 campos | 10 000 campos |
+| --- | ---: | ---: | ---: |
+| Campo por prefixo (`campo0001`) | 3,4 (5 KB) | 16,5 (5 KB) | 145,8–150,8 (5 KB) |
+| Campo por camel humps (`cn`, 200 candidatos) | 11,7 (43 KB) | 40,6–43,8 (175 KB) | 40,7–41,4 (175 KB) |
+| Campos aninhados (`Cliente.`) | 1,5 (4 KB) | 1,6 (4 KB) | 1,6 (4 KB) |
+| Operador por prefixo (`e`) | 1,1 (3 KB) | 1,1 (3 KB) | 1,1 (3 KB) |
+
+| Consulta | 10 coleções | 100 coleções | 1 000 coleções |
+| --- | ---: | ---: | ---: |
+| Coleção por prefixo (`colecao00`) | 1,7 (5 KB) | 10,1–10,8 (40 KB) | 26,1–26,6 (40 KB) |
+
+| Estrutura | 100 nomes | 1 000 nomes | 10 000 nomes |
+| --- | ---: | ---: | ---: |
+| Construir `NameTable` | 18,4 (37 KB) | 230,3 (354 KB) | 4 793,2 (3,52 MB) |
+| `GetCollections` com `Peek` | 0,096 (72 B) | 0,096 (72 B) | 0,095 (72 B) |
+| `ConnectionIdentity.From` (SHA-256) | 0,25 (464 B) | 0,25 (464 B) | 0,24 (464 B) |
+
+Leitura:
+
+- **Orçamento de 1 ms atendido.** A pior consulta, com 10 000 campos, fica em 0,15 ms.
+- **Prefixo com poucas correspondências é linear.** Quando prefixo e camel humps devolvem menos que o máximo pedido, `NameTable.Collect` completa com uma varredura de substring sobre a tabela inteira; daí os 146 µs com 10 000 campos. Cabe no orçamento. Se o ranking da Fase 2 exigir mais folga, o caminho é limitar a varredura por tempo ou por tamanho de consulta, não remover o fallback.
+- **Camel humps aloca 175 KB** por consulta com 200 candidatos, acima dos 64 KB por tecla do orçamento da Fase 2. A origem exata (candidatos, detalhes ou conjunto de vistos) ainda não foi perfilada; a Fase 2 deve refiltrar a lista aberta em vez de consultar de novo a cada tecla.
+- **Construir a tabela custa mais que consultá-la.** Com 10 000 nomes são 4,8 ms, por isso tabelas e o schema mesclado são construídos uma vez por versão do cache e nunca por tecla.
+- Ler o cache com `Peek` custa ~100 ns sem alocar além do view.
+
+### Memória
+
+Cenário `memory`: 1 000 coleções × 1 000 campos com validator em todas, 80 coleções visitadas com definição e amostra explícita, LRU padrão de 64 entradas por conexão, uma consulta de 200 campos.
+
+| Parcela | Retido |
+| --- | ---: |
+| Nomes de coleções | 0,1 MB |
+| Definições com validator (LRU) | 31,8 MB |
+| Schemas amostrados (mesmo LRU; a amostra desloca definições) | −2,3 MB |
+| Schema mesclado e tabelas da consulta | 0,4 MB |
+| **Total** | **29,9 MB** |
+
+A primeira implementação carregava os validators do banco inteiro em uma chamada e retinha 99,7 MB (69,9 MB de JSON de validator fora do LRU). O tipo e o validator passaram a ser carregados por coleção dentro do LRU; o orçamento de 64 MB é atendido com folga.
+
+### Revisão dos orçamentos
+
+| Orçamento | Resultado | Decisão |
+| --- | --- | --- |
+| Consulta ao catálogo, 10 000 campos, ≤ 1 ms | 0,15 ms de média | Mantido |
+| Memória do catálogo ≤ 64 MB | 29,9 MB | Mantido |
+| Trabalho de UI por tecla p95 ≤ 2 ms | Estimativa de ~1,5 ms em 16 KiB e mais de 3,5 ms em 64 KiB no caminho atual | Mantido como meta da Fase 2; medição no dispatcher pendente |
+| Alocação por tecla ≤ 64 KB | 3 MB em 16 KiB no caminho atual; 175 KB por consulta de humps | Mantido; exige refiltro sem nova consulta e análise por statement na Fase 2 |
+| Construção de contexto ≤ 64 KiB p95 ≤ 5 ms | Contexto legado ~30 µs; resolução + highlight chegam a 1,4 ms em 16 KiB e o highlight sozinho a 3,6 ms em 64 KiB | Mantido; o parser da Fase 2 é medido contra estes números |
+
+Pendentes: p95/p99 com job completo, medição Headless e nativa do dispatcher, documento de 1 MB e uma segunda máquina de referência.
+
 ## Orçamentos provisórios
 
 | Métrica | Orçamento provisório | Racional | Medição | Fase |

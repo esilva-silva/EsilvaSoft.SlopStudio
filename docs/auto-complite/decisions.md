@@ -1,6 +1,6 @@
 # Decisões propostas
 
-Estado de todas: **Proposta** (14/09/2026). Ao serem aceitas, promover para [10 — ADRs](../10-decisoes-arquiteturais.md) com numeração oficial e revisão explícita das ADRs afetadas.
+Estado: **Proposta** (14/09/2026), exceto AC-03, AC-04, AC-05, AC-06, AC-11 e AC-14, **implementadas na Fase 1** em 14/09/2026 ([estado e desvios](phases/phase-1-data-traditional.md#estado-da-implementação)). Ao serem aceitas, promover para [10 — ADRs](../10-decisoes-arquiteturais.md) com numeração oficial e revisão explícita das ADRs afetadas; essa promoção ainda não foi feita.
 
 ## AC-01 — Contratos in-process inspirados em LSP
 

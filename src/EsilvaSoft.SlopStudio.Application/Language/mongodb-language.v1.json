@@ -1,0 +1,408 @@
+{
+  "version": 1,
+  "groups": [
+    { "kind": "DslRoot", "category": "dsl-root", "dialects": ["Console"], "symbols": [
+      { "name": "ConnectionPool", "detail": "Conexões cadastradas por nome", "category": "connection-pool", "returns": "Connection" },
+      { "name": "ENV", "detail": "Valores do ambiente ativo" }
+    ] },
+    { "kind": "DslRoot", "category": "dsl-root", "dialects": ["Scripts"], "symbols": [
+      { "name": "db", "detail": "Banco selecionado no destino da aba", "returns": "Database" },
+      ["console", "Mensagens do script"],
+      ["EJSON", "Extended JSON: parse e stringify"]
+    ] },
+    { "kind": "GlobalFunction", "dialects": ["Console"], "symbols": [
+      { "name": "getConnection", "detail": "Conexão cadastrada pelo nome", "category": "dsl", "parameters": ["String"], "returns": "Connection", "snippet": "getConnection(\"${1:conexao}\")" }
+    ] },
+    { "kind": "GlobalFunction", "dialects": ["MongoshScript"], "symbols": [
+      ["print", "Escreve valores na saída"],
+      ["printjson", "Escreve valores como JSON"],
+      ["show", "Lista bancos, coleções ou usuários"],
+      ["use", "Troca o banco atual"],
+      ["help", "Ajuda do shell"]
+    ] },
+    { "kind": "ConnectionMethod", "dialects": ["Console"], "symbols": [
+      { "name": "getDatabase", "detail": "Banco da conexão", "category": "dsl", "parameters": ["DatabaseNameString"], "returns": "Database", "snippet": "getDatabase(\"${1:banco}\")" }
+    ] },
+    { "kind": "ConnectionMethod", "dialects": ["MongoshScript"], "symbols": [
+      { "name": "getDB", "detail": "Banco da conexão do shell", "parameters": ["DatabaseNameString"], "returns": "Database" }
+    ] },
+    { "kind": "DatabaseMethod", "dialects": ["Scripts"], "symbols": [
+      { "name": "getCollection", "detail": "Coleção pelo nome", "category": "dsl", "parameters": ["CollectionNameString"], "returns": "Collection", "snippet": "getCollection(\"${1:colecao}\")" },
+      { "name": "getSiblingDB", "detail": "Outro banco na mesma conexão", "parameters": ["DatabaseNameString"], "returns": "Database", "snippet": "getSiblingDB(\"${1:banco}\")" },
+      { "name": "getName", "detail": "Nome do banco", "returns": "String" },
+      { "name": "dropDatabase", "detail": "Remove o banco", "flags": ["Write"], "returns": "Boolean" },
+      { "name": "createCollection", "detail": "Cria coleção ou view", "flags": ["Write"], "parameters": ["CollectionNameString", "CreateCollectionOptions"], "returns": "Document" },
+      { "name": "stats", "detail": "Estatísticas do banco", "returns": "Document" }
+    ] },
+    { "kind": "DatabaseMethod", "dialects": ["MongoshScript"], "symbols": [
+      { "name": "getCollectionNames", "detail": "Nomes das coleções", "returns": "Array" },
+      { "name": "getCollectionInfos", "detail": "Definições das coleções", "parameters": ["Filter"], "returns": "Array" },
+      { "name": "runCommand", "detail": "Executa comando de banco", "flags": ["Write"], "parameters": ["Document"], "returns": "Document" },
+      { "name": "adminCommand", "detail": "Executa comando no banco admin", "flags": ["Write"], "parameters": ["Document"], "returns": "Document" },
+      { "name": "getMongo", "detail": "Conexão do shell", "returns": "Connection" }
+    ] },
+    { "kind": "CollectionMethod", "dialects": ["Scripts"], "symbols": [
+      { "name": "find", "detail": "Consulta documentos", "parameters": ["Filter", "Projection"], "returns": "Cursor", "snippet": "find({ $1 })" },
+      { "name": "findOne", "detail": "Primeiro documento do filtro", "parameters": ["Filter", "Projection"], "returns": "Document", "snippet": "findOne({ $1 })" },
+      { "name": "aggregate", "detail": "Executa pipeline de agregação", "parameters": ["Pipeline"], "returns": "Cursor", "snippet": "aggregate([$1])" },
+      { "name": "countDocuments", "detail": "Conta documentos do filtro", "parameters": ["Filter"], "returns": "Number", "snippet": "countDocuments({ $1 })" },
+      { "name": "estimatedDocumentCount", "detail": "Contagem estimada pelos metadados", "returns": "Number" },
+      { "name": "distinct", "detail": "Valores distintos de um campo", "parameters": ["FieldPathString", "Filter"], "returns": "Array", "snippet": "distinct(\"${1:campo}\")" },
+      { "name": "insertOne", "detail": "Insere um documento", "flags": ["Write"], "parameters": ["Document"], "returns": "Document" },
+      { "name": "insertMany", "detail": "Insere documentos", "flags": ["Write"], "parameters": ["Documents"], "returns": "Document" },
+      { "name": "updateOne", "detail": "Altera o primeiro documento do filtro", "flags": ["Write"], "parameters": ["Filter", "UpdateOrPipeline", "UpdateOptions"], "returns": "Document" },
+      { "name": "updateMany", "detail": "Altera os documentos do filtro", "flags": ["Write"], "parameters": ["Filter", "UpdateOrPipeline", "UpdateOptions"], "returns": "Document" },
+      { "name": "replaceOne", "detail": "Substitui o primeiro documento do filtro", "flags": ["Write"], "parameters": ["Filter", "Document", "ReplaceOptions"], "returns": "Document" },
+      { "name": "deleteOne", "detail": "Remove o primeiro documento do filtro", "flags": ["Write"], "parameters": ["Filter"], "returns": "Document" },
+      { "name": "deleteMany", "detail": "Remove os documentos do filtro", "flags": ["Write"], "parameters": ["Filter"], "returns": "Document" },
+      { "name": "drop", "detail": "Remove a coleção", "flags": ["Write"], "returns": "Boolean" },
+      { "name": "createIndex", "detail": "Cria índice", "flags": ["Write"], "parameters": ["IndexKeys", "IndexOptions"], "returns": "String" },
+      { "name": "dropIndex", "detail": "Remove índice", "flags": ["Write"], "parameters": ["IndexNameString"], "returns": "Document" },
+      { "name": "stats", "detail": "Estatísticas da coleção", "returns": "Document" }
+    ] },
+    { "kind": "CollectionMethod", "dialects": ["MongoshScript"], "symbols": [
+      { "name": "count", "detail": "Contagem legada", "flags": ["Deprecated"], "parameters": ["Filter"], "returns": "Number" },
+      { "name": "bulkWrite", "detail": "Operações de escrita em lote", "flags": ["Write"], "parameters": ["Array"], "returns": "Document" },
+      { "name": "createIndexes", "detail": "Cria vários índices", "flags": ["Write"], "parameters": ["Array"], "returns": "Array" },
+      { "name": "dropIndexes", "detail": "Remove índices", "flags": ["Write"], "parameters": ["Any"], "returns": "Document" },
+      { "name": "getIndexes", "detail": "Definições dos índices", "returns": "Array" },
+      { "name": "getIndexSpecs", "detail": "Definições dos índices", "returns": "Array" },
+      { "name": "findOneAndUpdate", "detail": "Altera e devolve um documento", "flags": ["Write"], "parameters": ["Filter", "UpdateOrPipeline", "Document"], "returns": "Document" },
+      { "name": "findOneAndReplace", "detail": "Substitui e devolve um documento", "flags": ["Write"], "parameters": ["Filter", "Document", "Document"], "returns": "Document" },
+      { "name": "findOneAndDelete", "detail": "Remove e devolve um documento", "flags": ["Write"], "parameters": ["Filter", "Document"], "returns": "Document" },
+      { "name": "renameCollection", "detail": "Renomeia a coleção", "flags": ["Write"], "parameters": ["CollectionNameString"], "returns": "Document" },
+      { "name": "explain", "detail": "Plano de execução", "returns": "Document" }
+    ] },
+    { "kind": "CursorMethod", "dialects": ["Scripts"], "symbols": [
+      { "name": "sort", "detail": "Ordena o cursor", "parameters": ["Sort"], "returns": "Cursor", "snippet": "sort({ ${1:campo}: ${2:1} })" },
+      { "name": "skip", "detail": "Pula documentos", "parameters": ["NonNegativeInteger"], "returns": "Cursor" },
+      { "name": "limit", "detail": "Limita documentos", "parameters": ["NonNegativeInteger"], "returns": "Cursor" },
+      { "name": "project", "detail": "Projeção de campos", "parameters": ["Projection"], "returns": "Cursor" },
+      { "name": "hint", "detail": "Força um índice", "parameters": ["Any"], "returns": "Cursor" },
+      { "name": "collation", "detail": "Regras de comparação de texto", "parameters": ["Collation"], "returns": "Cursor" },
+      { "name": "comment", "detail": "Comentário da operação", "parameters": ["Any"], "returns": "Cursor" },
+      { "name": "batchSize", "detail": "Tamanho do lote", "parameters": ["NonNegativeInteger"], "returns": "Cursor" },
+      { "name": "maxTimeMS", "detail": "Tempo máximo no servidor", "parameters": ["NonNegativeInteger"], "returns": "Cursor" },
+      { "name": "toArray", "detail": "Materializa o cursor", "returns": "Array" }
+    ] },
+    { "kind": "CursorMethod", "dialects": ["MongoshScript"], "symbols": [
+      { "name": "forEach", "detail": "Percorre os documentos", "parameters": ["Any"] },
+      { "name": "map", "detail": "Transforma os documentos", "parameters": ["Any"], "returns": "Array" },
+      { "name": "count", "detail": "Contagem legada do cursor", "flags": ["Deprecated"], "returns": "Number" },
+      { "name": "hasNext", "detail": "Existe próximo documento", "returns": "Boolean" },
+      { "name": "next", "detail": "Próximo documento", "returns": "Document" },
+      { "name": "itcount", "detail": "Conta percorrendo o cursor", "returns": "Number" },
+      { "name": "pretty", "detail": "Formatação legível", "returns": "Cursor" },
+      { "name": "explain", "detail": "Plano de execução do cursor", "returns": "Document" }
+    ] },
+    { "kind": "BsonConstructor", "dialects": ["Scripts"], "symbols": [
+      { "name": "ObjectId", "detail": "ObjectId de 24 dígitos hexadecimais", "snippet": "ObjectId(\"${1:000000000000000000000000}\")" },
+      { "name": "UUID", "detail": "UUID padrão (subtype 4)", "snippet": "UUID(\"${1:00000000-0000-0000-0000-000000000000}\")" },
+      { "name": "CGUUID", "detail": "UUID legado C#" },
+      { "name": "JUUID", "detail": "UUID legado Java" },
+      { "name": "GUUID", "detail": "UUID Go/Standard" },
+      { "name": "NumberLong", "detail": "Inteiro de 64 bits" },
+      { "name": "NumberDecimal", "detail": "Decimal128" },
+      { "name": "Date", "detail": "Data" },
+      { "name": "ISODate", "detail": "Data em ISO 8601 (UTC)" }
+    ] },
+    { "kind": "BsonConstructor", "dialects": ["MongoshScript"], "symbols": [
+      ["NumberInt", "Inteiro de 32 bits"],
+      ["BinData", "Dados binários"],
+      ["Timestamp", "Timestamp interno"],
+      ["MinKey", "Menor valor BSON"],
+      ["MaxKey", "Maior valor BSON"],
+      ["RegExp", "Expressão regular"],
+      ["Decimal128", "Decimal de 128 bits"],
+      ["Long", "Inteiro de 64 bits"],
+      ["Int32", "Inteiro de 32 bits"],
+      ["Double", "Ponto flutuante de 64 bits"],
+      ["Binary", "Dados binários"]
+    ] },
+    { "kind": "BsonType", "category": "alias", "detail": "Alias de tipo BSON", "dialects": ["Mql"], "symbols": [
+      "double", "string", "object", "array", "binData", "undefined", "objectId", "bool", "date", "null", "regex", "dbPointer",
+      "javascript", "symbol", "javascriptWithScope", "int", "timestamp", "long", "decimal", "minKey", "maxKey", "number"
+    ] },
+    { "kind": "BsonType", "category": "extended-json", "detail": "Wrapper Extended JSON", "dialects": ["Mql"], "symbols": [
+      "$oid", "$date", "$numberLong", "$numberInt", "$numberDecimal", "$numberDouble", "$binary", "$timestamp", "$minKey", "$maxKey",
+      "$regularExpression", "$undefined", "$code", "$scope", "$dbPointer", "$symbol"
+    ] },
+    { "kind": "QueryOperator", "category": "comparison", "valueShape": "FieldValue", "symbols": [
+      ["$eq", "Igual a"], ["$gt", "Maior que"], ["$gte", "Maior ou igual a"], ["$lt", "Menor que"], ["$lte", "Menor ou igual a"], ["$ne", "Diferente de"],
+      { "name": "$in", "detail": "Pertence à lista", "valueShape": "ValueArray" },
+      { "name": "$nin", "detail": "Não pertence à lista", "valueShape": "ValueArray" }
+    ] },
+    { "kind": "QueryOperator", "category": "logical", "valueShape": "FilterArray", "symbols": [
+      ["$and", "Todas as condições"], ["$or", "Alguma das condições"], ["$nor", "Nenhuma das condições"],
+      { "name": "$not", "detail": "Nega a condição do campo", "valueShape": "OperatorObject" }
+    ] },
+    { "kind": "QueryOperator", "category": "element", "symbols": [
+      { "name": "$exists", "detail": "Campo existe", "valueShape": "Boolean" },
+      { "name": "$type", "detail": "Tipo BSON do campo", "valueShape": "BsonTypeAlias" }
+    ] },
+    { "kind": "QueryOperator", "category": "evaluation", "symbols": [
+      { "name": "$expr", "detail": "Expressão de agregação no filtro", "valueShape": "Expression" },
+      { "name": "$jsonSchema", "detail": "Valida pelo JSON Schema", "valueShape": "Document" },
+      { "name": "$mod", "detail": "Resto da divisão", "valueShape": "Array", "applicableTypes": ["int", "long", "double", "decimal"] },
+      { "name": "$regex", "detail": "Expressão regular", "valueShape": "Regex", "applicableTypes": ["string"] },
+      { "name": "$options", "detail": "Opções da expressão regular", "valueShape": "String", "applicableTypes": ["string"] },
+      { "name": "$text", "detail": "Busca em índice de texto", "valueShape": "TextSearch" },
+      { "name": "$where", "detail": "Expressão JavaScript no servidor", "valueShape": "String", "flags": ["Deprecated"] },
+      { "name": "$comment", "detail": "Comentário da consulta", "valueShape": "Any" }
+    ] },
+    { "kind": "QueryOperator", "category": "geospatial", "valueShape": "Document", "applicableTypes": ["object", "array"], "symbols": [
+      ["$geoIntersects", "Geometrias que se interceptam"], ["$geoWithin", "Geometrias contidas"], ["$near", "Pontos próximos"],
+      ["$nearSphere", "Pontos próximos na esfera"], ["$box", "Retângulo"], ["$center", "Círculo plano"], ["$centerSphere", "Círculo esférico"],
+      ["$geometry", "Geometria GeoJSON"], ["$maxDistance", "Distância máxima"], ["$minDistance", "Distância mínima"], ["$polygon", "Polígono plano"]
+    ] },
+    { "kind": "QueryOperator", "category": "array", "applicableTypes": ["array"], "symbols": [
+      { "name": "$all", "detail": "Contém todos os valores", "valueShape": "ValueArray" },
+      { "name": "$elemMatch", "detail": "Elemento que satisfaz o filtro", "valueShape": "Filter" },
+      { "name": "$size", "detail": "Tamanho do array", "valueShape": "NonNegativeInteger" }
+    ] },
+    { "kind": "QueryOperator", "category": "bitwise", "valueShape": "Any", "applicableTypes": ["int", "long", "binData"], "symbols": [
+      ["$bitsAllClear", "Todos os bits zerados"], ["$bitsAllSet", "Todos os bits ligados"], ["$bitsAnyClear", "Algum bit zerado"], ["$bitsAnySet", "Algum bit ligado"]
+    ] },
+    { "kind": "ProjectionOperator", "symbols": [
+      { "name": "$", "detail": "Primeiro elemento que satisfaz o filtro", "valueShape": "Integer" },
+      { "name": "$elemMatch", "detail": "Primeiro elemento que satisfaz a condição", "valueShape": "Filter" },
+      { "name": "$meta", "detail": "Metadado da consulta (textScore, searchScore)", "valueShape": "String" },
+      { "name": "$slice", "detail": "Parte do array", "valueShape": "Any" }
+    ] },
+    { "kind": "UpdateOperator", "category": "field", "valueShape": "FieldValueMap", "symbols": [
+      ["$currentDate", "Define data atual"], ["$inc", "Incrementa número"], ["$min", "Mantém o menor valor"], ["$max", "Mantém o maior valor"],
+      ["$mul", "Multiplica número"], ["$rename", "Renomeia campo"], ["$set", "Define campo"], ["$setOnInsert", "Define campo somente em upsert"], ["$unset", "Remove campo"]
+    ] },
+    { "kind": "UpdateOperator", "category": "array", "valueShape": "FieldValueMap", "symbols": [
+      ["$addToSet", "Adiciona item distinto ao array"], ["$pop", "Remove primeiro ou último item"], ["$pull", "Remove itens que satisfazem a condição"],
+      ["$push", "Adiciona item ao array"], ["$pullAll", "Remove todos os valores informados"]
+    ] },
+    { "kind": "UpdateOperator", "category": "modifier", "symbols": [
+      { "name": "$each", "detail": "Vários itens em $push/$addToSet", "valueShape": "ValueArray" },
+      { "name": "$position", "detail": "Posição de inserção no $push", "valueShape": "Integer" },
+      { "name": "$slice", "detail": "Limita o array após $push", "valueShape": "Integer" },
+      { "name": "$sort", "detail": "Ordena o array após $push", "valueShape": "Any" }
+    ] },
+    { "kind": "UpdateOperator", "category": "bitwise", "valueShape": "FieldValueMap", "symbols": [ ["$bit", "Operação bit a bit"] ] },
+    { "kind": "UpdateOperator", "category": "positional", "valueShape": "Any", "symbols": [
+      ["$", "Primeiro elemento que satisfaz o filtro"], ["$[]", "Todos os elementos do array"], ["$[<identificador>]", "Elementos filtrados por arrayFilters"]
+    ] },
+    { "kind": "AggregationStage", "symbols": [
+      { "name": "$addFields", "detail": "Adiciona campos", "valueShape": "ExpressionMap" },
+      { "name": "$bucket", "detail": "Agrupa em faixas", "valueShape": "Document" },
+      { "name": "$bucketAuto", "detail": "Agrupa em faixas automáticas", "valueShape": "Document" },
+      { "name": "$changeStream", "detail": "Fluxo de alterações", "valueShape": "Document" },
+      { "name": "$collStats", "detail": "Estatísticas da coleção", "valueShape": "Document" },
+      { "name": "$count", "detail": "Conta os documentos do pipeline", "valueShape": "NewFieldName" },
+      { "name": "$densify", "detail": "Preenche lacunas de sequência", "valueShape": "Document" },
+      { "name": "$documents", "detail": "Documentos literais", "valueShape": "Documents" },
+      { "name": "$facet", "detail": "Subpipelines sobre a mesma entrada", "valueShape": "FacetBody" },
+      { "name": "$fill", "detail": "Preenche valores ausentes", "valueShape": "Document" },
+      { "name": "$geoNear", "detail": "Ordena por proximidade", "valueShape": "Document" },
+      { "name": "$graphLookup", "detail": "Busca recursiva", "valueShape": "Document" },
+      { "name": "$group", "detail": "Agrupa documentos", "valueShape": "GroupBody" },
+      { "name": "$indexStats", "detail": "Uso dos índices", "valueShape": "Document" },
+      { "name": "$limit", "detail": "Limita documentos", "valueShape": "NonNegativeInteger" },
+      { "name": "$listSessions", "detail": "Sessões do servidor", "valueShape": "Document" },
+      { "name": "$lookup", "detail": "Relaciona outra coleção", "valueShape": "LookupBody" },
+      { "name": "$match", "detail": "Filtra documentos", "valueShape": "Filter" },
+      { "name": "$merge", "detail": "Grava o resultado em uma coleção", "valueShape": "Document", "flags": ["Write"] },
+      { "name": "$out", "detail": "Substitui uma coleção pelo resultado", "valueShape": "Any", "flags": ["Write"] },
+      { "name": "$project", "detail": "Projeta campos", "valueShape": "Projection" },
+      { "name": "$redact", "detail": "Restringe conteúdo por expressão", "valueShape": "Expression" },
+      { "name": "$replaceRoot", "detail": "Substitui a raiz do documento", "valueShape": "ReplaceRootBody" },
+      { "name": "$replaceWith", "detail": "Substitui o documento", "valueShape": "Expression" },
+      { "name": "$sample", "detail": "Amostra aleatória", "valueShape": "SampleBody" },
+      { "name": "$search", "detail": "MongoDB Search / Atlas Search", "valueShape": "SearchBody" },
+      { "name": "$searchMeta", "detail": "Metadados de MongoDB Search", "valueShape": "SearchBody" },
+      { "name": "$set", "detail": "Adiciona ou substitui campos", "valueShape": "ExpressionMap" },
+      { "name": "$setWindowFields", "detail": "Funções de janela", "valueShape": "Document" },
+      { "name": "$skip", "detail": "Pula documentos", "valueShape": "NonNegativeInteger" },
+      { "name": "$sort", "detail": "Ordena documentos", "valueShape": "Sort" },
+      { "name": "$sortByCount", "detail": "Agrupa e ordena por contagem", "valueShape": "Expression" },
+      { "name": "$unionWith", "detail": "Une outra coleção", "valueShape": "UnionWithBody" },
+      { "name": "$unset", "detail": "Remove campos", "valueShape": "Any" },
+      { "name": "$unwind", "detail": "Expande elementos de um array", "valueShape": "UnwindBody" },
+      { "name": "$vectorSearch", "detail": "Busca vetorial", "valueShape": "Document" }
+    ] },
+    { "kind": "ExpressionOperator", "category": "arithmetic", "detail": "Operador aritmético", "valueShape": "Any", "symbols": [
+      "$abs", "$add", "$ceil", "$divide", "$exp", "$floor", "$ln", "$log", "$log10", "$mod", "$multiply", "$pow", "$round", "$sqrt", "$subtract", "$trunc"
+    ] },
+    { "kind": "ExpressionOperator", "category": "array", "detail": "Operador de array", "valueShape": "Any", "symbols": [
+      "$arrayElemAt", "$arrayToObject", "$concatArrays", "$filter", "$first", "$firstN", "$in", "$indexOfArray", "$isArray", "$last", "$lastN",
+      "$map", "$maxN", "$minN", "$objectToArray", "$range", "$reduce", "$reverseArray", "$size", "$slice", "$sortArray", "$zip"
+    ] },
+    { "kind": "ExpressionOperator", "category": "boolean", "detail": "Operador booleano", "valueShape": "Any", "symbols": [ "$and", "$not", "$or" ] },
+    { "kind": "ExpressionOperator", "category": "comparison", "detail": "Comparação em expressão", "valueShape": "Any", "symbols": [ "$cmp", "$eq", "$gt", "$gte", "$lt", "$lte", "$ne" ] },
+    { "kind": "ExpressionOperator", "category": "conditional", "valueShape": "Any", "symbols": [
+      ["$cond", "Seleciona valor por condição"], ["$ifNull", "Valor alternativo para nulo ou ausente"], ["$switch", "Seleciona entre vários casos"]
+    ] },
+    { "kind": "ExpressionOperator", "category": "date", "detail": "Operador de data", "valueShape": "Any", "symbols": [
+      "$dateAdd", "$dateDiff", "$dateFromParts", "$dateFromString", "$dateSubtract", "$dateToParts", "$dateToString", "$dateTrunc", "$dayOfMonth",
+      "$dayOfWeek", "$dayOfYear", "$hour", "$isoDayOfWeek", "$isoWeek", "$isoWeekYear", "$millisecond", "$minute", "$month", "$second", "$week", "$year"
+    ] },
+    { "kind": "ExpressionOperator", "category": "string", "detail": "Operador de texto", "valueShape": "Any", "symbols": [
+      "$concat", "$indexOfBytes", "$indexOfCP", "$ltrim", "$regexFind", "$regexFindAll", "$regexMatch", "$replaceAll", "$replaceOne", "$rtrim",
+      "$split", "$strLenBytes", "$strLenCP", "$strcasecmp", "$substr", "$substrBytes", "$substrCP", "$toLower", "$toString", "$trim", "$toUpper"
+    ] },
+    { "kind": "ExpressionOperator", "category": "type", "detail": "Conversão ou verificação de tipo", "valueShape": "Any", "symbols": [
+      "$convert", "$isNumber", "$toBool", "$toDate", "$toDecimal", "$toDouble", "$toInt", "$toLong", "$toObjectId", "$type"
+    ] },
+    { "kind": "ExpressionOperator", "category": "set", "detail": "Operador de conjunto", "valueShape": "Any", "symbols": [
+      "$allElementsTrue", "$anyElementTrue", "$setDifference", "$setEquals", "$setIntersection", "$setIsSubset", "$setUnion"
+    ] },
+    { "kind": "ExpressionOperator", "category": "object", "detail": "Operador de documento", "valueShape": "Any", "symbols": [ "$getField", "$mergeObjects", "$setField", "$unsetField" ] },
+    { "kind": "ExpressionOperator", "category": "misc", "valueShape": "Any", "symbols": [
+      ["$let", "Declara variáveis"], ["$literal", "Valor literal sem interpretar operadores"], ["$rand", "Número aleatório"],
+      ["$sampleRate", "Seleciona documentos por taxa"], ["$meta", "Metadado do documento"]
+    ] },
+    { "kind": "Accumulator", "valueShape": "Expression", "detail": "Acumulador", "symbols": [
+      ["$sum", "Soma valores"], ["$avg", "Média dos valores"], ["$min", "Menor valor"], ["$max", "Maior valor"], ["$push", "Acumula valores em um array"],
+      ["$addToSet", "Acumula valores distintos"], ["$first", "Primeiro valor"], ["$last", "Último valor"], ["$count", "Conta documentos do grupo"],
+      "$accumulator", "$bottom", "$bottomN", "$firstN", "$lastN", "$maxN", "$median", "$mergeObjects", "$minN", "$percentile",
+      "$stdDevPop", "$stdDevSamp", "$top", "$topN"
+    ] },
+    { "kind": "WindowOperator", "detail": "Função de janela", "valueShape": "Any", "symbols": [
+      "$covariancePop", "$covarianceSamp", "$denseRank", "$derivative", "$documentNumber", "$expMovingAvg", "$integral", "$linearFill", "$locf", "$rank", "$shift"
+    ] },
+    { "kind": "SystemVariable", "symbols": [
+      ["$$NOW", "Data e hora atuais"], ["$$CLUSTER_TIME", "Timestamp do cluster"], ["$$ROOT", "Documento raiz"], ["$$CURRENT", "Documento atual"],
+      ["$$REMOVE", "Remove o campo"], ["$$DESCEND", "Continua em $redact"], ["$$PRUNE", "Exclui em $redact"], ["$$KEEP", "Mantém em $redact"],
+      ["$$SEARCH_META", "Metadados de MongoDB Search"], ["$$USER_ROLES", "Papéis do usuário"]
+    ] },
+    { "kind": "SearchOperator", "detail": "Operador de MongoDB Search", "valueShape": "SearchOperatorBody", "symbols": [
+      ["autocomplete", "Busca por prefixo"], ["compound", "Combina cláusulas"], ["embeddedDocument", "Busca em documentos incorporados"],
+      ["equals", "Valor igual"], ["exists", "Campo existe"], ["geoShape", "Forma geográfica"], ["geoWithin", "Dentro da geometria"], ["in", "Pertence à lista"],
+      ["knnBeta", "Vizinhos mais próximos"], ["moreLikeThis", "Documentos semelhantes"], ["near", "Valor próximo"], ["phrase", "Frase"],
+      ["queryString", "Sintaxe de consulta"], ["range", "Faixa de valores"], ["regex", "Expressão regular"], ["text", "Texto analisado"], ["wildcard", "Curingas"]
+    ] },
+    { "kind": "SearchOption", "detail": "Opção de MongoDB Search", "valueShape": "Any", "symbols": [
+      ["must", "Cláusulas obrigatórias"], ["mustNot", "Cláusulas proibidas"], ["should", "Cláusulas preferidas"], ["filter", "Cláusulas sem pontuação"],
+      ["minimumShouldMatch", "Mínimo de should atendidas"], ["path", "Campo pesquisado"], ["query", "Texto pesquisado"], ["value", "Valor pesquisado"],
+      ["score", "Ajuste de pontuação"], ["fuzzy", "Tolerância a erros"], ["tokenOrder", "Ordem dos tokens"], ["index", "Índice de busca"],
+      ["highlight", "Trechos destacados"], ["count", "Contagem de resultados"], ["returnStoredSource", "Campos armazenados"], ["concurrent", "Execução paralela"]
+    ] },
+    { "kind": "Keyword", "detail": "Palavra-chave JavaScript", "dialects": ["Scripts"], "symbols": [
+      "const", "let", "var", "async", "await", "if", "else", "for", "while", "do", "return", "try", "catch", "finally", "throw", "function", "new",
+      "break", "continue", "switch", "case", "default", "of", "in", "this", "typeof", "instanceof", "void", "delete", "yield", "class", "extends",
+      "true", "false", "null", "undefined"
+    ] }
+  ],
+  "snippets": [
+    { "id": "filter.equals", "detail": "Campo igual a valor", "dialects": ["Mql"], "shape": "Filter", "body": "${1:campo}: ${2:valor}" },
+    { "id": "filter.condition", "detail": "Condição de campo com operador", "dialects": ["Mql"], "shape": "Filter", "body": "${1:campo}: { \\$eq: ${2:valor} }" },
+    { "id": "filter.in", "detail": "Campo pertence à lista", "dialects": ["Mql"], "shape": "Filter", "body": "${1:campo}: { \\$in: [${2}] }" },
+    { "id": "filter.range", "detail": "Campo em intervalo", "dialects": ["Mql"], "shape": "Filter", "body": "${1:campo}: { \\$gte: ${2}, \\$lt: ${3} }" },
+    { "id": "filter.or", "detail": "Alguma das condições", "dialects": ["Mql"], "shape": "Filter", "body": "\\$or: [{ ${1} }, { ${2} }]" },
+    { "id": "stage.match", "detail": "Estágio $match", "dialects": ["Mql"], "shape": "Pipeline", "body": "{ \\$match: { ${1} } }" },
+    { "id": "stage.project", "detail": "Estágio $project", "dialects": ["Mql"], "shape": "Pipeline", "body": "{ \\$project: { ${1:campo}: 1 } }" },
+    { "id": "stage.group", "detail": "Estágio $group com acumulador", "dialects": ["Mql"], "shape": "Pipeline", "body": "{ \\$group: { _id: \"\\$${1:campo}\", ${2:total}: { \\$sum: ${3:1} } } }" },
+    { "id": "stage.lookup", "detail": "Estágio $lookup", "dialects": ["Mql"], "shape": "Pipeline", "body": "{ \\$lookup: { from: \"${1:colecao}\", localField: \"${2}\", foreignField: \"${3}\", as: \"${4:resultado}\" } }" },
+    { "id": "stage.unwind", "detail": "Estágio $unwind", "dialects": ["Mql"], "shape": "Pipeline", "body": "{ \\$unwind: \"\\$${1:campo}\" }" },
+    { "id": "update.set", "detail": "Atualização com $set", "dialects": ["Mql"], "shape": "Update", "body": "{ \\$set: { ${1:campo}: ${2:valor} } }" },
+    { "id": "method.updateOne", "detail": "updateOne com $set", "dialects": ["Scripts"], "flags": ["Write"], "body": "updateOne({ _id: ${1:id} }, { \\$set: { ${2} } })" },
+    { "id": "method.createIndex", "detail": "createIndex com nome", "dialects": ["Scripts"], "flags": ["Write"], "body": "createIndex({ ${1:campo}: ${2:1} }, { name: \"${3}\" })" }
+  ],
+  "shapes": {
+    "Filter": { "keys": [
+      { "rule": "FieldPath", "value": "FieldCondition" },
+      { "rule": "Operator", "kinds": ["QueryOperator"], "names": ["$and", "$or", "$nor"], "value": "FilterArray" },
+      { "rule": "Operator", "kinds": ["QueryOperator"], "names": ["$expr"], "value": "Expression" },
+      { "rule": "Operator", "kinds": ["QueryOperator"], "names": ["$jsonSchema"], "value": "Document" },
+      { "rule": "Operator", "kinds": ["QueryOperator"], "names": ["$text"], "value": "TextSearch" },
+      { "rule": "Operator", "kinds": ["QueryOperator"], "names": ["$where"], "value": "String" },
+      { "rule": "Operator", "kinds": ["QueryOperator"], "names": ["$comment"], "value": "Any" }
+    ] },
+    "FilterArray": { "element": "Filter" },
+    "FieldCondition": { "values": ["FieldValue", "OperatorObject"] },
+    "OperatorObject": { "keys": [ { "rule": "Operator", "kinds": ["QueryOperator"], "categories": ["comparison", "element", "evaluation", "array", "bitwise", "geospatial"], "scope": "ParentField" } ] },
+    "ValueArray": { "element": "FieldValue" },
+    "TextSearch": { "keys": [
+      { "rule": "Fixed", "names": ["$search"], "value": "String", "required": true },
+      { "rule": "Fixed", "names": ["$language"], "value": "String" },
+      { "rule": "Fixed", "names": ["$caseSensitive", "$diacriticSensitive"], "value": "Boolean" }
+    ] },
+    "Projection": { "keys": [ { "rule": "FieldPath", "value": "ProjectionValue" } ] },
+    "ProjectionValue": { "values": ["Boolean", "Integer", "Expression", "ProjectionOperatorObject"] },
+    "ProjectionOperatorObject": { "keys": [ { "rule": "Operator", "kinds": ["ProjectionOperator"] } ] },
+    "Sort": { "keys": [ { "rule": "FieldPath", "value": "SortDirection" } ] },
+    "Update": { "keys": [ { "rule": "Operator", "kinds": ["UpdateOperator"], "categories": ["field", "array", "bitwise"], "value": "FieldValueMap" } ] },
+    "UpdateOrPipeline": { "values": ["Update", "UpdatePipeline"] },
+    "FieldValueMap": { "keys": [ { "rule": "FieldPath", "value": "FieldValue", "scope": "AllowNewFields" } ] },
+    "UpdatePipeline": { "element": "UpdateStage" },
+    "UpdateStage": { "keys": [ { "rule": "Exclusive", "kinds": ["AggregationStage"], "names": ["$addFields", "$set", "$project", "$unset", "$replaceRoot", "$replaceWith"] } ] },
+    "UpdateOptions": { "keys": [
+      { "rule": "Fixed", "names": ["upsert"], "value": "Boolean" },
+      { "rule": "Fixed", "names": ["arrayFilters"], "value": "FilterArray" }
+    ] },
+    "ReplaceOptions": { "keys": [ { "rule": "Fixed", "names": ["upsert"], "value": "Boolean" } ] },
+    "Pipeline": { "element": "Stage" },
+    "Stage": { "keys": [ { "rule": "Exclusive", "kinds": ["AggregationStage"] } ] },
+    "Expression": { "values": ["Value", "FieldReference", "ExpressionOperatorObject"] },
+    "ExpressionOperatorObject": { "keys": [ { "rule": "Exclusive", "kinds": ["ExpressionOperator"], "value": "Any" } ] },
+    "ExpressionMap": { "keys": [ { "rule": "Dynamic", "value": "Expression" } ] },
+    "GroupBody": { "keys": [
+      { "rule": "Fixed", "names": ["_id"], "value": "Expression", "required": true },
+      { "rule": "Dynamic", "value": "AccumulatorObject" }
+    ] },
+    "AccumulatorObject": { "keys": [ { "rule": "Exclusive", "kinds": ["Accumulator"], "value": "Expression" } ] },
+    "LookupBody": { "keys": [
+      { "rule": "Fixed", "names": ["from"], "value": "CollectionNameString", "required": true },
+      { "rule": "Fixed", "names": ["localField"], "value": "FieldPathString" },
+      { "rule": "Fixed", "names": ["foreignField"], "value": "FieldPathString", "scope": "SiblingCollection:from" },
+      { "rule": "Fixed", "names": ["let"], "value": "ExpressionMap" },
+      { "rule": "Fixed", "names": ["pipeline"], "value": "Pipeline", "scope": "SiblingCollection:from" },
+      { "rule": "Fixed", "names": ["as"], "value": "NewFieldName", "required": true }
+    ] },
+    "UnwindBody": { "values": ["FieldReference", "UnwindOptions"] },
+    "UnwindOptions": { "keys": [
+      { "rule": "Fixed", "names": ["path"], "value": "FieldReference", "required": true },
+      { "rule": "Fixed", "names": ["includeArrayIndex"], "value": "NewFieldName" },
+      { "rule": "Fixed", "names": ["preserveNullAndEmptyArrays"], "value": "Boolean" }
+    ] },
+    "ReplaceRootBody": { "keys": [ { "rule": "Fixed", "names": ["newRoot"], "value": "Expression", "required": true } ] },
+    "FacetBody": { "keys": [ { "rule": "Dynamic", "value": "Pipeline" } ] },
+    "UnionWithBody": { "values": ["CollectionNameString", "UnionWithOptions"] },
+    "UnionWithOptions": { "keys": [
+      { "rule": "Fixed", "names": ["coll"], "value": "CollectionNameString", "required": true },
+      { "rule": "Fixed", "names": ["pipeline"], "value": "Pipeline", "scope": "SiblingCollection:coll" }
+    ] },
+    "SampleBody": { "keys": [ { "rule": "Fixed", "names": ["size"], "value": "NonNegativeInteger", "required": true } ] },
+    "SearchBody": { "keys": [
+      { "rule": "Fixed", "names": ["index"], "value": "String" },
+      { "rule": "Operator", "kinds": ["SearchOperator"], "value": "SearchOperatorBody" },
+      { "rule": "Fixed", "names": ["highlight", "count", "returnStoredSource", "concurrent", "sort", "scoreDetails"], "value": "Any" }
+    ] },
+    "SearchOperatorBody": { "keys": [
+      { "rule": "Operator", "kinds": ["SearchOption"], "value": "Any" },
+      { "rule": "Operator", "kinds": ["SearchOperator"], "value": "SearchOperatorBody" }
+    ] },
+    "Documents": { "element": "Document" },
+    "IndexKeys": { "keys": [ { "rule": "FieldPath", "value": "IndexDirection" } ] },
+    "IndexOptions": { "keys": [
+      { "rule": "Fixed", "names": ["name"], "value": "String" },
+      { "rule": "Fixed", "names": ["unique", "sparse", "hidden"], "value": "Boolean" },
+      { "rule": "Fixed", "names": ["expireAfterSeconds"], "value": "NonNegativeInteger" },
+      { "rule": "Fixed", "names": ["partialFilterExpression"], "value": "Filter" },
+      { "rule": "Fixed", "names": ["collation"], "value": "Collation" },
+      { "rule": "Fixed", "names": ["wildcardProjection"], "value": "Projection" }
+    ] },
+    "Collation": { "keys": [
+      { "rule": "Fixed", "names": ["locale"], "value": "String", "required": true },
+      { "rule": "Fixed", "names": ["strength"], "value": "Integer" },
+      { "rule": "Fixed", "names": ["caseLevel", "numericOrdering", "backwards", "normalization"], "value": "Boolean" },
+      { "rule": "Fixed", "names": ["caseFirst", "alternate", "maxVariable"], "value": "String" }
+    ] },
+    "CreateCollectionOptions": { "keys": [
+      { "rule": "Fixed", "names": ["capped"], "value": "Boolean" },
+      { "rule": "Fixed", "names": ["size", "max"], "value": "NonNegativeInteger" },
+      { "rule": "Fixed", "names": ["validator"], "value": "Filter" },
+      { "rule": "Fixed", "names": ["validationLevel", "validationAction"], "value": "String" },
+      { "rule": "Fixed", "names": ["viewOn"], "value": "CollectionNameString" },
+      { "rule": "Fixed", "names": ["pipeline"], "value": "Pipeline" },
+      { "rule": "Fixed", "names": ["timeseries"], "value": "Document" },
+      { "rule": "Fixed", "names": ["collation"], "value": "Collation" },
+      { "rule": "Fixed", "names": ["expireAfterSeconds"], "value": "NonNegativeInteger" }
+    ] }
+  }
+}

@@ -78,6 +78,7 @@ public sealed class LiteDbConnectionProfileRepository : IConnectionProfileReposi
         if (session.Preferences?.Autocomplete is not { } autocomplete) throw new InvalidDataException("Preferências locais inválidas.");
         autocomplete.Validate();
         session.Preferences.ValidateUuid();
+        session.Preferences.ValidateMetadata();
         return session;
     }
 
@@ -87,6 +88,7 @@ public sealed class LiteDbConnectionProfileRepository : IConnectionProfileReposi
         if (session.Version != 1) throw new ArgumentException("Versão da sessão local não suportada.", nameof(session));
         session.Preferences.Autocomplete.Validate();
         session.Preferences.ValidateUuid();
+        session.Preferences.ValidateMetadata();
         // Persist policy at the boundary as well as in the UI. No credentials or results in this DTO.
         var allowed = session.Preferences.RecoverDrafts
             ? session.Tabs.Where(tab => !tab.ContainsResultData && (tab.ProfileId is null || !session.Preferences.ExcludedProfileIds.Contains(tab.ProfileId.Value))).ToArray()

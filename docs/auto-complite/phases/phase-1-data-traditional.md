@@ -2,6 +2,49 @@
 
 Roadmap: v0.6.0 (EDT-02) · Depende de: nada · Habilita: Fases 2 e 3
 
+## Estado da implementação
+
+✅ Implementada em 14/09/2026. Nenhum comportamento visível do autocomplete mudou: ghost text e menu `Ctrl+Espaço` atuais continuam ativos até a Fase 2.
+
+| Incremento | Estado | Implementação |
+| --- | --- | --- |
+| 1.1 Baseline e instrumentação | ✅ | [`tests/EsilvaSoft.SlopStudio.Benchmarks`](../../../tests/EsilvaSoft.SlopStudio.Benchmarks/) (`BaselineBenchmarks`, `CatalogQueryBenchmarks`, `MetadataStructureBenchmarks`, `MemoryScenario`); [`AutocompleteMetrics`](../../../src/EsilvaSoft.SlopStudio.Application/Language/AutocompleteMetrics.cs) gravado no caminho atual (`CompletionSession`, menu, handler do ghost, captura de contexto, `LocalAiModelService`) |
+| 1.2 Linguagem embutida | ✅ | [`mongodb-language.v1.json`](../../../src/EsilvaSoft.SlopStudio.Application/Language/mongodb-language.v1.json), [`LanguageDefinition`](../../../src/EsilvaSoft.SlopStudio.Application/Language/LanguageDefinition.cs) com validação; `MongoSyntaxVocabulary` como projeção; teste de contrato com o bootstrap do Console |
+| 1.3 Metadata Cache | ✅ | [`MetadataCache`](../../../src/EsilvaSoft.SlopStudio.Application/Language/MetadataCache.cs), `MetadataInvalidationBus`, [`MongoMetadataSource`](../../../src/EsilvaSoft.SlopStudio.Infrastructure/MongoMetadataSource.cs); write-through em `ExplorerNodeViewModel`; conexão e desconexão pelas raízes do `WorkspaceViewModel`; publicações em `WorkspaceService` e `ConsoleRuntime` |
+| 1.4 Evidências de schema | ✅ | [`SchemaBuilder`, `CollectionSchema`, `FieldNode`](../../../src/EsilvaSoft.SlopStudio.Application/Language/CollectionSchema.cs); `InferFieldPaths` delega ao builder; campos de resultados memoizados por conjunto na aba; amostragem por `SampleSchemaAsync` ou opt-in |
+| 1.5 Catálogo | ✅ | [`NameTable<T>`](../../../src/EsilvaSoft.SlopStudio.Application/Language/NameTable.cs), [`KnowledgeCatalog`, `LanguageCatalogSource`, `MetadataCatalogSource`](../../../src/EsilvaSoft.SlopStudio.Application/Language/KnowledgeCatalog.cs); highlighting e nomes do editor leem o cache sem agendar cargas |
+
+### Desvios em relação ao plano
+
+- **Validator por coleção, não por banco.** A primeira implementação carregava todos os validators do banco em uma chamada e retinha 99,7 MB no cenário 1 000 × 1 000. Tipo e validator passaram a ser carregados por coleção (`listCollections` filtrado pelo nome) dentro do LRU: 29,9 MB. Nomes continuam vindo de `nameOnly` + `authorizedCollections`.
+- Arquivo de linguagem em `Application/Language/mongodb-language.v1.json`, sem subpastas `Catalog/Data`.
+- `SymbolFlags` e `FieldFlags` foram renomeados para `SymbolTraits` e `FieldTraits` (regra CA1711 do repositório).
+- O evento `ExplorerNodeViewModel.MetadataChanged` foi removido: as abas atualizam o contexto de highlighting pelo `IMetadataCache.Changed`.
+- O opt-in de amostragem é persistido (`WorkspacePreferences.SchemaSamplingProfileIds`) e exposto em `WorkspaceViewModel.SetSchemaSamplingAllowedAsync`, sem controle visual; a UI pertence à Fase 2.
+- A ferramenta de validador continua usando `QueryAsync` com documentos completos (item opcional desta fase, não alterado).
+- `IMongoWorkspaceService` não mudou; a fonte de metadados é um serviço próprio da Infrastructure.
+
+### Critérios de aceite
+
+| # | Estado | Evidência |
+| --- | --- | --- |
+| 1 | 🚧 | Baseline dos componentes registrada em [performance](../performance.md#baseline-medida--fase-1); tempo de UI por tecla em Headless/nativo ainda não medido (instrumento `ui.autocomplete.dispatcher_time` disponível) |
+| 2 | ✅ | `LanguageDefinitionTests`: integridade, cobertura do vocabulário e das sugestões atuais, contrato com as globais e proxies do Console |
+| 3 | ✅ | `SyntaxHighlightingTests` e `SyntaxHighlightingUiTests` sem alteração, suíte aprovada |
+| 4 | ✅ | `KnowledgeCatalogTests.MetadataIsAnsweredFromMemoryAndReportsUnavailableScopes`, `MetadataCacheTests.ConcurrentReadsShareOneLoadAndNeverBlock` |
+| 5 | ✅ | 50 leituras concorrentes, 1 chamada remota |
+| 6 | ✅ | `DisconnectedProfilesAndPeekNeverLoad` |
+| 7 | ✅ | `WorkspaceOperationsPublishInvalidationsOnlyAfterSuccess`, `ConsoleWritesPublishInvalidationsForTheirNamespace`, `InvalidationsRemoveOrMarkExactlyTheAffectedKeys` |
+| 8 | ✅ | `ExplorerLoadsWriteThroughAndFeedNamesWithoutRemoteMetadataCalls` |
+| 9 | ✅ | `ResultsKeepDiscoveryOrderAndTypesButNeverValues`, pipeline de amostragem só com nomes e tipos; servidor real pendente de fixture |
+| 10 | ✅ | `SchemaSamplingRequiresOptInOrAnExplicitAction` |
+| 11 | ✅ | `CatalogQueryBenchmarks`: pior consulta com 10 000 campos em 0,15 ms de média, abaixo de 1 ms ([baseline](../performance.md#catálogo)); job curto, sem p95 |
+| 12 | ✅ | `MemoryScenario`: 29,9 MB retidos, LRU de 64 entradas por conexão |
+| 13 | 🚧 | Restore travado da solução e lockfiles das três variantes do projeto novo; build e testes executados só na variante padrão WinML |
+| 14 | 🚧 | 15, 21, 24 e documentos desta pasta atualizados; ADRs ainda não promovidas para [10](../../10-decisoes-arquiteturais.md) |
+
+Pendências: integração real de `MongoMetadataSource` (`MetadataSourceListsKindsValidatorsIndexesAndSamplesWithoutValues`, ignorado sem MongoDB portátil), medição de UI por tecla, segunda máquina de referência, builds Cpu/Cuda e Linux.
+
 ## Objetivo
 
 Entregar uma camada de conhecimento **independente da UI**: linguagem MongoDB como dados, Metadata Cache com atualização e invalidação, evidências de schema e catálogo indexado para busca rápida. Medir o código atual antes de mudar o caminho do usuário e criar a instrumentação usada por todas as fases.

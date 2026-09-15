@@ -247,8 +247,11 @@ public partial class WorkspaceTabView : UserControl
     private async void ShowSuggestions(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not WorkspaceTabViewModel tab) return;
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         InvalidateCompletion();
         if (!tab.Autocomplete.Settings.Enabled) return;
+        EsilvaSoft.SlopStudio.Application.Language.AutocompleteMetrics.CompletionRequested.Add(1,
+            new KeyValuePair<string, object?>("modality", "list"), new KeyValuePair<string, object?>("trigger", "invoked"));
         var version = _completionSession.Version;
         var original = tab.Text;
         var caret = Math.Clamp(CodeEditor.CaretIndex, 0, original.Length);
@@ -277,7 +280,10 @@ public partial class WorkspaceTabView : UserControl
         {
             var request = new AutocompleteRequest(prefix[Math.Max(0, prefix.Length - AutocompleteRequest.MaximumContextCharacters)..],
                 original[caret..Math.Min(original.Length, caret + AutocompleteRequest.MaximumContextCharacters)], tab.IsConsole ? "javascript" : mode);
-            var completion = await tab.Autocomplete.GetCompletionAsync(request, cancellation.Token);
+            var pendingCompletion = tab.Autocomplete.GetCompletionAsync(request, cancellation.Token);
+            EsilvaSoft.SlopStudio.Application.Language.AutocompleteMetrics.UiDispatcherTime.Record(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+                new KeyValuePair<string, object?>("handler", "list"));
+            var completion = await pendingCompletion;
             if (!IsCurrent()) return;
             if (completion is not null) AddInsertion(completion.Text, completion.Description, caret, 0);
             if (tab.IsConsole)

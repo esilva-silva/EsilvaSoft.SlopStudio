@@ -4,6 +4,7 @@ using System.Text.Json;
 using Acornima;
 using Acornima.Ast;
 using EsilvaSoft.SlopStudio.Application;
+using EsilvaSoft.SlopStudio.Application.Language;
 using EsilvaSoft.SlopStudio.Core;
 using Jint;
 using MongoDB.Bson;
@@ -12,7 +13,7 @@ namespace EsilvaSoft.SlopStudio.Infrastructure;
 
 public sealed class ConsoleRuntime(IConnectionProfileRepository profiles, IEnvironmentVaultRepository environments,
     IConnectionSecretStore secrets, IConsoleDatabaseSessionFactory sessions, IConsoleHistoryRepository history,
-    IAuditRepository audit) : IConsoleRuntime
+    IAuditRepository audit, IMetadataInvalidationBus? metadata = null) : IConsoleRuntime
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly HashSet<string> ReadMethods = ["find", "findOne", "aggregate", "countDocuments", "estimatedDocumentCount", "distinct", "stats", "databaseStats"];
@@ -89,7 +90,11 @@ public sealed class ConsoleRuntime(IConnectionProfileRepository profiles, IEnvir
                             audit.SaveAsync(AuditEntry.Create("console." + operation.Method, profile.Id, operation.Database, operation.Collection, "Envio confirmado; conclusão ainda não conhecida."), token).GetAwaiter().GetResult();
                         }
                         var result = session.ExecuteAsync(operation, token).GetAwaiter().GetResult();
-                        if (write) audit.SaveAsync(AuditEntry.Create("console." + operation.Method, profile.Id, operation.Database, operation.Collection, "Operação concluída."), token).GetAwaiter().GetResult();
+                        if (write)
+                        {
+                            audit.SaveAsync(AuditEntry.Create("console." + operation.Method, profile.Id, operation.Database, operation.Collection, "Operação concluída."), token).GetAwaiter().GetResult();
+                            foreach (var invalidation in MetadataInvalidations(profile.Id, operation)) metadata?.Publish(invalidation);
+                        }
                         if (result.Length > 8_000_000) throw new InvalidOperationException("Resultado excede 8 MB.");
                         var keep = operation.Method is "find" or "findOne" or "aggregate" && retained + result.Length <= 8_000_000;
                         if (keep) retained += result.Length;
@@ -170,6 +175,20 @@ public sealed class ConsoleRuntime(IConnectionProfileRepository profiles, IEnvir
         }
         return new(output, messages.ToString(), error, duration, canceled, used.ToArray(), environment.Vault.Name) { IsTimedOut = timedOut };
     }
+
+    /// <summary>Metadata affected by a completed Console write. Inserts and updates can create collections implicitly.</summary>
+    internal static IReadOnlyList<MetadataInvalidation> MetadataInvalidations(Guid profileId, ConsoleOperation operation) => operation.Method switch
+    {
+        "drop" or "createCollection" => [new(profileId, MetadataChange.Collections, operation.Database, operation.Collection)],
+        "dropDatabase" => [new(profileId, MetadataChange.Databases, operation.Database)],
+        "createIndex" or "dropIndex" => [new(profileId, MetadataChange.Indexes, operation.Database, operation.Collection)],
+        "insertOne" or "insertMany" or "updateOne" or "updateMany" or "replaceOne" =>
+        [
+            new(profileId, MetadataChange.Databases, Strength: InvalidationStrength.Soft),
+            new(profileId, MetadataChange.Collections, operation.Database, Strength: InvalidationStrength.Soft)
+        ],
+        _ => []
+    };
 
     private static string ReadBootstrap()
     {

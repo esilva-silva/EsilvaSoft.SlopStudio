@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using EsilvaSoft.SlopStudio.Application;
+using EsilvaSoft.SlopStudio.Application.Language;
 using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
@@ -10,6 +11,7 @@ public enum ExplorerNodeKind { Connection, Database, Collection, Documents, Inde
 public sealed partial class ExplorerNodeViewModel : ObservableObject
 {
     private readonly WorkspaceService _workspace;
+    private readonly IMetadataCache? _metadata;
     private bool _loaded;
     private string _filter = "";
     private int _generation;
@@ -32,7 +34,6 @@ public sealed partial class ExplorerNodeViewModel : ObservableObject
     public string Context => Profile.Name + " › " + Database + (Collection is null ? "" : " › " + Collection) + " · " + Profile.RoutingLabel;
     public ObservableCollection<ExplorerNodeViewModel> Children { get; } = [];
     public event EventHandler? ConnectionChanged;
-    public event EventHandler? MetadataChanged;
     [ObservableProperty] private bool _isConnected;
     [ObservableProperty] private bool _isExpanded;
     [ObservableProperty] private bool _isVisible = true;
@@ -41,12 +42,11 @@ public sealed partial class ExplorerNodeViewModel : ObservableObject
     public string Label => Name + (IsLoading ? " …" : Message.Length > 0 ? " ⚠" : IsConnection ? IsConnected ? " · conectada" : " · desconectada" : "");
 
     public ExplorerNodeViewModel(WorkspaceService workspace, ConnectionProfile profile, string name, string database = "", string? collection = null, bool isDatabase = false,
-        ExplorerNodeKind? kind = null, ExplorerNodeViewModel? parent = null, IndexInfo? index = null)
+        ExplorerNodeKind? kind = null, ExplorerNodeViewModel? parent = null, IndexInfo? index = null, IMetadataCache? metadata = null)
     {
-        _workspace = workspace; Profile = profile; Name = name; Database = database; Collection = collection; Parent = parent; Index = index;
+        _workspace = workspace; _metadata = metadata; Profile = profile; Name = name; Database = database; Collection = collection; Parent = parent; Index = index;
         Kind = kind ?? (isDatabase ? ExplorerNodeKind.Database : collection is not null ? ExplorerNodeKind.Collection : ExplorerNodeKind.Connection);
-        Children.CollectionChanged += (_, _) => Root.MetadataChanged?.Invoke(Root, EventArgs.Empty);
-        if (CanExpand) Children.Add(new ExplorerNodeViewModel(workspace, profile, "Expandir para carregar", database, collection, kind: ExplorerNodeKind.Placeholder, parent: this));
+        if (CanExpand) Children.Add(new ExplorerNodeViewModel(workspace, profile, "Expandir para carregar", database, collection, kind: ExplorerNodeKind.Placeholder, parent: this, metadata: metadata));
     }
 
     partial void OnIsExpandedChanged(bool value) { if (value && CanExpand && !_loaded) _ = LoadAsync(); }
@@ -82,12 +82,16 @@ public sealed partial class ExplorerNodeViewModel : ObservableObject
             else if (Kind == ExplorerNodeKind.Indexes)
                 foreach (var index in await _workspace.GetExplorerIndexesAsync(Profile, Database, Collection!, cancellation.Token)) entries.Add((index.Name, ExplorerNodeKind.Index, Database, Collection, index));
             if (generation != _generation) return;
+            // Write-through: what the explorer just loaded is fresh autocomplete metadata, never loaded twice.
+            if (IsConnection) _metadata?.PutDatabases(Profile, entries.Select(entry => entry.Name).ToArray());
+            else if (IsDatabase) _metadata?.PutCollections(Profile, Database, entries.Select(entry => entry.Name).ToArray());
+            else if (Kind == ExplorerNodeKind.Indexes) _metadata?.PutIndexes(Profile, Database, Collection!, entries.Select(entry => entry.Index!).ToArray());
             var previous = Children.ToArray();
             Children.Clear();
             foreach (var entry in entries)
             {
                 var child = previous.FirstOrDefault(c => c.Kind == entry.Kind && c.Name == entry.Name)
-                    ?? new ExplorerNodeViewModel(_workspace, Profile, entry.Name, entry.Database, entry.Collection, kind: entry.Kind, parent: this, index: entry.Index);
+                    ?? new ExplorerNodeViewModel(_workspace, Profile, entry.Name, entry.Database, entry.Collection, kind: entry.Kind, parent: this, index: entry.Index, metadata: _metadata);
                 child.Index = entry.Index;
                 Children.Add(child);
             }
@@ -106,7 +110,7 @@ public sealed partial class ExplorerNodeViewModel : ObservableObject
         _generation++; _cancellation?.Cancel(); _loadTask = null; IsLoading = false; _loaded = false;
         foreach (var child in Children) child.Invalidate();
         Children.Clear(); IsConnected = false; IsExpanded = false;
-        if (CanExpand) Children.Add(new ExplorerNodeViewModel(_workspace, Profile, "Expandir para carregar", kind: ExplorerNodeKind.Placeholder, parent: this));
+        if (CanExpand) Children.Add(new ExplorerNodeViewModel(_workspace, Profile, "Expandir para carregar", kind: ExplorerNodeKind.Placeholder, parent: this, metadata: _metadata));
     }
 
     public bool Filter(string search)

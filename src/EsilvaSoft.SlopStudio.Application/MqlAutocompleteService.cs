@@ -110,22 +110,8 @@ public static class MqlAutocompleteService
     public static IReadOnlySet<string> InferFieldPaths(IEnumerable<string> documents, int maximumDepth = 12)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumDepth);
-        var paths = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (var document in documents)
-        {
-            try
-            {
-                using var json = JsonDocument.Parse(document);
-                AddFieldPaths(json.RootElement, null, 0, maximumDepth, paths);
-            }
-            catch (JsonException)
-            {
-                // Um documento inválido não deve impedir autocomplete baseado nos demais resultados.
-            }
-        }
-
-        return paths;
+        // The catalog schema builder owns field inference; paths keep their discovery order.
+        return new Language.SchemaBuilder(maximumDepth, int.MaxValue).AddDocuments(documents).Build().Paths().ToHashSet(StringComparer.Ordinal);
     }
 
     public static string InferJsonSchema(IEnumerable<string> documents, int maximumDepth = 12)
@@ -168,32 +154,6 @@ public static class MqlAutocompleteService
     }
 
     private static bool IsTokenCharacter(char value) => char.IsLetterOrDigit(value) || value is '_' or '$' or '.';
-
-    private static void AddFieldPaths(JsonElement element, string? parent, int depth, int maximumDepth, ISet<string> paths)
-    {
-        if (depth >= maximumDepth)
-        {
-            return;
-        }
-
-        if (element.ValueKind == JsonValueKind.Object)
-        {
-            if (TryGetExtendedJsonType(element, out _)) return;
-            foreach (var property in element.EnumerateObject())
-            {
-                var current = string.IsNullOrEmpty(parent) ? property.Name : $"{parent}.{property.Name}";
-                paths.Add(current);
-                AddFieldPaths(property.Value, current, depth + 1, maximumDepth, paths);
-            }
-        }
-        else if (element.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var item in element.EnumerateArray())
-            {
-                AddFieldPaths(item, parent, depth + 1, maximumDepth, paths);
-            }
-        }
-    }
 
     private static void AddSchema(JsonElement element, SchemaNode node, int depth, int maximumDepth)
     {

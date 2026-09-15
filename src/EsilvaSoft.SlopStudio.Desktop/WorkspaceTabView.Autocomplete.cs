@@ -77,6 +77,7 @@ public partial class WorkspaceTabView
         if (_acceptingCompletion) return;
         if (e.Property != MongoTextEditor.TextProperty && e.Property != MongoTextEditor.CaretIndexProperty
             && e.Property != MongoTextEditor.SelectionStartProperty && e.Property != MongoTextEditor.SelectionEndProperty) return;
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         InvalidateCompletion();
         if (!_attached || !CodeEditor.IsKeyboardFocusWithin || CodeEditor.SelectionStart != CodeEditor.SelectionEnd
             || DataContext is not WorkspaceTabViewModel tab || !tab.Autocomplete.Settings.Enabled) return;
@@ -86,7 +87,11 @@ public partial class WorkspaceTabView
         var request = tab.CaptureAutocompleteRequest(original, caret);
         try
         {
-            var result = await _completionSession.RequestAsync(tab.Autocomplete, request);
+            var pending = _completionSession.RequestAsync(tab.Autocomplete, request);
+            // Synchronous work of this editor event on the UI thread, including the immediate dictionary lookup.
+            Application.Language.AutocompleteMetrics.UiDispatcherTime.Record(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+                new KeyValuePair<string, object?>("handler", "inline"));
+            var result = await pending;
             if (result is null || !_attached || !CodeEditor.IsKeyboardFocusWithin || DataContext != tab || CodeEditor.Text != original
                 || CodeEditor.CaretIndex != caret || CodeEditor.SelectionStart != CodeEditor.SelectionEnd
                 || tab.Profile != profile || tab.Database != database || tab.Mode != mode) return;

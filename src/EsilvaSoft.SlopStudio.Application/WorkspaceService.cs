@@ -1,9 +1,14 @@
+using EsilvaSoft.SlopStudio.Application.Language;
 using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Application;
 
-public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQueryHistoryRepository queryHistory, IScriptHistoryRepository scriptHistory, ISavedQueryRepository savedQueries, IAuditRepository audit, IMongoWorkspaceService mongo, IScriptExecutionService scripts, IScriptFileService scriptFiles, IConnectionSecretStore secrets, IEnvironmentVaultRepository? environments = null, IExplorerMetadataService? explorer = null, IConsoleRuntime? console = null, IConsoleHistoryRepository? consoleHistory = null, IApplicationOperationService? operations = null, ICodeFormatter? formatter = null, IResultPageExportService? resultExports = null, ICodeValidator? validator = null)
+public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQueryHistoryRepository queryHistory, IScriptHistoryRepository scriptHistory, ISavedQueryRepository savedQueries, IAuditRepository audit, IMongoWorkspaceService mongo, IScriptExecutionService scripts, IScriptFileService scriptFiles, IConnectionSecretStore secrets, IEnvironmentVaultRepository? environments = null, IExplorerMetadataService? explorer = null, IConsoleRuntime? console = null, IConsoleHistoryRepository? consoleHistory = null, IApplicationOperationService? operations = null, ICodeFormatter? formatter = null, IResultPageExportService? resultExports = null, ICodeValidator? validator = null, IMetadataInvalidationBus? metadataInvalidation = null)
 {
+    // Published only after the operation succeeds; autocomplete metadata never refreshes itself from a failed DDL.
+    private void InvalidateMetadata(ConnectionProfile profile, MetadataChange change, string database = "", string collection = "", InvalidationStrength strength = InvalidationStrength.Strong) =>
+        metadataInvalidation?.Publish(new(profile.Id, change, database, collection, strength));
+
     public Task<CodeValidationResult> ValidateCodeAsync(string text, bool aggregation, CancellationToken token) =>
         (validator ?? throw new InvalidOperationException("Validador indisponível.")).ValidateAsync(text, aggregation, token);
     public Task ExportResultPageAsync(string path, IReadOnlyList<string> documents, bool csv, Action<int, int> progress, CancellationToken cancellationToken) =>
@@ -105,29 +110,51 @@ public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQue
     public Task<IReadOnlyList<string>> GetCollectionsAsync(ConnectionProfile profile, string database, CancellationToken cancellationToken = default) =>
         TrackAsync("Carregando coleções", operationToken => mongo.GetCollectionNamesAsync(profile, database, operationToken), token: cancellationToken);
 
-    public Task CreateDatabaseAsync(ConnectionProfile profile, DatabaseCreateRequest request, CancellationToken cancellationToken = default) =>
-        mongo.CreateDatabaseAsync(profile, request, cancellationToken);
+    public async Task CreateDatabaseAsync(ConnectionProfile profile, DatabaseCreateRequest request, CancellationToken cancellationToken = default)
+    {
+        await mongo.CreateDatabaseAsync(profile, request, cancellationToken).ConfigureAwait(false);
+        InvalidateMetadata(profile, MetadataChange.Databases, request.Database);
+    }
 
-    public Task CreateCollectionAsync(ConnectionProfile profile, CollectionCreateRequest request, CancellationToken cancellationToken = default) =>
-        mongo.CreateCollectionAsync(profile, request, cancellationToken);
+    public async Task CreateCollectionAsync(ConnectionProfile profile, CollectionCreateRequest request, CancellationToken cancellationToken = default)
+    {
+        await mongo.CreateCollectionAsync(profile, request, cancellationToken).ConfigureAwait(false);
+        InvalidateMetadata(profile, MetadataChange.Collections, request.Database, request.Collection);
+    }
 
-    public Task RenameCollectionAsync(ConnectionProfile profile, CollectionRenameRequest request, CancellationToken cancellationToken = default) =>
-        mongo.RenameCollectionAsync(profile, request, cancellationToken);
+    public async Task RenameCollectionAsync(ConnectionProfile profile, CollectionRenameRequest request, CancellationToken cancellationToken = default)
+    {
+        await mongo.RenameCollectionAsync(profile, request, cancellationToken).ConfigureAwait(false);
+        InvalidateMetadata(profile, MetadataChange.Collections, request.Database, request.SourceCollection);
+        InvalidateMetadata(profile, MetadataChange.Collections, request.Database, request.TargetCollection);
+    }
 
-    public Task UpdateViewAsync(ConnectionProfile profile, ViewUpdateRequest request, CancellationToken cancellationToken = default) =>
-        mongo.UpdateViewAsync(profile, request, cancellationToken);
+    public async Task UpdateViewAsync(ConnectionProfile profile, ViewUpdateRequest request, CancellationToken cancellationToken = default)
+    {
+        await mongo.UpdateViewAsync(profile, request, cancellationToken).ConfigureAwait(false);
+        InvalidateMetadata(profile, MetadataChange.Collections, request.Database, request.View);
+    }
 
-    public Task ConfigureCollectionValidationAsync(ConnectionProfile profile, CollectionValidationRequest request, CancellationToken cancellationToken = default) =>
-        mongo.ConfigureCollectionValidationAsync(profile, request, cancellationToken);
+    public async Task ConfigureCollectionValidationAsync(ConnectionProfile profile, CollectionValidationRequest request, CancellationToken cancellationToken = default)
+    {
+        await mongo.ConfigureCollectionValidationAsync(profile, request, cancellationToken).ConfigureAwait(false);
+        InvalidateMetadata(profile, MetadataChange.Validation, request.Database, request.Collection);
+    }
 
     public Task<CollectionValidationInfo> GetCollectionValidationAsync(ConnectionProfile profile, string database, string collection, CancellationToken cancellationToken = default) =>
         mongo.GetCollectionValidationAsync(profile, database, collection, cancellationToken);
 
-    public Task DropCollectionAsync(ConnectionProfile profile, CollectionDropRequest request, CancellationToken cancellationToken = default) =>
-        mongo.DropCollectionAsync(profile, request, cancellationToken);
+    public async Task DropCollectionAsync(ConnectionProfile profile, CollectionDropRequest request, CancellationToken cancellationToken = default)
+    {
+        await mongo.DropCollectionAsync(profile, request, cancellationToken).ConfigureAwait(false);
+        InvalidateMetadata(profile, MetadataChange.Collections, request.Database, request.Collection);
+    }
 
-    public Task DropDatabaseAsync(ConnectionProfile profile, DatabaseDropRequest request, CancellationToken cancellationToken = default) =>
-        mongo.DropDatabaseAsync(profile, request, cancellationToken);
+    public async Task DropDatabaseAsync(ConnectionProfile profile, DatabaseDropRequest request, CancellationToken cancellationToken = default)
+    {
+        await mongo.DropDatabaseAsync(profile, request, cancellationToken).ConfigureAwait(false);
+        InvalidateMetadata(profile, MetadataChange.Databases, request.Database);
+    }
 
     public Task<string> GetServerStatusAsync(ConnectionProfile profile, CancellationToken cancellationToken = default) =>
         TrackAsync("Carregando estado do servidor", operationToken => mongo.GetServerStatusAsync(profile, operationToken), token: cancellationToken);
@@ -191,14 +218,35 @@ public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQue
     public Task<DatabaseExportResult> ExportDatabaseAsync(ConnectionProfile profile, DatabaseExportRequest request, CancellationToken cancellationToken = default) =>
         mongo.ExportDatabaseAsync(profile, request, cancellationToken);
 
-    public Task<DatabaseImportResult> ImportDatabaseAsync(ConnectionProfile profile, DatabaseImportRequest request, CancellationToken cancellationToken = default) =>
-        mongo.ImportDatabaseAsync(profile, request, cancellationToken);
+    public async Task<DatabaseImportResult> ImportDatabaseAsync(ConnectionProfile profile, DatabaseImportRequest request, CancellationToken cancellationToken = default)
+    {
+        var result = await mongo.ImportDatabaseAsync(profile, request, cancellationToken).ConfigureAwait(false);
+        InvalidateMetadata(profile, MetadataChange.Databases, request.TargetDatabase);
+        return result;
+    }
 
     public Task<DocumentMutationResult> InsertAsync(ConnectionProfile profile, string database, string collection, string documentJson, CancellationToken cancellationToken = default) =>
-        TrackAsync("Inserindo documento", operationToken => mongo.InsertAsync(profile, database, collection, documentJson, operationToken), priority: ApplicationOperationPriority.High, token: cancellationToken);
+        TrackAsync("Inserindo documento", async operationToken =>
+        {
+            var result = await mongo.InsertAsync(profile, database, collection, documentJson, operationToken).ConfigureAwait(false);
+            InvalidateImplicitCreation(profile, database);
+            return result;
+        }, priority: ApplicationOperationPriority.High, token: cancellationToken);
 
     public Task<long> InsertManyAsync(ConnectionProfile profile, BulkInsertRequest request, CancellationToken cancellationToken = default) =>
-        TrackAsync("Inserindo documentos", operationToken => mongo.InsertManyAsync(profile, request, operationToken), priority: ApplicationOperationPriority.High, token: cancellationToken);
+        TrackAsync("Inserindo documentos", async operationToken =>
+        {
+            var result = await mongo.InsertManyAsync(profile, request, operationToken).ConfigureAwait(false);
+            InvalidateImplicitCreation(profile, request.Database);
+            return result;
+        }, priority: ApplicationOperationPriority.High, token: cancellationToken);
+
+    // An insert can create its database and collection; cached listings only become stale.
+    private void InvalidateImplicitCreation(ConnectionProfile profile, string database)
+    {
+        InvalidateMetadata(profile, MetadataChange.Databases, strength: InvalidationStrength.Soft);
+        InvalidateMetadata(profile, MetadataChange.Collections, database, strength: InvalidationStrength.Soft);
+    }
 
     public Task<DocumentMutationResult> ReplaceAsync(ConnectionProfile profile, string database, string collection, string filterJson, string documentJson, CancellationToken cancellationToken = default) =>
         TrackAsync("Salvando documento", operationToken => mongo.ReplaceAsync(profile, database, collection, filterJson, documentJson, operationToken), priority: ApplicationOperationPriority.High, token: cancellationToken);
@@ -221,17 +269,31 @@ public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQue
     public Task<IReadOnlyList<string>> GetIndexUsageStatsAsync(ConnectionProfile profile, string database, string collection, CancellationToken cancellationToken = default) =>
         TrackAsync("Carregando uso de índices", operationToken => mongo.GetIndexUsageStatsAsync(profile, database, collection, operationToken), token: cancellationToken);
 
-    public Task<string> CreateIndexAsync(ConnectionProfile profile, IndexCreateRequest request, CancellationToken cancellationToken = default) =>
-        mongo.CreateIndexAsync(profile, request, cancellationToken);
+    public async Task<string> CreateIndexAsync(ConnectionProfile profile, IndexCreateRequest request, CancellationToken cancellationToken = default)
+    {
+        var name = await mongo.CreateIndexAsync(profile, request, cancellationToken).ConfigureAwait(false);
+        InvalidateMetadata(profile, MetadataChange.Indexes, request.Database, request.Collection);
+        return name;
+    }
 
-    public Task SetIndexVisibilityAsync(ConnectionProfile profile, IndexVisibilityRequest request, CancellationToken cancellationToken = default) =>
-        mongo.SetIndexVisibilityAsync(profile, request, cancellationToken);
+    public async Task SetIndexVisibilityAsync(ConnectionProfile profile, IndexVisibilityRequest request, CancellationToken cancellationToken = default)
+    {
+        await mongo.SetIndexVisibilityAsync(profile, request, cancellationToken).ConfigureAwait(false);
+        InvalidateMetadata(profile, MetadataChange.Indexes, request.Database, request.Collection);
+    }
 
-    public Task DropIndexAsync(ConnectionProfile profile, IndexDropRequest request, CancellationToken cancellationToken = default) =>
-        mongo.DropIndexAsync(profile, request, cancellationToken);
+    public async Task DropIndexAsync(ConnectionProfile profile, IndexDropRequest request, CancellationToken cancellationToken = default)
+    {
+        await mongo.DropIndexAsync(profile, request, cancellationToken).ConfigureAwait(false);
+        InvalidateMetadata(profile, MetadataChange.Indexes, request.Database, request.Collection);
+    }
 
-    public Task<ScriptExecutionResult> ExecuteScriptAsync(ConnectionProfile profile, string script, string? inputJson, string? database = null, CancellationToken cancellationToken = default) =>
-        scripts.ExecuteAsync(profile, script, inputJson, database, cancellationToken);
+    public async Task<ScriptExecutionResult> ExecuteScriptAsync(ConnectionProfile profile, string script, string? inputJson, string? database = null, CancellationToken cancellationToken = default)
+    {
+        try { return await scripts.ExecuteAsync(profile, script, inputJson, database, cancellationToken).ConfigureAwait(false); }
+        // An external script may change any namespace; everything cached for the connection becomes stale.
+        finally { InvalidateMetadata(profile, MetadataChange.Connection, strength: InvalidationStrength.Soft); }
+    }
 
     public Task SaveScriptAsync(string path, string script, CancellationToken cancellationToken = default) =>
         TrackAsync("Salvando arquivo", operationToken => scriptFiles.SaveAsync(path, script, operationToken), priority: ApplicationOperationPriority.High, token: cancellationToken);

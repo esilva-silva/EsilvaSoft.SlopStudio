@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using EsilvaSoft.SlopStudio.Application.Language;
 using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Application;
@@ -5,6 +7,7 @@ namespace EsilvaSoft.SlopStudio.Application;
 /// <summary>One instance per editor. A monotonically increasing version also rejects edit/undo ABA responses.</summary>
 public sealed class CompletionSession : IDisposable
 {
+    private static readonly KeyValuePair<string, object?> InlineModality = new("modality", "inline");
     private readonly object _gate = new();
     private CancellationTokenSource? _pending;
     private long _version;
@@ -26,18 +29,36 @@ public sealed class CompletionSession : IDisposable
             ObjectDisposedException.ThrowIf(_disposed, this);
             _pending?.Cancel(); _pending = cancellation; version = ++_version;
         }
+        var started = Stopwatch.GetTimestamp();
+        AutocompleteMetrics.CompletionRequested.Add(1, InlineModality, new KeyValuePair<string, object?>("trigger", immediate ? "invoked" : "automatic"));
         try
         {
-            if (service.GetImmediateCompletion(request) is { } dictionary)
-            {
-                lock (_gate) return !_disposed && version == _version && !cancellation.IsCancellationRequested ? dictionary : null;
-            }
+            if (service.GetImmediateCompletion(request) is { } dictionary) return Complete(dictionary, version, cancellation, started, "dictionary");
             if (!immediate) await Task.Delay(service.Settings.DelayMilliseconds, cancellation.Token).ConfigureAwait(false);
             var result = await service.GetCompletionAsync(request, cancellation.Token).ConfigureAwait(false);
-            lock (_gate) return !_disposed && version == _version && !cancellation.IsCancellationRequested ? result : null;
+            return Complete(result, version, cancellation, started, result is { IsAi: true } ? "ai" : "dictionary");
         }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { return null; }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            AutocompleteMetrics.CompletionCancelled.Add(1, InlineModality, new KeyValuePair<string, object?>("reason", "superseded"));
+            return null;
+        }
         finally { lock (_gate) if (ReferenceEquals(_pending, cancellation)) _pending = null; }
+    }
+
+    private AutocompleteResult? Complete(AutocompleteResult? result, long version, CancellationTokenSource cancellation, long started, string source)
+    {
+        bool current;
+        lock (_gate) current = !_disposed && version == _version && !cancellation.IsCancellationRequested;
+        if (!current)
+        {
+            AutocompleteMetrics.CompletionCancelled.Add(1, InlineModality, new KeyValuePair<string, object?>("reason", "obsolete"));
+            return null;
+        }
+        AutocompleteMetrics.CompletionReturned.Add(1, InlineModality, new KeyValuePair<string, object?>("source", result is null ? "none" : source),
+            new KeyValuePair<string, object?>("count_bucket", result is null ? "0" : "1"));
+        AutocompleteMetrics.CompletionLatency.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds, InlineModality);
+        return result;
     }
 
     public void Dispose() { lock (_gate) { _disposed = true; _version++; _pending?.Cancel(); } }

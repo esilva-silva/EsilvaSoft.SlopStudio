@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using EsilvaSoft.SlopStudio.Application;
+using EsilvaSoft.SlopStudio.Application.Language;
 using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
@@ -18,7 +19,11 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     private AutocompleteSettings _autocompleteSettings = new();
     private readonly HashSet<Guid> _excludedProfiles = [];
     private readonly Dictionary<Guid, UuidRepresentation> _profileUuidRepresentations = [];
+    private readonly SynchronizationContext? _context = SynchronizationContext.Current;
+    private readonly bool _ownsMetadata;
     public WorkspaceService Workspace => _workspace;
+    /// <summary>Autocomplete metadata; explorer loads write into it and connected roots allow refreshes.</summary>
+    public IMetadataCache Metadata { get; }
     public ApplicationStatusViewModel Operations { get; }
     public AppUpdateViewModel Updates { get; }
     public UuidPreferenceViewModel UuidPreferences { get; }
@@ -52,9 +57,13 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public event EventHandler? LayoutChanged;
 
     public WorkspaceViewModel(WorkspaceService workspace, IWorkspaceSessionRepository sessions, IAutocompleteService? autocomplete = null, ILocalModelCatalog? modelCatalog = null, IAiChatService? aiChat = null,
-        ILocalAiModelService? localModels = null, IAppUpdateService? updates = null, IRemoteModelSource? remoteModels = null)
+        ILocalAiModelService? localModels = null, IAppUpdateService? updates = null, IRemoteModelSource? remoteModels = null, IMetadataCache? metadata = null)
     {
         _workspace = workspace; _sessions = sessions; Operations = new(workspace.Operations); Details = new ExplorerDetailsViewModel(workspace);
+        // Without a registered driver source, explorer write-through still feeds highlighting and names; remote loads stay unavailable.
+        _ownsMetadata = metadata is null;
+        Metadata = metadata ?? new MetadataCache(UnavailableMetadataSource.Instance);
+        Metadata.Changed += OnMetadataChanged;
         Updates = new(updates, workspace.Operations);
         AutocompleteService = autocomplete ?? new AutocompleteService();
         AiChatService = aiChat ?? new AiChatService();
@@ -134,6 +143,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
             EditorRatio = Math.Clamp(session.Preferences.EditorRatio, .25, .75);
             RecoverDrafts = session.Preferences.RecoverDrafts;
             _excludedProfiles.UnionWith(session.Preferences.ExcludedProfileIds);
+            foreach (var profileId in session.Preferences.SchemaSamplingProfileIds) Metadata.SetSchemaSamplingAllowed(profileId, true);
             foreach (var entry in session.Preferences.ProfileUuidRepresentations) _profileUuidRepresentations[entry.Key] = entry.Value;
             UuidRepresentation = session.Preferences.UuidRepresentation;
             IdentifierMode = session.Preferences.IdentifierMode;
@@ -196,13 +206,34 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
 
     private ExplorerNodeViewModel CreateRoot(ConnectionProfile profile)
     {
-        var root = new ExplorerNodeViewModel(_workspace, profile, profile.Name);
-        root.MetadataChanged += (_, _) => { foreach (var tab in Tabs) tab.RefreshSyntaxContext(); };
+        var root = new ExplorerNodeViewModel(_workspace, profile, profile.Name, metadata: Metadata);
         root.ConnectionChanged += (_, _) =>
         {
+            // Only connected roots may refresh metadata remotely; disconnecting drops everything cached for the profile.
+            if (root.IsConnected) Metadata.Connect(root.Profile); else Metadata.Disconnect(root.Profile.Id);
             foreach (var tab in Tabs.Where(t => t.Profile?.Id == profile.Id)) tab.IsConnected = IsProfileConnected(tab.Profile!);
         };
         return root;
+    }
+
+    private void OnMetadataChanged(object? sender, MetadataChangedEventArgs e)
+    {
+        if (_disposed) return;
+        if (_context is null || SynchronizationContext.Current == _context) RefreshSyntaxContexts();
+        else _context.Post(_ => RefreshSyntaxContexts(), null);
+    }
+
+    private void RefreshSyntaxContexts()
+    {
+        if (_disposed) return;
+        foreach (var tab in Tabs) tab.RefreshSyntaxContext();
+    }
+
+    /// <summary>Per-connection opt-in for automatic schema sampling (names and types only), persisted additively.</summary>
+    public async Task SetSchemaSamplingAllowedAsync(Guid profileId, bool allowed)
+    {
+        Metadata.SetSchemaSamplingAllowed(profileId, allowed);
+        await SaveSessionAsync();
     }
 
     public bool IsProfileConnected(ConnectionProfile profile) => Roots.Any(r => r.Profile.Id == profile.Id && r.Profile.TargetHost == profile.TargetHost && r.IsConnected);
@@ -330,26 +361,40 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
 
     private void Register(WorkspaceTabViewModel tab)
     {
-        tab.KnownSyntaxNamespaces = () => Profiles.Select(profile => new EsilvaSoft.SlopStudio.Application.SyntaxHighlighting.SyntaxNamespace(profile.Name))
-            .Concat(Roots.SelectMany(SyntaxNamespaces)).Take(4096).ToArray();
+        tab.KnownSyntaxNamespaces = KnownSyntaxNamespaces;
         tab.Autocomplete = AutocompleteService;
         tab.AiChat = AiChatService;
-        tab.KnownAutocompleteNames = () => Profiles.Select(profile => profile.Name)
-            .Concat(Roots.Where(root => root.Profile.Id == tab.Profile?.Id).SelectMany(root => root.Children)
-                .Where(node => node.Kind == ExplorerNodeKind.Database)
-                .SelectMany(database => new[] { database.Name }.Concat(database.Database == tab.Database
-                    ? database.Children.Where(node => node.Kind == ExplorerNodeKind.Collection).Select(node => node.Name) : [])))
-            .Distinct(StringComparer.Ordinal).Take(256).ToArray();
+        tab.KnownAutocompleteNames = () => KnownAutocompleteNames(tab);
         tab.UuidPolicy = CaptureUuidPolicy(); Tabs.Add(tab); tab.DraftChanged += OnDraftChanged;
     }
 
     private WorkspaceTabViewModel CreateTab() => new(_workspace) { CodeFontSize = CodeFontSize, AiChat = AiChatService };
-    private static IEnumerable<EsilvaSoft.SlopStudio.Application.SyntaxHighlighting.SyntaxNamespace> SyntaxNamespaces(ExplorerNodeViewModel node)
+
+    // Loaded metadata only (Peek): typing never schedules a remote refresh in this path.
+    private EsilvaSoft.SlopStudio.Application.SyntaxHighlighting.SyntaxNamespace[] KnownSyntaxNamespaces()
     {
-        if (node.Kind != ExplorerNodeKind.Placeholder)
-            yield return new(node.Profile.Name, node.Database, node.Collection ?? "", node.IsIndex ? node.Name : "");
-        foreach (var child in node.Children)
-            foreach (var item in SyntaxNamespaces(child)) yield return item;
+        var names = new Dictionary<Guid, string>();
+        foreach (var profile in Profiles) names.TryAdd(profile.Id, profile.Name);
+        var result = Profiles.Select(profile => new EsilvaSoft.SlopStudio.Application.SyntaxHighlighting.SyntaxNamespace(profile.Name)).ToList();
+        foreach (var item in Metadata.SnapshotNamespaces(4096))
+            if (names.TryGetValue(item.ProfileId, out var name)) result.Add(new(name, item.Database, item.Collection, item.Index));
+        return result.Take(4096).ToArray();
+    }
+
+    private string[] KnownAutocompleteNames(WorkspaceTabViewModel tab)
+    {
+        var names = Profiles.Select(profile => profile.Name).ToList();
+        foreach (var root in Roots.Where(root => root.Profile.Id == tab.Profile?.Id))
+        {
+            var identity = ConnectionIdentity.From(root.Profile);
+            foreach (var database in Metadata.GetDatabases(identity, MetadataAccess.Peek).Value ?? [])
+            {
+                names.Add(database);
+                if (database == tab.Database)
+                    names.AddRange((Metadata.GetCollections(identity, database, MetadataAccess.Peek).Value ?? []).Select(collection => collection.Name));
+            }
+        }
+        return names.Distinct(StringComparer.Ordinal).Take(256).ToArray();
     }
     private void OnDraftChanged(object? sender, EventArgs e) => ScheduleSave();
     partial void OnSearchChanged(string value) => ApplySearch();
@@ -425,7 +470,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
             {
                 ActiveTabId = ActiveTab?.Id,
                 Preferences = new WorkspacePreferences { Autocomplete = _autocompleteSettings, Theme = Theme, CodeFontSize = CodeFontSize, ExplorerWidth = ExplorerWidth, EditorRatio = EditorRatio, RecoverDrafts = RecoverDrafts, ExcludedProfileIds = _excludedProfiles.ToArray(),
-                    UuidRepresentation = UuidRepresentation, ProfileUuidRepresentations = new(_profileUuidRepresentations), IdentifierMode = IdentifierMode },
+                    UuidRepresentation = UuidRepresentation, ProfileUuidRepresentations = new(_profileUuidRepresentations), IdentifierMode = IdentifierMode,
+                    SchemaSamplingProfileIds = Metadata.SchemaSamplingProfiles.ToArray() },
                 Tabs = Tabs.Select(t => t.Snapshot()).ToArray()
             };
             await _sessions.SaveSessionAsync(session);
@@ -445,6 +491,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         foreach (var root in Roots) root.Invalidate();
         Details.Clear();
         foreach (var tab in Tabs) { tab.DraftChanged -= OnDraftChanged; tab.CancelCommand.Execute(null); }
+        Metadata.Changed -= OnMetadataChanged;
+        if (_ownsMetadata && Metadata is IDisposable metadata) metadata.Dispose();
         _saveGate.Dispose();
     }
 }

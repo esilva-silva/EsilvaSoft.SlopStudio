@@ -4,4 +4,5 @@
   <Project Path="src/EsilvaSoft.SlopStudio.Infrastructure/EsilvaSoft.SlopStudio.Infrastructure.csproj" />
   <Project Path="src/EsilvaSoft.SlopStudio.Desktop/EsilvaSoft.SlopStudio.Desktop.csproj" />
   <Project Path="tests/EsilvaSoft.SlopStudio.UnitTests/EsilvaSoft.SlopStudio.UnitTests.csproj" />
+  <Project Path="tests/EsilvaSoft.SlopStudio.Benchmarks/EsilvaSoft.SlopStudio.Benchmarks.csproj" />
 </Solution>

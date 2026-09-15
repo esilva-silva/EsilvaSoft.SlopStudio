@@ -1,5 +1,21 @@
 # Matriz de validação
 
+## Autocomplete — Fase 1: catálogo de conhecimento — 14/09/2026
+
+Restore `--locked-mode` da solução aprovado, com lockfiles novos do projeto de benchmarks para Cpu, WinML e Cuda. Build Debug WinML: 0 avisos, 0 erros. Suíte regular: **681 aprovados, 0 falhas, 4 ignorados**, em `tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/fase1-regular.trx`. Os ignorados exigem MongoDB portátil ausente nesta máquina, inclusive o novo `MetadataSourceListsKindsValidatorsIndexesAndSamplesWithoutValues`. Testes Explicit de modelos seguem fora da seleção.
+
+| Área | Evidência local | Validação pendente |
+| --- | --- | --- |
+| Linguagem MongoDB como dados | Integridade do arquivo; projeção do highlighting como superconjunto do vocabulário anterior; contrato com as globais e proxies reais do bootstrap do Console (Jint) | Revisão por versão de servidor |
+| Metadata Cache | Leitura sem bloqueio, single-flight com 50 leituras concorrentes, stale-while-revalidate, backoff, LRU, desconexão descartando resultado tardio, invalidação por chave, amostragem só por ação explícita ou opt-in; 29,9 MB retidos no cenário 1 000 × 1 000 com validator em todas | Carga real com permissões restritas |
+| Schema | Validator `$jsonSchema`, índices, resultados (sem valores), amostra com ocorrência, limites de nós e profundidade | Amostragem no servidor real, views e time series |
+| Catálogo | Consulta apenas às fontes pedidas, dialeto, prefixo sem `$`, campos mesclados por caminho, completude | — |
+| Invalidação | DDL via WorkspaceService e Console, falha sem publicação, write-through do Explorer | MongoDB real |
+| Métricas | Tags restritas à lista permitida, sem texto de usuário | — |
+| Benchmarks | Projeto BenchmarkDotNet e cenário de memória; números em [performance](auto-complite/performance.md#baseline-medida--fase-1) | Segunda máquina de referência |
+
+UI: nenhum comportamento visual novo; os testes Headless existentes de highlighting e autocomplete continuam aprovados. Não houve homologação nativa nem Linux nesta entrega.
+
 ## Incremento de consultas avançadas — 14/09/2026
 
 Suíte completa após o incremento: **623 aprovados, 0 falhas, 0 ignorados** em `tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/phase2-current.trx`. Testes Explicit de modelos IA continuam fora da seleção regular.

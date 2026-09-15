@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using EsilvaSoft.SlopStudio.Application.Language;
 using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Application;
@@ -100,6 +101,8 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(request);
+        var roleTag = new KeyValuePair<string, object?>("role", role.ToString());
+        AutocompleteMetrics.AiCompletionRequested.Add(1, roleTag);
         using var preemption = new CancellationTokenSource();
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdown.Token, preemption.Token);
         var token = linked.Token;
@@ -118,16 +121,19 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
             token.ThrowIfCancellationRequested();
             SetStatus(GenerationStatus(loaded, key, generated));
             diagnostics?.Record("ai.generation.success", role + " | " + generated.Provider, generated.Elapsed);
+            RecordGeneration(roleTag, generated);
             return new(loaded.Model, generated);
         }
         catch (OperationCanceledException) when (preemption.IsCancellationRequested && !cancellationToken.IsCancellationRequested && !_shutdown.IsCancellationRequested)
         {
             diagnostics?.Record("ai.generation.preempted");
+            AutocompleteMetrics.AiCompletionCancelled.Add(1, roleTag, new KeyValuePair<string, object?>("reason", "preempted"));
             throw new LocalModelPreemptedException();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             diagnostics?.Record("autocomplete.canceled");
+            AutocompleteMetrics.AiCompletionCancelled.Add(1, roleTag, new KeyValuePair<string, object?>("reason", "cancelled"));
             throw;
         }
         catch (ObjectDisposedException) { throw; }
@@ -144,6 +150,7 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
         }
         catch (Exception ex)
         {
+            AutocompleteMetrics.AiCompletionGenerated.Add(1, roleTag, new KeyValuePair<string, object?>("outcome", "failed"));
             await FailGenerationAsync(key, ex).ConfigureAwait(false);
             throw new LocalModelUnavailableException(Status.Message, ex);
         }
@@ -254,6 +261,17 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
     }
 
     internal static bool IsDeepSeek(LocalModelDefinition model) => model.PromptFormat == LocalModelPromptFormats.DeepSeekCoderFim;
+
+    // The provider tag is the execution provider name (cpu, dml, cuda); model folders and prompts are never tagged.
+    private static void RecordGeneration(KeyValuePair<string, object?> role, ModelGenerationResult generated)
+    {
+        var provider = new KeyValuePair<string, object?>("provider", generated.Provider);
+        AutocompleteMetrics.AiCompletionGenerated.Add(1, role, provider, new KeyValuePair<string, object?>("outcome", "success"));
+        AutocompleteMetrics.InferenceDuration.Record(generated.Elapsed.TotalMilliseconds, role, provider);
+        AutocompleteMetrics.InferenceGeneratedTokens.Record(generated.GeneratedTokens, role);
+        if (generated.TimeToFirstToken is { } first) AutocompleteMetrics.InferenceTimeToFirstToken.Record(first.TotalMilliseconds, role, provider);
+        if (TokensPerSecond(generated) is { } rate) AutocompleteMetrics.InferenceTokensPerSecond.Record(rate, provider);
+    }
 
     private ModelKey KeyFor(LocalModelRole role, AutocompleteSettings settings) =>
         new(settings.ResolveModelPath(role, DefaultDirectory), settings.Acceleration, settings.ExecutionProvider);

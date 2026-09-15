@@ -1,4 +1,5 @@
 using EsilvaSoft.SlopStudio.Application;
+using EsilvaSoft.SlopStudio.Application.Language;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EsilvaSoft.SlopStudio.Infrastructure;
@@ -39,6 +40,14 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IConsoleRuntime, ConsoleRuntime>();
         services.AddSingleton<IConnectionSecretStore, SessionConnectionSecretStore>();
         services.AddSingleton<IMongoWorkspaceService, MongoWorkspaceService>();
+        // Autocomplete knowledge: invalidations from IDE operations, driver metadata and the in-memory catalog.
+        services.AddSingleton<IMetadataInvalidationBus, MetadataInvalidationBus>();
+        services.AddSingleton<IMongoMetadataSource, MongoMetadataSource>();
+        services.AddSingleton<IMetadataCache>(provider => new MetadataCache(provider.GetRequiredService<IMongoMetadataSource>(),
+            provider.GetRequiredService<IApplicationOperationService>(), provider.GetRequiredService<IMetadataInvalidationBus>()));
+        services.AddSingleton<ICatalogSource>(_ => new LanguageCatalogSource());
+        services.AddSingleton<ICatalogSource>(provider => new MetadataCatalogSource(provider.GetRequiredService<IMetadataCache>()));
+        services.AddSingleton<IKnowledgeCatalog, KnowledgeCatalog>();
         services.AddSingleton<IExplorerMetadataService, ExplorerMetadataService>();
         services.AddSingleton<IScriptExecutionService, MongoshScriptExecutionService>();
         services.AddSingleton<IScriptFileService, LocalScriptFileService>();

@@ -18,6 +18,17 @@ public sealed record WorkspacePreferences
     /// (ObjectId + UUID) and keep their UUID representation unchanged.
     /// </summary>
     public IdentifierRepresentationMode IdentifierMode { get; init; } = IdentifierRepresentationMode.Standard;
+    /// <summary>
+    /// Additive to version 1: profiles whose autocomplete may sample field names and types without an explicit action.
+    /// Sessions without this value never sample automatically.
+    /// </summary>
+    public Guid[] SchemaSamplingProfileIds { get; init; } = [];
+
+    public void ValidateMetadata()
+    {
+        if (SchemaSamplingProfileIds is null || SchemaSamplingProfileIds.Contains(Guid.Empty))
+            throw new InvalidDataException("Preferência de amostragem de schema inválida.");
+    }
 
     public void ValidateUuid()
     {

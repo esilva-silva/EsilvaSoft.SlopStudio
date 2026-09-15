@@ -168,4 +168,4 @@ Revisão implementada: [contrato, uso, distribuições CPU/WinML/CUDA e limites]
 
 ## Status no roadmap — 13/09/2026
 
-✅ Autocomplete determinístico integra v0.5.0; 🚧 consolidação contextual pertence à v0.6.0. 🧪 Inferência local e chat pertencem à v0.9.0, com evidências reais limitadas ao modelo/hardware/cenário registrado. Ghost text e aceitação por Tab já têm implementação e não devem ser reimplementados por mudar a fase. [Inventário](24-inventario-roadmap.md) e [roadmap](09-plano-de-implementacao.md).
+✅ Autocomplete determinístico integra v0.5.0; 🚧 consolidação contextual pertence à v0.6.0 e segue o [plano de autocomplete MongoDB](auto-complite/README.md). 🧪 Inferência local e chat pertencem à v0.9.0, com evidências reais limitadas ao modelo/hardware/cenário registrado. Ghost text e aceitação por Tab já têm implementação e não devem ser reimplementados por mudar a fase. [Inventário](24-inventario-roadmap.md) e [roadmap](09-plano-de-implementacao.md).

@@ -1,7 +1,7 @@
 # Autocomplete MongoDB — padrão, arquitetura e plano
 
-> Referência: 14/09/2026 · Checkout analisado: `d23787e` (branch `master`) · Estado: 📋 **Especificação**.
-> Nenhuma das cinco fases foi implementada e nenhum código foi alterado nesta etapa. Números de desempenho marcados como *provisórios* são hipóteses a confirmar pelos benchmarks da [Fase 1](phases/phase-1-data-traditional.md).
+> Referência: 14/09/2026 · Checkout analisado: `d23787e` (branch `master`) · Estado: ✅ **Fase 1 implementada** · 📋 Fases 2–5 especificadas.
+> A [Fase 1](phases/phase-1-data-traditional.md#estado-da-implementação) (catálogo de conhecimento, Metadata Cache, schema, métricas e benchmarks) foi implementada em 14/09/2026; nenhum comportamento visível do autocomplete mudou. Números marcados como *provisórios* seguem hipóteses até cada fase medir sua implementação.
 
 ## Objetivo
 
@@ -130,7 +130,7 @@ sequenceDiagram
 
 | Fase | Entrega | Depende de | Roadmap |
 | --- | --- | --- | --- |
-| [1 — Dados para autocomplete tradicional](phases/phase-1-data-traditional.md) | Linguagem embutida, Metadata Cache, catálogo indexado, baseline de desempenho, métricas | — | v0.6.0 (EDT-02) |
+| [1 — Dados para autocomplete tradicional](phases/phase-1-data-traditional.md) ✅ | Linguagem embutida, Metadata Cache, catálogo indexado, baseline de desempenho, métricas | — | v0.6.0 (EDT-02) |
 | [2 — Autocomplete tradicional reformulado](phases/phase-2-traditional-autocomplete.md) | Parser tolerante, Context Engine, ranking, `CompletionWindow`, snippets, atalhos | 1 | v0.6.0 (EDT-02) |
 | [3 — Dados para IA](phases/phase-3-data-ai.md) | Seleção de fatos, contratos de contexto versionados, orçamento de tokens, harness de avaliação | 1, 2 | v0.9.0 |
 | [4 — Autocomplete por IA reformulado](phases/phase-4-ai-autocomplete.md) | `Ctrl+;`, provider, output processor, fallback, streaming, experimento de prefix cache | 3 | v0.9.0 |
