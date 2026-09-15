@@ -10,6 +10,7 @@
   function group(file) {
     const number = Number(file.slice(0, 2));
     if (file.startsWith('ui/')) return 'Produto';
+    if (file.startsWith('auto-complite/')) return 'Editor e IA';
     if ([6,20,21,22,23,26].includes(number)) return 'Editor e IA';
     if ([5,7,8,10].includes(number)) return 'Arquitetura';
     if ([3,12,13,14,15,16,19,24,25].includes(number)) return 'MVP';
