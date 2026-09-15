@@ -2,6 +2,10 @@
 
 ## ADR-040 — Validação local e explain de aggregation (14/09/2026)
 
+Revisão de inferência: `AggregationFieldInference` usa tokens locais e árvore parcial limitada; interpreta somente a forma dos stages conhecidos antes do cursor. Nenhum construtor ou variável JavaScript é executado. `$lookup` resolve campos estrangeiros apenas de resultados da origem correta e acompanha `let`/subpipeline; `$facet` usa snapshots independentes. Transformação desconhecida invalida a forma presumida. A implementação fica em Application e não acessa MongoDB, LiteDB ou provider IA. [Limites e aceite](27-consultas-avancadas.md).
+
+Revisão: histórico unificado reaproveita `consoleHistory` e seu proprietário, com campos aditivos na versão 1 e leitura compatível de entradas antigas. O modo Agregação salva o snapshot após sucesso/erro/cancelamento; persistência falha visivelmente sem invalidar resultados. Campos sugeridos vêm de origens compatíveis com o caminho explícito no Console; argumentos dinâmicos não são avaliados. `QueryDiagnosticException` transporta apenas código do servidor e orientação fixa, sem a mensagem bruta do comando. [Contratos e limites](27-consultas-avancadas.md).
+
 `ICodeValidator`/`MongoCodeValidator` oferece diagnóstico offline usando Acornima em worker, sem avaliar construtores ou resolver ambiente. Captura de texto/contexto e descarte de resposta obsoleta ficam na view; offsets relativos à seleção retornam para o documento original. Validação sintática não promete compatibilidade de servidor. `AggregationPipelineValidator` verifica estrutura e bloqueia stages de escrita no executor direto e no Console, percorrendo apenas posições reais de subpipelines, preservando `$literal`.
 
 `ExplainAggregationAsync` usa `queryPlanner` com 30 segundos, retorna BSON bruto e preserva resultados anteriores. A aba captura perfil, banco, coleção, pipeline e limite antes de awaits; execução/análise compartilham exclusão por aba e seu cancelamento, nunca um CTS entre abas. Sem nova persistência nem nova conexão LiteDB. [Escopo, evidência e pendências](27-consultas-avancadas.md).

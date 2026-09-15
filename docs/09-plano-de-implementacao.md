@@ -11,12 +11,12 @@ Referência: **13/09/2026**, código local `e806ae4`. Este plano substitui o cro
 - 📋 **Planejado:** sem caminho integrado identificado para o recorte.
 - 🧪 **Experimental:** caminho disponível, mas qualidade ou ambiente limita seu uso como compromisso estável.
 
-O [catálogo](03-catalogo-funcional.md) mantém IDs e status do requisito completo; o [inventário de código](24-inventario-roadmap.md) discrimina recortes existentes e lacunas. A [matriz](15-matriz-de-validacao.md) registra testes executados e o [checklist](16-checklist-homologacao.md) mantém verificações externas. Nenhuma fase abaixo está concluída.
+O [catálogo](03-catalogo-funcional.md) mantém IDs e status do requisito completo; o [inventário de código](24-inventario-roadmap.md) discrimina recortes existentes e lacunas. A [matriz](15-matriz-de-validacao.md) registra testes executados e o [checklist](16-checklist-homologacao.md) mantém verificações externas. A meta textual da Fase 2 foi validada; isso não equivale à publicação de uma release ou ao encerramento de todos os requisitos amplos do catálogo.
 
 | Fase | Versão alvo | Objetivo | Status atual | Dependência |
 | --- | --- | --- | --- | --- |
 | 1 | v0.5.0 | MVP: conectar → navegar → consultar → visualizar → editar → exportar | 🚧 Em desenvolvimento | Fundação existente; fechar lacunas do MVP |
-| 2 | v0.6.0 | Queries e pipelines complexos com produtividade | 🚧 Em desenvolvimento; ferramentas antecipadas | Aceite v0.5.0 |
+| 2 | v0.6.0 | Queries e pipelines complexos com produtividade | ✅ Meta textual validada; extensões do catálogo e release separados | Aceite v0.5.0 para release |
 | 3 | v0.7.0 | Administração e manutenção cotidiana | 🚧 Em desenvolvimento; operações já expostas | Aceite v0.6.0 e proteção de escrita |
 | 4 | v0.8.0 | Automação JavaScript entre conexões | 🚧 Em desenvolvimento; Console e mongosh existentes | Aceite v0.7.0; contratos BSON e execução isolada |
 | 5 | v0.9.0 | Inteligência local e produtividade contextual | 🧪 Experimental na IA; base determinística existente | Aceite v0.8.0; contexto, privacidade e cancelamento |
@@ -48,11 +48,11 @@ O [catálogo](03-catalogo-funcional.md) mantém IDs e status do requisito comple
 
 **Objetivo:** construir e analisar queries e pipelines complexos sem depender de outra ferramenta para o escopo declarado.
 
-**Incremento de 14/09/2026:** validação offline com localização, catálogo dos 12 stages e explain bruto de aggregation em `queryPlanner`; fixture real combinando os 12 stages aprovada. O aceite completo continua em aberto, sobretudo contexto do autocomplete, histórico de Agregação e diagnósticos de servidor. [Detalhes e evidência](27-consultas-avancadas.md).
+**Incremento de 14/09/2026:** meta textual implementada e validada: validação offline com localização, 12 stages, histórico de Agregação, contexto e evolução de campos/joins, diagnósticos seguros e explain bruto em `queryPlanner`; fixture real dos 12 stages e execução parcial aprovada. **650 testes aprovados**. [Auditoria requisito a requisito e limites](27-consultas-avancadas.md).
 
 **Incluído:** criação/execução textual de aggregation com `$match`, `$group`, `$project`, `$sort`, `$limit`, `$skip`, `$lookup`, `$unwind`, `$set`, `$unset`, `$count` e `$facet`; formatação, validação, erros localizáveis, bracket matching, syntax highlighting, histórico e execução parcial quando aplicável. Autocomplete considera Connection, Database, Collection, schema conhecido, query, Input, campos de Results e vocabulário MongoDB. IA é opcional se estável. Revisar cliques, espaço, navegação, atalhos, menus e integração Explorer/Editor/Results.
 
-**Status:** 🚧 Em desenvolvimento. Driver/Console executam pipelines textuais; explain bruto existe nas ferramentas; autocomplete, seleção/statement, highlighting e delimitadores têm código. Não equivalem a cobertura completa por versão de servidor, explain gráfico ou construtor visual. Formatação geral depende da Fase 1. A migração atual do editor para AvaloniaEdit deve ter evidência própria, sem reutilizar conclusões antigas do TextBox.
+**Status:** ✅ Meta textual validada no checkout. Driver/Console executam os pipelines do escopo, com formatação, diagnóstico, contexto, histórico e análise. Evidência do AvaloniaEdit atual, MongoDB real 8.0.30 e matrizes claro/escuro. Isso não encerra itens mais amplos do catálogo, homologação de todas as versões/plataformas ou publicação de release; explain gráfico não é anunciado como entregue.
 
 **Fora do escopo:** administração ampla, novo runtime de automação, exigência de IA, construtor visual obrigatório e suporte irrestrito a qualquer estágio/versão.
 

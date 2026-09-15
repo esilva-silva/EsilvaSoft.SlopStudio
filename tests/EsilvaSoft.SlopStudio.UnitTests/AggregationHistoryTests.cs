@@ -9,6 +9,21 @@ namespace EsilvaSoft.SlopStudio.UnitTests;
 public sealed class AggregationHistoryTests
 {
     [Test]
+    public async Task CancellationStillRecordsOnlyItsOwnExecution()
+    {
+        using var context = new WorkspaceTestContext();
+        context.Mongo.Handler = (_, args) => new TaskCompletionSource<QueryPage>().Task.WaitAsync((CancellationToken)args[2]!);
+        var tab = NewTab(context);
+        var running = tab.ExecuteCommand.ExecuteAsync(null);
+        tab.CancelCommand.Execute(null); await running;
+        var entry = (await context.Repository.GetConsoleHistoryAsync()).Single();
+        Assert.That(entry.Status, Is.EqualTo("Cancelado"));
+        Assert.That(entry.Mode, Is.EqualTo("Agregação"));
+        Assert.That(entry.Script, Is.EqualTo("[]"));
+        Assert.That(tab.Messages, Does.Contain("não são revertidos"));
+    }
+
+    [Test]
     public async Task HistoryUsesCapturedSelectionAndReopensWithoutExecuting()
     {
         using var context = new WorkspaceTestContext();

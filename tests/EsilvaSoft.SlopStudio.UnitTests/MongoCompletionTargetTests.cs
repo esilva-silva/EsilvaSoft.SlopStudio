@@ -9,6 +9,20 @@ namespace EsilvaSoft.SlopStudio.UnitTests;
 public sealed class MongoCompletionTargetTests
 {
     [Test]
+    public async Task LookupUsesRelatedCollectionResultsFromTheSameConnectionAndDatabase()
+    {
+        using var context = new WorkspaceTestContext();
+        var profile = ConnectionProfile.Create("Dev", "mongodb://host");
+        await context.Repository.SaveAsync(profile);
+        context.Mongo.Handler = (_, args) => Task.FromResult(new QueryPage(
+            ((MongoQuery)args[1]!).Collection == "customers" ? ["{\"customerCode\":1}"] : ["{\"orderTotal\":12}"], TimeSpan.Zero, false));
+        var tab = new WorkspaceTabViewModel(context.Workspace) { Profile = profile, IsConnected = true, Database = "shop", Text = "db.customers.find({}); db.orders.find({});" };
+        await tab.ExecuteCommand.ExecuteAsync(null);
+        Assert.That(tab.GetObservedCompletionFields("db.orders.aggregate([{ $lookup: { from: 'customers', foreignField: '"), Does.Contain("customerCode").And.Not.Contain("orderTotal"));
+        Assert.That(tab.GetObservedCompletionFields("db.orders.aggregate([{ $lookup: { from: 'customers', localField: '"), Does.Contain("orderTotal").And.Not.Contain("customerCode"));
+    }
+
+    [Test]
     public void BsonWrappersAreNotSuggestedAsDocumentFields()
     {
         var fields = MqlAutocompleteService.InferFieldPaths(["{\"_id\":{\"$oid\":\"507f1f77bcf86cd799439011\"},\"total\":{\"$numberLong\":\"9007199254740993\"}}"]);
