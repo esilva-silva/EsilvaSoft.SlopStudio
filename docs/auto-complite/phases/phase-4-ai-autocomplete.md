@@ -1,6 +1,6 @@
 # Fase 4 — Autocomplete por IA reformulado
 
-Roadmap: v0.9.0 · Depende de: Fase 3 · Habilita: Fase 5 (camada 1)
+Roadmap: v0.9.0 · Depende de: Fase 3 · Habilita: Fase 5.2 (IA preemptiva independente)
 
 ## Objetivo
 
@@ -102,4 +102,11 @@ Implementar a IA explícita (`Ctrl+;`) sobre a infraestrutura ONNX existente: pr
 
 ## Fora do escopo
 
-Autocomplete preemptivo automático, decodificação restrita (`SetGuidance`), múltiplos modelos simultâneos, NPU sem pacote/hardware disponível.
+Políticas de disparo preemptivo (LoadedOnly é contrato de runtime desta fase), decodificação restrita (`SetGuidance`), múltiplos modelos simultâneos, NPU sem pacote/hardware disponível.
+
+
+## Revisão de tarefas
+
+[R41–R43 e A41–A44](../execution-plan.md) são fonte da ordem por agente. R41/R42 estabilizam load policy sob gate, motivos de erro, tokenizer e streaming; A41–A43 implementam pipeline/provider e Ctrl+;. Presenter vem de T07, não esperar Fase 5. AiPreemptiveCompletionProvider reutiliza pipeline, não é o mesmo provider explícito com comportamento implícito.
+
+R43/prefix cache é experimento desligado e não bloqueia entrega; critérios acima de equivalência valem somente para pares habilitados. Warmup, alternativas e formatos experimentais não são obrigatórios. Timeouts medem ponta a ponta; fonte learned respeita política/revisões.

@@ -1,0 +1,55 @@
+# Configuração e compatibilidade
+
+Especificação de 15/09/2026; novos campos ainda **não implementados**. Evoluir `Core/Autocomplete.cs` e `WorkspaceSession.cs` de forma aditiva, mantendo versão 1, validação e proprietário LiteDB. Não criar árvore de preferências paralela.
+
+## Opções necessárias
+
+| Conceito | Campo real/proposto | Default novo | Justificativa |
+| --- | --- | --- | --- |
+| Geral | `Enabled` existente | true | Desliga todo autocomplete, não chat |
+| Tradicional explícito | `TraditionalEnabled` novo | true | Independe de IA e preemptivo |
+| IA explícita | `Mode != Basic` existente | Automatic | Reutiliza seletor atual, sem Ai.Enabled duplicado |
+| Preemptivo geral | `InlineEnabled` novo | true | Suspender sugestões automáticas |
+| Preemptivo tradicional | `InlineUseTraditional` novo | true | Independência por gerador |
+| Preemptivo IA | `InlineUseAi` novo | false | Opt-in de processamento automático; explícito continua disponível |
+| Dicionário legado | `UseDictionary` existente | true | Não passa a controlar catálogo inteiro; migração abaixo |
+| Atraso IA automática | `DelayMilliseconds` existente | 150 ms | Validar 50–2000; explícito sem debounce |
+| Janela / saída IA | `ContextTokens`, `MaximumCompletionTokens` existentes | 2048 / 32 | Tetos; inline tem teto interno 24 e pacote pode reduzir |
+| Modelo / hardware | `SelectedModel`, `ModelPath`, `Acceleration`, `ExecutionProvider` existentes | Preservados | Não criar PreferredModel/PreferredProvider equivalentes |
+| Timeout IA explícita | `AiTimeoutMilliseconds` novo | 10000 | Limite de espera incluindo fila; faixa proposta 1000–60000 |
+| Lista ao digitar | `CompletionAutoOpenOnTrigger` novo | false | Não confundir popup automático com ghost tradicional |
+| Enter na lista | `CompletionEnterAccepts` novo | true | Preferência justificada pela navegação |
+| Aceite parcial | `IncrementalTab` existente | true | Mesmo comportamento para ambos os ghosts |
+| Amostra | `WorkspacePreferences.SchemaSamplingProfileIds` existente | vazio | Opt-in por conexão; sem campo duplicado em AutocompleteSettings |
+
+Delay adaptativo, pesos, margem de confiança, número de candidatos, linhas do ghost e orçamento total automático são constantes internas em `LanguageServiceOptions`, medidas antes de expor controles. Não acrescentar opções de ociosidade, warmup, alternativas ou Ctrl+→ nesta entrega.
+
+## Precedência
+
+```text
+traditional.manual = Enabled && TraditionalEnabled
+ai.manual          = Enabled && Mode != Basic
+traditional.inline = Enabled && InlineEnabled && InlineUseTraditional
+ai.inline          = Enabled && InlineEnabled && InlineUseAi && Mode != Basic
+                     && LoadedOnly elegível && perfil de latência elegível
+```
+
+Tradicional inline não depende de TraditionalEnabled; desligar lista não elimina ghost. IA explícita não depende de InlineUseAi. `UseDictionary` não impede sugestões contextuais explícitas. Se fallback de IA encontra tradicional explícito desligado, informar indisponibilidade sem abrir lista ou mudar preferência. Opções desabilitadas conservam valor salvo.
+
+## Migração
+
+- Documento v1 antigo sem flags: preservar Enabled/Mode e derivar InlineUseTraditional de UseDictionary; InlineUseAi de Mode != Basic para conservar intenção do comportamento automático legado, sujeito ao novo gating LoadedOnly. Instalação nova usa false para IA automática. Aviso textual nas preferências explica o estado efetivo.
+- Distinguir **campo ausente de false explícito** no DTO de leitura ou por presença JSON; não inferir migração apenas pelo inicializador da propriedade. `TraditionalEnabled` ausente = true, `InlineEnabled` ausente = true.
+- Modo Ai legado já permite dicionário; não reinterpretá-lo como exclusão do tradicional.
+- Opções UseEditorContext/UseResultPanelContext/UseInputPanelContext continuam governando contexto transitório. Persistir entrada JSON permanece opt-in separado; habilitar contexto não autoriza salvar Input.
+- Mesmas regras de falha: configuração ilegível não vira sessão vazia; erro de gravação fica visível e preserva estado. Nenhum resultado, prompt, credencial ou cache entra nos rascunhos.
+- Atalhos em `EditorKeyBindings` aditivo, sem tela nova: Ctrl+., alias Ctrl+Espaço, Ctrl+;, Tab/Enter/Esc. Validar conflitos/layouts conforme [editor](editor-integration.md).
+
+## Aceite
+
+Testar v1 ausente, v1 com false explícito, Enabled=false, Mode=Basic/Ai/Automatic, UseDictionary=false, quatro combinações de flags inline, ausência/troca de modelo, opt-outs por conexão, round-trip, versão inválida e falha de persistência. Fakes comprovam zero geração/carga quando inelegível. [Tarefa T08](execution-plan.md).
+
+
+## Schema Learning
+
+Adicionar SchemaLearningEnabled e SchemaLearningPersistenceEnabled (true por padrão nesta funcionalidade solicitada), mais exclusões por ProfileId; são preferências de fonte, independentes dos quatro providers. UseResultPanelContext=false impede nova coleta dos resultados. Respeitar política geral/por conexão aplicável; persistência de Input permanece separada. Desligar coleta/persistência não apaga dados já gravados; ação Limpar aprendizado explícita e erro de gravação visível. Conferir revisão da política antes de enfileirar e novamente no commit. [Migração, retenção e privacidade](schema-learning.md).

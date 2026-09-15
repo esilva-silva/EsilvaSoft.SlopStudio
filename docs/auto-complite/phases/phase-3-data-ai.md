@@ -73,7 +73,7 @@ Criar a camada que transforma `CompletionContext` + catálogo em um prompt peque
 4. Fatos de coleções que não são o alvo nunca aparecem (exceto `from` de `$lookup`/`$unionWith`/`$graphLookup`).
 5. Valores de resultados e amostras nunca aparecem no prompt (verificado contra as fixtures).
 6. Erro da estimativa de tokens medido por modelo e dentro da margem configurada, ou margem ajustada com dados.
-7. Harness executado para os contratos A–E com pelo menos dois modelos em CPU (e DirectML quando disponível); relatório com tokens, acerto, validade de catálogo e latência registrado.
+7. Harness executa v1 e ao menos um formato alternativo no modelo base disponível; ampliar a A–E só se houver hipótese/ganho. Registrar modelos indisponíveis; não bloquear v1 por exportação experimental ausente.
 8. Decisão de contrato padrão para modelos base registrada em [decisions.md](../decisions.md); pacotes SlopCoder mantêm v1.
 9. Seleção + builder dentro do orçamento revisado na máquina de referência.
 10. Suíte regular e build das três variantes aprovados; [21](../../21-autocomplete-local.md) e [26](../../26-ia-local-multimodelo.md) atualizados.
@@ -92,3 +92,8 @@ Criar a camada que transforma `CompletionContext` + catálogo em um prompt peque
 ## Fora do escopo
 
 Provider `Ctrl+;`, streaming, prefix cache, mudanças de UI.
+
+
+## Revisão de tarefas
+
+[A31–A34](../execution-plan.md) são os lotes obrigatórios. B–E acima são candidatos de pesquisa, não cinco implementações obrigatórias. Cache BPE não concatena blocos sem fronteiras provadas; serviço ONNX controla tokenizer/lifetime. Fonte learned participa como metadado probabilístico, sem valores; R41 entrega contrato de orçamento/tokenização antes de A33. O formato serializado v1 é preservado para a mesma entrada, distinguindo seleção de fatos.

@@ -1,9 +1,54 @@
 # Arquitetura
 
+Revisada em 15/09/2026 contra `b082d4a`. Estado real em [current-state.md](current-state.md); os contratos abaixo são propostas, salvo indicação. Reutilizar os tipos de `Application.Language` existentes; não mover arquivos apenas para reproduzir o diagrama.
+
+## Providers independentes
+
+| Provider proposto | Geração compartilhada | Disparo / saída | Política |
+| --- | --- | --- | --- |
+| `TraditionalCompletionProvider` | `CompletionService` + catálogo + ranker | Ctrl+. (alias Ctrl+Espaço) / lista | Explicit, sem IA |
+| `AiCompletionProvider` | Fatos + builder + `AiGenerationPipeline` + output | Ctrl+; / prévia | Interactive, carga permitida |
+| `TraditionalPreemptiveCompletionProvider` | Mesmo CompletionService/ranker | Edição / ghost | Peek, prefixo estrito, confiança |
+| `AiPreemptiveCompletionProvider` | Mesmo AiGenerationPipeline/output | Edição / ghost | Background, LoadedOnly, prazo curto |
+
+Contrato comum proposto, sem obrigar lista síncrona a simular streaming:
+
+```csharp
+public interface ICompletionProvider
+{
+    CompletionProviderKind Kind { get; }
+    ValueTask<CompletionResponse> CompleteAsync(
+        CompletionRequest request, CancellationToken cancellationToken);
+}
+// CompletionRequest: RequestStamp, CompletionContext, orçamento e política capturados.
+// CompletionResponse: mesmo stamp, candidatos/edits, origem, estado e completude.
+// IA pode implementar adicionalmente IStreamingCompletionProvider; o pipeline é único.
+```
+
+`CompletionService` é gerador determinístico, não quinto provider; `InlineCompletionCoordinator` arbitra os dois automáticos, não gera conhecimento. Parser/AST/contexto, schema, cache, ranking, snippets, métricas, escopo de cancelamento e presenter são compartilhados. Não registrar quatro copies desses serviços em DI.
+
+### Chaves e validade
+
+- AST: `(EditorId, DocumentVersion, Dialect)`; contexto: acrescentar Caret, Selection, TargetIdentity/ConnectionGeneration, CatalogRevision, LocalEvidenceRevision, SettingsRevision. Gatilho é política do pedido, não motivo para duplicar AST. Não memoizar contexto só por versão/cursor.
+- `RequestStamp`: identidade acima + RequestId monotônico e PresentationGeneration; IA acrescenta ModelRevision/Contract. Mesma versão textual em outra aba não equivale ao mesmo pedido.
+- Um escopo de lista, um de IA explícita e um coordinator automático por editor; dentro do último, token filho para cada provider. Todas as apresentações passam pela geração comum de UI. `Ctrl+.` cancela prévia/IA pendente e abre lista; `Ctrl+;` fecha lista e substitui ghost. Chat preempta Background no serviço de modelo, não cancela CTS arbitrário de outra aba.
+- Mesmo refiltro dentro de token cria novo stamp e invalida callbacks anteriores; reutiliza cálculo/candidatos somente quando a cobertura continua válida. Backspace/alargamento de prefixo exige nova consulta se a lista anterior foi limitada.
+- Publicar e aceitar são operações no dispatcher com nova conferência do stamp. CTS cooperativo é otimização; guarda de validade é garantia. Edit/undo ABA, cancelamento ignorado e troca de perfil/modelo são testes obrigatórios.
+
+### I/O e concorrência compartilhada
+
+Hoje Query pode agendar cargas e o cache usa locks curtos. Evoluir CatalogQuery com política de acesso propagada a **todos** os Get: automático e refiltro usam Peek; refresh só por intenção explícita de escopo conectado/Explorer. Scheduler compartilhado com fila limitada e single-flight; limites iniciais 2 cargas por conexão/4 globais, a medir. Cancelar um consumidor não mata carga útil aos demais; invalidar geração impede publicação antiga.
+
+Leitura rápida não exige reescrever o cache como lock-free. Medir contenção; limitar trabalhos sob lock e publicar snapshots imutáveis. Correções de write-through, amostra tardia, identidade de ambiente, completude e mesclagem limitada são pré-requisitos de integração, em [execution-plan.md](execution-plan.md).
+
+### Estratégia de entrega
+
+Fase 1 tem base implementada e aceite parcial. Fase 2 entrega infraestrutura comum e protótipo do presenter inline, com paridade antes de remoção. 5.1 pode seguir a 2; Fases 3/4 não são pré-requisitos de 5.1. 5.2 depende da 4; 5.3 integra ambas. Padrão híbrido é sequencial, sem troca automática de sugestão já visível. [Estratégia detalhada](preemptive-autocomplete.md).
+
 ## Princípios
 
-1. **UI sempre responsiva.** A UI thread só captura snapshot, cursor e destino (custo constante) e aplica resultados. Parsing, consulta, ranking e inferência rodam fora dela.
-2. **Um entendimento do cursor por versão.** O Context Engine produz `CompletionContext` uma vez; tradicional, IA e preemptivo o reutilizam.
+1. **UI sempre responsiva.** A UI thread só captura snapshot, cursor e destino (custo limitado e medido) e aplica resultados. Parsing, consulta, ranking e inferência rodam fora dela.
+2. **Um entendimento por chave de contexto.** As quatro modalidades reutilizam AST e contexto com as revisões descritas acima.
 3. **Conhecimento como dados.** Linguagem MongoDB (métodos, operadores, stages, shapes) vive em dados versionados; adicionar comando não exige novo `if`.
 4. **Nenhum I/O no caminho da tecla.** O catálogo responde de snapshots em memória; cargas remotas são assíncronas, deduplicadas e canceláveis.
 5. **IA opcional e isolada.** O runtime ONNX permanece genérico; especialização MongoDB fica no Context Engine e no AI Context Builder.
@@ -29,7 +74,7 @@ Não se cria novo projeto de domínio nesta meta ([AC-04](decisions.md)). Os com
 | `Infrastructure` | `MongoMetadataSource` (driver), extensões de `OnnxLocalModelRuntime` (prompt pré-tokenizado, `TokenizerStream`, prefix cache), `IModelAdapter` com contratos de contexto |
 | `Desktop` | `AvaloniaTextSnapshot`, `CompletionWindowPresenter`, `SnippetInserter`, `GhostTextElementGenerator`, `EditorCommandDispatcher` |
 | `tests/UnitTests` | Fixtures `Language/Cases/*.case`, testes por componente |
-| `tests/Benchmarks` (novo) | BenchmarkDotNet — projeto de ferramenta, não de domínio |
+| `tests/EsilvaSoft.SlopStudio.Benchmarks` (existente) | BenchmarkDotNet — estender o projeto de ferramenta |
 
 ```mermaid
 flowchart BT
@@ -105,7 +150,7 @@ flowchart LR
 
 ### Tradicional (`Ctrl+.`)
 
-Descrito no [README](README.md#fluxo-principal-ctrl). Pontos essenciais: snapshot em O(1) via `TextDocument.CreateSnapshot()`; contexto memoizado por versão e cursor; consulta ao catálogo sem I/O; lista marcada `IsIncomplete` quando algum escopo está carregando; `CatalogChanged` reconsulta a lista aberta se a versão ainda for a mesma.
+Descrito no [README](README.md#fluxo-principal-ctrl). Pontos essenciais: snapshot sem materializar string via `TextDocument.CreateSnapshot()`; contexto memoizado por versão e cursor; consulta ao catálogo sem I/O; lista marcada `IsIncomplete` quando algum escopo está carregando; `CatalogChanged` reconsulta a lista aberta se a versão ainda for a mesma.
 
 ### IA explícita (`Ctrl+;`)
 
@@ -132,7 +177,7 @@ sequenceDiagram
 
 ### Preemptivo
 
-Ver [preemptive-autocomplete.md](preemptive-autocomplete.md#fluxo). Camada 0 (determinística) responde sem debounce; camada 1 (IA) após debounce adaptativo, prioridade `Background`.
+Ver [preemptive-autocomplete.md](preemptive-autocomplete.md#fluxo). Tradicional contextual responde no worker; IA só se insuficiente, após debounce, Background/LoadedOnly. Configurações independentes.
 
 ### Atualização de metadados
 
@@ -160,7 +205,7 @@ sequenceDiagram
 
 ### Escopo de requisição
 
-Generaliza `CompletionSession`: um `EditorRequestScope` por editor **e por modalidade** (lista, IA explícita, inline). Cada requisição recebe versão monotônica e CTS próprio.
+Generaliza `CompletionSession`: um `EditorRequestScope` por editor **e canal de apresentação** (lista, IA explícita, inline com dois providers). Cada requisição recebe versão monotônica e CTS próprio.
 
 ```text
 Request A (versão 41, cursor 120)
@@ -176,14 +221,14 @@ Regras:
 1. A captura (snapshot, cursor, perfil, banco, coleção, modo) ocorre antes de qualquer `await`.
 2. Toda aplicação na UI confere: editor anexado, `DataContext` inalterado, versão do documento, cursor, seleção vazia e destino da aba. Falha em qualquer item descarta silenciosamente.
 3. Cancelamento é cooperativo; o descarte por versão protege contra providers que ignoram o token (comportamento já testado).
-4. Uma modalidade não cancela a outra, exceto: `Ctrl+;` preempta a camada 1 do preemptivo (prioridade da fila); abrir a lista suspende o ghost.
+4. Comandos explícitos arbitram a apresentação: Ctrl+. cancela IA/prévia; Ctrl+; fecha lista e substitui ghost. Os tokens continuam isolados, ligados à geração de apresentação.
 5. Abas diferentes nunca compartilham CTS.
 
 ### Fontes de cancelamento
 
 | Evento | Lista tradicional | IA explícita | Preemptivo |
 | --- | --- | --- | --- |
-| Digitação que altera o token do filtro | Reutiliza contexto e refiltra; não cancela | Cancela | Cancela, exceto typeahead sobre o ghost |
+| Digitação que altera o token do filtro | Novo stamp, refiltro reutilizável; invalida retorno anterior | Cancela | Cancela; só candidato concluído permite typeahead |
 | Digitação fora do token / nova linha | Fecha e cancela | Cancela | Cancela e reagenda |
 | Movimento do cursor | Fecha e cancela | Cancela | Cancela; não dispara sem edição |
 | `Esc` | Fecha | Cancela geração | Descarta ghost |
@@ -197,9 +242,9 @@ Regras:
 | --- | --- |
 | Modelo ONNX | `PriorityGate` existente: uma geração por vez; `Interactive` (chat, `Ctrl+;`, teste) antes de `Background` (inline); `Background` em execução é preemptado |
 | Carga do modelo | Desacoplada do token do editor (existente): digitar não aborta a carga |
-| Metadados | Single-flight por chave; token do scheduler, não do editor; cancelado só por invalidação, desconexão ou encerramento |
+| Metadados | Single-flight com token próprio; invalidar geração descarta retorno; cancelar espera não mata carga de outros consumidores |
 | Árvore sintática | Imutável por versão; reparse em worker; última versão vence |
-| Catálogo | Snapshots imutáveis com troca atômica (`Volatile.Write`); leitores nunca bloqueiam |
+| Catálogo | Cache atual usa locks curtos; medir contenção e retirar construção de tabelas do caminho da tecla |
 
 ## Degradação graciosa
 
@@ -214,7 +259,7 @@ Regras:
 | Erro de inferência / cooldown | Inalterado | Lista tradicional + motivo | Só camada 0 |
 | Timeout | Inalterado | Mantém prévia parcial válida ou lista | Descarta |
 | Contexto sensível detectado | Inalterado | Recusa com motivo | Só camada 0 |
-| Parser não entende a posição | Linguagem genérica por papel lexical | Janela de texto sem fatos | Camada 0 lexical |
+| Parser não entende a posição | Linguagem genérica por papel lexical | Janela de texto sem fatos, sob ação explícita | Abster-se |
 
 Nenhuma falha de IA ou metadado lança exceção até o handler da UI; o editor continua editável em todos os casos.
 
@@ -224,7 +269,7 @@ Nenhuma falha de IA ou metadado lança exceção até o handler da UI; o editor 
 - Nomes de chaves do cofre de ambientes podem ser sugeridos em `ENV.get("…")`; valores nunca.
 - Prompt: somente nomes/tipos, trecho do editor e statements do histórico da mesma conexão; `CompletionPrivacy` aplicado por fato e no prompt final; marcadores reservados escapados.
 - Métricas sem texto, nomes de campos, coleções ou queries.
-- Histórico de aceite em memória; persistência só por opt-in e respeitando opt-outs existentes.
+- Histórico de aceite em memória; aprendizado de estrutura de find persiste conforme schema-learning.md, sem valores e com opções de privacidade.
 
 ## Extensibilidade
 
@@ -249,3 +294,8 @@ Nenhuma falha de IA ou metadado lança exceção até o handler da UI; o editor 
 | AICompletionProvider | `AiCompletionProvider` |
 | Output Processor | `CompletionOutputProcessor` |
 | Knowledge Catalog | `IKnowledgeCatalog` |
+
+
+## Aprendizado de resultados e persistência
+
+[Schema Learning](schema-learning.md) acrescenta BackgroundSchemaAnalyzer, SchemaLearningService, deltas probabilísticos e ILearnedSchemaRepository no proprietário LiteDB existente. Hook após entrega de find não aguarda análise; fila/memória/escrita limitadas. Origem vem de StructuredResultSet, não seleção da UI. Hidratação de aprendizado é assíncrona; providers consultam snapshot em memória. Revisão learned faz parte de CatalogRevision; nenhum dado bruto entra no cache persistido. Tarefas L11–L16 precedem aceite final de dados, sem impedir desenvolvimento de contexto com fakes.

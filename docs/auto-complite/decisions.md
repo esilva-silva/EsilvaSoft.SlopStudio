@@ -1,6 +1,6 @@
 # Decisões propostas
 
-Estado: **Proposta** (14/09/2026), exceto AC-03, AC-04, AC-05, AC-06, AC-11 e AC-14, **implementadas na Fase 1** em 14/09/2026 ([estado e desvios](phases/phase-1-data-traditional.md#estado-da-implementação)). Ao serem aceitas, promover para [10 — ADRs](../10-decisoes-arquiteturais.md) com numeração oficial e revisão explícita das ADRs afetadas; essa promoção ainda não foi feita.
+Estado: **Plano revisado** em 15/09/2026. AC-03/04/05/06/11/14 têm base implementada na Fase 1, com aceite parcial e divergências registradas ([estado e desvios](phases/phase-1-data-traditional.md#estado-da-implementação)). Ao serem aceitas, promover para [10 — ADRs](../10-decisoes-arquiteturais.md) com numeração oficial e revisão explícita das ADRs afetadas; essa promoção ainda não foi feita.
 
 ## AC-01 — Contratos in-process inspirados em LSP
 
@@ -75,10 +75,9 @@ Estado: **Proposta** (14/09/2026), exceto AC-03, AC-04, AC-05, AC-06, AC-11 e AC
 **Decisão.** `Meter`/`ActivitySource` com lista fechada de tags, sem texto nem nomes de objetos do usuário; coleta em memória, sem upload.
 **Alternativas.** Estender apenas `Trace` (não agregável); telemetria remota (fora da política de privacidade).
 
-## AC-12 — Preemptivo em camadas
+## AC-12 — Dois preemptivos e híbrido sequencial
 
-**Decisão.** Camada 0 determinística sem debounce; camada 1 IA com debounce adaptativo, só com modelo já carregado e latência aceitável; typeahead sobre o ghost; movimento de cursor sem edição não dispara.
-**Alternativas.** Somente IA (lento em CPU e dependente de modelo); inferência por tecla (rejeitada pela meta).
+**Decisão revista.** TraditionalPreemptiveCompletionProvider e AiPreemptiveCompletionProvider independentes, com contexto/catálogo e presenter comuns. Tradicional forte publica e encerra; IA só sem candidato forte, LoadedOnly/Background após debounce. Não trocar ghost visível no padrão; extensão concorrente fica experimental. Movimento sem edição não dispara; typeahead só de candidato concluído. Flags/defaults em configuration.md.
 
 ## AC-13 — Ghost text no layout do AvaloniaEdit
 
@@ -118,7 +117,7 @@ Estado: **Proposta** (14/09/2026), exceto AC-03, AC-04, AC-05, AC-06, AC-11 e AC
 | Catálogo consulta metadados | Com restrição de conexão conectada e sem amostragem automática | Invariantes do produto (AC-05) |
 | Estrutura de catálogo de exemplo | Símbolos + escopos + shapes + evidências | Representa contexto válido, não só nomes (AC-03) |
 | `Enter` aceita conforme editor | Configurável, padrão aceitar | Comportamento do `CompletionWindow` |
-| Tradicional só explícito | Mantido, com opção futura de abertura automática | AC-17 |
+| Tradicional só explícito | Revisto: tradicional explícito e preemptivo contextual independentes | AC-12; AC-17 trata apenas popup automático |
 
 ## Relação com ADRs existentes
 
@@ -130,3 +129,33 @@ Estado: **Proposta** (14/09/2026), exceto AC-03, AC-04, AC-05, AC-06, AC-11 e AC
 | ADR-031 | Revisada: lexer passa a ser compartilhado com o parser; descrições de TextBox já são históricas |
 | ADR-033 / ADR-037 | Mantidas: serviço central e adapters; extensões de runtime e metadata |
 | ADR-036 | Mantida: operações de metadados usam a barra com prioridade baixa |
+
+
+## Decisões adicionais da revisão
+
+### AC-19 — Reconciliar base implementada antes de expandir
+
+Consolidar gerações do cache, identidade de ambiente, Peek, cobertura/truncamento e limites de mescla. Não reimplementar catálogo/benchmarks nem exigir lock-free. Fase 1 permanece aceite parcial até evidência pendente; K11–K17.
+
+### AC-20 — Quatro providers, dois pipelines
+
+ICompletionProvider comum; TraditionalCompletionProvider/TraditionalPreemptiveCompletionProvider usam CompletionService. AiCompletionProvider/AiPreemptiveCompletionProvider usam AiGenerationPipeline. Shared stamp/context/schema/caches/ranking/snippets/metrics/presenter; nenhuma árvore própria por provider. Score IA não comparável ao tradicional.
+
+### AC-21 — LoadedOnly atômico e cache tokenizado correto
+
+Política de carga sob gate com revisão de modelo; automático não carrega/troca nem faz fallback que inicialize sessão. Tokenizer pertence ao runtime; blocos BPE só concatenados com fronteiras provadas. Prefix cache opcional medido, não prerequisite de IA explícita.
+
+### AC-22 — Entrega incremental sem ciclo de UI
+
+Presenter prototipado no 2; 5.1 pode seguir a 2 paralelamente a 3. 5.2 após 4 e coordinator; 5.3 integra. Remover legado só após último chamador/paridade. Adiar histórico de valores, Backspace restaurador, atalhos extras, green tree completa e cinco contratos IA de produção sem medição.
+
+### AC-23 — Preferências independentes com migração explícita
+
+Usar campos v1 existentes para modelo/provider/orçamento; flags aditivas separadas para os dois automáticos. Novo usuário: IA inline false; v1 legado preserva intenção por presença do campo, sujeito a LoadedOnly. Matriz de precedência em configuration.md; não sobrescrever sessão ilegível.
+
+Estas decisões atualizam o plano; não marcam UI ou providers implementados. Relação documental com ADR-007/027/030/031/033/037 registrada em docs/10; evidências futuras exigidas por tarefa.
+
+
+## AC-24 — Aprendizado contínuo de find e persistência LiteDB
+
+Novo requisito de 15/09/2026 substitui adiamento da persistência de schema. Reutilizar amostra dos resultados já retornados, enfileirar sem bloquear consulta/UI, extrair deltas probabilísticos e persistir estrutura/estatísticas no proprietário LiteDB existente. Identidade segura de origem, transação/idempotência, projeção/cobertura, opt-outs e limites definidos em schema-learning.md. Campos aprendidos são observados, não schema rígido nem prova de ausência. Nenhuma consulta adicional automática. Tarefas L11–L16, dono MongoDB Knowledge, com testes/performance desde o hook.

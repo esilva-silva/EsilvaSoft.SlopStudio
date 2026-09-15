@@ -11,7 +11,7 @@ O catálogo combina camadas:
 ```text
 Linguagem MongoDB embutida (dados versionados, por dialeto e versão de servidor)
 + Metadados da conexão (bancos, coleções, tipos, índices)
-+ Evidências de schema (validator, índices, resultados, amostra explícita)
++ Evidências de schema (validator, índices, resultados, aprendizado persistido, amostra explícita)
 + Símbolos do editor (declarações locais, chaves de ENV por nome)
 + Estatística de uso (aceites recentes, em memória)
 ```
@@ -47,7 +47,7 @@ Linguagem MongoDB embutida (dados versionados, por dialeto e versão de servidor
 
 ### Símbolo
 
-Esboço, não contrato final:
+Esboço conceitual, não contrato serializado existente (o código usa IDs string, CatalogScope e EditorDialects):
 
 ```csharp
 public sealed record CatalogSymbol(
@@ -80,7 +80,7 @@ ScopeKey
         FieldPath(perfil, banco, coleção, caminho) → campos filhos
 ```
 
-A identidade do perfil combina `ConnectionProfile.Id` e `TargetHost`, mais um hash das propriedades de conexão efetivas **sem segredos**. Assim, perfis editados ou roteados para outra instância não reaproveitam metadados antigos — mesma lógica de identidade usada por `MongoClientPool`.
+Hoje ConnectionIdentity usa Id, TargetHost e hash truncado da URI salva; MongoClientPool usa settings efetivos resolvidos. Não são equivalentes. Evoluir com geração opaca de conexão/ambiente, invalidada ao editar perfil, credenciais, roteamento ou ENV; não persistir/publicar hash da URI.
 
 ### Dialetos
 
@@ -132,7 +132,9 @@ A estrutura sugerida na meta, no modelo proposto:
 
 ### Arquivo embutido
 
-[`Application/Language/mongodb-language.v1.json`](../../src/EsilvaSoft.SlopStudio.Application/Language/mongodb-language.v1.json), recurso embutido carregado uma vez por [`LanguageDefinition`](../../src/EsilvaSoft.SlopStudio.Application/Language/LanguageDefinition.cs) e congelado (`FrozenDictionary`). Contém símbolos, assinaturas, shapes e snippets. Descrições em pt-BR; identificadores em inglês. Versão do arquivo e testes de schema garantem integridade.
+[`Application/Language/mongodb-language.v1.json`](../../src/EsilvaSoft.SlopStudio.Application/Language/mongodb-language.v1.json), recurso embutido carregado uma vez por [`LanguageDefinition`](../../src/EsilvaSoft.SlopStudio.Application/Language/LanguageDefinition.cs) e congelado (`FrozenDictionary`). Contém grupos de símbolos, assinaturas, shapes e snippets. Descrições em pt-BR; identificadores em inglês. Versão do arquivo e testes de schema garantem integridade.
+
+O JSON abaixo é ilustrativo; **não substituir o recurso por ele**. O loader atual lê groups, snippets e shapes; preservar schema/versão ou migrar explicitamente.
 
 ```json
 {
@@ -319,9 +321,9 @@ Valores iniciais para calibração com as métricas `metadata.cache.*`; não sã
 - **Stale-while-revalidate:** consulta devolve o valor vencido marcado `Stale` e agenda revalidação.
 - **Single-flight:** um `Task` por chave; consultas concorrentes aguardam o mesmo resultado sem bloquear a UI.
 - **Backoff:** falha → 30 s, 2 min, 10 min; erro de autorização em `listCollections` tenta uma vez `authorizedCollections: true`.
-- **Imutabilidade:** cada carga produz novo snapshot e troca atômica de referência; leitores nunca travam.
+- **Imutabilidade:** valores publicados são snapshots; implementação atual sincroniza entradas com locks curtos. Reduzir trabalho sob lock e medir contenção, sem exigir reescrita lock-free.
 - **Orçamento de memória:** definições, índices e schemas amostrados compartilham um LRU de 64 entradas por conexão; nomes de bancos e coleções não entram no LRU. Medido em 14/09/2026: **29,9 MB** retidos no cenário 1 000 coleções × 1 000 campos com validator em todas ([performance](performance.md#baseline-medida--fase-1)). A primeira implementação carregava todos os validators do banco em uma chamada e retinha 99,7 MB fora do LRU; foi substituída pela carga por coleção.
-- **Persistência:** adiada. Uma coleção LiteDB `schemaCache` (já prevista em [05](../05-arquitetura.md)) poderá guardar nomes e tipos com versão, por opt-in e respeitando o proprietário único do arquivo. Não guarda valores.
+- **Persistência:** aprendizado de resultados find passa a integrar esta revisão; coleções versionadas e deltas no proprietário LiteDB atual, conforme [schema-learning.md](schema-learning.md). Metadados remotos continuam em memória; não persistir resultados/valores.
 
 ## Invalidação
 
@@ -350,7 +352,7 @@ Cada escopo guarda uma `NameTable`: arrays paralelos ordenados por chave normali
 | Prefixo | Busca binária dos limites inferior e superior | O(log n + k) |
 | Camel humps (`cN` → `clienteNome`) | Busca binária no índice de iniciais | O(log n + k) |
 | Substring/subsequência | Varredura limitada ao escopo, só se as anteriores trouxerem menos que o máximo | O(n) com n ≤ tamanho do escopo |
-| Exato | `FrozenDictionary` | O(1) |
+| Exato | NameTable.TryGetExact usa busca binária e comparação ordinal | O(log n + colisões de caixa) |
 
 Por que não trie ou FST: os escopos são pequenos a médios (até ~10⁴), reconstruídos por inteiro a cada carga e imutáveis; arrays ordenados são compactos, amigáveis ao cache de CPU e triviais de trocar atomicamente. Trie compensaria apenas com inserções incrementais frequentes em conjuntos muito maiores. A escolha será validada pelo benchmark da Fase 1.
 
@@ -358,7 +360,7 @@ Consultas só percorrem os escopos exigidos pelo contexto: se o esperado é `Fie
 
 ## Contratos
 
-Esboços:
+Esboços de evolução: IKnowledgeCatalog atual só tem Query, sem Changed/ResolveAsync. Assinaturas compiláveis atuais estão em CatalogModel.cs/MetadataModel.cs; o evento atual identifica perfil, não escopo. Não copiar interfaces abaixo sem reconciliar esses tipos.
 
 ```csharp
 public interface IKnowledgeCatalog
@@ -427,3 +429,27 @@ public interface IMongoMetadataSource
 | `MqlAutocompleteService.InferFieldPaths`/`InferJsonSchema` | Núcleo do `SchemaBuilder` para resultados; wrappers preservados |
 | `MongoSyntaxVocabulary` | Projeção do arquivo embutido |
 | `EnvironmentVault` | Fonte de `EnvironmentKey` (somente nomes) |
+
+
+## Consolidação antes de integrar os providers
+
+Revisão de 15/09/2026. A base da Fase 1 existe; tarefas K11–K17 consolidam riscos antes do automático.
+
+- Propagar MetadataAccess.Peek por CatalogQuery/fontes para não agendar rede no automático ou refiltro. Refresh explícito tem fila limitada (2 por conexão/4 globais iniciais), single-flight e geração própria.
+- Write-through deve incrementar geração ou substituir Entry; carga que começou antes não pode sobrescrevê-lo. Amostra explícita precisa da mesma guarda contra desconexão/invalidade/opt-out. Cancelar espera de um consumidor não cancela os demais.
+- Preservar tipo retornado por listCollections nameOnly sem carregar validators do banco. Hoje ListCollectionNamesAsync descarta tipo e cria Unknown; erro 13 de definição retorna Unknown, não prova schema completo.
+- Cache de schema mesclado limitado por escopo/revisões e evidência local da aba; não uma única entrada singleton. Reaproveitar NameTable de perfis/nomes; impor limite conjunto de nós/profundidade/bytes depois da união, não só em cada fonte.
+- Resultados Derived/PartialProjection não se tornam schema autoritativo da coleção; evidência é local à aba/versão do resultado. Amostra e índice são evidências parciais, validator também pode permitir campos adicionais. Ausência de nome não prova invalidade MongoDB.
+- Complete (frescor), SearchExhausted (busca sem truncamento), Coverage (schema parcial/declarado) e Capability (suportado/desconhecido/indisponível) são dimensões diferentes. Não usar Complete como veto absoluto de campo IA ou garantia de candidato único.
+- Query hoje concatena fontes até atingir limite; plano deve filtrar shape/dialeto antes do corte e reservar cotas por tipo para não deixar uma fonte ocultar todos os campos. Reportar truncamento e reconsultar ao refinar; top-2 automático só quando cobertura da busca é suficiente.
+- Changed deve incluir chave/geração/estado terminal, inclusive falha; coalescer notificações no dispatcher e não repetir mensagem a cada tecla.
+- Atlas/Search exige capability conhecida para ghost; versão desconhecida pode mostrar item explícito com indicação. Não sondar servidor por tecla nem confundir autocomplete do editor com operador de busca autocomplete.
+
+Estas são mudanças propostas, não garantias já presentes. Testes de permissão/gerações/bytes/cobertura constam em [execution-plan.md](execution-plan.md).
+
+
+## Aprendizado probabilístico como fonte
+
+[Schema Learning](schema-learning.md) usa resultados find já entregues para extrair/mesclar deltas, sem consultas adicionais. Identity = ProfileId + SourceGenerationId + Database + Collection; FieldPath por segmentos para distinguir ponto literal. Fonte learned conserva presença/tipos/denominadores, arrays, FirstSeen/LastSeen e cobertura Observed. Repetição entre queries é observação, não documento único; BatchId deduplica somente entrega/retry.
+
+Não somar contagens de validator, índice, amostra e learned como se fossem uma população. PartialProjection/Derived/Unknown só ficam na aba inicialmente; aprendido persistido participa de nomes/tipos, nunca valores. Hidratar por namespace no background, atualizar tabelas em memória por revisão. Prefixo não consulta LiteDB. Essa decisão substitui o adiamento de persistência, com tarefas L11–L16 e testes próprios.

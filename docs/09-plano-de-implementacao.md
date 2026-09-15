@@ -144,3 +144,8 @@ Capacidades de serviços externos são escopo técnico futuro, não recomendaç�
 Cada issue deve indicar ID, versão, recorte, fora de escopo, dependências, cenário Given/When/Then, testes, documentação e status. Encerramento requer evidência proporcional; Headless não substitui MongoDB, modelo, cofre, leitor de tela ou diálogo nativo. Não há estimativa de calendário aprovada.
 
 Referências antigas F0–F7 em registros datados são históricas: F0 era fundação, F1 alpha, F2 MVP, F3 análise/recuperação, F4 antiga 1.0 e F5–F7 extensões. Não correspondem numericamente às seis fases atuais; usar versão e ID em novos trabalhos. Decisão em [ADR-035](10-decisoes-arquiteturais.md#adr-035--roadmap-por-versão-e-status-baseado-em-evidência-13092026).
+
+
+## Revisão do plano de autocomplete — 15/09/2026
+
+Plano revisado: dados existentes com aceite parcial; Fase 1 amplia para aprendizado persistente de find; Fase 2 fornece contexto/lista/presenter; 5.1 tradicional pode seguir a 2 sem IA; 3/4 preparam IA; 5.2 IA e 5.3 híbrido sequencial. Dez perfis e tarefas com dependências estão no plano executável. Não há implementação nova nesta revisão. [Plano revisado](auto-complite/README.md), [tarefas por agente](auto-complite/execution-plan.md) e [schema learning](auto-complite/schema-learning.md).

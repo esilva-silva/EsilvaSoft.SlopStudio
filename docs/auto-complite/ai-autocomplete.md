@@ -2,7 +2,7 @@
 
 ## Papel
 
-Conclusão mais rica sob demanda (`Ctrl+;`), usando o modelo local. Também fornece a camada 1 do [preemptivo](preemptive-autocomplete.md). A IA **enriquece**: toda falha degrada para o autocomplete tradicional.
+Conclusão mais rica sob demanda (`Ctrl+;`), usando o modelo local. Compartilha AiGenerationPipeline e Output Processor com AiPreemptiveCompletionProvider; os providers são independentes. Falha explícita pode abrir lista tradicional se habilitada; falha automática apenas descarta.
 
 ## Cadeia
 
@@ -30,7 +30,7 @@ Regras MongoDB ficam apenas nas duas primeiras etapas e no Output Processor. O r
 2. Mostra indicador de geração no cursor (camada de fundo, sem alterar texto).
 3. `GenerateAsync` com prioridade `Interactive`, preemptando geração `Background` do preemptivo.
 4. Tokens chegam por streaming; o Output Processor valida incrementalmente e a prévia inline cresce enquanto válida.
-5. `Tab` aceita (inteiro ou incremental), `Esc` cancela ou descarta, `Alt+]`/`Alt+[` alternam candidatos quando houver mais de um.
+5. Tab aceita (inteiro ou incremental), Esc cancela/descarta. Alternativas e atalhos adicionais ficam adiados.
 6. Se a IA não puder atender, abre a lista tradicional com uma linha de estado explicando o motivo.
 
 A lista tradicional não espera a IA; `Ctrl+.` continua imediato mesmo com geração em andamento.
@@ -43,7 +43,7 @@ A lista tradicional não espera a IA; `Ctrl+.` continua imediato mesmo com gera�
 | Parada estrutural | Corta quando a sugestão fecharia mais delimitadores do que os abertos desde o início do statement, ou ao completar o statement em modo inline |
 | Sufixo | Remove sobreposição com o texto existente após o cursor |
 | Estilo | Ajusta aspas ao estilo dominante detectado pelo contexto |
-| Validação de catálogo | Identificadores em posição de campo/coleção/operador conferidos contra o catálogo; desconhecido com catálogo `Complete` reduz confiança (inline) ou recebe selo "não encontrado" (explícito) |
+| Validação de catálogo | Identificadores em posição de campo/coleção/operador conferidos contra o catálogo; desconhecido com fontes frescas é apenas não observado; considerar cobertura/shape e permitir nomes de saída novos, sem tratar Complete como schema exaustivo |
 | Validade sintática | Documento hipotético (prefixo + sugestão + sufixo) analisado pelo parser tolerante; diagnóstico novo reduz confiança |
 | Privacidade | `CompletionPrivacy` na saída |
 | Resultado | `AiCompletionCandidate(texto, confiança, faixa, diagnósticos)` |
@@ -112,3 +112,12 @@ public enum AiCompletionState { Loading, Generating, Partial, Completed, Unavail
 ## Métricas
 
 `ai_completion.requested/generated/accepted/cancelled`, `ai_completion.latency`, `ai_context_build.duration`, `tokenization.duration`, `inference.ttft`, `inference.duration`, `inference.tokens_per_second`, `inference.prompt_tokens`, `inference.generated_tokens`, `prefix_cache.reused_tokens` ([performance.md](performance.md#instrumentação)).
+
+
+## Provider explícito e pipeline reutilizável
+
+Esboço IA acima é contrato de geração compartilhada; os quatro adapters implementam ICompletionProvider em [architecture](architecture.md#providers-independentes). AiCompletionProvider usa Interactive/AllowLoad; AiPreemptiveCompletionProvider usa Background/LoadedOnly, flags/prazo próprios. Não duplicar seleção, prompts, limpeza ou tokenizer.
+
+LocalAiModelService hoje converte LocalModelContextException em LocalModelUnavailableException. Antes de implementar retry por contexto, preservar motivo tipado no contrato e testar a fronteira; não detectar por texto de mensagem. Prioridade Interactive não implica preempção entre chat e IA explícita de mesma prioridade: fila FIFO; só Background é preemptado.
+
+Cache de respostas precisa de revisão do modelo/tokenizer/contrato/política e parâmetros de geração, além do prompt final; validade de UI é verificada separadamente. Aceitar saída completa ou parcial exige edição válida contra sufixo/contexto. Sem modelo real, testes com fake não comprovam qualidade nem latência. [A41–A44](execution-plan.md).

@@ -2,9 +2,9 @@
 
 Camada Desktop. Converte contratos da Application em recursos nativos do AvaloniaEdit, arbitra teclado e aplica atalhos. Nenhuma regra MongoDB vive aqui.
 
-## Recursos do AvaloniaEdit 12.0.0 utilizados
+## Recursos do AvaloniaEdit 12.0.0 propostos
 
-Presença verificada no assembly do cache NuGet:
+Presença reportada na inspeção anterior do assembly; integração ainda depende de protótipo no pacote fixado, não só disponibilidade de nomes:
 
 | Recurso | Uso |
 | --- | --- |
@@ -64,7 +64,7 @@ Prioridade de estados: **lista aberta › sessão de snippet › ghost visível 
 | `Esc` | Fecha lista | Encerra snippet | Descarta ghost | Cancela geração | Cancela execução em andamento (global, existente) |
 | `↑`/`↓` | Navega | Normal | Descarta e move cursor | Cancela e move | Normal |
 | `Ctrl+.` | Recalcula | Abre lista | Oculta ghost, abre lista | Cancela IA, abre lista | Abre lista |
-| `Ctrl+;` | Fecha lista, pede IA | Pede IA | Substitui ghost por IA | Ignora | Pede IA |
+| `Ctrl+;` | Fecha lista, pede IA | Encerra snippet, pede IA | Substitui ghost por IA | Ignora | Pede IA |
 | `Alt+]` / `Alt+[` | — | — | Próxima/anterior alternativa | — | — |
 | `Ctrl+→` | Normal | Normal | Aceita próxima palavra (se habilitado) | Normal | Normal |
 
@@ -78,11 +78,11 @@ Não existe sistema de keybindings. É proposto um registro mínimo de comandos,
 | --- | --- |
 | `editor.completion.show` | `Ctrl+.`, `Ctrl+Espaço` |
 | `editor.completion.ai` | `Ctrl+;` |
-| `editor.inline.trigger` | `Alt+\` |
+| Disparo inline manual adicional | Adiado; Ctrl+; atende IA explícita |
 | `editor.inline.accept` | `Tab` |
-| `editor.inline.acceptWord` | `Ctrl+→` (desligado por padrão) |
+| Aceite por palavra adicional | Adiado; reutilizar Tab incremental |
 | `editor.inline.dismiss` | `Esc` |
-| `editor.inline.next` / `editor.inline.previous` | `Alt+]` / `Alt+[` |
+| Alternativas inline | Adiadas; um candidato inicial |
 
 - **Persistência:** `EditorKeyBindings { Version = 1, Bindings: comando → gestos }`, aditivo em `WorkspacePreferences`. Ausente → padrões. Validação segue o padrão existente: valor inválido torna a sessão ilegível e ela nunca é sobrescrita.
 - **Despacho:** `EditorCommandDispatcher` no handler de túnel do editor substitui os `if` de `EditorKeyDown`; `MainWindow.OnWorkspaceKeyDown` consulta o dispatcher antes das regras globais.
@@ -100,3 +100,14 @@ Não existe sistema de keybindings. É proposto um registro mínimo de comandos,
 ## Temas
 
 Recursos `Syntax.GhostText` (existente), selos de tipo e fundo da lista via recursos semânticos Light/Dark. Evidência PNG nos 18 cenários (tema × tamanho × escala) exigida pelo `AGENTS.md`.
+
+
+## Presenter compartilhado e gate visual
+
+Prototipar na Fase 2 (T07), antes de 4 e 5.1: uma API de apresentação, sem dependência de ONNX. IA explícita pode publicar atualizações validadas/coalescidas; automático publica candidato estável. Traditional Preemptive possui o presenter; durante T07 atua em lote acordado, sem disputar WorkspaceTabView com Traditional Completion.
+
+VisualLineElementGenerator não é garantia de ghost de largura documental zero: validar fim de linha, posição antes do sufixo, caret/hit-testing e seleção no pacote 12.0.0. Se falhar, adaptar renderer de fundo/overlay existente e registrar decisão; remoção não é gate superior à correção. Nunca inserir texto real só para desenhar prévia.
+
+Primeira entrega só inserção no cursor; edição que altera trecho anterior (aspas em Customer.Id) fica na lista explícita. Mesma operação de edição deve ser visualizada e aplicada, com undo único. Foco, Esc, F6, IME e templates Light/Dark preservados. Inspecionar PNGs reais 2 temas × 3 tamanhos × 3 escalas; nativo/assistivo é homologação separada.
+
+Snapshot evita materialização no novo provider, mas base.Text ainda atende binding; medir evento completo antes de prometer custo constante. Aplicação/aceite conferem stamp no dispatcher. [Configuração](configuration.md) governa flags/atalhos; atalhos opcionais da tabela de arbitragem são extensão futura, não entrega inicial.

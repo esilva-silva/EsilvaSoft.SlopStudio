@@ -37,3 +37,8 @@ Esta revisão é documental: inspeção estática da solução e verificação d
 
 
 Revisão posterior de código e testes: [25 — Auditoria do MVP e performance](25-auditoria-mvp-performance.md), com lista inicial, entregas, medições e gates restantes.
+
+
+## Autocomplete: plano revisado
+
+[Arquitetura, quatro modalidades, schema learning persistente e agentes](auto-complite/README.md), revisão de 15/09/2026.

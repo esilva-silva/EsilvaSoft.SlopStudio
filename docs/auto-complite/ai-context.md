@@ -225,3 +225,19 @@ Harness em `tests/EsilvaSoft.SlopStudio.Benchmarks` (execução `Explicit`, mode
 | Nomes de chaves de ENV | Apenas se aparecerem no statement atual |
 
 `CompletionPrivacy` é aplicado por fato e no prompt final; um fato sensível é descartado sem descartar os demais; prompt final sensível cancela a inferência (comportamento atual). Marcadores reservados (`<|`, `<｜`) em nomes invalidam o fato.
+
+
+## Correções de contrato e orçamento — 15/09/2026
+
+Conservar serialização editor-context-v1 byte a byte para a mesma entrada, inclusive cabeçalho especial DeepSeek. Isso não obriga manter seleção irrelevante: separar seleção de fatos e serializador, avaliando mudança de conteúdo. Arquivo groups do catálogo e metadata de modelo têm schemas próprios; campos opcionais exigem parser/validação e round-trip.
+
+Tokenização BPE não é composicional: Encode(A)+Encode(B) pode diferir de Encode(A+B). Cache de blocos não pode concatenar IDs arbitrariamente. Cachear prompt final exato ou blocos separados por fronteiras especiais garantidas pelo adapter, com testes diferenciais de Unicode/whitespace/marcadores. Confirmar contagem final incluindo FIM, BOS/EOS exigidos e reserva de saída antes de inferir; estimativa só reduz custo, nunca garante limite.
+
+Fatos declarados (enum) passam por limites/filtro de privacidade; histórico respeita opt-outs de conexão e preferências do usuário. Relatórios/métricas não gravam prompt ou nomes reais. Cache inclui versão de modelo/tokenizer/contrato e revisão das fontes; desligar fonte de contexto invalida conteúdo anterior.
+
+Implementar primeiro v1 + seletor/orçamento (A31–A33). Contratos B–E são experimentos: avaliar ao menos um alternativo em modelo base disponível, promover só com relatório; falta de hardware/exportação de um formato não bloqueia compatibilidade v1. Não criar cinco serializadores de produção sem evidência de ganho. O harness é ferramenta executada manualmente; Explicit é atributo de testes NUnit, não do BenchmarkDotNet.
+
+
+## Fonte de aprendizado persistente
+
+Learned schema fornece nomes/tipos/proveniência/frescor pelo catálogo; selecionar por alvo/caminho/relevância e orçamento como outras evidências. FirstSeen/LastSeen/contagens servem à seleção, não precisam ocupar prompt. Não incluir resultados, exemplos de valores ou inferir Required. CatalogRevision incorpora LearnedRevision; desligar fonte de resultados invalida os fatos aprendidos usados pelo provider conforme política. [Schema Learning](schema-learning.md).

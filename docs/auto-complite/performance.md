@@ -76,7 +76,7 @@ Consultas respondidas da memória: 10, 100 e 1 000 coleções × 100, 1 000 e 10
 
 Leitura:
 
-- **Orçamento de 1 ms atendido.** A pior consulta, com 10 000 campos, fica em 0,15 ms.
+- **Média abaixo de 1 ms; p95 pendente.** A pior consulta, com 10 000 campos, fica em 0,15 ms.
 - **Prefixo com poucas correspondências é linear.** Quando prefixo e camel humps devolvem menos que o máximo pedido, `NameTable.Collect` completa com uma varredura de substring sobre a tabela inteira; daí os 146 µs com 10 000 campos. Cabe no orçamento. Se o ranking da Fase 2 exigir mais folga, o caminho é limitar a varredura por tempo ou por tamanho de consulta, não remover o fallback.
 - **Camel humps aloca 175 KB** por consulta com 200 candidatos, acima dos 64 KB por tecla do orçamento da Fase 2. A origem exata (candidatos, detalhes ou conjunto de vistos) ainda não foi perfilada; a Fase 2 deve refiltrar a lista aberta em vez de consultar de novo a cada tecla.
 - **Construir a tabela custa mais que consultá-la.** Com 10 000 nomes são 4,8 ms, por isso tabelas e o schema mesclado são construídos uma vez por versão do cache e nunca por tecla.
@@ -100,7 +100,7 @@ A primeira implementação carregava os validators do banco inteiro em uma chama
 
 | Orçamento | Resultado | Decisão |
 | --- | --- | --- |
-| Consulta ao catálogo, 10 000 campos, ≤ 1 ms | 0,15 ms de média | Mantido |
+| Consulta ao catálogo, 10 000 campos, p95 ≤ 1 ms | 0,15 ms de média; p95 não medido | Mantido como meta, aceite pendente |
 | Memória do catálogo ≤ 64 MB | 29,9 MB | Mantido |
 | Trabalho de UI por tecla p95 ≤ 2 ms | Estimativa de ~1,5 ms em 16 KiB e mais de 3,5 ms em 64 KiB no caminho atual | Mantido como meta da Fase 2; medição no dispatcher pendente |
 | Alocação por tecla ≤ 64 KB | 3 MB em 16 KiB no caminho atual; 175 KB por consulta de humps | Mantido; exige refiltro sem nova consulta e análise por statement na Fase 2 |
@@ -178,7 +178,7 @@ Regras:
 | Reversão | aceitos desfeitos em até 5 s ÷ aceitos |
 | Ruído inline | exibidos sem interação ÷ exibidos |
 | Cancelamento | cancelados ÷ solicitados |
-| MRR de uso real | posição média do item aceito na lista |
+| Posição aceita em uso real | média da posição do item aceito; não é MRR |
 
 ## Benchmarks
 
@@ -251,3 +251,23 @@ Seguindo o padrão de `SyntaxHighlightingOptions`, `LanguageServiceOptions` cent
 | `ContextWaitBeforeOpen` | 50 ms |
 | `InlineMaximumLines` | 8 |
 | `UsageHalfLife` | 30 min |
+
+
+## Protocolo revisado de medição e gates
+
+Números anteriores são histórico de 14/09/2026, não nova execução nem comparação causal de UI. Highlight completo em worker não deve ser somado automaticamente ao trabalho síncrono do dispatcher. Medir evento real e cada segmento; tempo do TTFT legado exclui encode/criação do gerador.
+
+Baseline reutiliza arquivos reais na raiz de Benchmarks: BaselineBenchmarks.cs, CatalogBenchmarks.cs, MemoryScenario.cs, SyntheticWorkload.cs. Subpastas acima são extensões, não estrutura já entregue. Rodar release, lockfile/backend fixados, registrar commit, SO, runtime, CPU/RAM/provider/modelo, energia e interferências.
+
+Separar frio (carga/primeira mescla/parser completo) de quente (cache, reparse/refiltro) e máquina potente de máquina modesta. Para percentis interativos: 5 aquecimentos + pelo menos 200 eventos determinísticos por cenário, 3 rodadas; registrar amostras e p50/p95/p99, não inferir percentil das 3 médias de job short. Para IA cara, mínimo 30 gerações por célula, p99 apenas exploratório até amostra maior; cancelados/timeouts são contados separadamente, não excluídos para melhorar latência.
+
+Matriz adicional obrigatória: alternar 2/10 abas com schemas distintos; 4 conexões; 200 chaves frias para fila; write-through concorrente; união de 3 fontes disjuntas; campo raro além dos 200 primeiros; 1 MB sem fronteira de statement; rajada de 20 teclas; typeahead; timeout/troca de modelo durante geração.
+
+Tradicional preemptivo: computação p95 ≤ 5 ms e evento→ghost p95 ≤ 20 ms, quente, zero chamadas Mongo/IA. IA preemptiva: última edição→candidato validado ≤ 600 ms provisórios, incluindo debounce/fila/encode/prefill/decode/UI; abster-se após prazo. Não confundir 0–20 ms pretendidos com resultado medido. Relatar CPU média/pico, alocação, GC, working set e inferências evitadas; energia quando houver instrumento disponível, sem inventar estimativa.
+
+Gates: zero aplicação obsoleta, zero I/O automático, nenhum vazamento de valores; orçamentos quantitativos revisados em máquina identificada. Regressão >20% no p95 em duas rodadas exige investigação. Nenhum gate é aprovado por mudar golden/assertion ou usar média como p95. Riscos sem reprodução ficam identificados como tal. Performance e Testing acompanham cada lote; P58 só consolida evidência.
+
+
+## Benchmark do Schema Discovery / Schema Learning
+
+Estender B com SchemaLearningBenchmarks: resultado→TryEnqueue (meta p95 <1 ms), extração/bytes por lote, drop/backlog, CPU/GC, memória retida, delta/commit e tempo sob lock LiteDB com autosave concorrente. Comparar find→resultado com aprendizado ligado/desligado em mesma carga; investigar regressão p95 >5%. Dataset sintético com BSON polimórfico, projeção, campos com ponto e arrays extensos; reinício/hidratação fria e prefixo quente. Sem novos acessos Mongo e sem leitura LiteDB por tecla. [Limites e protocolo](schema-learning.md); nenhum número é medição desta revisão.

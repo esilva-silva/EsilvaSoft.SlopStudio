@@ -439,3 +439,8 @@ e 0.5B DML-FP16; `(Auto)` aprovado em DirectML com o 1.5B-full DML-FP16 e direto
 a falha de geração em GPU explícita registrada na IA local multimodelo (a exportação anterior era para CPU). Métricas, TRX e limites em
 [23](23-onnx-slopcoder.md#pacotes-slopcoder-mongo-directml-gpu--14092026). Não homologados: uso interativo da janela, troca entre dois pacotes
 DirectML no mesmo processo, download pelo **Baixar modelo**, NPU e CUDA.
+
+
+## Revisão do plano de autocomplete — 15/09/2026
+
+Concluída revisão documental do autocomplete contra b082d4a: inventário atualizado, arquitetura/fases/risco/performance/testes revistos, tarefas e dez perfis documentados. Acrescentado Schema Discovery/Learning por resultados find, probabilístico, incremental e persistente no LiteDB existente. Implementação desses novos contratos/providers/analyzer ainda pendente; nenhuma homologação real nova declarada. [Plano revisado](auto-complite/README.md), [tarefas por agente](auto-complite/execution-plan.md) e [schema learning](auto-complite/schema-learning.md).

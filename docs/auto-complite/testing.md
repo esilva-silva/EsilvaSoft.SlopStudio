@@ -117,7 +117,7 @@ Cobertura obrigatória dos [casos de 06 — Editor](../06-editor-bson-e-uuid.md#
 - Cenário **Request A → digitação → Request B**: A cancelada; se A terminar depois de B (provider que ignora cancelamento), a UI mostra somente B.
 - Carga do modelo não é cancelada por digitação (teste existente mantido).
 - `Ctrl+;` preempta inline; chat preempta inline; resultado preemptado descartado.
-- Abas distintas nunca cancelam uma à outra.
+- CTS de editor não atravessa abas; preempção global Background por prioridade é esperada e testada separadamente.
 
 ## IA
 
@@ -152,7 +152,7 @@ Cobertura: CPU; GPU quando disponível; NPU quando houver pacote e hardware; equ
 - Rajada de 20 teclas abaixo do debounce → nenhuma geração; após a pausa → no máximo uma.
 - Movimento de cursor sem edição → nenhuma requisição.
 - Typeahead compatível encolhe o ghost sem nova requisição; incompatível invalida.
-- Inline nunca inicia carga de modelo.
+- Inline nunca inicia carga/troca/fallback que carregue sessão, inclusive sob corrida de fila e modelo de chat diferente.
 - Camada 1 desativada quando o perfil de latência excede o orçamento.
 - Comportamentos atuais preservados: sufixo não duplicado, Tab incremental, Esc, rejeição de resposta obsoleta.
 
@@ -173,3 +173,35 @@ Descritos em [performance.md](performance.md#benchmarks). Resultados de aceite s
 | Leitor de tela na lista | Registro |
 | MongoDB real com permissões restritas, views e time series | Registro |
 | Modelos reais em CPU e GPU com uso interativo | Registro com latência observada |
+
+
+## Matriz de revisão: quatro modos e infraestrutura
+
+Plano de testes, não execução desta revisão. Reutilizar fixtures existentes; criar novos casos para comportamento observável.
+
+| Área / agente | Casos obrigatórios | Evidência de aceite |
+| --- | --- | --- |
+| Context | Mesmo documento/cursor com revisão de alvo/schema/opção diferente; alias shadowed; template/regex/ASI; UTF-16/CRLF; statement gigante | Contexto correto ou Unknown; incremental igual ao completo |
+| Knowledge | Load antigo após write-through; amostra após disconnect/opt-out; ENV/credencial alterados; falha publica terminal; fontes disjuntas e limite global | Novo snapshot preservado; nenhum dado tardio; limites/privacidade |
+| Ranking/lista | Candidato além do corte, backspace, prefixo estreitado; cotas por tipo; campo fora do alvo | Sem fome de fontes e ordem/recall medidos |
+| Tradicional preemptivo | Sem modelo, IA false, fonte que lança se chamada remotamente; top-2 truncado/empate; Customer.Id sem aspas; snippet com escolha | Ghost determinístico só quando seguro; correção disponível na lista |
+| IA preemptiva | Tradicional inline false; LoadedOnly checado sob gate; modelo/chat trocado; latência desconhecida; rajada; deadline total | Nenhuma carga automática, no máximo uma inferência útil |
+| Híbrido | Tradicional forte; IA termina tarde; ambos/um/nenhum habilitado; Esc seguido de Changed; aceite parcial durante callback | Um ghost estável; nenhuma inferência após tradicional forte |
+| Concorrência dos quatro providers | A→digitação→B→A conclui ignorando token; edit/undo ABA; troca aba/perfil/modo/modelo; fechar view | A nunca publica nem aceita; recursos liberados |
+| Tokenizer/ONNX | Encode(A+B) vs blocos, Unicode/special tokens, enumeração streaming abandonada, cancelamento nativo/recuperação, gate mantido | Tokens equivalentes; sem uso após dispose ou buffers devolvidos cedo |
+| Preferências | Flags ausentes versus false; v1 legado; round-trip; erro leitura/gravação; opt-out | Migração sem reset silencioso; sessão preservada |
+
+Corpus de confiança separa calibração e validação; schema frescor Complete não é exaustividade. Testar nome de saída novo em project/group, índice não obrigatório e schema parcial.
+
+UI: presenter comum com lista/snippet/ghost tradicional/IA; 18 combinações por superfície, inspecionar PNGs reais. Undo/cópia/seleção não incluem ghost; Ctrl+./Ctrl+;/Tab/Enter/Esc/F6 e IME preservados. Headless não prova layout ABNT2/US, Linux X11/Wayland ou leitor de tela.
+
+Modelos reais: CPU + providers disponíveis, exigindo provider efetivo esperado. Sem GPU/NPU/exportação, registrar não executado, não fallback aprovado. MongoDB real: privilégio restrito, kinds, validator/índices, pipeline de amostra; contagem de testes ignorados separada. Benchmark é ferramenta, não teste NUnit Explicit.
+
+Comandos por AGENTS.md: restore locked → build no-restore → test no-build/no-restore; opção UsedAvaloniaProducts vazia somente para telemetria bloqueada. Nesta revisão documental, verificar links/índice e coerência sem alegar execução do produto.
+
+
+## Schema Learning persistente
+
+Fixtures independentes: find Complete versus PartialProjection/Derived/Unknown; fila/analyzer/repositório bloqueados sem atrasar resultado; 3 namespaces homônimos; tipos BSON/UUID/date/string/null/missing e arrays multivalor; contadores/denominadores/FirstSeen/LastSeen; BatchId duplicado; consultas repetidas não anunciadas como documentos únicos. Testar update incremental, fonte learned no catálogo e prompt sem valores.
+
+Integração LiteDB usa a mesma instância proprietária registrada: restart, transação delta+BatchId, crash/retry, erro disco, versão futura/corrupção sem sobrescrever, retenção, tombstones, opt-out e perfil/ENV/drop/rename concorrentes. Assert contra valores secretos da fixture em arquivo lógico/snapshots; nenhuma URI, documento ou IdJson persistido. UI/consulta não aguardam análise nem flush. Limpeza/retenção não apagam rascunhos. [L11–L16](execution-plan.md).

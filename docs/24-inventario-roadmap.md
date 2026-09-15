@@ -51,3 +51,8 @@ Os recortes básicos dos requisitos amplos CON/DAT/EDT/UX entram na v0.5.0; exte
 A tabela inicial acima preserva a inspeção de `e806ae4`. O ciclo posterior implementou EDT-08 (formatação do editor), CSV da página e escrita incremental JSON/CSV (TRF-01), serviço concorrente de operações/barra inferior (UX-02), pool reutilizável e limitado de MongoClient e correção da renderização de linhas gigantes. Também deslocou preparação de resultados e I/O para workers, limitou memória de páginas/arquivos/árvores e incluiu filtro na confirmação de exclusão do Console.
 
 O recorte básico de código da Fase 1 está presente. Isso não encerra o aceite Windows/Linux: evidências atuais e pendências explícitas estão na [auditoria](25-auditoria-mvp-performance.md) e na [matriz](15-matriz-de-validacao.md). Extensões amplas do catálogo continuam nas fases/backlog já definidos.
+
+
+## Revisão do plano de autocomplete — 15/09/2026
+
+Inventário corrigido: catálogo/metadata/schema/benchmarks existem, aceite parcial; parser de completion/lista nativa/providers novos ainda são plano. Schema Learning persistente de find é novo escopo da fase de dados. Dez agentes conceituais e tarefas foram documentados, sem disparar implementação ampla. [Plano revisado](auto-complite/README.md), [tarefas por agente](auto-complite/execution-plan.md) e [schema learning](auto-complite/schema-learning.md).

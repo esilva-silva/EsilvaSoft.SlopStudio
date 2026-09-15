@@ -93,9 +93,9 @@ uso = 1 − exp(−Σ e^(−Δt/τ))    τ inicial: 30 min de sessão
 - Aceitar item de IA ou de ghost também alimenta o tracker.
 - "Aceito e desfeito em até 5 s" registra sinal negativo (reduz o uso daquele símbolo naquela posição).
 
-## 6. Itens de IA na lista
+## 6. IA e ranking compartilhado
 
-Quando a IA contribui para uma lista (fallback ou mescla), o item recebe `contexto = 1` apenas se o Output Processor validar identificadores contra o catálogo; caso contrário `contexto = 0,5` e selo "IA". Um item de IA nunca remove um item do catálogo com o mesmo texto; os dois são fundidos, mantendo a origem do catálogo.
+O padrão não mistura IA na lista tradicional. O ranker é compartilhado entre lista e preemptivo tradicionais. A IA usa validação de edição/contexto no Output Processor, sem comparar sua confiança com o score determinístico. Fallback explícito abre lista tradicional se habilitada; automático se abstém.
 
 ## 7. Calibração
 
@@ -109,3 +109,12 @@ Quando a IA contribui para uma lista (fallback ou mescla), o item recebe `contex
 - Pontuação sobre no máximo `MaximumCandidates` (padrão proposto 200) vindos do catálogo já limitados por escopo.
 - Top-K com heap parcial: O(n log k), k = itens exibidos (padrão 100).
 - Refiltrar com a lista aberta reutiliza candidatos do contexto estreitado: só recalcula `m` e reordena.
+
+
+## Confiança automática e cobertura
+
+Normalizar cada sinal (inclusive soma das evidências) para [0,1] antes dos pesos. Hipótese inicial do preemptivo: score ≥ 0,85 e margem ≥ 0,20; valores a calibrar, não probabilidades. Empates, prefixo vazio ambíguo, busca truncada ou schema stale/Unknown exigem abstenção.
+
+Calibrar em corpus de treino e validar em corpus separado por shape e escopo. Medir precisão dos ghosts e cobertura de oportunidades além de top-1/MRR da lista. Um campo fora do alvo não entra pelo simples peso baixo de escopo: aplicar filtro rígido de namespace; referências estrangeiras exigem alvo explícito do Context Engine.
+
+MRR = média de 1/posição do primeiro resultado aceitável, com zero quando ausente. Não confundir com posição média de item aceito em uso real. Uma lista limitada deve informar truncamento; refiltrar seus 200 itens não pode esconder candidato de prefixo novo. [Tradicional preemptivo](preemptive-autocomplete.md).

@@ -169,3 +169,8 @@ Revisão implementada: [contrato, uso, distribuições CPU/WinML/CUDA e limites]
 ## Status no roadmap — 13/09/2026
 
 ✅ Autocomplete determinístico integra v0.5.0; 🚧 consolidação contextual pertence à v0.6.0 e segue o [plano de autocomplete MongoDB](auto-complite/README.md). 🧪 Inferência local e chat pertencem à v0.9.0, com evidências reais limitadas ao modelo/hardware/cenário registrado. Ghost text e aceitação por Tab já têm implementação e não devem ser reimplementados por mudar a fase. [Inventário](24-inventario-roadmap.md) e [roadmap](09-plano-de-implementacao.md).
+
+
+## Revisão do plano de autocomplete — 15/09/2026
+
+O plano foi revisto contra a base já implementada de catálogo/cache/schema/métricas. Define quatro modalidades e dois preemptivos independentes, infraestrutura compartilhada, híbrido sequencial e LoadedOnly. Complemento Schema Learning reaproveita find sem consulta extra e persiste estrutura probabilística via dono LiteDB atual. O comportamento disponível descrito neste guia continua legado; novos providers/flags/atalhos/analyzer ainda não implementados. [Plano revisado](auto-complite/README.md), [tarefas por agente](auto-complite/execution-plan.md) e [schema learning](auto-complite/schema-learning.md).

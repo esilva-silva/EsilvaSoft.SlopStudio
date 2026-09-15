@@ -1,108 +1,46 @@
 # Fase 5 — Autocomplete preemptivo
 
-Roadmap: v0.9.0 · Depende de: Fase 2 (camada 0) e Fase 4 (camada 1)
+**Planejada, revisada em 15/09/2026.** Três entregas obrigatórias e independência entre geradores. [Arquitetura detalhada](../preemptive-autocomplete.md).
 
-## Objetivo
+## Justificativa da divisão
 
-Substituir o ghost text atual por um `InlineCompletionCoordinator` que combina Context Engine, catálogo, histórico e IA em camadas, com gatilhos medidos, debounce adaptativo, typeahead sobre a sugestão, renderização nativa no AvaloniaEdit e nenhuma inferência por tecla.
+Conservar numeração permite comparar com plano anterior; 5.1 pode ocorrer após a Fase 2, sem esperar IA. Presenter compartilhado nasce no 2, também usado pelo 4. Coordinator pertence a Traditional Preemptive; AI Preemptive integra por contrato, sem segundo renderer/scheduler.
 
-## Situação atual
+## 5.1 Traditional Preemptive Completion
 
-- `EditorCompletionChanged` reage a texto, cursor e seleção; captura contexto pesado na UI; dicionário imediato; IA após 150 ms fixos.
-- Ghost por sobreposição (`InlineCompletionTextBlock`) que redesenha o sufixo.
-- Qualquer alteração invalida a sugestão; movimento de cursor dispara inferência.
-- Comportamentos corretos a preservar: `Tab` incremental, `Esc`, sufixo não duplicado, resposta obsoleta rejeitada, ghost sem alterar o documento.
+Dependências: dados consolidados e Fase 2 (contexto, ranking, presenter, flags). Agente: Traditional Preemptive; revisão Architecture, testes/performance desde o começo.
 
-## Incrementos
+- P51: coordinator por editor, gating e uma pendência substituível; coalescer eventos da mesma edição.
+- P52: TraditionalPreemptiveCompletionProvider reutiliza CompletionService/ranker com Peek, prefixo estrito e confiança; sem rede/modelo/histórico de valores.
+- P53: conectar presenter; typeahead de candidato concluído; Tab/Esc/undo, recuperação por nova edição e supressão de âncora rejeitada.
 
-| # | Entrega | Resultado verificável |
-| --- | --- | --- |
-| 5.1 | Coordinator, gating e escopo de requisição inline | Testes de gating |
-| 5.2 | Camada 0: conclusão única, modelos de statement do histórico, `BasicAutocompleteProvider` refatorado | Latência e acerto medidos |
-| 5.3 | Camada 1: IA `Background` com orçamento reduzido e política de latência | Testes com perfil falso |
-| 5.4 | Typeahead sobre o ghost e restauração por `Backspace` | Contador de requisições |
-| 5.5 | Ghost nativo (elemento visual + objeto inline multilinha) | Headless + PNG |
-| 5.6 | Instrumentação de gatilhos, debounce adaptativo e experimento | Relatório de gatilhos |
-| 5.7 | Migração: remover fluxo e sobreposição antigos; preferências aditivas | Sem código morto |
+Aceite: funcional com IA/modelo ausente; ambiguidade e catálogo truncado não geram falso candidato único; zero chamadas remotas/IA em sequência de digitação; sugestão antiga nunca aplicada; computação p95 ≤ 5 ms e edição → ghost ≤ 20 ms como metas a medir. PNGs reais nos dois temas e 18 combinações inspecionados. Correções antes do cursor só pela lista até existir prévia de substituição.
 
-## Alterações
+## 5.2 AI Preemptive Completion
 
-| Projeto | Arquivo | Alteração |
-| --- | --- | --- |
-| Core | `Autocomplete.cs` | `InlineEnabled`, `InlineUseAi`, `InlineMaxLines`, `InlineAcceptWord` (aditivos) |
-| Application | `CompletionSession.cs` | Substituído por `EditorRequestScope` (já generalizado na Fase 2) |
-| Application | `BasicAutocompleteProvider.cs` | Fonte da camada 0 sobre tokens e catálogo, sem regex no documento |
-| Application | `AutocompleteService.cs` | `GetImmediateCompletion`/`GetCompletionAsync` do ghost substituídos; fachada de preferências mantida |
-| Application | `IncrementalCompletion.cs` | Reutilizado sem mudança |
-| Desktop | `WorkspaceTabView.Autocomplete.cs` | Substituído pela integração com o coordinator |
-| Desktop | `InlineCompletionTextBlock.cs`, `WorkspaceTabView.axaml` (`CompletionPanel`, `GhostLayer`) | Removidos |
-| Desktop | `SyntaxHighlighting/MongoTextEditor.cs` | Registro do `GhostTextElementGenerator` |
-| Desktop | `ViewModels/WorkspaceTabViewModel.Autocomplete.cs` | `CaptureAutocompleteRequest` removido |
-| Desktop | `AutocompleteSettingsWindow.axaml`, `AutocompleteSettingsViewModel.cs` | Opções inline |
-| Docs | [17](../../17-design-system-ui-ux.md), [21](../../21-autocomplete-local.md), [22](../../22-syntax-highlighting.md) | Comportamento e evidências |
+Dependências: A41–A44/R41 da Fase 4, P51/P53. Agente: AI Preemptive; runtime exclusivamente ONNX Runtime.
 
-## Novos componentes
+- P54: provider compartilhando seleção/builder/output da IA explícita, política LoadedOnly/Background.
+- P55: debounce, deadline total, limite de tokens, perfil de latência com histerese; evitar sondagens/carga/troca automática.
 
-`InlineCompletionCoordinator`, `InlineGate`, `InlineTriggerPolicy`, `AdaptiveDebounce`, `UniqueCompletionSource`, `StatementTemplateSource`, `InlineSuggestion` (âncora, texto, camada, confiança), `InlineSuggestionCache`, `GhostTextElementGenerator`, `GhostContinuationElement`.
+Aceite: IA automática funciona com tradicional automático desligado; 20 teclas abaixo do debounce não geram inferência e pausa gera no máximo uma; modelo errado/descarregado não carrega; troca sob fila não cria sessão; prioridade interativa preempta; timeout/erro não abre popup; provider que ignora cancelamento não ressuscita ghost. Medir latência completa, não só TTFT.
 
-## Fluxo
+## 5.3 Hybrid Preemptive Strategy
 
-[preemptive-autocomplete.md — Fluxo](../preemptive-autocomplete.md#fluxo).
+Dependências: P52–P55. Agente: Traditional Preemptive como dono do coordinator; AI Preemptive fornece política; Architecture decide integração.
 
-## Dependências
+- P56: padrão sequencial, tradicional forte encerra pedido; só ausência autoriza IA; um ghost por pedido.
+- P57: matriz das flags, arbitragem com lista/snippet/IA explícita, instrumentação por origem e plano de migração.
+- P58: homologação e relatório comparando padrão com extensão experimental desligada; limpeza do legado só após paridade.
 
-- Fase 2: Context Engine, catálogo, ranking, arbitragem de teclado.
-- Fase 4: provider de IA, output processor, perfil de latência, prioridades.
-- A camada 0 pode ser entregue antes da Fase 4 se o roadmap exigir; a camada 1 não.
+Aceite: quatro combinações de flags automáticas; zero inferência após tradicional forte; nunca trocar tradicional visível por resposta IA tardia no padrão; Ctrl+. e Ctrl+; mantêm precedência; medir aceite/reversão/CPU/trocas visuais. Experimento concorrente não é requisito de implementação e não bloqueia entrega do padrão; sua promoção exige evidência real.
 
-## Performance
+## Migração e arquivos
 
-- Gating e camada 0 em poucos milissegundos, fora da UI.
-- Camada 1 somente com modelo carregado, sem disparar carga, e com p95 de TTFT dentro do orçamento.
-- Typeahead evita novas requisições durante a digitação que confirma a sugestão.
-- Renderização nativa elimina redesenho do sufixo.
-- Medir: gatilho → camada 0; pausa → ghost da camada 1; requisições por minuto de digitação; tempo de UI por tecla; CPU média durante digitação contínua com IA habilitada.
+Core/Autocomplete.cs e WorkspaceSession.cs: flags aditivas conforme [configuration](../configuration.md). Application/Language/Inline proposto: coordinator/providers/cache de sugestão. Desktop/WorkspaceTabView.Autocomplete.cs: integra presenter comum; InlineCompletionTextBlock e GhostLayer só removidos no fim, sem chamadores. IncrementalCompletion e invariantes de CompletionSession são preservados.
 
-## Testes
+Especificação completa por tarefa (arquivos, entrada, resultado, testes, aceite): [execution-plan.md](../execution-plan.md). Testes de falha, concorrência, recuperação, UI Headless e homologação nativa são separados; [testing](../testing.md). Nenhum número novo é medição nesta revisão.
 
-- Gating: seleção, lista, snippet, IME, comentário/número/regex, meio de identificador, rajada.
-- Debounce adaptativo com `TimeProvider` falso.
-- Camadas: conclusão única com margem; modelos de histórico só com literais já digitados pelo usuário na mesma conexão; IA estende a camada 0 somente com confiança maior.
-- Typeahead e restauração.
-- Validação estrita (delimitadores, catálogo, privacidade, sufixo, linhas).
-- Concorrência: preempção por `Ctrl+;`/chat; nenhuma carga iniciada pelo inline; resposta obsoleta descartada.
-- Headless: ghost nativo de uma e várias linhas, rolagem, quebra, undo, cópia, seleção; arbitragem com lista e snippet; PNGs.
-- Adaptação de `PredictiveAutocompleteTests` e `AutocompleteUiTests` preservando os comportamentos listados.
-- Métricas `inline.*` com tags permitidas.
+## Riscos e mitigação
 
-## Critérios de aceite
-
-1. Rajada de 20 caracteres com intervalo abaixo do debounce não gera inferência; após a pausa, no máximo uma.
-2. Movimento de cursor sem edição não gera requisição.
-3. Digitar caracteres iguais ao início do ghost encolhe a sugestão sem nova requisição (contador em teste).
-4. O coordinator nunca inicia carga de modelo.
-5. O ghost nunca altera texto, histórico de undo, seleção ou conteúdo copiado.
-6. Arbitragem com lista aberta e snippet ativo conforme a tabela, um teste por combinação.
-7. Sugestão de versão antiga nunca é exibida.
-8. Camada 0 dentro do orçamento revisado; camada 1 desativada automaticamente quando o perfil de latência excede o orçamento (teste com perfil falso) e ativa quando dentro.
-9. Comportamentos preservados: sufixo não duplicado, `Tab` incremental, `Esc`, rejeição de obsoleto (testes adaptados sem enfraquecer).
-10. Experimento de gatilhos executado em uso real na máquina de referência (homologação manual), com taxas de aceite e ruído por gatilho; gatilhos padrão e parâmetros de debounce registrados em [decisions.md](../decisions.md).
-11. PNGs dos 18 cenários inspecionados para ghost de uma e várias linhas nos dois temas.
-12. `InlineCompletionTextBlock`, `CompletionPanel`, `GhostLayer` e o fluxo antigo removidos sem chamadores remanescentes.
-13. Suíte regular e build das três variantes aprovados; documentação 17, 21, 22, 24 e matriz atualizadas; AC-12 e AC-13 promovidas ou revisadas.
-
-## Riscos
-
-| Risco | Mitigação |
-| --- | --- |
-| Sugestões percebidas como ruído | Gatilhos medidos; limiar de confiança; opção de desligar IA inline |
-| Latência em CPU | Política de latência; camada 0 sempre disponível |
-| Ghost multilinha no AvaloniaEdit (caret, hit-testing, virtualização) | Protótipo no 5.5; alternativa em camada de fundo |
-| IME e composição | Gating por composição; homologação manual |
-| Modelos de histórico expondo literais | Somente statements digitados pelo usuário na mesma conexão/banco, filtro de privacidade, respeito ao opt-out de histórico |
-| Consumo de CPU/bateria em digitação longa | Debounce adaptativo; métricas de requisições por minuto; opção por conexão ou global |
-| Regressão de comportamentos existentes | Testes atuais adaptados antes de remover o fluxo antigo |
-
-## Fora do escopo
-
-Ranker aprendido, persistência de uso, decodificação restrita, sugestões em campos fora do editor principal.
+Ambiguidade → abstenção; schema parcial → sem certeza negativa; CPU/energia → gating e prazos; stale → geração; IME/teclado → homologação nativa; ghost multilinha → protótipo e retenção temporária do overlay; conflito de agentes → dono único por componente/lote. Prefix cache, ranker aprendido, inferência de valores históricos e restauração de Backspace ficam fora do aceite.

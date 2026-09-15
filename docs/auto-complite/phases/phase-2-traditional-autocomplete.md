@@ -1,6 +1,6 @@
 # Fase 2 — Autocomplete tradicional reformulado
 
-Roadmap: v0.6.0 (EDT-02) · Depende de: Fase 1 · Habilita: Fases 3 e 5 (camada 0)
+Roadmap: v0.6.0 (EDT-02) · Depende de: Fase 1 · Habilita: Fase 3 e 5.1 (tradicional preemptivo, sem dependência IA)
 
 ## Objetivo
 
@@ -86,7 +86,7 @@ Substituir o menu `Ctrl+Espaço` por uma lista contextual (`Ctrl+.`) baseada em 
 8. Digitação não gera chamada remota; cargas de metadados seguem exclusivamente as regras do cache.
 9. Orçamentos de UI por tecla, construção de contexto e tecla → lista (revisados após a Fase 1) atendidos na máquina de referência para documentos até 64 KiB, ou desvio justificado e aprovado.
 10. PNGs dos 18 cenários inspecionados para lista aberta, detalhe e snippet ativo nos dois temas.
-11. `MenuFlyout` removido; `ConsoleAutocompleteService` e `AggregationCompletionContext` removidos; sugestões de `MqlAutocompleteService` sem chamadores de produção.
+11. `MenuFlyout` removido; `ConsoleAutocompleteService` e `AggregationCompletionContext` removidos somente se não houver consumidores legados; sugestões de `MqlAutocompleteService` sem chamadores de produção.
 12. Atalhos lidos de `EditorKeyBindings`; preferência inválida não sobrescreve a sessão.
 13. Testes existentes aprovados; adaptações de asserção justificadas na PR sem enfraquecer o comportamento verificado.
 14. Documentação 06, 17, 21, 22, 24 e matriz atualizadas; decisões AC-01, AC-02, AC-07, AC-08, AC-09 e AC-17 promovidas ou revisadas.
@@ -107,3 +107,10 @@ Substituir o menu `Ctrl+Espaço` por uma lista contextual (`Ctrl+.`) baseada em 
 ## Fora do escopo
 
 IA explícita, mudanças no preemptivo além de mover trabalho da UI para o catálogo, persistência de uso, tela de edição de atalhos.
+
+
+## Revisão de tarefas e pré-requisitos
+
+[C21–C25 e T01–T08](../execution-plan.md) refinam os incrementos acima. Parser de statement primeiro, incrementalidade depois; manter AggregationFieldInference/facet/count até paridade. Presenter compartilhado T07 é prototipado aqui para atender Fase 4 e 5.1 sem ciclo de dependência. Ghost atual pode continuar até integração aprovada; nunca remover serviços ainda usados por ele.
+
+Completar K11–K17/L11–L16 para aceite da base de dados, mas contexto pode ser desenvolvido com snapshots falsos em paralelo após G00. Flags/atalhos conforme configuration.md; evidências de sesión, UI e schema ficam separadas. Arquivos/propostas de nomes acima são mapeados aos reais, sem renomear CatalogModel só para satisfazer desenho.

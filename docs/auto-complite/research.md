@@ -4,8 +4,8 @@ Síntese das abordagens de IDEs, editores, Language Servers e runtimes de infer�
 
 ## 1. Completion providers e Language Server Protocol
 
-- LSP 3.18 (verificado): `textDocument/completion` recebe `CompletionContext` com `triggerKind` (Invoked, TriggerCharacter, TriggerForIncompleteCompletions) e devolve `CompletionList` com `isIncomplete` e `itemDefaults`. `CompletionItem` separa `label`/`labelDetails`, `kind`, `sortText`, `filterText`, `insertText` com `insertTextFormat` (texto ou snippet), `textEdit` (inclusive `InsertReplaceEdit`), `additionalTextEdits`, `commitCharacters` e `data`. `completionItem/resolve` calcula campos caros (documentação) só para o item selecionado.
-- LSP 3.18 introduz `textDocument/inlineCompletion` com `triggerKind` Invoked/Automatic e `InlineCompletionItem` (`insertText` texto ou snippet, `range`, `filterText`, `command`). A API de VS Code (`InlineCompletionItemProvider`) segue o mesmo modelo.
+- LSP 3.18 (referência de proposta; verificação histórica): `textDocument/completion` recebe `CompletionContext` com `triggerKind` (Invoked, TriggerCharacter, TriggerForIncompleteCompletions) e devolve `CompletionList` com `isIncomplete` e `itemDefaults`. `CompletionItem` separa `label`/`labelDetails`, `kind`, `sortText`, `filterText`, `insertText` com `insertTextFormat` (texto ou snippet), `textEdit` (inclusive `InsertReplaceEdit`), `additionalTextEdits`, `commitCharacters` e `data`. `completionItem/resolve` calcula campos caros (documentação) só para o item selecionado.
+- O texto proposto de LSP 3.18 inclui `textDocument/inlineCompletion` com `triggerKind` Invoked/Automatic e `InlineCompletionItem` (`insertText` texto ou snippet, `range`, `filterText`, `command`). A API de VS Code (`InlineCompletionItemProvider`) segue o mesmo modelo.
 - Cancelamento: `$/cancelRequest`; o servidor pode responder `ContentModified` quando o documento mudou.
 
 **Implicação.** A IDE é um processo único .NET; um servidor LSP separado adicionaria serialização JSON-RPC, processo e sincronização de documento sem benefício atual. **Adaptar:** contratos in-process que espelham os conceitos LSP (contexto de gatilho, lista incompleta, faixa insert/replace, resolve tardio, inline separado da lista). A equivalência mantém aberta a exposição futura via LSP.
@@ -151,3 +151,21 @@ Execution providers configuráveis pela IDE: CPU, DirectML, CUDA, QNN, OpenVINO,
 - [AvaloniaEdit](https://github.com/AvaloniaUI/AvaloniaEdit)
 - [Nielsen — Response Times: The 3 Important Limits](https://www.nngroup.com/articles/response-times-3-important-limits/)
 - Inspeção local dos assemblies `Avalonia.AvaloniaEdit` 12.0.0, `Microsoft.ML.OnnxRuntimeGenAI.Managed` 0.15.2 e `Avalonia.Base` 12.1.2 (presença de `KeySymbol`/`PhysicalKey`) no cache NuGet.
+
+
+## Revisão técnica de 15/09/2026
+
+Pesquisa nova em fontes primárias, confrontada com o código b082d4a. O restante desta página registra a pesquisa anterior; não presume nova inspeção de todos os assemblies.
+
+| Fonte consultada | Fato verificado | Implicação / decisão local |
+| --- | --- | --- |
+| [VS Code InlineCompletionItemProvider](https://code.visualstudio.com/api/references/vscode-api#InlineCompletionItemProvider) | Contrato de inline recebe documento/posição/contexto/token; disparos explícito e automático; origem não exige IA | Separar tecnologia de geração do disparo; quatro adapters, infraestrutura comum |
+| [VS Code InlineCompletionContext](https://code.visualstudio.com/api/references/vscode-api#InlineCompletionContext) | Prévia ligada à seleção usa extensão do texto e mesma faixa | Referência para experimento de extensão; não prova que trocar ghost tradicional por IA melhora UX |
+| [GenAI C#](https://onnxruntime.ai/docs/genai/api/csharp.html) | TokenizerStream/CreateStream permitem decode incremental | Reutilizar runtime e medir streaming; APIs exatas no pacote fixado antes de codificar |
+| [DirectML](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html) | Restrições de opções de sessão e chamadas concorrentes | Serializar serviço e validar exportação/provider; não criar sessões por tecla |
+| [MongoDB listCollections](https://www.mongodb.com/docs/manual/reference/command/listcollections/) | nameOnly retorna nome e tipo; authorizedCollections depende de nameOnly | Preservar tipo na fonte sem carregar todos os validators; permissões não provam catálogo exaustivo |
+| [AvaloniaEdit TextDocument](https://github.com/AvaloniaUI/AvaloniaEdit/blob/master/src/AvaloniaEdit/Document/TextDocument.cs) | CreateSnapshot usa lock e RopeTextSource imutável | Snapshot compartilhado é plausível; custo do binding base.Text e zero-width ghost exigem protótipo/medição |
+
+Inferência de engenharia: escolher híbrido sequencial evita trabalho IA em candidato já satisfatório e reduz necessidade de arbitragem visual. A alternativa paralela pode reduzir latência de extensão, mas exige evidência de qualidade/custo e faixa estável. As fontes não estabelecem limiar universal de confiança, debounce ou 20 ms; são hipóteses locais a medir.
+
+LSP 3.18 foi consultado, mas a página resumida não expôs detalhes suficientes nesta sessão; não tratar inlineCompletion como contrato estável verificado por esta revisão. Link RuntimeOptions v0.15.2 retornou erro de acesso; não usar esse acesso como evidência nova. RewindTo continua experimento condicionado à versão instalada. Não atualizar pacotes com base na documentação de main.

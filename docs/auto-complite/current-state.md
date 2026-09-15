@@ -1,224 +1,117 @@
 # Análise do repositório — situação atual
 
-Inspeção estática do checkout `d23787e` (14/09/2026). Não houve build, execução de testes nem medição nesta etapa; afirmações sobre custo são **hipóteses a medir** na [Fase 1](phases/phase-1-data-traditional.md). Onde a documentação existente diverge do código lido, a divergência é registrada.
+Revisão estática de **15/09/2026**, checkout **`b082d4a`**. Substitui a análise de `d23787e`, anterior à Fase 1 e às consultas avançadas. Medições de 14/09 são históricas, não foram repetidas nesta revisão. Não se iniciou refatoração do produto.
 
 ## 1. Solução e dependências
 
-| Projeto | Referências | Pacotes relevantes | Papel no autocomplete |
-| --- | --- | --- | --- |
-| `Core` | — | — | DTOs persistidos e contratos simples: `AutocompleteSettings`, `AutocompleteRequest/Result`, `LocalModel*`, `MqlSuggestion`, `WorkspacePreferences` |
-| `Application` | Core | nenhum (somente BCL) | Serviços de autocomplete, highlighting, serviço de modelos, prompt builders, fachada `WorkspaceService` |
-| `Infrastructure` | Application | Jint 4.16 (Acornima transitivo), MongoDB.Driver 3.11.1, LiteDB 5.0.21, ONNX Runtime GenAI 0.15.2 (Cpu/WinML/Cuda) | Runtime ONNX, adapters, catálogo de modelos, driver MongoDB, Console Jint, validação/formatação com Acornima |
-| `Desktop` | Infrastructure | Avalonia 12.1.2, AvaloniaEdit 12.0.0, CommunityToolkit.Mvvm 8.4 | Editor, views, view models, composition root |
-| `UnitTests` | todos | NUnit 4.6, Avalonia.Headless | Testes unitários, Headless UI e integrações `Explicit` |
+Core → contratos; Application → Core/BCL; Infrastructure → Application; Desktop → Infrastructure. [Versões fixadas](../../Directory.Packages.props): .NET 10, Avalonia 12.1.2, AvaloniaEdit 12.0.0, MongoDB.Driver 3.11.1, Jint 4.16.0, LiteDB 5.0.21, GenAI 0.15.2, ORT Managed 1.28.0 e BenchmarkDotNet 0.15.8.
 
-Regra vigente: Application não depende de pacotes; tipos ONNX, driver e Acornima ficam em Infrastructure; Desktop só conhece contratos. A nova arquitetura respeita essa regra (ver [architecture.md](architecture.md#camadas-e-projetos)).
+[ServiceCollectionExtensions](../../src/EsilvaSoft.SlopStudio.Infrastructure/ServiceCollectionExtensions.cs) já registra catálogo, fonte, cache e barramento como singletons, um proprietário LiteDB para os repositórios e um serviço de modelos compartilhado com chat. Namespace real da Fase 1: `Application.Language`. Subnamespaces dos esboços são organização futura, não tipos existentes.
 
 ## 2. Editor
 
-- [`MongoTextEditor`](../../src/EsilvaSoft.SlopStudio.Desktop/SyntaxHighlighting/MongoTextEditor.cs) herda `AvaloniaEdit.TextEditor`, com linhas visuais virtualizadas, undo e seleção nativos. Expõe `Text`, `CaretIndex`, `SelectionStart/End` como propriedades Avalonia ligadas ao view model.
-- A cada alteração, `OnTextChanged` copia `base.Text` (string do documento inteiro) para a propriedade ligada, que propaga para `WorkspaceTabViewModel.Text`. Consumidores de autocomplete trabalham sobre essa string completa, e não sobre `TextDocument.CreateSnapshot()`.
-- Highlighting: [`SyntaxHighlightingService`](../../src/EsilvaSoft.SlopStudio.Application/SyntaxHighlighting/SyntaxHighlightingService.cs) é um lexer tolerante com estado entre linhas (aspas, comentários, pilha de frames `{`/`[`/`(`, pendências de `$search`/`aggregate`), cache por linha e alinhamento de sufixo. Roda com debounce de 80 ms em `Task.Run`. Classifica nomes de conexão/banco/coleção/índice a partir de `SyntaxContext`.
-- AvaloniaEdit 12.0.0 contém (verificado no assembly): `CompletionWindow`, `CompletionList`, `ICompletionData`, `OverloadInsightWindow`, snippets (`Snippet`, `SnippetReplaceableTextElement`, `SnippetBoundElement`, `SnippetCaretElement`, `InsertionContext`, `SnippetInputHandler`), `ITextSource`/`CreateSnapshot`/`ITextSourceVersion`, `TextAnchor`, `VisualLineElementGenerator`, `InlineObjectElement`, `FormattedTextElement`, `IBackgroundRenderer`. **Nenhum desses recursos de completion/snippet é usado hoje.**
+[MongoTextEditor](../../src/EsilvaSoft.SlopStudio.Desktop/SyntaxHighlighting/MongoTextEditor.cs) deriva de AvaloniaEdit. `OnTextChanged` ainda materializa `base.Text` para o binding; highlighting roda em worker, com debounce e cache por linha. Migrar completion para `CreateSnapshot()` não elimina sozinho a cópia utilizada por execução e autosave.
+
+[WorkspaceTabView.Autocomplete](../../src/EsilvaSoft.SlopStudio.Desktop/WorkspaceTabView.Autocomplete.cs) reage a texto, cursor e seleção, captura contexto na UI e aguarda `CompletionSession`. O ghost usa [InlineCompletionTextBlock](../../src/EsilvaSoft.SlopStudio.Desktop/InlineCompletionTextBlock.cs) sobre Canvas, redesenhando o sufixo. Há Tab incremental, Esc e descarte de respostas obsoletas. Presenter nativo compartilhado e snippets ainda são propostas.
 
 ## 3. Fluxos atuais de autocomplete
 
-### 3.1 Ghost text preditivo automático
+- [CompletionSession](../../src/EsilvaSoft.SlopStudio.Application/CompletionSession.cs): uma por editor, versão monotônica/CTS, dicionário síncrono antes do debounce, depois IA. Movimento sem edição também pode disparar.
+- [BasicAutocompleteProvider](../../src/EsilvaSoft.SlopStudio.Application/BasicAutocompleteProvider.cs): palavras por regex, keywords e sugestões MQL; menor continuação ordinal. **Já é preemptivo determinístico lexical**, mas não contextual, sem ranker/confiança compartilhados.
+- [AutocompleteService](../../src/EsilvaSoft.SlopStudio.Application/AutocompleteService.cs): cache IA 64 entradas/30 s; JSON + SHA-256 do request/revisão; `UseDictionary` independente de Mode. IA usa prioridade Background inclusive quando chamada pelo menu legado.
+- [ShowSuggestions](../../src/EsilvaSoft.SlopStudio.Desktop/WorkspaceTabView.axaml.cs): Ctrl+Espaço, MenuFlyout, aguarda básico/IA e concatena MQL/Console. Sem filtro incremental, ranking ou placeholders; `ApplySuggestion` reescreve o prefixo até o cursor.
+- Chat compartilha o serviço de modelos, prioridade Interactive; preservar seu ciclo de vida e testes.
 
-[`WorkspaceTabView.Autocomplete.cs`](../../src/EsilvaSoft.SlopStudio.Desktop/WorkspaceTabView.Autocomplete.cs) reage a mudanças de `Text`, `CaretIndex`, `SelectionStart` e `SelectionEnd`:
+## 4. Interpretação de contexto
 
-```mermaid
-sequenceDiagram
-  participant E as MongoTextEditor
-  participant V as WorkspaceTabView (UI)
-  participant VM as WorkspaceTabViewModel (UI)
-  participant S as CompletionSession
-  participant A as AutocompleteService
-  participant B as BasicAutocompleteProvider
-  participant AI as AiAutocompleteProvider
-  E->>V: PropertyChanged (texto, cursor ou seleção)
-  V->>V: InvalidateCompletion (cancela e oculta)
-  V->>VM: CaptureAutocompleteRequest(texto, cursor)
-  VM->>VM: GetObservedCompletionFields → MongoCompletionTarget.Resolve (re-lex do prefixo) → InferFieldPaths (até 8 documentos)
-  VM->>VM: KnownAutocompleteNames (percorre a árvore do Explorer), histórico, AutocompleteContextBuilder.Build (regex de privacidade por item)
-  V->>S: RequestAsync
-  S->>A: GetImmediateCompletion (síncrono)
-  A->>B: regex de privacidade + palavras do prefixo/sufixo + keywords + operadores
-  alt dicionário encontrou
-    B-->>V: sugestão imediata
-  else
-    S->>S: Task.Delay(150 ms)
-    S->>A: GetCompletionAsync (JSON + SHA-256 do request, cache 64/30 s)
-    A->>AI: GenerateAsync (Background)
-    AI-->>V: sugestão
-  end
-  V->>V: confere texto/cursor/destino; posiciona overlay (InlineCompletionTextBlock)
-```
+| Código | Reutilização / lacuna |
+| --- | --- |
+| `SyntaxHighlightingService` | Lexer tolerante com estado/cache por linha; extrair preservando classificação |
+| `MongoCompletionTarget` | Caminhos estáticos pelo lexer; preservar fixtures e tratar limite de 65 536 caracteres |
+| `AggregationCompletionContext` | Scanner de posição stage/referência; migrar casos ao contexto comum |
+| [AggregationFieldInference](../../src/EsilvaSoft.SlopStudio.Application/AggregationFieldInference.cs) | Já trata project/group/set/unset/lookup/facet/count; re-lex por chamada, 8 192 tokens/512 campos; transformação desconhecida limpa campos |
+| `ConsoleAutocompleteService` | Regex de receptor/métodos/namespaces, não parser de filtros |
+| MQL e básico | Prefixos/palavras, ainda regras duplicadas |
+| `MongoCodeValidator`, `MongoCodeFormatter`, `ConsoleRuntime` | Acornima/Jint para validar/formatar/executar; não substituir por parser tolerante |
 
-Aceitação por `Tab` (inteira ou incremental via [`IncrementalCompletion`](../../src/EsilvaSoft.SlopStudio.Application/IncrementalCompletion.cs)), descarte por `Esc`. O ghost é um `TextBlock` sobre um `Canvas` que redesenha o trecho da linha antes do cursor, a sugestão e o sufixo (até 32 KiB) com cores do snapshot de highlighting ([`InlineCompletionTextBlock`](../../src/EsilvaSoft.SlopStudio.Desktop/InlineCompletionTextBlock.cs)).
-
-Observações:
-
-- A captura ocorre também em **navegação por setas** e mudanças de seleção; parar o cursor por 150 ms dispara inferência em segundo plano mesmo sem edição.
-- Todo o trabalho antes do primeiro `await` roda na UI thread: substring do prefixo, lexing completo do prefixo (até 65 536 caracteres) sem snapshot anterior, `JsonDocument.Parse` de até 8 documentos de até 64 KiB, varredura da árvore do Explorer, regex de privacidade em até ~260 itens, regex de palavras sobre prefixo+sufixo.
-- [21 — Autocomplete local](../21-autocomplete-local.md) afirma que a extração de campos "é reutilizada enquanto o resultado não muda"; em `GetObservedCompletionFields` não há memoização visível. Confirmar por benchmark.
-
-### 3.2 Menu `Ctrl+Espaço`
-
-[`WorkspaceTabView.axaml.cs`](../../src/EsilvaSoft.SlopStudio.Desktop/WorkspaceTabView.axaml.cs) (`ShowSuggestions`) monta um `MenuFlyout`:
-
-1. Uma sugestão IA/básica (`GetCompletionAsync` com prefixo e sufixo de até 32 KiB cada, sem o Context Builder).
-2. `MqlAutocompleteService.GetSuggestions`/`GetAggregationSuggestions` (40 operadores fixos + campos observados). A inserção usa `ApplySuggestion(prefix)`, que **substitui o intervalo de 0 até o cursor** pelo prefixo reescrito.
-3. No Console, `ConsoleAutocompleteService` (regex sobre `db`/`ConnectionPool`, métodos com argumentos fixos como `updateOne({_id: 1}, {$set: {}})`), executado em `Task.Run` com operação visível na barra.
-
-Não há ranking (ordem de concatenação), filtro enquanto digita, tipo/ícone, snippet com placeholders nem resolve tardio. A validade é conferida por versão, texto, cursor e destino antes de inserir — esse cuidado deve ser preservado.
-
-### 3.3 Chat
-
-`LocalModelAiChatService` e `WorkspaceTabViewModel.AiChat` usam o mesmo `ILocalAiModelService` com prioridade `Interactive`. Fora do escopo, mas qualquer mudança no serviço de modelos não pode regredi-lo.
-
-## 4. Interpretação de contexto — mecanismos existentes
-
-| Mecanismo | Técnica | Usado por | Limitação |
-| --- | --- | --- | --- |
-| [`AggregationCompletionContext`](../../src/EsilvaSoft.SlopStudio.Application/AggregationCompletionContext.cs) | Scanner de caracteres com pilha | Sugestões de agregação | Só distingue chave de stage, referência `$campo` e stage atual |
-| [`MongoCompletionTarget`](../../src/EsilvaSoft.SlopStudio.Application/MongoCompletionTarget.cs) | Varre tokens do highlighting | Campos observados por coleção | Resolve alvo explícito; bem testado; não entende posição dentro do filtro |
-| [`ConsoleAutocompleteService`](../../src/EsilvaSoft.SlopStudio.Application/ConsoleAutocompleteService.cs) | Regex de caminho | `db.`, `ConnectionPool.` | Não entende argumentos nem objetos |
-| `MqlAutocompleteService.GetCurrentPrefix` | Recuo por caracteres | Operadores/campos | Sem noção de chave vs valor |
-| [`BasicAutocompleteProvider`](../../src/EsilvaSoft.SlopStudio.Application/BasicAutocompleteProvider.cs) | Regex de palavras | Ghost imediato | Menor palavra que começa com o prefixo, sem contexto |
-| [`IncrementalCompletion`](../../src/EsilvaSoft.SlopStudio.Application/IncrementalCompletion.cs) | Scanner | Aceitação por Tab | Adequado ao propósito; manter |
-
-Resultado: seis leituras independentes do texto, regras sem representação comum e nenhum conceito de "o que se espera nesta posição".
+Não há AST de completion, `CompletionContextEngine` ou `ShapeWalker` compartilhados. A proposta não pode perder facet/count já existentes ou sugerir campos anteriores como certos após transformação desconhecida.
 
 ## 5. Vocabulário MongoDB duplicado
 
-| Local | Conteúdo |
-| --- | --- |
-| [`MongoSyntaxVocabulary`](../../src/EsilvaSoft.SlopStudio.Application/SyntaxHighlighting/MongoSyntaxVocabulary.cs) | Conjuntos amplos para cor (funções, ~50 operadores, ~30 stages, Atlas Search, tipos EJSON, keywords, DSL) |
-| `MqlAutocompleteService.Operators` | 40 itens com descrição pt-BR e categoria |
-| `BasicAutocompleteProvider.Keywords` | 27 palavras |
-| `ConsoleAutocompleteService.Methods` | 15 métodos com argumentos de exemplo |
-| `AutocompleteContextBuilder.Commands` e listas por dialeto | Texto de prompt (contrato de treino) |
-| `ConsoleRuntime.ReadMethods/WriteMethods` | Métodos aceitos pelo host |
-| [`ConsoleBootstrap.js`](../../src/EsilvaSoft.SlopStudio.Infrastructure/ConsoleBootstrap.js) | **Superfície real** do Console: `db`, `getConnection`, `ConnectionPool`, `ENV`, `console`, `EJSON`, construtores UUID/ObjectId/NumberLong/NumberDecimal/Date/ISODate; métodos de coleção, cursor (`sort`, `skip`, `limit`, `project`, `hint`, `collation`, `comment`, `batchSize`, `maxTimeMS`, `toArray`) e banco (`getCollection`, `getSiblingDB`, `getName`, `dropDatabase`, `createCollection`, `stats`) |
+[LanguageDefinition](../../src/EsilvaSoft.SlopStudio.Application/Language/LanguageDefinition.cs) carrega [mongodb-language.v1.json](../../src/EsilvaSoft.SlopStudio.Application/Language/mongodb-language.v1.json); `MongoSyntaxVocabulary` já projeta os dados. Operadores MQL, keywords básicas, métodos Console e comandos do cabeçalho IA ainda têm listas próprias. Preservar o contrato de treino v1 ao consolidar as demais.
 
-Divergências exemplares: o highlighting reconhece `bulkWrite`, `findOneAndUpdate` e `getIndexes`, que o Console não expõe; `MqlAutocompleteService` não tem `$nor`, `$not`, `$type`, `$elemMatch`, `$size`, `$all`.
+`LanguageDefinitionTests` compara a superfície Console com o bootstrap. Shapes, snippets, tipos, Since e flags Search presentes no catálogo não significam providers integrados. Console permanece limitado por [ConsoleBootstrap.js](../../src/EsilvaSoft.SlopStudio.Infrastructure/ConsoleBootstrap.js), Script por mongosh e Agregação por pipeline.
 
 ## 6. Metadados MongoDB
 
-| Aspecto | Situação |
+| Componente | Estado e limites confirmados |
 | --- | --- |
-| Conexões | [`ConnectionProfile`](../../src/EsilvaSoft.SlopStudio.Core/ConnectionProfile.cs) (Id, Name, URI, `TargetHost` opcional); segredos em `IConnectionSecretStore`; sem campo de revisão — mudanças de configuração geram novo cliente em `MongoClientPool` por settings efetivos |
-| Bancos | `IMongoWorkspaceService.GetDatabaseNamesAsync` |
-| Coleções | `GetCollectionNamesAsync` → `ListCollectionNamesAsync` (sem tipo collection/view/timeseries) |
-| Definição/validator | `GetCollectionDefinitionAsync` → `listCollections` filtrado por nome (uma chamada por coleção); inclui `options.validator` |
-| Índices | `GetIndexesAsync` → `IExplorerMetadataService.ParseIndex` → [`IndexInfo`](../../src/EsilvaSoft.SlopStudio.Core/ExplorerMetadata.cs) com `Keys` em JSON |
-| Amostra | Ferramenta de validador: `QueryAsync(limit 200, maxTimeMS 2000)` + `InferJsonSchema`/`InferFieldPaths` (documentos completos trafegam) |
-| Campos no autocomplete | Somente resultados da aba, até 8 documentos, `InferFieldPaths` (reconhece wrappers EJSON, profundidade 12) |
-| Cache | Apenas a árvore do Explorer ([`ExplorerNodeViewModel`](../../src/EsilvaSoft.SlopStudio.Desktop/ViewModels/ExplorerNodeViewModel.cs)): carga ao expandir, geração para descartar respostas antigas, `Invalidate()` recursivo, sem TTL |
-| Exposição | `WorkspaceViewModel.Register` injeta `KnownSyntaxNamespaces` (achatamento da árvore, até 4096) e `KnownAutocompleteNames` (até 256) em cada aba |
+| [MetadataCache](../../src/EsilvaSoft.SlopStudio.Application/Language/MetadataCache.cs) | TTL, stale, single-flight, backoff; LRU de 64 **entradas** de definição/índice/amostra por conexão; leituras usam lock, não são lock-free |
+| [KnowledgeCatalog](../../src/EsilvaSoft.SlopStudio.Application/Language/KnowledgeCatalog.cs) | Query retorna da memória, mas Get padrão pode agendar Task.Run remoto; sem Changed/ResolveAsync no contrato atual |
+| [CatalogModel](../../src/EsilvaSoft.SlopStudio.Application/Language/CatalogModel.cs) | Nomes reais: EditorDialects, CatalogScope, IDs string, CatalogQuery com ConnectionProfile; não criar cópias dos esboços |
+| [MongoMetadataSource](../../src/EsilvaSoft.SlopStudio.Infrastructure/MongoMetadataSource.cs) | Listagens autorizadas, definição por coleção, índices, amostra nomes/tipos; reutiliza pool e ambiente |
+| Tipos de coleção | ListCollectionNamesAsync conserva só nomes; Unknown até definição. Servidor oferece tipo com nameOnly; perda é da API escolhida |
+| [CollectionSchema](../../src/EsilvaSoft.SlopStudio.Application/Language/CollectionSchema.cs) | Validator/índices/resultados/amostra, BSON/EJSON, arrays, enum limitado; builders limitados, mas Merge usa int.MaxValue |
+| Explorer/workspace | Write-through, Connect/Disconnect e invalidação integrados; nomes vêm de cache Peek, não só da árvore |
+| [Campos observados](../../src/EsilvaSoft.SlopStudio.Desktop/ViewModels/WorkspaceTabViewModel.Autocomplete.cs) | Memoizados por conjunto/perfil/alvo; primeira inferência ainda na UI; agregação reanalisa prefixo por captura |
+| Amostragem | SampleSchemaAsync e SchemaSamplingProfileIds existem, sem controle visual. Ferramenta de validador continua lendo documentos completos |
 
-Todas as chamadas remotas passam por `WorkspaceService.TrackAsync`, que publica operação na barra de atividades.
+Catálogo existe, mas ainda não substitui os geradores legados de sugestões.
 
 ## 7. IA e ONNX
 
-| Componente | Responsabilidade | Avaliação |
-| --- | --- | --- |
-| [`ILocalAiModelService`/`LocalAiModelService`](../../src/EsilvaSoft.SlopStudio.Application/LocalAiModelService.cs) | Dono único do modelo: descoberta, carga lazy desacoplada do editor, troca, fila `PriorityGate` (Interactive antes de Background, preempção), cooldown de 30 s, capacidades, teste | Reutilizar sem mudar responsabilidade |
-| [`ILocalModelRuntime`/`OnnxLocalModelRuntime`](../../src/EsilvaSoft.SlopStudio.Infrastructure/OnnxLocalModelRuntime.cs) | Inicialização por plano de providers, geração greedy/amostrada, cancelamento por `terminate_session`, fallback GPU → CPU em Automático | Estender |
-| [`IModelAdapter`](../../src/EsilvaSoft.SlopStudio.Infrastructure/ModelAdapters.cs) | Validação, tokenizer, prompt builder e paradas por família (Qwen nativo, DeepSeek .NET) | Reutilizar |
-| [`LocalModelCatalog`](../../src/EsilvaSoft.SlopStudio.Infrastructure/LocalModelCatalog.cs) + `slopstudio-model.json` | Subpastas como modelos, validação estrutural, metadata opcional (capacidades, hardware, orçamentos) | Reutilizar; acrescentar campos |
-| [`AiProviderSelector`](../../src/EsilvaSoft.SlopStudio.Infrastructure/AiProviderSelector.cs) + [`OnnxHardwareProbe`](../../src/EsilvaSoft.SlopStudio.Infrastructure/OnnxHardwareProbe.cs) | Plano NPU → GPU → CPU a partir de `GetEpDevices`; escolha explícita sem fallback | Reutilizar |
-| `ICompletionPromptBuilder` (Qwen/DeepSeek) | Tokens FIM, orçamento 25% sufixo | Reutilizar; otimizar |
-| `AiAutocompleteProvider` (dentro de `AutocompleteService.cs`) | Chama o serviço, limpa saída (`CleanGeneratedText`) | Refatorar |
-| [`AutocompleteContextBuilder`](../../src/EsilvaSoft.SlopStudio.Application/AutocompleteContextBuilder.cs) | Cabeçalho `/* Local editor context … */` com listas | **Contrato de treino** dos pacotes SlopCoder ([23](../23-onnx-slopcoder.md)); congelar como v1 |
+[LocalAiModelService](../../src/EsilvaSoft.SlopStudio.Application/LocalAiModelService.cs) possui modelo único, fila, carga desacoplada, troca, cooldown e cancelamento. GenerateAsync chama EnsureLoadedAsync: checar Ready antes do await não garante que inline nunca carregue. Propor LoadedOnly verificado sob a fila e revisão do modelo.
 
-Observações de desempenho no runtime (a medir):
+[OnnxLocalModelRuntime](../../src/EsilvaSoft.SlopStudio.Infrastructure/OnnxLocalModelRuntime.cs) reutiliza modelo/tokenizer, cria GeneratorParams/Generator por geração, roda em Task.Run, cancela via terminate_session e faz fallback CPU automático quando permitido. Não usa diretamente OrtValue, pooling de tensores, streaming público ou KV entre pedidos. Não criar backend paralelo para cumprir nomes conceituais.
 
-- Cada geração cria `GeneratorParams` e `Generator` e faz `AppendTokens` do prompt inteiro — prefill completo a cada pedido, sem reuso de KV cache. O assembly 0.15.2 expõe `Generator.RewindTo`/`TokenCount`, que permitem reuso de prefixo.
-- `QwenFimPromptBuilder` codifica os três marcadores a cada chamada e o prefixo/sufixo completos antes de cortar por tokens; `RequireFullContext` codifica prefixo e sufixo novamente.
-- Com sufixo ≥ 2 caracteres, cada token gerado decodifica toda a saída acumulada para detectar eco do sufixo (custo quadrático no número de tokens). `TokenizerStream` existe na API.
-- `intra_op_num_threads = 0` usa todos os núcleos físicos; em inferência de fundo pode competir com a UI.
-- `LocalAiModelService.TestModelAsync` usa `AutocompleteContextBuilder.ModelPrefix` — acoplamento leve entre serviço genérico e prompt MongoDB.
+[ModelAdapters](../../src/EsilvaSoft.SlopStudio.Infrastructure/ModelAdapters.cs) e [DeepSeekModelTokenizer](../../src/EsilvaSoft.SlopStudio.Infrastructure/DeepSeekModelTokenizer.cs) isolam famílias. Builders FIM tokenizam prefixo/sufixo antes de cortar; Qwen recodifica marcadores; RequireFullContext pode repetir encode. A detecção de eco decodifica saída acumulada por token. TTFT medido começa **depois** da tokenização/criação do gerador, não equivale a tecla → ghost.
 
-## 8. Caches existentes
+[AiProviderSelector](../../src/EsilvaSoft.SlopStudio.Infrastructure/AiProviderSelector.cs) ordena NPU/GPU/CPU compatíveis; explícito não faz fallback silencioso. [OnnxHardwareProbe](../../src/EsilvaSoft.SlopStudio.Infrastructure/OnnxHardwareProbe.cs) detecta disponibilidade, não homologa exportações. NPU depende de pacote/build/hardware e não foi validada nesta revisão.
 
-| Cache | Escopo | Política |
-| --- | --- | --- |
-| `AutocompleteService._cache` | Respostas IA | 64 entradas, 30 s, chave SHA-256 do JSON do request + revisão das preferências; remoção da primeira chave |
-| Highlighting | Por editor | Linhas por texto/estado, até 100 000 linhas |
-| Explorer | Por conexão | Árvore carregada sob demanda, sem TTL |
-| Sessão ONNX | Processo | Um modelo, lazy, reutilizado |
-| `OnnxHardwareProbe` | Processo | `Lazy` |
-| `MongoClientPool` | Processo | Até 64 configurações |
+## 8. Caches e riscos de fundo
+
+| Caminho | Risco a reproduzir/medir e tratar incrementalmente |
+| --- | --- |
+| NameTable.Collect | Fallback substring varre escopo e não recebe cancellation token |
+| MetadataCatalogSource._lastMerge | Uma memoização global; alternar abas/coleções ou recriar LocalSchemas força mescla/tabelas |
+| Consulta de perfis | Nova NameTable e hash de identidade por consulta |
+| MetadataCache.StartLoad | Uma tarefa por chave; single-flight não limita cargas de chaves distintas |
+| Store versus LoadAsync | Write-through altera mesma Entry; carga antiga pode passar na guarda de referência e sobrescrever dado novo |
+| SampleSchemaAsync | Grava depois do await sem guarda de geração da carga comum; testar disconnect/invalidate durante amostra |
+| ConnectionIdentity | Hash truncado de URI salva + TargetHost; não representa revisão de ENV/segredo resolvido nem equivale à chave efetiva do MongoClientPool |
+| LRU / mescla | 64 entradas não limita bytes; nomes fora do LRU; Merge sem teto conjunto |
+| Changed | Só identifica perfil; falha sem valor não publica Changed. Planejar chave/geração/estado para lista não ficar carregando |
+
+São riscos da inspeção estática, não novas medições ou falhas reproduzidas. Tarefas e testes em [execution-plan.md](execution-plan.md).
 
 ## 9. Concorrência e invariantes
 
-- `CompletionSession`: uma por editor, versão monotônica + CTS; rejeita respostas tardias mesmo se o provider ignorar o cancelamento (testado).
-- `PriorityGate`: um detentor, maior prioridade primeiro, FIFO por prioridade.
-- Invariantes do [`AGENTS.md`](../../AGENTS.md) que a nova arquitetura mantém: contexto capturado antes de awaits; CTS nunca compartilhado entre abas; resultado só atualiza a aba de origem; Explorer nunca executa consulta automaticamente; nada de resultados/credenciais em snapshots.
+Preservar versão monotônica inclusive edit/undo ABA, CTS por aba e descarte obsoleto. Invalidação forte comum remove Entry e descarta carga antiga, mas não interrompe individualmente o trabalho. Disconnect cancela token da conexão; cancelar espera de RefreshAsync não cancela carga compartilhada. Não prometer cancelamento nativo imediato.
 
-## 10. Diagnóstico, operações e atalhos
+Snapshot da sessão sem resultados/credenciais; alvo capturado antes de await; Explorer não executa pela seleção; escritas continuam protegidas, BSON/UUID e auditoria preservados.
 
-- [`IAutocompleteDiagnostics`](../../src/EsilvaSoft.SlopStudio.Infrastructure/AutocompleteDiagnostics.cs): `Trace.WriteLine(evento, detalhe, duração)`; política de não registrar código, prompt ou exceção nativa bruta.
-- `IApplicationOperationService`: operações visíveis com prioridade `Low/Normal/High`.
-- Atalhos: `MainWindow.OnWorkspaceKeyDown` (Ctrl+T/W/O/S/Tab, F5, Ctrl+Enter, F6, Esc) e `WorkspaceTabView.EditorKeyDown` (Tab, Esc, Ctrl+Espaço), todos codificados. **Não existe sistema de keybindings.** `Ctrl+.` e `Ctrl+;` estão livres.
+## 10. Configuração e atalhos
 
-## 11. Testes existentes relacionados
+[AutocompleteSettings](../../src/EsilvaSoft.SlopStudio.Core/Autocomplete.cs) v1 já possui Enabled/Mode/UseDictionary, atraso 50–2000 (padrão 150), contexto 64–8192 (2048), saída 1–256 (32), modelo/provider e opções de contexto. Não há flags independentes dos dois preemptivos ou registro de atalhos. Ctrl+Espaço/Tab/Esc são handlers; Ctrl+./Ctrl+; são planejados. [Migração e precedência](configuration.md).
 
-`MqlAutocompleteServiceTests`, `MongoCompletionTargetTests`, `PredictiveAutocompleteTests`, `LocalAutocompleteTests`, `AutocompleteReliabilityTests`, `AutocompleteUiTests` (Headless, PNG nos dois temas), `LocalAiModelServiceTests`, `SyntaxHighlightingTests`/`SyntaxHighlightingUiTests`, `DeepSeekIntegrationTests` e testes `Explicit` com `SLOP_QWEN_MODEL`/`SLOP_DEEPSEEK_MODEL`. Não há projeto de benchmark nem conjunto-ouro de ranking.
+## 11. Testes e evidências existentes
 
-## 12. Premissas da meta corrigidas
+KnowledgeCatalogTests.cs também contém NameTableTests, MetadataCacheTests, SchemaBuilderTests, métricas, arquitetura e fonte Mongo. Reutilizar MetadataInvalidationTests, LanguageDefinitionTests, AggregationFieldInferenceTests, MongoCompletionTargetTests, PredictiveAutocompleteTests, AutocompleteReliabilityTests, AutocompleteUiTests e LocalAiModelServiceTests.
 
-| Premissa | Correção |
+[Benchmarks](../../tests/EsilvaSoft.SlopStudio.Benchmarks/) já contém BaselineBenchmarks, CatalogBenchmarks, MemoryScenario e SyntheticWorkload. UnitTests/Language/Cases ainda é diretório proposto. Integração metadata pode ser ignorada sem SLOP_CONSOLE_MONGOD; modelos reais são opt-in. Histórico não encerra p95/p99, UI nativa, Linux, teclado/IME, leitor de tela ou CUDA/NPU.
+
+## 12. Inventário: reutilizar, refatorar, substituir
+
+| Decisão | Componentes |
 | --- | --- |
-| `db.Projetos.find({ Cliente.| })` e `{ Customer.Id: ... }` | Em JavaScript (Console, Script e Agregação usam sintaxe JS), chave com ponto sem aspas é erro de sintaxe. O Context Engine reconhece o padrão de forma tolerante e o item insere `"Cliente.Id"` com aspas, substituindo o trecho digitado. Ver [AC-09](decisions.md) |
-| "Atalhos configuráveis caso exista sistema de keybindings" | Não existe. Proposto um registro mínimo de comandos persistido de forma aditiva, sem tela de edição nesta meta |
-| Formato do contexto de IA livre para experimentação | Os pacotes SlopCoder foram treinados com o cabeçalho atual; mudar o formato exige contrato versionado por modelo ([AC-10](decisions.md)) |
-| Estrutura de diretórios de modelos a criar | Já existe (subpastas + `genai_config.json` + tokenizer + `slopstudio-model.json`); só se acrescentam campos opcionais |
-| Autocomplete pode consultar dados livremente | Autocomplete "nunca executa consultas" ([21](../21-autocomplete-local.md)). Comandos de metadados podem ser lazy para a conexão conectada; amostragem de documentos só por ação explícita ou opt-in ([AC-05](decisions.md)) |
-| Abstrações `IAutocompleteModel`, `IModelTokenizer`, `IInferenceRuntime` a criar | Equivalentes já existem: `LocalModelDefinition` + `IModelAdapter`, `ITokenizer`, `ILocalModelRuntime`. Manter nomes do projeto |
-| Tradicional só explícito | Mantido; abertura automática por `.`/`$` fica como opção desligada por padrão até haver métrica ([AC-17](decisions.md)) |
+| Reutilizar | DI/LiteDB, MongoClientPool, metadata/schema, LanguageDefinition, métricas/benchmarks, serviço IA, adapters/tokenizer, IncrementalCompletion |
+| Evoluir com testes | Catálogo/cache (gerações, Peek, completude, limites), lexer/contexto/agregação, CompletionSession, builders FIM, invalidadores de cache |
+| Substituir após paridade | MenuFlyout, geradores redundantes e overlay; manter fachadas até migrar último chamador, inclusive ghost |
+| Não substituir | Acornima/Jint/mongosh, escrita/auditoria, autosave, proprietário LiteDB e backend GenAI |
 
-## Inventário: reutilizar, refatorar, substituir
+Fase 1: **base implementada, aceite parcial**. Fases 2–5: propostas. Chave Customer.Id exige aspas; ghost inicial não corrige texto anterior ao cursor, lista explícita pode fazê-lo. [Decisões](decisions.md).
 
-| Componente | Decisão | Fase | Justificativa |
-| --- | --- | --- | --- |
-| `MongoTextEditor` | Manter; adaptar snapshot via `CreateSnapshot` | 2 | Base AvaloniaEdit adequada |
-| `SyntaxHighlightingService` | Refatorar: extrair lexer compartilhado; highlighting consome os mesmos tokens | 2 | Evita segundo lexer; cache por linha já existe |
-| `MongoSyntaxVocabulary` | Tornar projeção da linguagem embutida | 1 | Fonte única |
-| `MqlAutocompleteService` (operadores, `GetSuggestions`, `GetAggregationSuggestions`, `ApplySuggestion`) | Substituir; manter como fachada obsoleta até remoção | 2 | Sem contexto estruturado; substituição 0..cursor |
-| `MqlAutocompleteService.InferFieldPaths`/`InferJsonSchema` | Reutilizar dentro do construtor de schema; manter wrappers (validador usa) | 1 | Lógica testada, reconhece EJSON |
-| `ConsoleAutocompleteService` | Substituir | 2 | Regex; pode chamar remoto |
-| `AggregationCompletionContext` | Substituir | 2 | Coberto por parser + shapes |
-| `MongoCompletionTarget` | Evoluir para resolvedor de alvo sobre a árvore; manter os casos de teste | 2 | Regras corretas (não herdar coleção de variável dinâmica) |
-| `BasicAutocompleteProvider` | Refatorar como fonte da camada 0 usando catálogo e tokens | 5 | Evita regex sobre o documento |
-| `CompletionPrivacy` | Reutilizar | 3 | Filtro conservador testado |
-| `IncrementalCompletion` | Reutilizar | 5 | Aceitação incremental validada |
-| `CompletionSession` | Generalizar como escopo de requisição por editor e modalidade | 2, 5 | Versão + CTS já corretos |
-| `IAutocompleteService`/`AutocompleteService` | Manter como fachada de preferências, status e teste; caminho de sugestão migra | 4–5 | Compatibilidade com UI de preferências |
-| `AiAutocompleteProvider` | Refatorar em provider + output processor | 4 | Separar orquestração, limpeza e validação |
-| `AutocompleteContextBuilder` | Congelar como serializador `editor-context-v1` | 3 | Contrato de treino |
-| `ILocalAiModelService`, `PriorityGate` | Reutilizar | — | Responsabilidade correta |
-| `ILocalModelRuntime`/`OnnxLocalModelRuntime` | Estender: prompt pré-tokenizado, streaming, prefix cache experimental | 4 | Latência |
-| `IModelAdapter`, `LocalModelCatalog`, metadata | Reutilizar; campo `contextContract` | 3 | Multimodelo já resolvido |
-| `AiProviderSelector`, `OnnxHardwareProbe` | Reutilizar; política de latência por modalidade | 4 | Seleção já correta |
-| `InlineCompletionTextBlock` + `CompletionPanel`/`GhostLayer` | Substituir por elemento visual do AvaloniaEdit (avaliar multilinha) | 5 | Layout nativo |
-| `ShowSuggestions` (`MenuFlyout`) | Substituir por `CompletionWindow` | 2 | Filtro, navegação, snippets |
-| `EditorKeyDown`/`OnWorkspaceKeyDown` | Refatorar para despacho por comandos | 2 | Atalhos como dados |
-| `ExplorerNodeViewModel` | Manter como UI; escrever no Metadata Cache ao carregar | 1 | Evita carga dupla |
-| `KnownSyntaxNamespaces`/`KnownAutocompleteNames` | Substituir por consulta ao catálogo | 1–2 | Remove varredura da árvore por tecla |
-| `IMongoWorkspaceService`/`ExplorerMetadataService` | Reutilizar; acrescentar listagem de coleções com tipo e validator por banco | 1 | Uma chamada por banco |
-| `WorkspaceService` | Publicar invalidação após DDL | 1 | Frescor |
-| `IAutocompleteDiagnostics` | Manter; complementar com `Meter` | 1 | Métricas agregáveis |
-| `MongoCodeValidator`/`MongoCodeFormatter` (Acornima) | Manter para validação/formatação; não usar para contexto do cursor | — | Acornima não tolera código incompleto |
-| `ConsoleRuntime`/`ConsoleBootstrap.js` | Fonte de verdade da superfície do Console; teste de contrato com o catálogo | 1 | Evita divergência |
 
-## Impactos da nova arquitetura
+## 13. Complemento: aprendizado dinâmico
 
-- **UI:** `AutocompleteUiTests` e evidências PNG precisam ser refeitos para `CompletionWindow` e ghost nativo nos 18 cenários de tema/tamanho/escala.
-- **Preferências:** novos campos aditivos em `AutocompleteSettings` versão 1 e registro de atalhos em `WorkspacePreferences`; sessões antigas recebem padrões; sessão ilegível nunca é sobrescrita.
-- **Memória:** novo cache de metadados com orçamento explícito e LRU.
-- **Documentação e ADRs:** [06](../06-editor-bson-e-uuid.md), [17](../17-design-system-ui-ux.md), [21](../21-autocomplete-local.md), [22](../22-syntax-highlighting.md), [26](../26-ia-local-multimodelo.md); ADR-007, 023, 027, 030, 031 e 037.
-- **Modelos:** pacotes SlopCoder continuam com contrato v1; formatos novos exigem avaliação e possivelmente novo treino.
-- **Roadmap:** fases 1–2 materializam EDT-02 (v0.6.0); 3–5 pertencem à v0.9.0.
+Inspecionado também Core/StructuredResults.cs: origem capturada, Method, Completeness e documentos EJSON já permitem hook de find. A memoização atual de campos não é aprendizado incremental persistente. Faltam fila dedicada, deltas estatísticos, FirstSeen/LastSeen, idempotência e repositório de learned schema. O proprietário LiteDB já registrado será estendido; não criar conexão adicional. [Especificação nova](schema-learning.md).

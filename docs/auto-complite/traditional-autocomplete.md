@@ -13,7 +13,7 @@ Lexer compartilhado → Parser tolerante (reuso por versão)
        ↓
 CompletionContext (papel, esperado, alvo, escopos, faixa)
        ↓
-CompletionService: seleciona fontes pelo esperado
+TraditionalCompletionProvider → CompletionService: fontes pelo esperado
        ↓
 Knowledge Catalog (somente escopos necessários; sem I/O)
        ↓
@@ -138,7 +138,7 @@ A condição da meta (`{ Campo: { $eq: ${1:value} } }`) vira `filter.condition`,
 | --- | --- | --- |
 | `CompletionAutoOpenOnTrigger` | `false` | Abrir a lista ao digitar `.` e `$` |
 | `CompletionEnterAccepts` | `true` | Enter aceita com a lista aberta |
-| `SchemaSamplingAllowed` (por conexão) | `false` | Permite amostra de nomes/tipos sem ação explícita |
+| `WorkspacePreferences.SchemaSamplingProfileIds` (existente) | vazio | Opt-in por conexão; não duplicar preferência |
 
 ## Migração
 
@@ -149,3 +149,12 @@ A condição da meta (`{ Campo: { $eq: ${1:value} } }`) vira `filter.condition`,
 | `ConsoleAutocompleteService` | Fontes de coleções/métodos + resolvedor de alvo |
 | Sugestão IA/básica no topo do menu | Removida da lista; IA passa ao `Ctrl+;` |
 | Operação visível "Gerando sugestões locais" | Removida (trabalho em memória); só cargas remotas aparecem com prioridade `Low` |
+
+
+## Revisão de 15/09/2026
+
+Lista e preemptivo tradicionais usam o mesmo CompletionService/ranker/snippets/contexto. Só a lista permite correções antes do cursor, escolhas de placeholder e fuzzy limitado. Providers não mantêm catálogos privados.
+
+No automático/refiltro, Query usa Peek. Na invocação explícita, solicitar refresh limitado do escopo necessário e retornar itens atuais; Changed terminal reconsulta só se stamp válido, preservando seleção. Complete não garante schema exaustivo. Catálogo limitado precisa expor truncamento e refazer busca ao estreitar/alargar prefixo se necessário.
+
+Não remover MongoCompletionTarget, inferência MQL ou Console enquanto ghost/execução ainda os usarem. Adaptar fachadas e remover apenas chamadores migrados, preservando AggregationFieldInferenceTests. [Tarefas T01–T08](execution-plan.md), [configuração](configuration.md).

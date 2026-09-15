@@ -2,7 +2,7 @@
 
 ## Responsabilidade
 
-Transformar *documento + cursor + destino da aba* em um `CompletionContext` estruturado, **uma vez por versão do documento e posição**, reutilizado pelas três modalidades. Não consulta metadados remotos, não ranqueia e não conhece IA.
+Transformar *documento + cursor + destino da aba* em um `CompletionContext` estruturado, **uma vez por versão do documento e posição**, reutilizado pelas quatro modalidades. Não consulta metadados remotos, não ranqueia e não conhece IA.
 
 Convenção: em blocos de código, `|` marca o cursor; em tabelas, `▌`.
 
@@ -271,14 +271,30 @@ CompletionContext
 | `$lookup` | Adiciona `as` como array de documentos da coleção `from` |
 | `$unwind` | O caminho passa a ter o tipo do elemento |
 | `$replaceRoot`/`$replaceWith` com caminho simples | Campos do subdocumento; senão desconhecido |
-| `$facet`, `$search` e stages desconhecidos | Estado `Unknown`: todos os campos anteriores sugeridos com confiança baixa |
+| `$facet`, `$count` | Preservar inferência existente dos ramos e do campo de contagem; testes de AggregationFieldInference são requisito de paridade |
+| `$search` e transformações desconhecidas | Estado Unknown, sem propagar campos antigos como certos; automático se abstém, explícito informa limite |
 
 ## Memoização e reuso
 
-- Um `CompletionContext` por editor é mantido para `(Version, Caret)`.
+- Um contexto é mantido por chave completa de editor/documento/cursor/dialeto/alvo e revisões de catálogo, evidências e configuração; ver architecture.md. A AST é reutilizada por versão textual, independentemente do provider.
 - Se a nova requisição difere apenas por caracteres digitados dentro do mesmo token (a lista está aberta), o contexto é **estreitado**: mesmo papel, shape e alvo; só `Prefix` e `ReplaceSpan` mudam — sem reparse.
 - IA e preemptivo pedem o contexto ao mesmo cache; nenhum deles reinterpreta o documento.
 
 ## Não objetivos
 
 Avaliar JavaScript, resolver valores de variáveis além de atribuições estáticas simples, analisar múltiplos arquivos, substituir a validação do servidor ou a validação sintática com Acornima.
+
+
+## Revisão de implementação — 15/09/2026
+
+Parser e contexto ainda são propostos. Reutilizar EditorDialects/CatalogScope/ShapeDefinition reais; esboços de DialectSet/ShapeId não obrigam renomear a Fase 1. Parser tolerante não substitui Acornima/Jint da execução.
+
+Incrementos: primeiro snapshot/lexer e parser de um statement com recuperação; depois resolvedor de alvo/shapes; finalmente reutilização de statements e diferencial. Não implementar uma green tree completa antes de medir. Cache de tokens/árvore é propriedade do editor; highlighting consome snapshot imutável, nunca estado mutável de outro worker.
+
+Fronteiras não podem ser inferidas só por newline: considerar comentários multilinha, template literal, regex versus divisão, ASI, funções, shadowing/redeclaração de aliases const e código incompleto. Bloco opaco não autoriza buscar chamadas sem escopo confiável. Fallback deve produzir Unknown, não herdar destino de outro statement.
+
+Limitar caracteres/tokens de ressincronização, profundidade e tempo; statement de 1 MB sem delimitador não é uma janela pequena. Usar checkpoints válidos; se não houver fronteira dentro do orçamento, não inventar contexto. Unicode, CRLF e offsets UTF-16 devem coincidir com AvaloniaEdit.
+
+Refiltro estreita só prefixo quando papel/alvo/revisões não mudam; se candidatos foram truncados ou Backspace amplia busca, reconsultar em Peek. Todo pedido tem stamp novo mesmo reutilizando árvore. Campo literal com ponto precisa identidade por segmentos/escape, distinta de caminho aninhado; criar fixtures antes de estender FieldNode.Find, que hoje divide por ponto.
+
+Snapshot não promete custo total O(1) do evento: o binding base.Text ainda copia o documento. Medir captura isolada e evento completo. [Tarefas C21–C25 e T01](execution-plan.md).

@@ -333,3 +333,8 @@ Não encerrados: Linux gráfico, diálogos nativos/clipboard, leitor de tela, co
 | Não homologado | NPU, CUDA, Linux, diálogo nativo de pasta, uso interativo com MongoDB real; GPU para este pacote |
 
 [Especificação e evidência](26-ia-local-multimodelo.md#evidência--13092026).
+
+
+## Revisão do plano de autocomplete — 15/09/2026
+
+Revisão documental, sem alteração de código de produto: inspeção estática e pesquisa técnica; validação de links/índice offline registrada ao concluir. Nenhum build/teste de produto, MongoDB real, modelo/CPU/GPU/NPU, teclado/IME ou PNG novo é alegado. Fase 1 continua com aceite parcial; schema learning, quatro providers, flags/atalhos e novos gates de concorrência/persistência/UI estão planejados, com casos em execution-plan/testing. [Plano revisado](auto-complite/README.md), [tarefas por agente](auto-complite/execution-plan.md) e [schema learning](auto-complite/schema-learning.md).

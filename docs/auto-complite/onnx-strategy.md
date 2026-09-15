@@ -138,3 +138,18 @@ Tempo de carga, provider efetivo, fallback, working set após carga, TTFT, token
 | Pacote NPU | — | — | — | Pendente de exportação e hardware |
 
 Cada célula medida registra modelo, hardware, build, contrato, orçamento, TTFT p50/p95, tokens/s e working set, em execução `Explicit` ([testing.md](testing.md#ia-com-modelos-reais)).
+
+
+## Contrato de execução revisado — 15/09/2026
+
+Adicionar política de carga ao serviço central: AllowLoad para explícito; LoadedOnly para automático. Validar papel/modelo/revisão sob PriorityGate imediatamente antes de usar runtime. Ready lido no editor pode ficar obsoleto. LoadedOnly também proíbe fallback que inicialize CPU, troca para modelo do autocomplete após chat e aquecimento implícito. Troca/falha retorna indisponibilidade segura; próxima ação explícita pode carregar/recuperar.
+
+Runtime continua GenAI. OrtValue/buffers só pertencem a este agente se API medida exigir tensores; não criar sessão ORT bruta concorrente. Modelo/tokenizer são reutilizados; Generator por request continua baseline correto. Otimizar marcadores/encode/decode antes de KV cache; pooling exige ownership até conclusão/cancelamento, não devolver buffer enquanto nativo lê.
+
+ITokenizer nativo não é publicado livremente para workers concorrentes: serviço/runtime possui lifetime e serializa acesso quando thread-safety não estiver garantida. Cache BPE obedece fronteiras verificadas; ver ai-context.md. StreamAsync deve manter gate/CTS até o consumidor concluir ou descartar enumeração; retorno antecipado libera recursos em finally, incluindo registro de cancelamento antes de Generator.Dispose.
+
+TTFT atual exclui tokenização e criação de gerador. Medir esses trechos e fila separadamente, mais latência de ponta a ponta. Não habilitar inline só com TTFT; usar perfil completo e LoadedOnly. Warmup e descarga por ociosidade da tabela anterior são hipóteses adiadas, não parte do aceite.
+
+RewindTo é experimento por pacote/provider/versão; verificar API no assembly fixado e equivalência greedy com sequência independente, erros, cancelamento, troca de alvo/modelo/chat. Não alterar o formato v1 para otimizar prefixo; isolá-lo por identidade de contexto. DirectML tem restrições próprias de sessão/concorrência, a validar via GenAI sem sobrepor opções indiscriminadamente.
+
+R41–R43 no plano atribuem contratos, streaming e experimento ao agente ONNX Runtime. CPU/GPU/NPU exigem exportação compatível, build, dispositivo e evidência; capacidade detectada não conta como homologação.

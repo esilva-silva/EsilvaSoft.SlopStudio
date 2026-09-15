@@ -236,3 +236,8 @@ Nos pacotes publicados (zip/tar.gz dos releases), o Slop Studio consulta os rele
 - Se a pasta do programa não permitir escrita, o botão abre a página do release para download manual.
 - Falha na troca restaura os arquivos originais; a dica do botão mostra o motivo e uma nova tentativa ocorre no próximo fechamento.
 - Execução pelo código-fonte (`dotnet run`) não se atualiza. Para desativar numa instalação, defina `SLOPSTUDIO_DISABLE_UPDATES=1`. [Decisão e limites](10-decisoes-arquiteturais.md).
+
+
+## Revisão do plano de autocomplete — 15/09/2026
+
+Disponível hoje: Ctrl+Espaço e ghost básico/IA legados. Planejado: Ctrl+. tradicional, Ctrl+; IA, dois automáticos com flags independentes e aprendizado de estrutura de find em fundo com persistência. Não há nova opção acionável nesta revisão; consultar plano para comportamento futuro. [Plano revisado](auto-complite/README.md), [tarefas por agente](auto-complite/execution-plan.md) e [schema learning](auto-complite/schema-learning.md).
