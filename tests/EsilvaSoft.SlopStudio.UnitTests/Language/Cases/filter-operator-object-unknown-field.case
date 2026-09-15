@@ -1,0 +1,14 @@
+// case: filter-operator-object-unknown-field
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: ranking.md §1 (incompatibilidade de tipo não remove; schema pode estar incompleto) e §3 (tipo desconhecido = 0,5); knowledge-catalog.md §Consolidação (ausência de nome não prova invalidade)
+db.Clientes.find({ campoInexistente: { | } })
+// expect.role: PropertyKey
+// expect.shape: OperatorObject
+// expect.kinds: QueryOperator
+// expect.parentField: campoInexistente
+// expect.valueTypes: -
+// expect.present: $eq, $in, $size, $regex, $exists
+// expect.absent: $match, $set

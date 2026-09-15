@@ -1,0 +1,11 @@
+// case: rank-value-objectid
+// group: TypedValue
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: ranking.md §4 (construtor do tipo do campo: objectId → ObjectId)
+db.Pedidos.find({ _id: | })
+// expect.best: ObjectId
+// expect.acceptable: ObjectId
+// expect.invalidTop5: Field:clienteId, $group, find

@@ -1,0 +1,13 @@
+// case: ranges-field-reference
+// mode: Console
+// target: servidor-alfa/Projetos/Projetos
+// metadata: schemas/workspace.json
+// schema: schemas/projetos.json
+// spec: traditional-autocomplete.md §Faixas e aspas, linha 7 (referência de campo em expressão "$Cliente.Id"; faixa = conteúdo da string)
+db.Projetos.aggregate([ { $group: { _id: "$Cliente.|" } } ])
+// expect.role: FieldReferenceString
+// expect.quote: Double
+// expect.parentField: Cliente
+// expect.replace: «$Cliente.»
+// expect.insert: Field:Cliente.Id => text «$Cliente.Id»
+// expect.applied: Field:Cliente.Id => «db.Projetos.aggregate([ { $group: { _id: "$Cliente.Id|" } } ])»

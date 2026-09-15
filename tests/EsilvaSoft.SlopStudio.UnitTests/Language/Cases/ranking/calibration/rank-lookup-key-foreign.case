@@ -1,0 +1,11 @@
+// case: rank-lookup-key-foreign
+// group: LookupBody
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: mongodb-language.v1.json LookupBody (Fixed foreignField); forEach (cursor, MongoshScript) e $floor (expressão) inválidos
+db.Pedidos.aggregate([ { $lookup: { from: "Clientes", fo| } } ])
+// expect.best: foreignField
+// expect.acceptable: foreignField
+// expect.invalidTop5: forEach, $floor

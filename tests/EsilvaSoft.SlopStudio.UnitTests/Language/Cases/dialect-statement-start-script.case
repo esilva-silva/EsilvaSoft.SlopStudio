@@ -1,0 +1,10 @@
+// case: dialect-statement-start-script
+// mode: Script
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: testing.md §Fixtures (Dialetos: mesmo texto de dialect-statement-start-console); mongodb-language.v1.json dialetos Scripts/MongoshScript
+|
+// expect.role: StatementStart
+// expect.kinds: DslRoot, GlobalFunction, Keyword
+// expect.present: db, print, printjson, EJSON, const, NumberInt
+// expect.absent: ConnectionPool, getConnection, ENV, find, $match

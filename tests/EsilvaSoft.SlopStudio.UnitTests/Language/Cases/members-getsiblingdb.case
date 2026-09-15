@@ -1,0 +1,14 @@
+// case: members-getsiblingdb
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: testing.md §Fixtures (getSiblingDB("b").); context-engine.md §Resolução do alvo (db.getSiblingDB("b") → conexão da aba, banco b); ranking.md §Confiança (Comissoes casa "Me" por subsequência, mas é de outra conexão)
+// note: a variante sem prefixo está em dialect-getsiblingdb-console.
+db.getSiblingDB("Vendas").Me|
+// expect.role: MemberAccess
+// expect.receiver: Database
+// expect.kinds: Collection, DatabaseMethod
+// expect.target: servidor-alfa/Vendas/ Explicit
+// expect.replace: «Me»
+// expect.present: Collection:Metas
+// expect.absent: Collection:Comissoes, Collection:Clientes

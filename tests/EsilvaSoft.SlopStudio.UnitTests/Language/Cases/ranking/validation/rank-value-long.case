@@ -1,0 +1,11 @@
+// case: rank-value-long
+// group: TypedValue
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: ranking.md §4 (construtor do tipo long) e §1 (dialeto: NumberInt é MongoshScript, inválido no Console)
+db.Clientes.find({ saldo: { $gt: Nu| } })
+// expect.best: NumberLong
+// expect.acceptable: NumberLong
+// expect.invalidTop5: NumberInt, Field:Nome

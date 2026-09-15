@@ -1,0 +1,11 @@
+// case: rank-project-dotted
+// group: SortProjection
+// mode: Console
+// target: servidor-alfa/Projetos/Projetos
+// metadata: schemas/workspace.json
+// schema: schemas/projetos.json, schemas/clientes.json
+// spec: ranking.md §4 (desempate: menor profundidade, rótulo mais curto); filhos de Cliente; campo raiz e campo de outra coleção inválidos
+db.Projetos.find({}).project({ "Cliente.| })
+// expect.best: Field:Cliente.Id
+// expect.acceptable: Field:Cliente.Id, Field:Cliente.Nome
+// expect.invalidTop5: Field:Cliente.Id@Clientes, Field:Nome

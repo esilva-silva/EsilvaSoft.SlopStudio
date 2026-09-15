@@ -1,0 +1,14 @@
+// case: doc06-lookup-foreign-field-single-quote
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: 06-editor-bson-e-uuid.md §Casos obrigatórios ($lookup: campos do contexto correto); MongoCompletionTargetTests.LookupUsesRelatedCollectionResultsFromTheSameConnectionAndDatabase (aspas simples)
+db.Pedidos.aggregate([ { $lookup: { from: 'Clientes', localField: 'clienteId', foreignField: '|' } } ])
+// expect.role: PropertyValue
+// expect.quote: Single
+// expect.kinds: Field
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.replace: «»
+// expect.present: Field:Id@Clientes, Field:Nome@Clientes
+// expect.absent: Field:clienteId@Pedidos, Field:total@Pedidos

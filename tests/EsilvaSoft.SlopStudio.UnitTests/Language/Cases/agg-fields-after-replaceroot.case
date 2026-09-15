@@ -1,0 +1,12 @@
+// case: agg-fields-after-replaceroot
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Pipelines ($replaceRoot com caminho simples → campos do subdocumento)
+db.Clientes.aggregate([ { $replaceRoot: { newRoot: "$Cliente" } }, { $match: { | } } ])
+// expect.role: PropertyKey
+// expect.stage: 1 $match
+// expect.fields: Id, Nome
+// expect.present: Field:Id, Field:Nome
+// expect.absent: Field:status, Field:Cliente.Id

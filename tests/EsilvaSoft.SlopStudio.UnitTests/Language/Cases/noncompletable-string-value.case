@@ -1,0 +1,9 @@
+// case: noncompletable-string-value
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: testing.md §Fixtures (Não completável: string comum); 06 §Pipeline do autocomplete (não recuperar valores distintos para sugerir valores)
+db.Clientes.find({ Nome: "An|a" })
+// expect.role: NonCompletable
+// expect.empty: true

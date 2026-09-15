@@ -1,0 +1,19 @@
+// case: meta-dotted-unquoted
+// mode: Console
+// target: servidor-alfa/Projetos/Projetos
+// metadata: schemas/workspace.json
+// schema: schemas/projetos.json
+// spec: context-engine.md §Exemplos (recuperação: chave com ponto sem aspas) e §Recuperação de erro (DottedKeyRecovery); traditional-autocomplete.md §Faixas e aspas; AC-09
+db.Projetos.find({ Cliente.| })
+// expect.role: PropertyKey
+// expect.diagnostics: DottedKeyRecovery
+// expect.shape: Filter
+// expect.kinds: Field
+// expect.parentField: Cliente
+// expect.quote: None
+// expect.target: servidor-alfa/Projetos/Projetos Explicit
+// expect.replace: «Cliente.»
+// expect.present: Field:Cliente.Id, Field:Cliente.Nome
+// expect.absent: Field:Nome, $and
+// expect.insert: Field:Cliente.Id => text «"Cliente.Id"»
+// expect.applied: Field:Cliente.Id => «db.Projetos.find({ "Cliente.Id"| })»

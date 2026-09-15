@@ -1,0 +1,20 @@
+// case: doc06-filter-sta
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json, schemas/pedidos.json
+// spec: 06-editor-bson-e-uuid.md §Casos obrigatórios (`{ "sta` em filtro: campos compatíveis, tipos observados e indicação de amostra); traditional-autocomplete.md §Faixas e aspas (dentro de string já aberta, sem fechamento adiante)
+// note: status em clientes.json tem 97 de 100 documentos amostrados; o detalhe segue o formato de exemplo "string · 98%" (traditional-autocomplete.md §Itens).
+db.Clientes.find({ "sta| })
+// expect.role: PropertyKeyString
+// expect.shape: Filter
+// expect.kinds: Field
+// expect.quote: Double
+// expect.parentField: -
+// expect.replace: «sta»
+// expect.present: Field:status
+// expect.absent: Field:status@Pedidos, stats
+// expect.detail: Field:status => «string»
+// expect.detail: Field:status => «97%»
+// expect.insert: Field:status => text «status"»
+// expect.applied: Field:status => «db.Clientes.find({ "status"| })»

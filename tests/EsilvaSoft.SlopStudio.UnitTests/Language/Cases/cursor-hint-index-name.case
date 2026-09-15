@@ -1,0 +1,15 @@
+// case: cursor-hint-index-name
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: testing.md §Fixtures (hint com índices); traditional-autocomplete.md §Seleção de fontes (Index → índices da coleção alvo); MongoDB: hint aceita nome de índice
+// note: hint tem parâmetro Any no catálogo; nome de índice exige shape/dado novo (README D-10).
+db.Pedidos.find({ status: "pago" }).hint("|")
+// expect.role: StringArgument
+// expect.quote: Double
+// expect.kinds: Index
+// expect.kinds.not: Field
+// expect.target: servidor-alfa/Projetos/Pedidos Explicit
+// expect.present: Index:clienteId_1, Index:_id_, Index:criadoEm_-1
+// expect.absent: Index:Id_1, Index:status_1_criadoEm_-1, Field:total

@@ -1,0 +1,11 @@
+// case: rank-lookup-foreignfield-value
+// group: LookupBody
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json, schemas/projetos.json
+// spec: mongodb-language.v1.json LookupBody.foreignField scope SiblingCollection:from; ranking.md §Confiança (filtro rígido de namespace); Cliente.Id de Projetos tem o mesmo caminho e é inválido
+db.Pedidos.aggregate([ { $lookup: { from: "Clientes", localField: "clienteId", foreignField: "I|" } } ])
+// expect.best: Field:Id@Clientes
+// expect.acceptable: Field:Id@Clientes, Field:Cliente.Id@Clientes
+// expect.invalidTop5: Field:clienteId@Pedidos, Field:itens@Pedidos, Field:Cliente.Id@Projetos

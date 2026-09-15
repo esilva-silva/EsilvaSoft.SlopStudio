@@ -1,0 +1,13 @@
+// case: update-pipeline-stage-prefix
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: testing.md §Fixtures (pipeline de update com stages permitidos); mongodb-language.v1.json UpdateStage
+db.Pedidos.updateMany({}, [ { $set: { total: 0 } }, { $| } ])
+// expect.role: PropertyKey
+// expect.shape: UpdateStage
+// expect.kinds: AggregationStage
+// expect.replace: «$»
+// expect.present: $set, $unset, $project, $addFields, $replaceWith, $replaceRoot
+// expect.absent: $match, $group, $lookup, $out, $merge, $inc

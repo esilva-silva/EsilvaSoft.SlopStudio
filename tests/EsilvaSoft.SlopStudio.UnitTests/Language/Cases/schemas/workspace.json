@@ -1,0 +1,59 @@
+{
+  "format": "slop-case-workspace/1",
+  "description": "Perfis, bancos e coleções sintéticos já carregados no Metadata Cache. Não contém URI, credencial nem schema (schemas entram por // schema:).",
+  "connections": [
+    {
+      "name": "servidor-alfa",
+      "connected": true,
+      "serverVersion": null,
+      "databases": {
+        "state": "Fresh",
+        "items": [
+          {
+            "name": "Projetos",
+            "collections": {
+              "state": "Fresh",
+              "items": [
+                { "name": "Clientes", "kind": "Collection" },
+                { "name": "Pedidos", "kind": "Collection" },
+                { "name": "Projetos", "kind": "Collection" },
+                { "name": "pedidos-2025", "kind": "Collection" },
+                { "name": "historico-clientes", "kind": "View" }
+              ]
+            }
+          },
+          {
+            "name": "Vendas",
+            "collections": {
+              "state": "Fresh",
+              "items": [
+                { "name": "Faturas", "kind": "Collection" },
+                { "name": "Metas", "kind": "Collection" }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "relatorios",
+      "connected": true,
+      "serverVersion": null,
+      "databases": {
+        "state": "Fresh",
+        "items": [
+          {
+            "name": "Vendas",
+            "collections": {
+              "state": "Fresh",
+              "items": [
+                { "name": "Faturas", "kind": "Collection" },
+                { "name": "Comissoes", "kind": "TimeSeries" }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

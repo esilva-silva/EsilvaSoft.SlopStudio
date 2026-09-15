@@ -1,0 +1,10 @@
+// case: rank-collmember-substring
+// group: CollectionMember
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: ranking.md §2 (substring 0,40: greg em aggregate)
+db.Pedidos.greg|
+// expect.best: aggregate
+// expect.acceptable: aggregate
+// expect.invalidTop5: $group, getSiblingDB

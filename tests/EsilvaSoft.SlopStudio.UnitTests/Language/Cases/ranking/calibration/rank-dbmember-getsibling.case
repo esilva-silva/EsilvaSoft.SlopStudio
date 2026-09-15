@@ -1,0 +1,10 @@
+// case: rank-dbmember-getsibling
+// group: DatabaseMember
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: ranking.md §2 (prefixo); getDatabase (Connection), getIndexSpecs/getIndexes (Collection, MongoshScript) e getCollectionNames (MongoshScript) inválidos como membro de Database no Console
+db.getS|
+// expect.best: getSiblingDB
+// expect.acceptable: getSiblingDB
+// expect.invalidTop5: getDatabase, getIndexSpecs, getIndexes, getCollectionNames

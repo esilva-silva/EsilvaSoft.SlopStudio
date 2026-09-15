@@ -1,0 +1,11 @@
+// case: rank-group-sum
+// group: GroupBody
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: mongodb-language.v1.json AccumulatorObject (Exclusive Accumulator); $subtract/$substr/$substrCP são operadores de expressão
+db.Pedidos.aggregate([ { $group: { _id: "$status", total: { $su| } } } ])
+// expect.best: $sum
+// expect.acceptable: $sum
+// expect.invalidTop5: $subtract, $substr, $substrCP

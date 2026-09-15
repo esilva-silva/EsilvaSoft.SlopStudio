@@ -1,0 +1,14 @@
+// case: filter-and-array-element
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: mongodb-language.v1.json $and → FilterArray → element Filter; testing.md §Fixtures (Filtros: $and/$or com array)
+db.Clientes.find({ $and: [ { status: "ativo" }, { | } ] })
+// expect.role: PropertyKey
+// expect.shape: Filter
+// expect.kinds: Field, QueryOperator
+// expect.objectDepth: 2
+// expect.parentField: -
+// expect.present: Field:Nome, Field:status, $or, $nor
+// expect.absent: $eq, $match, $set

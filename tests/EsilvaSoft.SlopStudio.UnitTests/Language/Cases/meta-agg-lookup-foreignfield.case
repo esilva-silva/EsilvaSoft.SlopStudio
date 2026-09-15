@@ -1,0 +1,16 @@
+// case: meta-agg-lookup-foreignfield
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: context-engine.md §Exemplos (LookupBody foreignField → FieldPathString com escopo SiblingCollection:from) e §Resolução do alvo (from em $lookup → Explicit); ranking.md §Confiança (filtro rígido de namespace)
+db.Pedidos.aggregate([
+    { $lookup: { from: "Clientes", localField: "clienteId", foreignField: "|" } }
+])
+// expect.role: PropertyValue
+// expect.quote: Double
+// expect.kinds: Field
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.replace: «»
+// expect.present: Field:Id@Clientes, Field:Nome@Clientes, Field:Cliente.Id@Clientes
+// expect.absent: Field:clienteId@Pedidos, Field:total@Pedidos, Collection:Clientes

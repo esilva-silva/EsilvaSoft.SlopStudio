@@ -1,0 +1,11 @@
+// case: rank-projection-field
+// group: SortProjection
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json, schemas/projetos.json
+// spec: mongodb-language.v1.json find parâmetro 1 Projection; operadores lógicos de filtro e construtores inválidos como chave de projeção
+db.Clientes.find({}, { No| })
+// expect.best: Field:Nome
+// expect.acceptable: Field:Nome
+// expect.invalidTop5: $nor, $not, Field:Nome@Projetos, NumberLong

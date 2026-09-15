@@ -1,0 +1,8 @@
+// case: noncompletable-template-literal
+// mode: Script
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: context-engine.md §Lexer compartilhado (template) e §Revisão (template literal em fronteiras); texto de template sem ${} não é código
+const mensagem = `db.Clientes.|`;
+// expect.role: NonCompletable
+// expect.empty: true

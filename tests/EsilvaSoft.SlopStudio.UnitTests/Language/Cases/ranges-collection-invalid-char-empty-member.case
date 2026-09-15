@@ -1,0 +1,14 @@
+// case: ranges-collection-invalid-char-empty-member
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: traditional-autocomplete.md §Faixas e aspas, linha 2 com parcial vazio (a faixa ainda inclui o `.`)
+// note: expect.replace é a faixa do contexto (token parcial vazio); o item com caractere inválido estende a própria edição até o `.` (expect.editRange; README D-12).
+db.|
+// expect.role: MemberAccess
+// expect.replace: «»
+// expect.editRange: Collection:historico-clientes => «.»
+// expect.editRange: Collection:Clientes => «»
+// expect.insert: Collection:historico-clientes => text «["historico-clientes"]»
+// expect.applied: Collection:historico-clientes => «db["historico-clientes"]|»
+// expect.applied: Collection:Clientes => «db.Clientes|»

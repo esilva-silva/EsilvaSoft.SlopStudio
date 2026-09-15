@@ -1,0 +1,11 @@
+// case: rank-filterkey-prefix-sta
+// group: FilterKey
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json, schemas/pedidos.json
+// spec: ranking.md §2 (prefixo mesma caixa 0,90) e §Confiança (filtro rígido de namespace: status de Pedidos inválido)
+db.Clientes.find({ sta| })
+// expect.best: Field:status
+// expect.acceptable: Field:status
+// expect.invalidTop5: Field:status@Pedidos, stats, $stdDevPop, $strcasecmp

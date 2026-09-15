@@ -1,0 +1,11 @@
+// case: rank-lookup-from-value
+// group: LookupBody
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: mongodb-language.v1.json LookupBody.from (CollectionNameString); ranking.md §2 (prefixo › substring); campos e coleção de outra conexão inválidos
+db.Pedidos.aggregate([ { $lookup: { from: "Cli|" } } ])
+// expect.best: Collection:Clientes
+// expect.acceptable: Collection:Clientes, Collection:historico-clientes
+// expect.invalidTop5: Field:Cliente.Id@Clientes, Field:clienteId@Pedidos, Collection:Comissoes

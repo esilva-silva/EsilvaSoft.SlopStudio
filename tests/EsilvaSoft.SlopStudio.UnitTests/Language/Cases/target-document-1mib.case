@@ -1,0 +1,11 @@
+// case: target-document-1mib
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: testing.md §Context Engine e parser (limites: documento de 1 MB, contexto do statement do cursor correto); orçamento de tempo é medido em benchmark, não afirmado aqui
+// @fill: 1048576
+db.Clientes.find({ | })
+// expect.role: PropertyKey
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.present: Field:Nome

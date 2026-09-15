@@ -1,0 +1,11 @@
+// case: rank-update-push-field
+// group: Update
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json, schemas/pedidos.json
+// spec: ranking.md §Confiança (filtro rígido de namespace: itens de Pedidos); itcount é MongoshScript e método de cursor
+db.Clientes.updateMany({}, { $push: { it| } })
+// expect.best: Field:items
+// expect.acceptable: Field:items
+// expect.invalidTop5: itcount, Field:itens@Pedidos

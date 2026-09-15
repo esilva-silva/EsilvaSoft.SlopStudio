@@ -1,8 +1,17 @@
+using System.Buffers;
+using EsilvaSoft.SlopStudio.Application.Language.Syntax;
+
 namespace EsilvaSoft.SlopStudio.Application.SyntaxHighlighting;
 
-/// <summary>Fault-tolerant visual lexer. It does not parse, validate, execute or normalize BSON.</summary>
+/// <summary>
+/// Fault-tolerant visual classification over <see cref="MongoLexer"/> tokens, with a per-line cache. It does not parse,
+/// validate, execute or normalize BSON; MongoDB meaning comes from the language vocabulary and loaded namespace names.
+/// </summary>
 public sealed class SyntaxHighlightingService : ISyntaxHighlightingService
 {
+    private const string OperandMarker = "<value>";
+    private static readonly string[] AsciiStrings = Enumerable.Range(0, 128).Select(c => ((char)c).ToString()).ToArray();
+
     public SyntaxSnapshot Highlight(string text, SyntaxLanguage language, SyntaxContext? context = null,
         SyntaxSnapshot? previous = null, CancellationToken cancellationToken = default)
     {
@@ -11,9 +20,7 @@ public sealed class SyntaxHighlightingService : ISyntaxHighlightingService
         var reusable = previous is not null && previous.Language == language && previous.Context == context;
         if (reusable && ReferenceEquals(previous!.Text, text)) return previous;
         var oldLines = reusable ? previous!.Lines : [];
-        var lines = new List<SyntaxLine>();
-        var tokens = new List<SyntaxToken>();
-        var state = new LexerState(Connection: context.Connection, Database: context.Database, Collection: context.Collection);
+        var state = new HighlightState(Connection: context.Connection, Database: context.Database, Collection: context.Collection);
         var starts = new List<(int Start, int Length)>();
         var start = 0;
         for (var i = 0; i < text.Length; i++)
@@ -32,25 +39,44 @@ public sealed class SyntaxHighlightingService : ISyntaxHighlightingService
             if (!text.AsSpan(span.Start, span.Length).SequenceEqual(oldLines[^(suffix + 1)].Text)) break;
             suffix++;
         }
+        var mode = language == SyntaxLanguage.Json ? MongoLexerMode.Json : MongoLexerMode.Script;
+        var lines = new SyntaxLine[starts.Count];
         var processed = 0;
-        for (var index = 0; index < starts.Count; index++)
+        var total = 0;
+        var frames = ArrayPool<char>.Shared.Rent(SyntaxHighlightingOptions.MaximumNesting);
+        var scratch = new List<SyntaxToken>();
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var span = starts[index];
-            var oldIndex = index >= starts.Count - suffix ? oldLines.Count - (starts.Count - index) : index;
-            var old = oldIndex >= 0 && oldIndex < oldLines.Count ? oldLines[oldIndex] : null;
-            SyntaxLine line;
-            if (old is not null && old.Before == state && text.AsSpan(span.Start, span.Length).SequenceEqual(old.Text)) line = old;
-            else
+            for (var index = 0; index < starts.Count; index++)
             {
-                var value = text.Substring(span.Start, span.Length);
-                var before = state;
-                var local = TokenizeLine(value, language, context, ref state, cancellationToken);
-                line = new(value, before, state, local); processed++;
+                cancellationToken.ThrowIfCancellationRequested();
+                var span = starts[index];
+                var oldIndex = index >= starts.Count - suffix ? oldLines.Count - (starts.Count - index) : index;
+                var old = oldIndex >= 0 && oldIndex < oldLines.Count ? oldLines[oldIndex] : null;
+                SyntaxLine line;
+                if (old is not null && old.Before == state && text.AsSpan(span.Start, span.Length).SequenceEqual(old.Text)) line = old;
+                else
+                {
+                    var value = text.Substring(span.Start, span.Length);
+                    var before = state;
+                    var local = TokenizeLine(value, mode, language, context, ref state, frames, scratch, cancellationToken);
+                    line = new(value, before, state, local); processed++;
+                }
+                state = line.After;
+                lines[index] = line;
+                total += line.Tokens.Length;
             }
-            state = line.After;
-            if (starts.Count <= SyntaxHighlightingOptions.MaximumCachedLines) lines.Add(line);
-            foreach (var token in line.Tokens) tokens.Add(token with { Start = token.Start + span.Start });
+        }
+        finally
+        {
+            ArrayPool<char>.Shared.Return(frames);
+        }
+        var tokens = new SyntaxToken[total];
+        var position = 0;
+        for (var index = 0; index < lines.Length; index++)
+        {
+            var offset = starts[index].Start;
+            foreach (var token in lines[index].Tokens) tokens[position++] = token with { Start = token.Start + offset };
         }
         var brackets = new Dictionary<int, int>();
         var stack = new Stack<(char Bracket, int Position)>();
@@ -70,165 +96,179 @@ public sealed class SyntaxHighlightingService : ISyntaxHighlightingService
             }
         }
         foreach (var opening in stack) brackets[opening.Position] = -1;
-        return new(text, language, context, tokens, brackets, processed) { Lines = lines, LineStarts = starts.Select(s => s.Start).ToArray() };
+        return new(text, language, context, tokens, brackets, processed)
+        {
+            Lines = starts.Count <= SyntaxHighlightingOptions.MaximumCachedLines ? lines : [],
+            LineStarts = starts.Select(s => s.Start).ToArray()
+        };
     }
 
     private static bool Matches(char a, char b) => (a, b) is ('(', ')') or ('[', ']') or ('{', '}');
-    private static bool Word(char c) => char.IsLetterOrDigit(c) || c is '_' or '$';
-    private static int Next(string text, int i) { while (i < text.Length && char.IsWhiteSpace(text[i])) i++; return i; }
 
-    private static List<SyntaxToken> TokenizeLine(string text, SyntaxLanguage language, SyntaxContext context,
-        ref LexerState state, CancellationToken cancellationToken)
+    private static SyntaxToken[] TokenizeLine(string line, MongoLexerMode mode, SyntaxLanguage language, SyntaxContext context,
+        ref HighlightState state, char[] frames, List<SyntaxToken> tokens, CancellationToken cancellationToken)
     {
-        var tokens = new List<SyntaxToken>();
-        var i = 0;
-        while (i < text.Length)
+        tokens.Clear();
+        var classifier = new Classifier(state, frames, language, context);
+        var lexer = new MongoLexer(line, state.Lexer, mode, 0, cancellationToken);
+        while (lexer.TryRead(out var token))
         {
-            if ((i & 255) == 0) cancellationToken.ThrowIfCancellationRequested();
-            var start = i;
-            var ch = text[i];
-            if (state.BlockComment)
+            var type = token.Kind switch
             {
-                var end = text.IndexOf("*/", i, StringComparison.Ordinal);
-                i = end < 0 ? text.Length : end + 2;
-                state = state with { BlockComment = end < 0 };
-                tokens.Add(new(start, i - start, SyntaxTokenType.Comment)); continue;
-            }
-            if (state.Quote != '\0' || ch is '"' or '\'' or '`')
+                MongoTokenKind.LineComment or MongoTokenKind.BlockComment => SyntaxTokenType.Comment,
+                MongoTokenKind.String or MongoTokenKind.Template => classifier.Literal(line, token),
+                MongoTokenKind.Regex => classifier.Operand(SyntaxTokenType.Regex),
+                MongoTokenKind.Number => classifier.Operand(SyntaxTokenType.Number),
+                MongoTokenKind.Identifier => classifier.Word(line.Substring(token.Start, token.Length), token.Traits),
+                _ => classifier.Symbol(line[token.Start], token.Kind)
+            };
+            tokens.Add(new(token.Start, token.Length, type));
+        }
+        state = classifier.ToState(lexer.State, state);
+        return tokens.ToArray();
+    }
+
+    /// <summary>Mutable working copy of <see cref="HighlightState"/> for one line; materialized once at the end of the line.</summary>
+    private struct Classifier
+    {
+        private readonly char[] _frames;
+        private readonly SyntaxLanguage _language;
+        private readonly SyntaxContext _context;
+        private int _depth, _searchFrames, _aggregateFrames;
+        private bool _searchPending, _aggregatePending;
+        private string _previous, _beforePrevious, _connection, _database, _collection;
+
+        public Classifier(HighlightState state, char[] frames, SyntaxLanguage language, SyntaxContext context)
+        {
+            _frames = frames; _language = language; _context = context;
+            state.Frames.CopyTo(frames);
+            _depth = state.Frames.Length;
+            _searchFrames = state.Frames.AsSpan().Count('S');
+            _aggregateFrames = state.Frames.AsSpan().Count('A');
+            _searchPending = state.SearchPending; _aggregatePending = state.AggregatePending;
+            _previous = state.Previous; _beforePrevious = state.BeforePrevious;
+            _connection = state.Connection; _database = state.Database; _collection = state.Collection;
+        }
+
+        public readonly HighlightState ToState(MongoLexerState lexer, HighlightState before)
+        {
+            var frames = before.Frames.AsSpan().SequenceEqual(_frames.AsSpan(0, _depth)) ? before.Frames : new string(_frames, 0, _depth);
+            return new(lexer, frames, _searchPending, _aggregatePending, _previous, _beforePrevious, _connection, _database, _collection);
+        }
+
+        public SyntaxTokenType Literal(string line, MongoToken token)
+        {
+            var continuing = token.Has(MongoTokenTraits.Continuation);
+            var closed = token.IsTerminated;
+            if (!continuing && closed && token.Has(MongoTokenTraits.FollowedByColon))
             {
-                var continuing = state.Quote != '\0';
-                var quote = continuing ? state.Quote : ch;
-                if (!continuing) i++;
-                var closed = false;
-                while (i < text.Length)
-                {
-                    if ((i & 4095) == 0) cancellationToken.ThrowIfCancellationRequested();
-                    if (text[i] == '\\') { i = Math.Min(i + 2, text.Length); continue; }
-                    if (text[i++] == quote) { closed = true; break; }
-                }
-                state = state with { Quote = closed ? '\0' : quote };
-                var end = Next(text, i);
-                var value = !continuing && closed ? text[(start + 1)..(i - 1)] : "";
-                var property = !continuing && closed && end < text.Length && text[end] == ':';
-                var type = property ? ClassifyProperty(value, language, state) : SyntaxTokenType.String;
-                if (!property && closed && !continuing) type = ClassifyName(value, type, context, ref state);
-                tokens.Add(new(start, i - start, type));
-                if (property) state = Pending(value, state);
-                if (closed) state = Shift(state, property ? value : "<value>");
-                continue;
+                var value = line.Substring(token.Start + 1, token.Length - 2);
+                var property = ClassifyProperty(value);
+                Pending(value); Shift(value);
+                return property;
             }
-            if (char.IsWhiteSpace(ch)) { i++; continue; }
-            if (ch == '/' && i + 1 < text.Length && text[i + 1] == '/')
-            { tokens.Add(new(i, text.Length - i, SyntaxTokenType.Comment)); break; }
-            if (ch == '/' && i + 1 < text.Length && text[i + 1] == '*')
+            var type = closed && !continuing ? ClassifyName(line.AsSpan(token.Start + 1, token.Length - 2), null, SyntaxTokenType.String) : SyntaxTokenType.String;
+            if (closed) Shift(OperandMarker);
+            return type;
+        }
+
+        public SyntaxTokenType Operand(SyntaxTokenType type)
+        {
+            Shift(OperandMarker);
+            return type;
+        }
+
+        public SyntaxTokenType Word(string value, MongoTokenTraits flags)
+        {
+            if (value == "db") { _connection = _context.Connection; _database = _context.Database; _collection = _context.Collection; }
+            var property = (flags & MongoTokenTraits.FollowedByColon) != 0;
+            var call = (flags & MongoTokenTraits.FollowedByOpenParenthesis) != 0;
+            var type = property ? ClassifyProperty(value) : value switch
             {
-                i += 2;
-                var end = text.IndexOf("*/", i, StringComparison.Ordinal);
-                i = end < 0 ? text.Length : end + 2;
-                state = state with { BlockComment = end < 0 };
-                tokens.Add(new(start, i - start, SyntaxTokenType.Comment)); continue;
-            }
-            if (ch == '/' && language != SyntaxLanguage.Json && CanStartRegex(state.Previous))
-            {
-                i++; var inClass = false;
-                while (i < text.Length)
-                {
-                    if (text[i] == '\\') { i = Math.Min(text.Length, i + 2); continue; }
-                    if (text[i] == '[') inClass = true;
-                    if (text[i] == ']') inClass = false;
-                    if (text[i++] == '/' && !inClass) break;
-                }
-                while (i < text.Length && char.IsLetter(text[i])) i++;
-                tokens.Add(new(start, i - start, SyntaxTokenType.Regex)); state = Shift(state, "<value>"); continue;
-            }
-            if (char.IsDigit(ch) || ch == '-' && i + 1 < text.Length && char.IsDigit(text[i + 1]) && CanStartRegex(state.Previous))
-            {
-                if (ch == '-') i++;
-                while (i < text.Length && (char.IsDigit(text[i]) || text[i] is '.' or '_')) i++;
-                if (i < text.Length && text[i] is 'e' or 'E')
-                { i++; if (i < text.Length && text[i] is '+' or '-') i++; while (i < text.Length && char.IsDigit(text[i])) i++; }
-                tokens.Add(new(start, i - start, SyntaxTokenType.Number)); state = Shift(state, "<value>"); continue;
-            }
-            if (Word(ch))
-            {
-                while (i < text.Length && Word(text[i])) i++;
-                var value = text[start..i]; var next = Next(text, i);
-                if (value == "db") state = state with { Connection = context.Connection, Database = context.Database, Collection = context.Collection };
-                var property = next < text.Length && text[next] == ':';
-                var call = next < text.Length && text[next] == '(';
-                var type = property ? ClassifyProperty(value, language, state) : value switch
-                {
-                    "true" or "false" => SyntaxTokenType.Boolean,
-                    "null" or "undefined" => SyntaxTokenType.Null,
-                    _ when MongoSyntaxVocabulary.ExtendedJsonTypes.Contains(value) && call => SyntaxTokenType.MongoType,
-                    _ when MongoSyntaxVocabulary.DslFunctions.Contains(value) && call => SyntaxTokenType.Function,
-                    _ when MongoSyntaxVocabulary.Functions.Contains(value) && call => SyntaxTokenType.MongoFunction,
-                    _ when MongoSyntaxVocabulary.Keywords.Contains(value) && language != SyntaxLanguage.Json => SyntaxTokenType.Keyword,
-                    _ when value.StartsWith('$') => SyntaxTokenType.MongoOperator,
-                    _ when call => state.Previous == "." ? SyntaxTokenType.Method : SyntaxTokenType.Function,
-                    _ => SyntaxTokenType.Identifier
-                };
-                if (!property && !call) type = ClassifyName(value, type, context, ref state);
-                tokens.Add(new(start, i - start, type));
-                state = Pending(value, state);
-                state = Shift(state, value); continue;
-            }
-            i++;
-            var punctuation = "{}[]():,;.".Contains(ch, StringComparison.Ordinal);
-            tokens.Add(new(start, 1, punctuation ? SyntaxTokenType.Punctuation : SyntaxTokenType.Operator));
+                "true" or "false" => SyntaxTokenType.Boolean,
+                "null" or "undefined" => SyntaxTokenType.Null,
+                _ when call && MongoSyntaxVocabulary.ExtendedJsonTypes.Contains(value) => SyntaxTokenType.MongoType,
+                _ when call && MongoSyntaxVocabulary.DslFunctions.Contains(value) => SyntaxTokenType.Function,
+                _ when call && MongoSyntaxVocabulary.Functions.Contains(value) => SyntaxTokenType.MongoFunction,
+                _ when _language != SyntaxLanguage.Json && MongoSyntaxVocabulary.Keywords.Contains(value) => SyntaxTokenType.Keyword,
+                _ when value.StartsWith('$') => SyntaxTokenType.MongoOperator,
+                _ when call => _previous == "." ? SyntaxTokenType.Method : SyntaxTokenType.Function,
+                _ => SyntaxTokenType.Identifier
+            };
+            if (!property && !call) type = ClassifyName(value, value, type);
+            Pending(value); Shift(value);
+            return type;
+        }
+
+        public SyntaxTokenType Symbol(char ch, MongoTokenKind kind)
+        {
             if (ch is '{' or '[' or '(')
             {
-                var frame = ch == '{' && state.SearchPending ? 'S' : ch == '[' && (state.AggregatePending || language is SyntaxLanguage.Aggregation or SyntaxLanguage.AtlasSearch) ? 'A' : ch;
-                if (state.Frames.Length < SyntaxHighlightingOptions.MaximumNesting) state = state with { Frames = state.Frames + frame };
-                if (ch == '{') state = state with { SearchPending = false };
-                if (ch == '[') state = state with { AggregatePending = false };
+                var frame = ch == '{' && _searchPending ? 'S'
+                    : ch == '[' && (_aggregatePending || _language is SyntaxLanguage.Aggregation or SyntaxLanguage.AtlasSearch) ? 'A' : ch;
+                if (_depth < SyntaxHighlightingOptions.MaximumNesting)
+                {
+                    _frames[_depth++] = frame;
+                    if (frame == 'S') _searchFrames++;
+                    else if (frame == 'A') _aggregateFrames++;
+                }
+                if (ch == '{') _searchPending = false;
+                if (ch == '[') _aggregatePending = false;
             }
-            else if (ch is '}' or ']' or ')' && state.Frames.Length > 0) state = state with { Frames = state.Frames[..^1] };
-            state = Shift(state, ch.ToString());
+            else if (ch is '}' or ']' or ')' && _depth > 0)
+            {
+                var frame = _frames[--_depth];
+                if (frame == 'S') _searchFrames--;
+                else if (frame == 'A') _aggregateFrames--;
+            }
+            Shift(ch < AsciiStrings.Length ? AsciiStrings[ch] : ch.ToString());
+            return kind == MongoTokenKind.Punctuation ? SyntaxTokenType.Punctuation : SyntaxTokenType.Operator;
         }
-        return tokens;
-    }
 
-    private static bool CanStartRegex(string previous) => previous is "" or "(" or "[" or "{" or ":" or "," or "=" or "return" or "=>" or "!" or ";";
-    private static LexerState Shift(LexerState state, string value) => state with { BeforePrevious = state.Previous, Previous = value };
-    private static LexerState Pending(string value, LexerState state) => state with
-    {
-        SearchPending = value is "$search" or "$searchMeta" || state.SearchPending,
-        AggregatePending = value == "aggregate" || state.AggregatePending
-    };
-    private static SyntaxTokenType ClassifyProperty(string value, SyntaxLanguage language, LexerState state)
-    {
-        if (MongoSyntaxVocabulary.ExtendedJsonTypes.Contains(value)) return SyntaxTokenType.MongoType;
-        if (MongoSyntaxVocabulary.AggregationStages.Contains(value)
-            && (value is not ("$set" or "$unset") || language is SyntaxLanguage.Aggregation or SyntaxLanguage.AtlasSearch || state.Frames.Contains('A')))
-            return SyntaxTokenType.MongoStage;
-        if (value.StartsWith('$')) return SyntaxTokenType.MongoOperator;
-        if (MongoSyntaxVocabulary.AtlasSearchOperators.Contains(value) && (language == SyntaxLanguage.AtlasSearch || state.Frames.Contains('S')))
-            return SyntaxTokenType.AtlasSearchOperator;
-        return SyntaxTokenType.PropertyName;
-    }
-    private static SyntaxTokenType ClassifyName(string value, SyntaxTokenType fallback, SyntaxContext context, ref LexerState state)
-    {
-        var connection = state.Connection; var database = state.Database; var collection = state.Collection;
-        var previous = state.Previous; var before = state.BeforePrevious;
-        if (previous == "(" && before == "getConnection" || previous == "." && MongoSyntaxVocabulary.DslRoots.Contains(before))
+        private void Shift(string value) { _beforePrevious = _previous; _previous = value; }
+
+        private void Pending(string value)
         {
-            if (context.Names.Any(n => n.Connection == value))
-            { state = state with { Connection = value, Database = "", Collection = "" }; return SyntaxTokenType.Connection; }
+            _searchPending = value is "$search" or "$searchMeta" || _searchPending;
+            _aggregatePending = value == "aggregate" || _aggregatePending;
         }
-        if (previous == "(" && before is "getDatabase" or "GetDatabase" or "getSiblingDB" or "getDB"
-            || previous == "." && before == connection)
+
+        private readonly SyntaxTokenType ClassifyProperty(string value)
         {
-            if (context.Names.Any(n => n.Connection == connection && n.Database == value))
-            { state = state with { Database = value, Collection = "" }; return SyntaxTokenType.Database; }
+            if (MongoSyntaxVocabulary.ExtendedJsonTypes.Contains(value)) return SyntaxTokenType.MongoType;
+            if (MongoSyntaxVocabulary.AggregationStages.Contains(value)
+                && (value is not ("$set" or "$unset") || _language is SyntaxLanguage.Aggregation or SyntaxLanguage.AtlasSearch || _aggregateFrames > 0))
+                return SyntaxTokenType.MongoStage;
+            if (value.StartsWith('$')) return SyntaxTokenType.MongoOperator;
+            if (MongoSyntaxVocabulary.AtlasSearchOperators.Contains(value) && (_language == SyntaxLanguage.AtlasSearch || _searchFrames > 0))
+                return SyntaxTokenType.AtlasSearchOperator;
+            return SyntaxTokenType.PropertyName;
         }
-        if (previous == "(" && before is "getCollection" or "GetCollection" || previous == "." && (before == "db" || before == database))
+
+        /// <summary>Namespace names only match loaded metadata; the value string is materialized only when it becomes state.</summary>
+        private SyntaxTokenType ClassifyName(ReadOnlySpan<char> value, string? text, SyntaxTokenType fallback)
         {
-            if (context.Names.Any(n => n.Connection == connection && n.Database == database && n.Collection == value))
-            { state = state with { Collection = value }; return SyntaxTokenType.Collection; }
+            var names = _context.Names;
+            if (names.Count == 0) return fallback;
+            var connection = _connection; var database = _database; var collection = _collection;
+            var previous = _previous; var before = _beforePrevious;
+            if (previous == "(" && before == "getConnection" || previous == "." && MongoSyntaxVocabulary.DslRoots.Contains(before))
+                for (var i = 0; i < names.Count; i++)
+                    if (value.SequenceEqual(names[i].Connection))
+                    { _connection = text ?? value.ToString(); _database = ""; _collection = ""; return SyntaxTokenType.Connection; }
+            if (previous == "(" && before is "getDatabase" or "GetDatabase" or "getSiblingDB" or "getDB" || previous == "." && before == connection)
+                for (var i = 0; i < names.Count; i++)
+                    if (names[i].Connection == connection && value.SequenceEqual(names[i].Database))
+                    { _database = text ?? value.ToString(); _collection = ""; return SyntaxTokenType.Database; }
+            if (previous == "(" && before is "getCollection" or "GetCollection" || previous == "." && (before == "db" || before == database))
+                for (var i = 0; i < names.Count; i++)
+                    if (names[i].Connection == connection && names[i].Database == database && value.SequenceEqual(names[i].Collection))
+                    { _collection = text ?? value.ToString(); return SyntaxTokenType.Collection; }
+            if (previous == "(" && before is "dropIndex" or "hint" || previous == ":" && before == "name")
+                for (var i = 0; i < names.Count; i++)
+                    if (names[i].Connection == connection && names[i].Database == database && names[i].Collection == collection && value.SequenceEqual(names[i].Index))
+                        return SyntaxTokenType.Index;
+            return fallback;
         }
-        if (previous == "(" && before is "dropIndex" or "hint" || previous == ":" && before == "name")
-            if (context.Names.Any(n => n.Connection == connection && n.Database == database && n.Collection == collection && n.Index == value)) return SyntaxTokenType.Index;
-        return fallback;
     }
 }

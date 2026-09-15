@@ -1,0 +1,11 @@
+// case: rank-update-set-prefix
+// group: Update
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: mongodb-language.v1.json Update (UpdateOperator field/array/bitwise); $set de stage, $setWindowFields/$search/$searchMeta (stages) e $setUnion (expressão) inválidos
+db.Clientes.updateOne({}, { $se| })
+// expect.best: UpdateOperator:$set
+// expect.acceptable: UpdateOperator:$set, $setOnInsert
+// expect.invalidTop5: AggregationStage:$set, $setWindowFields, $setUnion, $search, $searchMeta

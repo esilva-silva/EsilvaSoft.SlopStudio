@@ -1,0 +1,13 @@
+// case: ranges-operator-unquoted-style
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: traditional-autocomplete.md §Faixas e aspas, linha 6 (operador em chave: $eq ou "$eq" conforme estilo; faixa inclui $)
+db.Clientes.find({ age: { $g| } })
+// expect.role: PropertyKey
+// expect.quote: None
+// expect.parentField: age
+// expect.replace: «$g»
+// expect.insert: $gte => text «$gte»
+// expect.applied: $gte => «db.Clientes.find({ age: { $gte| } })»

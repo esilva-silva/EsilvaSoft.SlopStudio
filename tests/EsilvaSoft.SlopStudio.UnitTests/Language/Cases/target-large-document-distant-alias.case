@@ -1,0 +1,11 @@
+// case: target-large-document-distant-alias
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json, schemas/pedidos.json
+// spec: context-engine.md §Limites (> 64 KiB analisa só statement do cursor e vizinhos) e §Revisão (se não houver fronteira no orçamento, não inventar contexto); a declaração distante pode ou não ser vista (README D-14), mas o destino nunca vem dos statements de preenchimento
+const c = db.Clientes;
+// @fill: 70000
+c.find({ | })
+// expect.target.not: servidor-alfa/Projetos/Pedidos
+// expect.absent: Field:total@Pedidos

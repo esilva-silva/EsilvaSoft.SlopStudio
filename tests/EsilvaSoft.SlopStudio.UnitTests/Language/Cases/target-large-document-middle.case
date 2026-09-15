@@ -1,0 +1,12 @@
+// case: target-large-document-middle
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json, schemas/pedidos.json
+// spec: context-engine.md §Limites (> 64 KiB: statement do cursor e vizinhos imediatos); cursor no meio, statements de Pedidos antes e depois
+// @fill: 35000
+db.Clientes.find({ | })
+// @fill: 35000
+// expect.role: PropertyKey
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.absent: Field:total@Pedidos

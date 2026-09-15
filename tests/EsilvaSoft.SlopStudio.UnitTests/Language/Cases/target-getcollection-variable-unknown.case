@@ -1,0 +1,9 @@
+// case: target-getcollection-variable-unknown
+// mode: Console
+// target: servidor-alfa/Projetos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: MongoCompletionTargetTests.UnknownOrCommentedPathsDoNotReuseAnotherCollection caso "db.getCollection(variable).find({"; context-engine.md §Resolução do alvo (variável → Unknown)
+db.getCollection(variavel).find({|
+// expect.target: Unknown
+// expect.absent: Field:total@Pedidos

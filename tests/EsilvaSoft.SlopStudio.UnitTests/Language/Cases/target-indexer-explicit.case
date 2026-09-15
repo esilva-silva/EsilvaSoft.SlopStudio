@@ -1,0 +1,8 @@
+// case: target-indexer-explicit
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: context-engine.md §Resolução do alvo (db["x-y"] Explicit)
+db["pedidos-2025"].find({ | })
+// expect.role: PropertyKey
+// expect.target: servidor-alfa/Projetos/pedidos-2025 Explicit

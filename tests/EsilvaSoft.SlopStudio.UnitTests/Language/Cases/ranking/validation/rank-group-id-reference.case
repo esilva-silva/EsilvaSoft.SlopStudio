@@ -1,0 +1,11 @@
+// case: rank-group-id-reference
+// group: GroupBody
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: context-engine.md §Localização (FieldReferenceString); ranking.md §Confiança (namespace); método e acumulador inválidos dentro da referência
+db.Pedidos.aggregate([ { $group: { _id: "$st|" } } ])
+// expect.best: Field:status@Pedidos
+// expect.acceptable: Field:status@Pedidos
+// expect.invalidTop5: Field:status@Clientes, $stdDevPop, stats

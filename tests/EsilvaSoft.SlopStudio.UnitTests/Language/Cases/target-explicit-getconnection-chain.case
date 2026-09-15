@@ -1,0 +1,7 @@
+// case: target-explicit-getconnection-chain
+// mode: Console
+// target: servidor-alfa/Projetos
+// metadata: schemas/workspace.json
+// spec: MongoCompletionTargetTests.ExplicitPathsResolveWithoutEvaluatingCode caso "getConnection('Prod').getDatabase('other').getCollection('orders').aggregate(["
+getConnection('relatorios').getDatabase('Vendas').getCollection('Faturas').aggregate([|
+// expect.target: relatorios/Vendas/Faturas Explicit

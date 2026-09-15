@@ -1,0 +1,11 @@
+// case: rank-group-id-key
+// group: GroupBody
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: mongodb-language.v1.json GroupBody (_id obrigatório; acumuladores só no valor de chave dinâmica)
+db.Clientes.aggregate([ { $match: { status: "ativo" } }, { $group: { | } } ])
+// expect.best: _id
+// expect.acceptable: _id
+// expect.invalidTop5: $sum, $avg, $match, $eq, find

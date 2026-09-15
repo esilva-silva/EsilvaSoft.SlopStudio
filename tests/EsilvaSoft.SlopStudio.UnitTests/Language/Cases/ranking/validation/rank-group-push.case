@@ -1,0 +1,11 @@
+// case: rank-group-push
+// group: GroupBody
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: mongodb-language.v1.json AccumulatorObject; $push de update tem o mesmo rótulo e é inválido; $pull/$pullAll são update
+db.Pedidos.aggregate([ { $group: { _id: "$clienteId", itens: { $pu| } } } ])
+// expect.best: Accumulator:$push
+// expect.acceptable: Accumulator:$push
+// expect.invalidTop5: UpdateOperator:$push, $pull, $pullAll

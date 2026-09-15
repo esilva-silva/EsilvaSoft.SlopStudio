@@ -1,0 +1,11 @@
+// case: rank-lookup-key-as
+// group: LookupBody
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: mongodb-language.v1.json LookupBody (Fixed as, obrigatório); método, acumulador e operadores de expressão inválidos
+db.Pedidos.aggregate([ { $lookup: { from: "Clientes", localField: "clienteId", foreignField: "Id", a| } } ])
+// expect.best: as
+// expect.acceptable: as
+// expect.invalidTop5: aggregate, $avg, $abs, $add, $and

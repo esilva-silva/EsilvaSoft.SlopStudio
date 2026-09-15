@@ -1,0 +1,11 @@
+// case: rank-filterkey-camelhumps
+// group: FilterKey
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: ranking.md §2 (camel humps 0,70); createIndex (método) e Cliente.Id de Clientes casam cI mas são inválidos para chave de Filter de Pedidos
+db.Pedidos.find({ cI| })
+// expect.best: Field:clienteId
+// expect.acceptable: Field:clienteId
+// expect.invalidTop5: Field:Cliente.Id@Clientes, createIndex

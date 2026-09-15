@@ -1,0 +1,13 @@
+// case: filter-value-uuid
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Localização (PropertyValue: valor tipado pelo campo); ranking.md §4 (valor tipado: construtor do tipo do campo › literal › objeto de operadores); traditional-autocomplete.md §Snippets (UUID pelo modo de identificador)
+db.Clientes.find({ Id: | })
+// expect.role: PropertyValue
+// expect.shape: FieldCondition
+// expect.parentField: Id
+// expect.valueTypes: uuid
+// expect.present: UUID
+// expect.absent: Field:Nome, $match, find, $set

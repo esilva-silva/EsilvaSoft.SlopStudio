@@ -1,0 +1,16 @@
+// case: doc06-literal-dot-getfield
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: 06-editor-bson-e-uuid.md §Casos obrigatórios (campo com ponto literal: usar operadores apropriados); MongoDB: $getField lê o campo de nome literal no documento atual, sem interpretar ponto como caminho
+db.Clientes.aggregate([
+    { $match: { $expr: { $eq: [ { $getField: "|" }, 2 ] } } }
+])
+// expect.role: PropertyValue
+// expect.quote: Double
+// expect.kinds: Field
+// expect.replace: «»
+// expect.present: Field:["versao.schema"], Field:Nome
+// expect.absent: Field:Cliente.Id, Field:items.sku
+// expect.insert: Field:["versao.schema"] => text «versao.schema»

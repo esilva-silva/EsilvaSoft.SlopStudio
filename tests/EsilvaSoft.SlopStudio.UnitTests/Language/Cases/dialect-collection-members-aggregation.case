@@ -1,0 +1,8 @@
+// case: dialect-collection-members-aggregation
+// mode: Agregação
+// target: servidor-alfa/Projetos/Projetos
+// metadata: schemas/workspace.json
+// spec: testing.md §Fixtures (Dialetos: mesmo texto); knowledge-catalog.md §Dialetos (AggregationJson: array de stages, sem db nem métodos de coleção)
+db.Projetos.|
+// expect.kinds.not: CollectionMethod, DatabaseMethod, Collection
+// expect.absent: find, bulkWrite, getCollection

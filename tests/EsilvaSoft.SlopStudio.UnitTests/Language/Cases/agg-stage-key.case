@@ -1,0 +1,14 @@
+// case: agg-stage-key
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: testing.md §Fixtures (Agregação: chave de stage); mongodb-language.v1.json Pipeline → Stage (Exclusive AggregationStage)
+db.Pedidos.aggregate([ { | } ])
+// expect.role: PropertyKey
+// expect.shape: Stage
+// expect.kinds: AggregationStage
+// expect.kinds.not: Field, QueryOperator, UpdateOperator, Accumulator
+// expect.stage: 0 -
+// expect.present: $match, $group, $lookup, $project, $unwind, $facet, $count, $set, $sort
+// expect.absent: $eq, $sum, $inc, Field:total, find

@@ -1,0 +1,11 @@
+// case: target-utf16-surrogate-offsets
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Revisão (offsets UTF-16 idênticos ao AvaloniaEdit); o emoji fora do BMP ocupa duas unidades UTF-16 antes do cursor
+const marcador = "🚀"; db.Clientes.find({ No| })
+// expect.role: PropertyKey
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.replace: «No»
+// expect.applied: Field:Nome => «const marcador = "🚀"; db.Clientes.find({ Nome| })»

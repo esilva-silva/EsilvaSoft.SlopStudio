@@ -1,0 +1,10 @@
+// case: rank-collmember-insert
+// group: CollectionMember
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: ranking.md §2 (prefixo; rótulo mais curto em §4); keyword, stage e operador de expressão inválidos como membro de Collection
+db.Clientes.ins|
+// expect.best: insertOne
+// expect.acceptable: insertOne, insertMany
+// expect.invalidTop5: instanceof, $indexStats, $indexOfBytes

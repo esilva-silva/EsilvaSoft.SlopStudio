@@ -1,0 +1,18 @@
+{
+  "format": "slop-case-workspace/1",
+  "description": "Variante: coleções de servidor-alfa/Projetos ainda carregando (sem valor anterior).",
+  "connections": [
+    {
+      "name": "servidor-alfa",
+      "connected": true,
+      "serverVersion": null,
+      "databases": {
+        "state": "Fresh",
+        "items": [
+          { "name": "Projetos", "collections": { "state": "Loading", "items": null } },
+          { "name": "Vendas", "collections": { "state": "Fresh", "items": [ { "name": "Faturas", "kind": "Collection" } ] } }
+        ]
+      }
+    }
+  ]
+}

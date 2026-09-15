@@ -1,0 +1,12 @@
+// case: target-let-reassigned-unknown
+// mode: Script
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: context-engine.md §Resolução do alvo (somente const única e estática vira Inferred) e §Revisão (redeclaração não herda destino)
+let p = db.Pedidos;
+p = db.Clientes;
+p.find({ | })
+// expect.target: Unknown
+// expect.target.not: servidor-alfa/Projetos/Pedidos
+// expect.absent: Field:total@Pedidos

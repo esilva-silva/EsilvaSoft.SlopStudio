@@ -1,0 +1,11 @@
+// case: search-compound-must-element
+// mode: Console
+// target: servidor-alfa/Projetos/Projetos
+// metadata: schemas/workspace.json
+// schema: schemas/projetos.json
+// spec: MongoDB Search: cada cláusula de must é um operador (text, equals, range, phrase…)
+db.Projetos.aggregate([ { $search: { compound: { must: [ { | } ] } } } ])
+// expect.role: PropertyKey
+// expect.kinds: SearchOperator
+// expect.present: text, equals, range, phrase, exists
+// expect.absent: $match, Field:Nome, $eq

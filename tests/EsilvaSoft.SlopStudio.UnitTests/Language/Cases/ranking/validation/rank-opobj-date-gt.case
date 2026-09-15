@@ -1,0 +1,11 @@
+// case: rank-opobj-date-gt
+// group: OperatorObject
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: ranking.md §2 (exato 1,00 › prefixo 0,90); mesmo rótulo em ExpressionOperator é inválido no objeto de operadores de consulta
+db.Pedidos.find({ criadoEm: { $gt| } })
+// expect.best: QueryOperator:$gt
+// expect.acceptable: QueryOperator:$gt, QueryOperator:$gte
+// expect.invalidTop5: ExpressionOperator:$gt, ExpressionOperator:$gte, $getField

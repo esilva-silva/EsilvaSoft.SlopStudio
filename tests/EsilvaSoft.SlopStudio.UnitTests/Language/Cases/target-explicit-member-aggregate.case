@@ -1,0 +1,7 @@
+// case: target-explicit-member-aggregate
+// mode: Console
+// target: servidor-alfa/Projetos
+// metadata: schemas/workspace.json
+// spec: MongoCompletionTargetTests.ExplicitPathsResolveWithoutEvaluatingCode caso "db.orders.aggregate([{ $match: {" (README §Mapeamento de nomes)
+db.Pedidos.aggregate([{ $match: {|
+// expect.target: servidor-alfa/Projetos/Pedidos Explicit

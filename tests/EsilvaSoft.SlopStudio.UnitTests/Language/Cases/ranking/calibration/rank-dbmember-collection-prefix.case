@@ -1,0 +1,10 @@
+// case: rank-dbmember-collection-prefix
+// group: DatabaseMember
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: ranking.md §2 (prefixo mesma caixa 0,90 › caixa diferente 0,85) e §4 (membro de Database: coleção › método); banco, método de cursor e acumulador inválidos como membro de Database
+db.Pe|
+// expect.best: Collection:Pedidos
+// expect.acceptable: Collection:Pedidos, Collection:pedidos-2025
+// expect.invalidTop5: Database:Projetos, pretty, $percentile

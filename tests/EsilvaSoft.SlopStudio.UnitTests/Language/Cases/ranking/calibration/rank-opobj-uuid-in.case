@@ -1,0 +1,11 @@
+// case: rank-opobj-uuid-in
+// group: OperatorObject
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: ranking.md §2 (prefixo); OperatorObject aceita só QueryOperator: $inc (update), $indexOfArray/$isArray/$isNumber/$ifNull (expressão) inválidos
+db.Clientes.find({ Id: { $i| } })
+// expect.best: $in
+// expect.acceptable: $in
+// expect.invalidTop5: $inc, $indexOfArray, $isArray, $isNumber, $ifNull

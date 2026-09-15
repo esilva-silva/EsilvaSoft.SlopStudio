@@ -1,0 +1,10 @@
+// case: ranges-method-without-paren-snippet
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: traditional-autocomplete.md §Faixas e aspas, linha 8 (método sem `(` à frente: find + snippet ({ $1 }); faixa = token parcial); mongodb-language.v1.json find.snippet
+db.Clientes.fi|
+// expect.role: MemberAccess
+// expect.replace: «fi»
+// expect.insert: find => snippet «find({ $1 })»
+// expect.applied: find => «db.Clientes.find({ | })»

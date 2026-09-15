@@ -95,13 +95,13 @@ public sealed class MetadataCatalogSource(IMetadataCache cache) : ICatalogSource
         if ((query.Kinds & MetadataKinds) == 0) return completeness;
         if (query.Connection is null) return CatalogCompleteness.Unavailable;
         var identity = ConnectionIdentity.From(query.Connection);
-        var connected = _cache.IsConnected(identity);
+        var access = query.Access;
         cancellationToken.ThrowIfCancellationRequested();
 
         if (Wants(query, SymbolKinds.Database))
         {
-            var view = _cache.GetDatabases(identity);
-            completeness = Worst(completeness, Completeness(view, connected));
+            var view = _cache.GetDatabases(identity, access);
+            completeness = Worst(completeness, Completeness(view));
             if (view.Value is { } databases)
                 Table(databases, name => name).Collect(query.Prefix, Remaining(query, sink), null, (name, match) => sink.Add(new(new CatalogSymbol(
                     $"meta:{identity.ProfileId:N}/{name}", SymbolKind.Database, name, "Banco de dados")
@@ -111,8 +111,8 @@ public sealed class MetadataCatalogSource(IMetadataCache cache) : ICatalogSource
 
         if (Wants(query, SymbolKinds.Collection | SymbolKinds.View | SymbolKinds.TimeSeriesCollection))
         {
-            var view = _cache.GetCollections(identity, query.Database);
-            completeness = Worst(completeness, Completeness(view, connected));
+            var view = _cache.GetCollections(identity, query.Database, access);
+            completeness = Worst(completeness, Completeness(view));
             if (view.Value is { } collections)
                 Table(collections, entry => entry.Name).Collect(query.Prefix, Remaining(query, sink), entry => Wants(query, KindOf(entry.Kind).ToFlag()),
                     (entry, match) => sink.Add(new(new CatalogSymbol($"meta:{identity.ProfileId:N}/{query.Database}/{entry.Name}", KindOf(entry.Kind), entry.Name, Describe(entry.Kind))
@@ -122,8 +122,8 @@ public sealed class MetadataCatalogSource(IMetadataCache cache) : ICatalogSource
 
         if (Wants(query, SymbolKinds.Index))
         {
-            var view = _cache.GetIndexes(identity, query.Database, query.Collection);
-            completeness = Worst(completeness, Completeness(view, connected));
+            var view = _cache.GetIndexes(identity, query.Database, query.Collection, access);
+            completeness = Worst(completeness, Completeness(view));
             if (view.Value is { } indexes)
                 Table(indexes, index => index.Name).Collect(query.Prefix, Remaining(query, sink), null, (index, match) => sink.Add(new(new CatalogSymbol(
                     $"meta:{identity.ProfileId:N}/{query.Database}/{query.Collection}/index/{index.Name}", SymbolKind.Index, index.Name, index.Keys)
@@ -132,10 +132,10 @@ public sealed class MetadataCatalogSource(IMetadataCache cache) : ICatalogSource
 
         if (Wants(query, SymbolKinds.Field))
         {
-            var definition = _cache.GetDefinition(identity, query.Database, query.Collection);
-            var indexes = _cache.GetIndexes(identity, query.Database, query.Collection);
-            var sampled = _cache.GetSampledSchema(identity, query.Database, query.Collection);
-            completeness = Worst(completeness, Worst(Completeness(definition, connected), Completeness(indexes, connected)));
+            var definition = _cache.GetDefinition(identity, query.Database, query.Collection, access);
+            var indexes = _cache.GetIndexes(identity, query.Database, query.Collection, access);
+            var sampled = _cache.GetSampledSchema(identity, query.Database, query.Collection, access);
+            completeness = Worst(completeness, Worst(Completeness(definition), Completeness(indexes)));
             var schema = MergedSchema(identity, query, definition.Value?.Validator, indexes.Value, sampled.Value);
             if (schema.Find(query.ParentPath) is { } parent)
                 parent.Children.Collect(query.Prefix, Remaining(query, sink), null, (field, match) => sink.Add(new(new CatalogSymbol(
@@ -181,13 +181,15 @@ public sealed class MetadataCatalogSource(IMetadataCache cache) : ICatalogSource
 
     private static CatalogCompleteness Worst(CatalogCompleteness first, CatalogCompleteness second) => first > second ? first : second;
 
-    private static CatalogCompleteness Completeness<T>(MetadataView<T> view, bool connected) where T : class => view switch
+    // Loading only while the cache reports a load in flight, which always ends with a terminal Changed; an unknown scope that nothing
+    // is loading (Peek, disconnected, cancelled) is unavailable, so a list never waits for a notification that will not come.
+    private static CatalogCompleteness Completeness<T>(MetadataView<T> view) where T : class => view switch
     {
         { Value: not null, Freshness: MetadataFreshness.Fresh } => CatalogCompleteness.Complete,
         { Value: not null } => CatalogCompleteness.Partial,
         { Freshness: MetadataFreshness.Loading } => CatalogCompleteness.Loading,
         { Freshness: MetadataFreshness.Failed } => CatalogCompleteness.Partial,
-        _ => connected ? CatalogCompleteness.Loading : CatalogCompleteness.Unavailable
+        _ => CatalogCompleteness.Unavailable
     };
 
     private static SymbolTraits Flags<T>(MetadataView<T> view) where T : class => view.Freshness == MetadataFreshness.Fresh ? SymbolTraits.None : SymbolTraits.Stale;

@@ -1,0 +1,17 @@
+{
+  "format": "slop-case-workspace/1",
+  "description": "Variante: listCollections de servidor-alfa/Projetos falhou (permissão/timeout) e ainda não há valor.",
+  "connections": [
+    {
+      "name": "servidor-alfa",
+      "connected": true,
+      "serverVersion": null,
+      "databases": {
+        "state": "Fresh",
+        "items": [
+          { "name": "Projetos", "collections": { "state": "Failed", "items": null } }
+        ]
+      }
+    }
+  ]
+}

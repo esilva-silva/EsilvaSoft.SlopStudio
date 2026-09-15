@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace EsilvaSoft.SlopStudio.Core;
 
 public sealed record WorkspacePreferences
@@ -23,6 +25,14 @@ public sealed record WorkspacePreferences
     /// Sessions without this value never sample automatically.
     /// </summary>
     public Guid[] SchemaSamplingProfileIds { get; init; } = [];
+    /// <summary>
+    /// Additive to version 1: null (absent) uses <see cref="Core.EditorKeyBindings.Defaults"/> and is not written back,
+    /// so sessions without custom shortcuts keep their shape.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public EditorKeyBindings? EditorKeyBindings { get; init; }
+
+    public void ValidateKeyBindings() => EditorKeyBindings?.Validate();
 
     public void ValidateMetadata()
     {

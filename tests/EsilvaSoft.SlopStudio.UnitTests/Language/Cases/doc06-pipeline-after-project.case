@@ -1,0 +1,16 @@
+// case: doc06-pipeline-after-project
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: 06-editor-bson-e-uuid.md §Casos obrigatórios (pipeline após $project: campos projetados e aliases inferidos); paridade com AggregationFieldInferenceTests.ProjectionAndUnsetRemoveFieldsAndKeepRenamedSubtrees (alias de subdocumento publica filhos)
+db.Clientes.aggregate([
+    { $project: { _id: 0, nomeCliente: "$Nome", status: 1, contato: "$Cliente" } },
+    { $match: { | } }
+])
+// expect.role: PropertyKey
+// expect.shape: Filter
+// expect.stage: 1 $match
+// expect.fields: nomeCliente, status, contato, contato.Id, contato.Nome
+// expect.present: Field:nomeCliente, Field:status, Field:contato.Id
+// expect.absent: Field:_id, Field:Id, Field:age, Field:items, Field:Cliente.Id

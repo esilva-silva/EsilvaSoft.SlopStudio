@@ -1,0 +1,12 @@
+// case: members-db-prefix-case-insensitive
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: ranking.md §2 (prefixo com caixa diferente casa); testing.md §Fixtures (Raiz e membros: db.)
+db.cli|
+// expect.role: MemberAccess
+// expect.receiver: Database
+// expect.kinds: Collection, DatabaseMethod
+// expect.replace: «cli»
+// expect.present: Collection:Clientes
+// expect.absent: Collection:Pedidos, find, Field:Cliente.Id

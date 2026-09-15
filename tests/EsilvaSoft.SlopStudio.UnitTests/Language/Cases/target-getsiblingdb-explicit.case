@@ -1,0 +1,7 @@
+// case: target-getsiblingdb-explicit
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: context-engine.md §Resolução do alvo (db.getSiblingDB("b").orders → conexão da aba, b, orders, Explicit)
+db.getSiblingDB("Vendas").Faturas.find({ | })
+// expect.target: servidor-alfa/Vendas/Faturas Explicit

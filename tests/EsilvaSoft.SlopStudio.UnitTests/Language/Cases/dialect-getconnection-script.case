@@ -1,0 +1,8 @@
+// case: dialect-getconnection-script
+// mode: Script
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: testing.md §Fixtures (Dialetos: getConnection só Console; texto equivalente a members-getconnection); receptor desconhecido não oferece métodos de outra superfície
+getConnection("relatorios").|
+// expect.role: MemberAccess
+// expect.absent: getDatabase, getDB, Database:Vendas, Collection:Faturas

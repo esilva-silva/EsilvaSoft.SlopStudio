@@ -1,0 +1,12 @@
+// case: ranges-collection-identifier
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: traditional-autocomplete.md §Faixas e aspas, linha 1 (coleção identificadora após db.: texto Clientes, faixa token parcial)
+db.Cli|
+// expect.role: MemberAccess
+// expect.replace: «Cli»
+// expect.insertSpan: «Cli»
+// expect.quote: None
+// expect.insert: Collection:Clientes => text «Clientes»
+// expect.applied: Collection:Clientes => «db.Clientes|»

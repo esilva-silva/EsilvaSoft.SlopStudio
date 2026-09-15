@@ -1,0 +1,11 @@
+// case: members-connectionpool-root
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: knowledge-catalog.md §Tipos de símbolo (Connection vem dos perfis); ConsoleBootstrap.js ConnectionPool (conexão por nome de propriedade)
+ConnectionPool.|
+// expect.role: MemberAccess
+// expect.kinds: Connection
+// expect.kinds.not: Database, Collection, CollectionMethod
+// expect.present: Connection:relatorios, Connection:servidor-alfa
+// expect.absent: find, getDatabase, Database:Vendas, Collection:Clientes

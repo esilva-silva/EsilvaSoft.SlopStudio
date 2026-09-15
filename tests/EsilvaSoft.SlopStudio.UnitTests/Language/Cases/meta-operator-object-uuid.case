@@ -1,0 +1,21 @@
+// case: meta-operator-object-uuid
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Exemplos (Id binData/UUID) e §CompletionContext (ObjectDepth 2, Quote None, Explicit)
+// note: $regex e $size são penalizados por tipo (ranking.md §3), não removidos; por isso aparecem em top5.not e não em absent.
+db.Clientes.find({ Id: { | } })
+// expect.role: PropertyKey
+// expect.shape: OperatorObject
+// expect.kinds: QueryOperator
+// expect.kinds.not: Field, AggregationStage, UpdateOperator
+// expect.parentField: Id
+// expect.valueTypes: uuid
+// expect.objectDepth: 2
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.replace: «»
+// expect.quote: None
+// expect.present: $eq, $ne, $in, $nin, $exists, $type
+// expect.top5.not: $regex, $size
+// expect.absent: $and, $or, $match, $set, Field:Nome

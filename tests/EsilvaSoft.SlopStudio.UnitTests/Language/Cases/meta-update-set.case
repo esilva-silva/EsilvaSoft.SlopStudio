@@ -1,0 +1,17 @@
+// case: meta-update-set
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: context-engine.md §Exemplos (updateOne parâmetro 1 Update → $set → FieldValueMap → Field, inclusive caminhos novos)
+// note: `id` é variável não declarada de propósito; o parser tolerante não avalia valores.
+db.Pedidos.updateOne({ _id: id }, { $set: { | } })
+// expect.role: PropertyKey
+// expect.shape: FieldValueMap
+// expect.kinds: Field
+// expect.kinds.not: UpdateOperator, AggregationStage, QueryOperator
+// expect.target: servidor-alfa/Projetos/Pedidos Explicit
+// expect.parentField: -
+// expect.replace: «»
+// expect.present: Field:total, Field:status, Field:itens, Field:clienteId
+// expect.absent: $set, $inc, $match, $eq, $each, Field:Nome@Clientes

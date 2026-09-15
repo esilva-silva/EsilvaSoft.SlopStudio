@@ -1,0 +1,12 @@
+// case: agg-fields-after-facet
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Pipelines ($facet: preservar inferência existente); paridade com AggregationFieldInferenceTests.FacetBranchesAreIndependentAndOutputExposesEachBranchShape
+db.Clientes.aggregate([ { $facet: { porStatus: [ { $count: "quantidade" } ], pagina: [ { $project: { _id: 0, Nome: 1 } } ] } }, { $match: { | } } ])
+// expect.role: PropertyKey
+// expect.stage: 1 $match
+// expect.fields: porStatus, porStatus.quantidade, pagina, pagina.Nome
+// expect.present: Field:pagina.Nome, Field:porStatus.quantidade
+// expect.absent: Field:Nome, Field:status

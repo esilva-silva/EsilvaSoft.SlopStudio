@@ -1,0 +1,12 @@
+// case: target-const-alias-inferred
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: context-engine.md §Resolução do alvo (const única, estática, anterior ao uso, no mesmo script → Inferred); testing.md §Fixtures (alias const)
+const p = db.Pedidos;
+p.find({ | })
+// expect.role: PropertyKey
+// expect.target: servidor-alfa/Projetos/Pedidos Inferred
+// expect.present: Field:total
+// expect.absent: Field:Nome@Clientes

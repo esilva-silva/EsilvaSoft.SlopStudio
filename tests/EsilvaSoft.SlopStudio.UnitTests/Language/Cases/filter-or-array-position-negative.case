@@ -1,0 +1,10 @@
+// case: filter-or-array-position-negative
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Localização (ArrayElement → elemento do shape); FilterArray.element = Filter: na posição de elemento cabe um objeto, não uma chave de campo
+db.Clientes.find({ $or: [ | ] })
+// expect.role: ArrayElement
+// expect.kinds.not: Field, QueryOperator
+// expect.absent: Field:Nome, $eq, $or, $match

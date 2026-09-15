@@ -1,0 +1,11 @@
+// case: members-db-collections-failed
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace-failed.json
+// spec: traditional-autocomplete.md §Estados da lista (falha de metadado: itens disponíveis, mensagem uma vez por escopo); IsIncomplete só para Loading/Stale (§Seleção de fontes)
+db.|
+// expect.role: MemberAccess
+// expect.incomplete: false
+// expect.listState: MetadataFailure
+// expect.present: getCollection, getSiblingDB, getName
+// expect.absent: Collection:Clientes

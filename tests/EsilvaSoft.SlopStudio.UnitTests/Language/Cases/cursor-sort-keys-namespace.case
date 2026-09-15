@@ -1,0 +1,12 @@
+// case: cursor-sort-keys-namespace
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: testing.md §Fixtures (Cursor e opções: sort); ranking.md §Confiança (filtro rígido de namespace); alvo do statement (Pedidos) difere do destino da aba (Clientes)
+db.Pedidos.find({ status: "pago" }).limit(10).sort({ | })
+// expect.role: PropertyKey
+// expect.shape: Sort
+// expect.target: servidor-alfa/Projetos/Pedidos Explicit
+// expect.present: Field:criadoEm, Field:total
+// expect.absent: Field:Nome@Clientes, Field:age@Clientes

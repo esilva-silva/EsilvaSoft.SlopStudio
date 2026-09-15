@@ -1,0 +1,31 @@
+{
+  "format": "slop-case-schema/1",
+  "description": "Schema sintético de Projetos/Clientes em servidor-alfa. Somente nomes, tipos e estrutura; nenhum valor de documento.",
+  "namespace": { "connection": "servidor-alfa", "database": "Projetos", "collection": "Clientes" },
+  "state": "Fresh",
+  "sampleSize": 100,
+  "fields": [
+    { "path": "_id", "types": ["objectId"], "required": true, "evidence": ["validator", "index"] },
+    { "path": "Id", "types": ["uuid"], "required": true, "evidence": ["validator", "index"] },
+    { "path": "Nome", "types": { "string": 100 }, "occurrences": 100, "required": true, "evidence": ["validator", "sample"] },
+    { "path": "status", "types": { "string": 97 }, "occurrences": 97, "evidence": ["sample", "index"] },
+    { "path": "age", "types": { "int": 78, "double": 2 }, "occurrences": 80, "evidence": ["sample"] },
+    { "path": "saldo", "types": ["long"], "evidence": ["validator"] },
+    { "path": "criadoEm", "types": ["date"], "required": true, "evidence": ["validator", "index"] },
+    { "path": "Cliente", "types": ["object"], "evidence": ["validator"] },
+    { "path": "Cliente.Id", "types": ["uuid"], "evidence": ["validator", "index"] },
+    { "path": "Cliente.Nome", "types": ["string"], "evidence": ["validator"] },
+    { "path": "items", "types": ["array"], "array": true, "arrayOfDocuments": true, "evidence": ["validator"] },
+    { "path": "items.sku", "types": ["string"], "evidence": ["validator"] },
+    { "path": "items.qtd", "types": ["int"], "evidence": ["validator"] },
+    { "path": "items.preco", "types": ["decimal"], "evidence": ["validator"] },
+    { "path": "tags", "types": { "array": 40 }, "occurrences": 40, "array": true, "elementTypes": ["string"], "evidence": ["sample"] },
+    { "segments": ["versao.schema"], "types": { "int": 100 }, "occurrences": 100, "evidence": ["sample"] }
+  ],
+  "indexes": [
+    { "name": "_id_", "keys": { "_id": 1 } },
+    { "name": "Id_1", "keys": { "Id": 1 }, "unique": true },
+    { "name": "status_1_criadoEm_-1", "keys": { "status": 1, "criadoEm": -1 } },
+    { "name": "Cliente.Id_1", "keys": { "Cliente.Id": 1 } }
+  ]
+}

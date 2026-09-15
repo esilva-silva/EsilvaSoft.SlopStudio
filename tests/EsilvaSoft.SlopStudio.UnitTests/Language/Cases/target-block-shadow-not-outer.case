@@ -1,0 +1,13 @@
+// case: target-block-shadow-not-outer
+// mode: Script
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: context-engine.md §Revisão (shadowing/redeclaração de aliases const); a confiança do resultado não é fixada (Inferred em Clientes ou Unknown), apenas proíbe a const externa (README D-14)
+const p = db.Pedidos;
+if (true) {
+    const p = db.Clientes;
+    p.find({ | });
+}
+// expect.target.not: servidor-alfa/Projetos/Pedidos
+// expect.absent: Field:total@Pedidos

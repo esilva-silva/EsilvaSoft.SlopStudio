@@ -1,0 +1,11 @@
+// case: rank-dbmember-case-exact
+// group: DatabaseMember
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: ranking.md §2 (exato com caixa diferente 0,95 › substring 0,40); coleção de outro banco e campo não são membros de Database
+db.clientes|
+// expect.best: Collection:Clientes
+// expect.acceptable: Collection:Clientes, Collection:historico-clientes
+// expect.invalidTop5: Collection:Faturas, Field:Cliente.Id@Clientes

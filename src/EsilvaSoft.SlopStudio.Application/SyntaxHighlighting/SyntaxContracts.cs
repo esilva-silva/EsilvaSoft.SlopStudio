@@ -1,3 +1,5 @@
+using EsilvaSoft.SlopStudio.Application.Language.Syntax;
+
 namespace EsilvaSoft.SlopStudio.Application.SyntaxHighlighting;
 
 public enum SyntaxLanguage { Json, MongoScript, Aggregation, AtlasSearch }
@@ -37,6 +39,10 @@ public sealed record SyntaxSnapshot(string Text, SyntaxLanguage Language, Syntax
     internal IReadOnlyList<SyntaxLine> Lines { get; init; } = [];
     public IReadOnlyList<int> LineStarts { get; init; } = [];
 }
-internal sealed record SyntaxLine(string Text, LexerState Before, LexerState After, IReadOnlyList<SyntaxToken> Tokens);
-internal sealed record LexerState(char Quote = '\0', bool BlockComment = false, string Frames = "", bool SearchPending = false,
+internal sealed record SyntaxLine(string Text, HighlightState Before, HighlightState After, SyntaxToken[] Tokens);
+/// <summary>
+/// State at a line boundary: the shared lexer state plus highlighting-only classification context (bracket frames,
+/// pending $search/aggregate, previous tokens and the namespace being resolved). Value equality drives line reuse.
+/// </summary>
+internal sealed record HighlightState(MongoLexerState Lexer = default, string Frames = "", bool SearchPending = false,
     bool AggregatePending = false, string Previous = "", string BeforePrevious = "", string Connection = "", string Database = "", string Collection = "");

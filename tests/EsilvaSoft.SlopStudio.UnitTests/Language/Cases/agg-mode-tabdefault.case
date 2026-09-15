@@ -1,0 +1,16 @@
+// case: agg-mode-tabdefault
+// mode: Agregação
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json, schemas/pedidos.json
+// spec: context-engine.md §Resolução do alvo (Modo Agregação → destino da aba, TabDefault); knowledge-catalog.md §Dialetos (AggregationJson: array de stages)
+[
+    { $match: { | } }
+]
+// expect.role: PropertyKey
+// expect.shape: Filter
+// expect.stage: 0 $match
+// expect.target: servidor-alfa/Projetos/Clientes TabDefault
+// expect.fields.include: Nome, status, Cliente.Id
+// expect.present: Field:Nome, $and
+// expect.absent: Field:total@Pedidos, find

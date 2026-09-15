@@ -1,0 +1,11 @@
+// case: rank-value-date-prefix
+// group: TypedValue
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: ranking.md §2 (prefixo com caixa diferente) e §4 (construtor do tipo date); operadores de expressão e keyword inválidos como valor
+db.Pedidos.find({ criadoEm: { $gte: IS| } })
+// expect.best: ISODate
+// expect.acceptable: ISODate
+// expect.invalidTop5: $isArray, $isoWeek, $isNumber, instanceof

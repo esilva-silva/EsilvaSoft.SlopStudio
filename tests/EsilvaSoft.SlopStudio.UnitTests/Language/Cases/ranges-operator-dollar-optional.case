@@ -1,0 +1,13 @@
+// case: ranges-operator-dollar-optional
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: ranking.md §2 ($ inicial opcional em posição de operador: `eq` casa `$eq`); traditional-autocomplete.md §Faixas e aspas, linha 6 (faixa = token parcial)
+db.Clientes.find({ age: { gt| } })
+// expect.role: PropertyKey
+// expect.parentField: age
+// expect.replace: «gt»
+// expect.present: $gt, $gte
+// expect.insert: $gt => text «$gt»
+// expect.applied: $gt => «db.Clientes.find({ age: { $gt| } })»

@@ -1,0 +1,10 @@
+// case: rank-collmember-find
+// group: CollectionMember
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: ranking.md §1 (dialeto) e §4 (leitura; rótulo mais curto); findOneAnd* são MongoshScript e inválidos no Console
+db.Clientes.fin|
+// expect.best: find
+// expect.acceptable: find, findOne
+// expect.invalidTop5: findOneAndUpdate, findOneAndReplace, findOneAndDelete

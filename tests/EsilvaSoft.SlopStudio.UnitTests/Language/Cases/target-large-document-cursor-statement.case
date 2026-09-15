@@ -1,0 +1,12 @@
+// case: target-large-document-cursor-statement
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json, schemas/pedidos.json
+// spec: G00 insumos (MongoCompletionTarget.Resolve devolve null acima de 64 KiB → NamespaceTargetResolver resolve pelo statement do cursor); context-engine.md §Limites (acima de 64 KiB: statement do cursor e vizinhos)
+// @fill: 70000
+db.Clientes.find({ | })
+// expect.role: PropertyKey
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.present: Field:Nome
+// expect.absent: Field:total@Pedidos

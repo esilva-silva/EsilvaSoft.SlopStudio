@@ -1,0 +1,11 @@
+// case: rank-filterkey-expr-without-dollar
+// group: FilterKey
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: ranking.md §2 ($ opcional em posição de operador); $exists só vale em OperatorObject; $exp/$expMovingAvg não são operadores de consulta; explain é MongoshScript
+db.Pedidos.find({ ex| })
+// expect.best: $expr
+// expect.acceptable: $expr
+// expect.invalidTop5: $exists, $exp, $expMovingAvg, explain

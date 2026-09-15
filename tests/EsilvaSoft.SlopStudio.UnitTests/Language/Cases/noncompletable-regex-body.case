@@ -1,0 +1,9 @@
+// case: noncompletable-regex-body
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Localização (NonCompletable: corpo de regex); 06 §UUID (regex nunca convertida)
+db.Clientes.find({ Nome: /^An|a/ })
+// expect.role: NonCompletable
+// expect.empty: true

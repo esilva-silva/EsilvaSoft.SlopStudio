@@ -1,0 +1,13 @@
+// case: agg-let-variable
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: testing.md §Fixtures ($$ e variáveis de let); AggregationFieldInferenceTests (let em $lookup publica $customerId e não campo); context-engine.md §Localização (VariableReferenceString)
+db.Pedidos.aggregate([ { $lookup: { from: "Clientes", let: { pedidoCliente: "$clienteId" }, pipeline: [ { $match: { $expr: { $eq: [ "$Id", "$$|" ] } } } ], as: "cliente" } } ])
+// expect.role: VariableReferenceString
+// expect.quote: Double
+// expect.variables: pedidoCliente
+// expect.replace: «$$»
+// expect.present: $$pedidoCliente, $$ROOT, $$NOW, $$CURRENT
+// expect.absent: Field:total, Field:Id@Clientes, $$clienteId, $sum

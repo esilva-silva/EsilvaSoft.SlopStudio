@@ -1,0 +1,13 @@
+// case: filter-root-without-schema
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: traditional-autocomplete.md §Estados da lista (campos desconhecidos → linha de ação "Amostrar schema (nomes e tipos, 100 documentos)"); AC-05 (amostra só por ação explícita)
+// note: sem // schema: a coleção tem definição e índices conhecidos e vazios, sem amostra (README §Schemas, coleção sem schema declarado).
+db.Clientes.find({ | })
+// expect.role: PropertyKey
+// expect.shape: Filter
+// expect.kinds: Field, QueryOperator
+// expect.listState: UnknownFields
+// expect.present: $and, $or, $expr
+// expect.absent: Field:Nome, Field:Id

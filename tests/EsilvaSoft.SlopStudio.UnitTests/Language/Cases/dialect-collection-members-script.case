@@ -1,0 +1,9 @@
+// case: dialect-collection-members-script
+// mode: Script
+// target: servidor-alfa/Projetos/Projetos
+// metadata: schemas/workspace.json
+// spec: testing.md §Fixtures (Dialetos: mesmo texto de dialect-collection-members-console); knowledge-catalog.md §Dialetos (MongoshScript: API do mongosh)
+db.Projetos.|
+// expect.role: MemberAccess
+// expect.receiver: Collection
+// expect.present: find, updateOne, createIndex, bulkWrite, findOneAndUpdate, getIndexes, renameCollection

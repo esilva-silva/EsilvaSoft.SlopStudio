@@ -1,0 +1,10 @@
+// case: rank-collmember-camelhumps
+// group: CollectionMember
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: ranking.md §2 (camel humps cD → countDocuments); $currentDate (update), count (MongoshScript, depreciado) e createCollection (Database) inválidos
+db.Clientes.cD|
+// expect.best: countDocuments
+// expect.acceptable: countDocuments
+// expect.invalidTop5: $currentDate, count, createCollection

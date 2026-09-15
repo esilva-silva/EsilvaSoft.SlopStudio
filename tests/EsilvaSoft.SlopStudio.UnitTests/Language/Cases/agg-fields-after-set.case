@@ -1,0 +1,11 @@
+// case: agg-fields-after-set
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Pipelines ($set adiciona nomes literais; tipo calculado desconhecido); AggregationFieldInferenceTests.GroupReplacesInputShapeAndSetPreservesItsInputForAllAssignments
+db.Clientes.aggregate([ { $set: { nomeMaiusculo: { $toUpper: "$Nome" } } }, { $match: { | } } ])
+// expect.role: PropertyKey
+// expect.stage: 1 $match
+// expect.fields.include: nomeMaiusculo, Nome, status, items.sku
+// expect.present: Field:nomeMaiusculo, Field:Nome

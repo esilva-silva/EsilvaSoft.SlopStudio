@@ -1,0 +1,14 @@
+// case: doc06-update-first-level
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: 06-editor-bson-e-uuid.md §Casos obrigatórios (update no primeiro nível: operadores de update, não estágios); mongodb-language.v1.json shape Update (categorias field, array, bitwise — sem modifier/positional)
+db.Clientes.updateOne({ Id: UUID("00000000-0000-0000-0000-000000000000") }, { | })
+// expect.role: PropertyKey
+// expect.shape: Update
+// expect.kinds: UpdateOperator
+// expect.kinds.not: AggregationStage, Field, QueryOperator
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.present: $set, $unset, $inc, $push, $pull, $addToSet, $rename, $currentDate, $setOnInsert
+// expect.absent: AggregationStage:$set, $match, $group, $project, $lookup, $each, $[], $eq, Field:Nome

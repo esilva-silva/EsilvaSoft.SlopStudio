@@ -1,0 +1,11 @@
+// case: rank-group-avg
+// group: GroupBody
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: ranking.md §4 (rótulo mais curto entre acumuladores); $add/$abs/$and/$arrayElemAt (expressão), $addFields (stage) e $all (consulta) inválidos em AccumulatorObject
+db.Pedidos.aggregate([ { $group: { _id: null, media: { $a| } } } ])
+// expect.best: $avg
+// expect.acceptable: $avg, $addToSet, $accumulator
+// expect.invalidTop5: $add, $abs, $and, $addFields, $all, $arrayElemAt

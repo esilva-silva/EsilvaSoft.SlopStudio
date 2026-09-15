@@ -1,0 +1,11 @@
+// case: rank-filterkey-logical
+// group: FilterKey
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: mongodb-language.v1.json Filter ($or válido na raiz); $out (stage), $objectToArray (expressão) e $options (só em OperatorObject) são inválidos na raiz
+db.Clientes.find({ status: "ativo", $o| })
+// expect.best: $or
+// expect.acceptable: $or
+// expect.invalidTop5: $out, $objectToArray, $options

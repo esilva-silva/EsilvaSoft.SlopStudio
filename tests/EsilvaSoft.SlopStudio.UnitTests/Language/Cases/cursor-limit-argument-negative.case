@@ -1,0 +1,10 @@
+// case: cursor-limit-argument-negative
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: mongodb-language.v1.json limit(NonNegativeInteger): nenhum campo, operador ou método é válido como argumento
+db.Pedidos.find({}).limit(|)
+// expect.role: CallArgument
+// expect.kinds.not: Field, QueryOperator, CursorMethod
+// expect.absent: Field:total, $eq, find, sort

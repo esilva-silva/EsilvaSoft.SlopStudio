@@ -1,0 +1,11 @@
+// case: rank-opobj-array-size
+// group: OperatorObject
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: ranking.md §2 (único QueryOperator com prefixo $s) e §3 ($size compatível com array); $set/$sort/$slice/$skip/$setOnInsert/$sum não são QueryOperator
+db.Clientes.find({ tags: { $s| } })
+// expect.best: $size
+// expect.acceptable: $size
+// expect.invalidTop5: $set, $sum, $sort, $slice, $skip, $setOnInsert

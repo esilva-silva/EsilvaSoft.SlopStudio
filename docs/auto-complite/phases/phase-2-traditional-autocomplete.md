@@ -109,6 +109,20 @@ Substituir o menu `Ctrl+Espaço` por uma lista contextual (`Ctrl+.`) baseada em 
 IA explícita, mudanças no preemptivo além de mover trabalho da UI para o catálogo, persistência de uso, tela de edição de atalhos.
 
 
+## Estado da implementação
+
+Execução iniciada em 15/09/2026 com os perfis de [agents](../agents/README.md). Validação somente em Windows x64 (AMD Ryzen 9 7900, Windows 11 25H2, .NET 10.0.12); Linux e ARM fora do critério desta fase.
+
+| Incremento | Estado | Evidência |
+| --- | --- | --- |
+| Pré-requisito K12 (MongoDB Knowledge) | Concluído | Geração por entrada no `MetadataCache`: write-through, invalidação soft, disconnect e opt-out descartam carga/amostra tardias; `Changed` terminal com `Key` para sucesso, falha, cancelamento e descarte; `CatalogQuery.Access` propagado a todos os `Get` (Peek não agenda carga; escopo sem valor e sem carga = `Unavailable`). Os 3 `PhaseOneReviewTests` vermelhos da Fase 1 passam sem mudança de asserção; 14 testes novos |
+| Pré-requisito T08 Core (Traditional Completion) | Concluído (Core/persistência) | `AutocompleteSettings.CompletionAutoOpenOnTrigger=false`, `CompletionEnterAccepts=true`; `WorkspacePreferences.EditorKeyBindings` v1 aditivo com `EditorKeyGesture` (tecla nomeada ou pontuação, sem Avalonia); ausente → padrões não gravados; inválido, repetido ou em conflito → sessão ilegível, falha visível e nunca sobrescrita (leitura, gravação e autosave). 54 testes. Despacho de teclado pendente (2.5) |
+| 2.1 Snapshot e lexer compartilhado | Application concluída; `AvaloniaTextSnapshot` pendente | `Language.Text` (`TextSpan`, `ITextSnapshot`, `TextSnapshotVersion(DocumentId, Sequence)`, `StringTextSnapshot`) e `Language.Syntax.MongoLexer` único, consumido pelo highlighting. Golden de 235 casos gerado **antes** da extração e idêntico depois; `SyntaxHighlighting*` sem alteração; PNGs `syntax-*` idênticos na região do editor (diferença intermitente só no aviso de autosave da barra de status, anterior a este lote). Job curto (não é aceite): highlight 16 KiB 471,7 → 113,3 µs (1 322 → 306 KB); 64 KiB 3 631,6 → 957,4 µs (5 296 → 1 242 KB); `MongoLexer.Tokenize` 1 MB 2,6 ms sem alocação |
+| 2.2 Parser tolerante incremental | Em andamento | — |
+| 2.3–2.6 | Pendentes | — |
+
+Suíte após integração dos lotes acima: 1 021 testes aprovados, 0 falhas.
+
 ## Revisão de tarefas e pré-requisitos
 
 [C21–C25 e T01–T08](../execution-plan.md) refinam os incrementos acima. Parser de statement primeiro, incrementalidade depois; manter AggregationFieldInference/facet/count até paridade. Presenter compartilhado T07 é prototipado aqui para atender Fase 4 e 5.1 sem ciclo de dependência. Ghost atual pode continuar até integração aprovada; nunca remover serviços ainda usados por ele.

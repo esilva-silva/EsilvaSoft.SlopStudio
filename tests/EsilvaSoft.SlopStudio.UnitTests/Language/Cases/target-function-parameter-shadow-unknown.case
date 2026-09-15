@@ -1,0 +1,13 @@
+// case: target-function-parameter-shadow-unknown
+// mode: Script
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: context-engine.md §Revisão (shadowing de aliases const; bloco opaco não autoriza buscar sem escopo confiável; fallback Unknown)
+const p = db.Pedidos;
+function listar(p) {
+    return p.find({ | });
+}
+// expect.target: Unknown
+// expect.target.not: servidor-alfa/Projetos/Pedidos
+// expect.absent: Field:total@Pedidos

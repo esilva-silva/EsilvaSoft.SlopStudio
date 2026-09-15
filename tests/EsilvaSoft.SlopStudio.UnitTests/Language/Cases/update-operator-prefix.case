@@ -1,0 +1,13 @@
+// case: update-operator-prefix
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: mongodb-language.v1.json shape Update (UpdateOperator field/array/bitwise); modifiers ($each…) e positionals ($, $[]) não são chaves de primeiro nível
+db.Clientes.updateOne({ Id: UUID("00000000-0000-0000-0000-000000000000") }, { $| })
+// expect.role: PropertyKey
+// expect.shape: Update
+// expect.kinds: UpdateOperator
+// expect.replace: «$»
+// expect.present: $set, $unset, $inc, $push, $addToSet, $currentDate, $bit
+// expect.absent: $each, $position, $, $[], $match, $group, $eq, $sum

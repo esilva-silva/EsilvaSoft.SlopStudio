@@ -1,0 +1,10 @@
+// case: ranges-method-with-paren-name-only
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: traditional-autocomplete.md §Faixas e aspas, linha 9 (método com `(` à frente: apenas o nome; faixa = token parcial)
+db.Clientes.fi|({ status: "ativo" })
+// expect.role: MemberAccess
+// expect.replace: «fi»
+// expect.insert: find => text «find»
+// expect.applied: find => «db.Clientes.find|({ status: "ativo" })»

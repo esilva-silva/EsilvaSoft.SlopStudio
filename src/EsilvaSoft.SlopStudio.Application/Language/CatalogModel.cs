@@ -97,6 +97,11 @@ public sealed record CatalogQuery(SymbolKinds Kinds, EditorDialects Dialect, str
     /// <summary>Tab-local evidence, such as fields of results loaded in the tab.</summary>
     public IReadOnlyList<CollectionSchema> LocalSchemas { get; init; } = [];
     public int MaximumCandidates { get; init; } = 200;
+    /// <summary>
+    /// Applied to every metadata read of the query. Explicit invocation may use <see cref="MetadataAccess.LoadIfNeeded"/> for the requested scopes;
+    /// automatic requests and refiltering use <see cref="MetadataAccess.Peek"/> and never schedule remote work.
+    /// </summary>
+    public MetadataAccess Access { get; init; } = MetadataAccess.LoadIfNeeded;
 }
 
 public interface ICatalogSource

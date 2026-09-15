@@ -1,0 +1,12 @@
+// case: ranges-dotted-closed-quote
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: traditional-autocomplete.md §Faixas e aspas, linhas 4 e 5 combinadas (caminho com ponto dentro de string já fechada adiante)
+// note: as linhas 4 e 5 da tabela se sobrepõem aqui; só o texto final é afirmado, sem posição do cursor (README D-05).
+db.Clientes.find({ "Cliente.|": 1 })
+// expect.role: PropertyKeyString
+// expect.quote: Double
+// expect.parentField: Cliente
+// expect.applied: Field:Cliente.Id => «db.Clientes.find({ "Cliente.Id": 1 })»

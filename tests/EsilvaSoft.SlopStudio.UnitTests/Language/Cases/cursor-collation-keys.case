@@ -1,0 +1,12 @@
+// case: cursor-collation-keys
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: testing.md §Fixtures (collation); mongodb-language.v1.json shape Collation
+db.Clientes.find({}).collation({ | })
+// expect.role: PropertyKey
+// expect.shape: Collation
+// expect.kinds.not: Field, QueryOperator
+// expect.present: locale, strength, caseLevel, numericOrdering
+// expect.absent: Field:Nome, $eq, $match

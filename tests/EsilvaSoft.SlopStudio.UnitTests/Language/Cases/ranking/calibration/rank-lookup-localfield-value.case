@@ -1,0 +1,11 @@
+// case: rank-lookup-localfield-value
+// group: LookupBody
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: mongodb-language.v1.json LookupBody.localField (FieldPathString da coleção de entrada); campos de from e nome de coleção inválidos
+db.Pedidos.aggregate([ { $lookup: { from: "Clientes", localField: "cl|" } } ])
+// expect.best: Field:clienteId@Pedidos
+// expect.acceptable: Field:clienteId@Pedidos
+// expect.invalidTop5: Field:Cliente.Id@Clientes, Field:Cliente.Nome@Clientes, Collection:Clientes

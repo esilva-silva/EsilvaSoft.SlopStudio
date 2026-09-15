@@ -1,0 +1,11 @@
+// case: rank-opobj-string-regex
+// group: OperatorObject
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: ranking.md §2 ($ opcional) e §3 ($regex compatível com string); $regexMatch/$regexFind/$reduce (expressão), $replaceRoot (stage), renameCollection (método) inválidos
+db.Clientes.find({ Nome: { re| } })
+// expect.best: $regex
+// expect.acceptable: $regex
+// expect.invalidTop5: $regexMatch, $regexFind, $reduce, $replaceRoot, renameCollection

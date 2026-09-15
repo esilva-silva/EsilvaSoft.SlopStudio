@@ -1,0 +1,11 @@
+// case: incomplete-missing-close-before-next-statement
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json, schemas/pedidos.json
+// spec: context-engine.md §Recuperação de erro (delimitador ausente na fronteira do statement) e §Revisão (fronteiras não só por newline); o statement seguinte não pode redirecionar o alvo do cursor
+db.Clientes.find({ |
+db.Pedidos.find({ total: 1 })
+// expect.role: PropertyKey
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.absent: Field:total@Pedidos

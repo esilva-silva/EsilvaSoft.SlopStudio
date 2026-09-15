@@ -1,0 +1,13 @@
+// case: ranges-operator-quoted-style
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: traditional-autocomplete.md §Faixas e aspas, linha 6 (estilo dominante com aspas no objeto e no statement)
+db.Clientes.find({ "age": { "$lt": 60, $g| } })
+// expect.role: PropertyKey
+// expect.quote: None
+// expect.parentField: age
+// expect.replace: «$g»
+// expect.insert: $gte => text «"$gte"»
+// expect.applied: $gte => «db.Clientes.find({ "age": { "$lt": 60, "$gte"| } })»

@@ -1,0 +1,10 @@
+// case: target-getcollection-const-string-unknown
+// mode: Script
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json, schemas/pedidos.json
+// spec: context-engine.md §Resolução do alvo (db.getCollection(nome) com variável → Unknown; Inferred vale para alias de coleção, não para valor de string) e §Não objetivos (não resolver valores de variáveis)
+const nome = "Clientes";
+db.getCollection(nome).find({ | })
+// expect.target: Unknown
+// expect.absent: Field:Nome@Clientes, Field:total@Pedidos

@@ -1,0 +1,7 @@
+// case: target-getconnection-variable-unknown
+// mode: Console
+// target: servidor-alfa/Projetos
+// metadata: schemas/workspace.json
+// spec: MongoCompletionTargetTests.UnknownOrCommentedPathsDoNotReuseAnotherCollection caso "getConnection(variable).getDatabase('other').orders.find({"
+getConnection(variavel).getDatabase('Vendas').Faturas.find({|
+// expect.target: Unknown

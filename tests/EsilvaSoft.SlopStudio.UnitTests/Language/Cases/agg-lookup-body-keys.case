@@ -1,0 +1,12 @@
+// case: agg-lookup-body-keys
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: mongodb-language.v1.json LookupBody (from, localField, foreignField, let, pipeline, as)
+db.Pedidos.aggregate([ { $lookup: { from: "Clientes", | } } ])
+// expect.role: PropertyKey
+// expect.shape: LookupBody
+// expect.existingKeys: from
+// expect.present: localField, foreignField, let, pipeline, as
+// expect.absent: $match, Field:total, $eq

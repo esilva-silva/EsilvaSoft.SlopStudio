@@ -1,0 +1,11 @@
+// case: rank-pipeline-stage-lookup
+// group: PipelineElement
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: ranking.md §2 (prefixo); $log/$log10 (expressão, rótulos mais curtos) e $locf (janela) casam o prefixo e são inválidos como chave de stage
+db.Pedidos.aggregate([ { $lo| } ])
+// expect.best: $lookup
+// expect.acceptable: $lookup, Snippet:stage.lookup
+// expect.invalidTop5: $log, $log10, $locf

@@ -1,0 +1,10 @@
+// case: update-replace-document-negative
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: mongodb-language.v1.json replaceOne parâmetro 1 Document; MongoDB: documento de substituição não pode conter operadores de update
+db.Clientes.replaceOne({ status: "ativo" }, { | })
+// expect.role: PropertyKey
+// expect.kinds.not: UpdateOperator, AggregationStage
+// expect.absent: $set, $inc, $unset, $match

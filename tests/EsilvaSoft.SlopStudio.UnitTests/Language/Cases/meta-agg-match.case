@@ -1,0 +1,17 @@
+// case: meta-agg-match
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: context-engine.md §Exemplos ($match → Filter com escopo de campos do stage 0 = schema da coleção)
+db.Pedidos.aggregate([
+    { $match: { | } }
+])
+// expect.role: PropertyKey
+// expect.shape: Filter
+// expect.kinds: Field, QueryOperator
+// expect.stage: 0 $match
+// expect.target: servidor-alfa/Projetos/Pedidos Explicit
+// expect.fields: _id, clienteId, total, status, itens, itens.sku, itens.qtd, criadoEm, observacao
+// expect.present: Field:clienteId, Field:total, Field:status, $and, $or, $expr
+// expect.absent: $group, $sum, $set, Field:Nome@Clientes

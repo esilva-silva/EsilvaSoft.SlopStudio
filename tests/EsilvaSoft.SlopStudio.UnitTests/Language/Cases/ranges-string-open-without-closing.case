@@ -1,0 +1,12 @@
+// case: ranges-string-open-without-closing
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: traditional-autocomplete.md §Faixas e aspas, linha 5 (dentro de string já aberta: só o conteúdo; fecha a aspa porque não há fechamento adiante)
+db.Clientes.find({ "No| })
+// expect.role: PropertyKeyString
+// expect.quote: Double
+// expect.replace: «No»
+// expect.insert: Field:Nome => text «Nome"»
+// expect.applied: Field:Nome => «db.Clientes.find({ "Nome"| })»

@@ -1,0 +1,14 @@
+// case: agg-project-keys
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: testing.md §Fixtures (Agregação: $project); mongodb-language.v1.json $project.valueShape = Projection (FieldPath)
+db.Clientes.aggregate([ { $project: { | } } ])
+// expect.role: PropertyKey
+// expect.shape: Projection
+// expect.kinds: Field
+// expect.kinds.not: QueryOperator, AggregationStage, Accumulator
+// expect.stage: 0 $project
+// expect.present: Field:Nome, Field:Id, Field:status
+// expect.absent: $eq, $match, $sum, $and

@@ -1,0 +1,10 @@
+// case: dialect-statement-start-console
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: context-engine.md §Localização (StatementStart: raízes DSL, funções globais, keywords); mongodb-language.v1.json DslRoot/GlobalFunction por dialeto (ConnectionPool, ENV, getConnection só Console; print/use só MongoshScript)
+|
+// expect.role: StatementStart
+// expect.kinds: DslRoot, GlobalFunction, Keyword
+// expect.present: db, ConnectionPool, getConnection, ENV, console, EJSON, UUID, const
+// expect.absent: print, printjson, use, show, find, $match

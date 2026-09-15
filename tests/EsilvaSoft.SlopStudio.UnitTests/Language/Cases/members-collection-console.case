@@ -1,0 +1,13 @@
+// case: members-collection-console
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: testing.md §Fixtures (db.Clientes.); ConsoleBootstrap.js CollectionProxy; o alvo vem do texto (Pedidos), não do destino da aba (Clientes)
+db.Pedidos.|
+// expect.role: MemberAccess
+// expect.receiver: Collection
+// expect.kinds: CollectionMethod
+// expect.target: servidor-alfa/Projetos/Pedidos Explicit
+// expect.replace: «»
+// expect.present: find, findOne, aggregate, countDocuments, distinct, insertOne, updateOne, deleteMany, createIndex
+// expect.absent: bulkWrite, getIndexes, getSiblingDB, sort, toArray, Collection:Clientes, $match

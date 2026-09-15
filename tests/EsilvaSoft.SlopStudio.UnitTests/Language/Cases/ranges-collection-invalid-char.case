@@ -1,0 +1,15 @@
+// case: ranges-collection-invalid-char
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: traditional-autocomplete.md §Faixas e aspas, linha 2 (coleção com caractere inválido: ["pedidos-2025"], faixa inclui o `.` e o parcial — comportamento atual preservado)
+db.ped|
+// expect.role: MemberAccess
+// expect.replace: «ped»
+// expect.editRange: Collection:pedidos-2025 => «.ped»
+// expect.editRange: Collection:Pedidos => «ped»
+// expect.present: Collection:pedidos-2025, Collection:Pedidos
+// expect.insert: Collection:pedidos-2025 => text «["pedidos-2025"]»
+// expect.applied: Collection:pedidos-2025 => «db["pedidos-2025"]|»
+// expect.insert: Collection:Pedidos => text «Pedidos»
+// expect.applied: Collection:Pedidos => «db.Pedidos|»

@@ -1,0 +1,13 @@
+// case: members-getconnection
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: testing.md §Fixtures (getConnection("P").); ConsoleBootstrap.js ConnectionProxy (getDatabase + banco por nome de propriedade); mongodb-language.v1.json getConnection returns Connection
+db.getName(); getConnection("relatorios").|
+// expect.role: MemberAccess
+// expect.receiver: Connection
+// expect.kinds: ConnectionMethod, Database
+// expect.kinds.not: CollectionMethod, DatabaseMethod
+// expect.target: relatorios//
+// expect.present: getDatabase, Database:Vendas
+// expect.absent: getDB, getCollection, find, Database:Projetos

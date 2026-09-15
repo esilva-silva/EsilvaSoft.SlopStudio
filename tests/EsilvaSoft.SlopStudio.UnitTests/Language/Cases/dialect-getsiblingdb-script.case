@@ -1,0 +1,10 @@
+// case: dialect-getsiblingdb-script
+// mode: Script
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: testing.md §Fixtures (Dialetos: mesmo texto de members-getsiblingdb no Console); mongodb-language.v1.json DatabaseMethod MongoshScript (getCollectionNames, runCommand)
+db.getSiblingDB("Vendas").|
+// expect.role: MemberAccess
+// expect.receiver: Database
+// expect.target: servidor-alfa/Vendas/ Explicit
+// expect.present: getCollectionNames, runCommand, getCollection, Collection:Faturas

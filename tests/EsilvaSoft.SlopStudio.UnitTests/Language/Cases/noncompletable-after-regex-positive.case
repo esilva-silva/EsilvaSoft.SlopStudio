@@ -1,0 +1,10 @@
+// case: noncompletable-after-regex-positive
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: controle positivo: após o fim da regex o contexto volta a ser completável
+db.Clientes.find({ Nome: /^A/ }).|
+// expect.role: MemberAccess
+// expect.receiver: Cursor
+// expect.present: sort, limit

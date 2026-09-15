@@ -1,0 +1,10 @@
+// case: members-db-collections-stale
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace-stale.json
+// spec: traditional-autocomplete.md §Seleção de fontes (Stale → IsIncomplete) e §Estados da lista (Stale: itens + indicação discreta); knowledge-catalog.md §Políticas (stale-while-revalidate)
+db.|
+// expect.role: MemberAccess
+// expect.incomplete: true
+// expect.listState: Stale
+// expect.present: Collection:Clientes, Collection:Pedidos, getCollection

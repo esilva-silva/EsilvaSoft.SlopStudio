@@ -1,0 +1,9 @@
+// case: dialect-cursor-members-script
+// mode: Script
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: testing.md §Fixtures (Dialetos: mesmo texto de members-cursor-after-find no Console); mongodb-language.v1.json CursorMethod MongoshScript
+db.Clientes.find({}).|
+// expect.role: MemberAccess
+// expect.receiver: Cursor
+// expect.present: forEach, hasNext, next, pretty, itcount, sort, toArray

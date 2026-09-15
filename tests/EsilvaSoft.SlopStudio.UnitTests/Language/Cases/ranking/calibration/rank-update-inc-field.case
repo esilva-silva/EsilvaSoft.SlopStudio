@@ -1,0 +1,11 @@
+// case: rank-update-inc-field
+// group: Update
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: mongodb-language.v1.json FieldValueMap (FieldPath); método e acumulador inválidos como chave
+db.Clientes.updateOne({}, { $inc: { ag| } })
+// expect.best: Field:age
+// expect.acceptable: Field:age
+// expect.invalidTop5: aggregate, $avg

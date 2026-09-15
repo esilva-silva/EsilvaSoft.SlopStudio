@@ -1,0 +1,12 @@
+// case: incomplete-unterminated-string-previous-line
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json, schemas/pedidos.json
+// spec: context-engine.md §Recuperação de erro (string não fechada → literal Unterminated); JavaScript: string com aspas não atravessa quebra de linha
+db.Clientes.find({ Nome: "Ana })
+db.Pedidos.find({ | })
+// expect.role: PropertyKey
+// expect.target: servidor-alfa/Projetos/Pedidos Explicit
+// expect.present: Field:total
+// expect.absent: Field:Nome@Clientes

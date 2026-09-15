@@ -1,0 +1,11 @@
+// case: rank-projection-stage-total
+// group: SortProjection
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: mongodb-language.v1.json $project.valueShape = Projection (FieldPath); operadores de expressão não são chave de projeção
+db.Pedidos.aggregate([ { $project: { tot| } } ])
+// expect.best: Field:total
+// expect.acceptable: Field:total
+// expect.invalidTop5: $toString, $toDate

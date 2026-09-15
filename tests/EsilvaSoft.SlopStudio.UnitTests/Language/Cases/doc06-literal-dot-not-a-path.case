@@ -1,0 +1,12 @@
+// case: doc06-literal-dot-not-a-path
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: 06-editor-bson-e-uuid.md §Casos obrigatórios (campo com ponto literal: distinguir chave literal de caminho); context-engine.md §Revisão (identidade por segmentos); MongoDB: em filtro, "versao.schema" é caminho versao → schema, não o campo literal
+db.Clientes.find({ "versao.| })
+// expect.role: PropertyKeyString
+// expect.kinds: Field
+// expect.parentField: versao
+// expect.quote: Double
+// expect.absent: Field:["versao.schema"], Field:Nome

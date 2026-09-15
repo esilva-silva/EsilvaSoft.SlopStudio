@@ -1,0 +1,13 @@
+// case: agg-group-id-reference
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: context-engine.md §Localização (FieldReferenceString); mongodb-language.v1.json GroupBody._id = Expression (FieldReference)
+db.Pedidos.aggregate([ { $group: { _id: "$|" } } ])
+// expect.role: FieldReferenceString
+// expect.quote: Double
+// expect.kinds: Field
+// expect.replace: «$»
+// expect.present: Field:clienteId, Field:status, Field:itens.sku
+// expect.absent: Field:Nome@Clientes, $sum, $$ROOT

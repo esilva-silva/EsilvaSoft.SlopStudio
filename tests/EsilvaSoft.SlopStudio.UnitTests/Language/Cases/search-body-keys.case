@@ -1,0 +1,12 @@
+// case: search-body-keys
+// mode: Console
+// target: servidor-alfa/Projetos/Projetos
+// metadata: schemas/workspace.json
+// schema: schemas/projetos.json
+// spec: mongodb-language.v1.json SearchBody (index, SearchOperator, highlight/count/…); must/should são SearchOption e só valem dentro de compound
+db.Projetos.aggregate([ { $search: { | } } ])
+// expect.role: PropertyKey
+// expect.shape: SearchBody
+// expect.kinds: SearchOperator
+// expect.present: index, compound, text, autocomplete, highlight
+// expect.absent: must, should, path, $match, Field:Nome

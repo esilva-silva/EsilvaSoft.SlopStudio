@@ -1,0 +1,11 @@
+// case: agg-group-body-keys
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: mongodb-language.v1.json GroupBody (_id obrigatório + Dynamic AccumulatorObject); acumuladores só dentro do objeto de cada campo
+db.Pedidos.aggregate([ { $group: { | } } ])
+// expect.role: PropertyKey
+// expect.shape: GroupBody
+// expect.present: _id
+// expect.absent: $sum, $avg, $match, $eq, find

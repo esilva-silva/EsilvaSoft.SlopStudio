@@ -1,0 +1,14 @@
+// case: agg-lookup-local-field
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: mongodb-language.v1.json LookupBody.localField = FieldPathString sem escopo estrangeiro; AggregationFieldInferenceTests.LookupUsesForeignFieldsOnlyAtForeignPositionsAndPublishesAlias
+db.Pedidos.aggregate([ { $lookup: { from: "Clientes", localField: "|" } } ])
+// expect.role: PropertyValue
+// expect.quote: Double
+// expect.kinds: Field
+// expect.target: servidor-alfa/Projetos/Pedidos Explicit
+// expect.replace: «»
+// expect.present: Field:clienteId, Field:total
+// expect.absent: Field:Nome@Clientes, Field:age@Clientes

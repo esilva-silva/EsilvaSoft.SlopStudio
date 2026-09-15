@@ -1,0 +1,13 @@
+// case: update-push-each
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: testing.md §Fixtures (Updates: $push com $each); MongoDB: $push aceita { $each, $position, $slice, $sort }
+// note: o catálogo não liga os modificadores ao valor de $push (FieldValueMap → FieldValue); exige dado novo (README D-09).
+db.Clientes.updateOne({}, { $push: { items: { | } } })
+// expect.role: PropertyKey
+// expect.parentField: items
+// expect.kinds: UpdateOperator
+// expect.present: $each, $position, $slice, $sort
+// expect.absent: $match, $set, $eq, $push

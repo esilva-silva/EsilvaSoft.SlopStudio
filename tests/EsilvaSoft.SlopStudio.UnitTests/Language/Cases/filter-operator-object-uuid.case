@@ -1,0 +1,17 @@
+// case: filter-operator-object-uuid
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// schema: schemas/clientes.json
+// spec: testing.md §Fixtures de contexto (exemplo do formato, texto e top5 literais); context-engine.md §Exemplos (Id binData/UUID)
+// note: o exemplo de testing.md lista $size em absent; ranking.md §1 manda penalizar tipo incompatível sem remover. Adotado ranking.md: $size vai para top5.not (README D-01). O top5 literal exige que $gt/$lt fiquem abaixo de $exists para UUID (README D-02).
+db.Clientes.find({
+    Id: {
+        |
+    }
+})
+// expect.role: PropertyKey
+// expect.kinds: QueryOperator
+// expect.parentField: Id
+// expect.top5: $eq, $in, $ne, $nin, $exists
+// expect.top5.not: $size, $regex
+// expect.absent: $match

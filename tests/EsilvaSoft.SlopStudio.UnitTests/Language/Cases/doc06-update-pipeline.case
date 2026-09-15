@@ -1,0 +1,17 @@
+// case: doc06-update-pipeline
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: 06-editor-bson-e-uuid.md §Casos obrigatórios (pipeline de update: apenas estágios permitidos); mongodb-language.v1.json UpdateStage ($addFields, $set, $project, $unset, $replaceRoot, $replaceWith)
+db.Clientes.updateOne({ Id: UUID("00000000-0000-0000-0000-000000000000") }, [
+    { $set: { atualizadoEm: "$$NOW" } },
+    { | }
+])
+// expect.role: PropertyKey
+// expect.shape: UpdateStage
+// expect.kinds: AggregationStage
+// expect.kinds.not: UpdateOperator, Field
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.present: $set, $addFields, $project, $unset, $replaceRoot, $replaceWith
+// expect.absent: $match, $group, $lookup, $sort, $out, $merge, $facet, UpdateOperator:$set, $inc

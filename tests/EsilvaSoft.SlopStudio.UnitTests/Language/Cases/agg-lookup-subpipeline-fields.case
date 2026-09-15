@@ -1,0 +1,14 @@
+// case: agg-lookup-subpipeline-fields
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: context-engine.md §Resolução do alvo (from em $lookup → coleção c para sub-pipeline, Explicit); mongodb-language.v1.json LookupBody.pipeline scope SiblingCollection:from
+db.Pedidos.aggregate([ { $lookup: { from: "Clientes", pipeline: [ { $match: { | } } ], as: "cliente" } } ])
+// expect.role: PropertyKey
+// expect.shape: Filter
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.fields.include: Nome, Id, status
+// expect.fields.exclude: total, clienteId
+// expect.present: Field:Nome@Clientes, Field:Id@Clientes
+// expect.absent: Field:total@Pedidos, Field:clienteId@Pedidos

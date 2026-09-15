@@ -1,0 +1,7 @@
+// case: target-explicit-connectionpool
+// mode: Console
+// target: servidor-alfa/Projetos
+// metadata: schemas/workspace.json
+// spec: MongoCompletionTargetTests.ExplicitPathsResolveWithoutEvaluatingCode caso "ConnectionPool.Prod.other.orders.aggregate(["
+ConnectionPool.relatorios.Vendas.Faturas.aggregate([|
+// expect.target: relatorios/Vendas/Faturas Explicit

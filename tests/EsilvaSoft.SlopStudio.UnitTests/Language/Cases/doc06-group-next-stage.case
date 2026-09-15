@@ -1,0 +1,17 @@
+// case: doc06-group-next-stage
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: 06-editor-bson-e-uuid.md §Casos obrigatórios ($group e estágio seguinte: _id e acumuladores definidos, sem afirmar schema completo); context-engine.md §Pipelines ($group substitui por _id + acumuladores)
+db.Pedidos.aggregate([
+    { $match: { status: "pago" } },
+    { $group: { _id: "$clienteId", total: { $sum: "$total" }, quantidade: { $count: {} } } },
+    { $project: { | } }
+])
+// expect.role: PropertyKey
+// expect.shape: Projection
+// expect.stage: 2 $project
+// expect.fields: _id, total, quantidade
+// expect.present: Field:_id, Field:total, Field:quantidade
+// expect.absent: Field:clienteId, Field:status, Field:itens, Field:criadoEm

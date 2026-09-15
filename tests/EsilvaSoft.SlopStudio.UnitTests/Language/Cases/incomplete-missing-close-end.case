@@ -1,0 +1,13 @@
+// case: incomplete-missing-close-end
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Recuperação de erro (`}` `)` ausentes no fim do documento → MissingClose)
+db.Clientes.find({ status: "ativo", |
+// expect.role: PropertyKey
+// expect.shape: Filter
+// expect.diagnostics: MissingClose
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.existingKeys: status
+// expect.present: Field:Nome, Field:Id, $or

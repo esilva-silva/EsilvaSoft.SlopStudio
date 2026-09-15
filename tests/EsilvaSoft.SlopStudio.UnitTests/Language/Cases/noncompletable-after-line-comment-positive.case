@@ -1,0 +1,10 @@
+// case: noncompletable-after-line-comment-positive
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: controle positivo: o comentário termina na quebra de linha; a linha seguinte é completável
+// comentário sobre a consulta
+db.|
+// expect.role: MemberAccess
+// expect.receiver: Database
+// expect.present: Collection:Clientes, getCollection

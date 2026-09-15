@@ -1,0 +1,13 @@
+// case: update-positional-array
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: context-engine.md §Exemplos (updateOne $set: posicionais quando o campo é array); knowledge-catalog.md §Schema (posicionais só em shapes de update)
+db.Pedidos.updateOne({ "itens.sku": "A1" }, { $set: { "itens.| } })
+// expect.role: PropertyKeyString
+// expect.shape: FieldValueMap
+// expect.quote: Double
+// expect.parentField: itens
+// expect.present: $, $[]
+// expect.absent: $each, $match, Field:total

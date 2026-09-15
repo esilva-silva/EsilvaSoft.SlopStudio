@@ -1,0 +1,15 @@
+// case: target-crlf-accented-offsets
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// eol: CRLF
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json, schemas/pedidos.json
+// spec: testing.md §Matriz de revisão (Context: UTF-16/CRLF); context-engine.md §Revisão (Unicode, CRLF e offsets UTF-16 coincidem com AvaloniaEdit)
+db.Pedidos.find({});
+// comentário com acentuação: ação, índice
+db.Clientes.find({ No| })
+// expect.role: PropertyKey
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.replace: «No»
+// expect.present: Field:Nome
+// expect.applied: Field:Nome => «db.Clientes.find({ Nome| })»

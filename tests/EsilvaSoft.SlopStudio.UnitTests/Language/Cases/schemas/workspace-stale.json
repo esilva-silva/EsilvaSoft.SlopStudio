@@ -1,0 +1,26 @@
+{
+  "format": "slop-case-workspace/1",
+  "description": "Variante: coleções de servidor-alfa/Projetos vencidas (Stale) e servidas enquanto revalidam.",
+  "connections": [
+    {
+      "name": "servidor-alfa",
+      "connected": true,
+      "serverVersion": null,
+      "databases": {
+        "state": "Fresh",
+        "items": [
+          {
+            "name": "Projetos",
+            "collections": {
+              "state": "Stale",
+              "items": [
+                { "name": "Clientes", "kind": "Collection" },
+                { "name": "Pedidos", "kind": "Collection" }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

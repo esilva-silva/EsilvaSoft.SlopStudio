@@ -1,0 +1,11 @@
+// case: rank-opobj-int-exists
+// group: OperatorObject
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: MongoDB: $expr só vale no nível do filtro, nunca dentro de { campo: { … } } (README D-06: categoria evaluation do catálogo inclui $expr); $exp/$expMovingAvg não são QueryOperator
+db.Clientes.find({ age: { $ex| } })
+// expect.best: $exists
+// expect.acceptable: $exists
+// expect.invalidTop5: $expr, $exp, $expMovingAvg

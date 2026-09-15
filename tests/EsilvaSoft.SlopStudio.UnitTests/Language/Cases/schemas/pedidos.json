@@ -1,0 +1,23 @@
+{
+  "format": "slop-case-schema/1",
+  "description": "Schema sintético de Projetos/Pedidos em servidor-alfa. Somente nomes, tipos e estrutura; nenhum valor de documento.",
+  "namespace": { "connection": "servidor-alfa", "database": "Projetos", "collection": "Pedidos" },
+  "state": "Fresh",
+  "sampleSize": 100,
+  "fields": [
+    { "path": "_id", "types": ["objectId"], "required": true, "evidence": ["validator", "index"] },
+    { "path": "clienteId", "types": ["uuid"], "required": true, "evidence": ["validator", "index"] },
+    { "path": "total", "types": ["decimal"], "required": true, "evidence": ["validator"] },
+    { "path": "status", "types": ["string"], "enumLiterals": ["aberto", "pago", "cancelado"], "evidence": ["validator"] },
+    { "path": "itens", "types": ["array"], "array": true, "arrayOfDocuments": true, "evidence": ["validator"] },
+    { "path": "itens.sku", "types": ["string"], "evidence": ["validator"] },
+    { "path": "itens.qtd", "types": ["int"], "evidence": ["validator"] },
+    { "path": "criadoEm", "types": ["date"], "evidence": ["validator", "index"] },
+    { "path": "observacao", "types": { "string": 35 }, "occurrences": 35, "evidence": ["sample"] }
+  ],
+  "indexes": [
+    { "name": "_id_", "keys": { "_id": 1 } },
+    { "name": "clienteId_1", "keys": { "clienteId": 1 } },
+    { "name": "criadoEm_-1", "keys": { "criadoEm": -1 } }
+  ]
+}

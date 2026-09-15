@@ -1,0 +1,11 @@
+// case: members-db-collections-loading
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace-loading.json
+// spec: traditional-autocomplete.md §Seleção de fontes (escopo Loading → IsIncomplete) e §Estados da lista (itens disponíveis + "Carregando…"); linguagem continua disponível
+db.|
+// expect.role: MemberAccess
+// expect.incomplete: true
+// expect.listState: LoadingScope
+// expect.present: getCollection, getSiblingDB
+// expect.absent: Collection:Clientes, Collection:Faturas

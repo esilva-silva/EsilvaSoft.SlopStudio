@@ -1,0 +1,11 @@
+// case: rank-sort-status
+// group: SortProjection
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json, schemas/pedidos.json
+// spec: mongodb-language.v1.json Sort (FieldPath); ranking.md §Confiança (namespace); método e acumulador inválidos
+db.Clientes.find({}).sort({ st| })
+// expect.best: Field:status
+// expect.acceptable: Field:status
+// expect.invalidTop5: stats, $stdDevPop, Field:status@Pedidos

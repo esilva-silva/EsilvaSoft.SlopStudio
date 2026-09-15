@@ -6,7 +6,8 @@ namespace EsilvaSoft.SlopStudio.Application.Language;
 /// <summary>
 /// Immutable metadata snapshots per connection. Reads never block or perform I/O on the caller: a missing or expired value
 /// schedules one background load per key (single-flight), stale values are served while refreshing, failures back off,
-/// and only connected profiles are ever loaded.
+/// and only connected profiles are ever loaded. Every entry carries a generation: write-through, soft invalidation, opt-out and
+/// published results advance it, and a load or sample that started under an older generation, entry or connection is discarded.
 /// </summary>
 public sealed class MetadataCache : IMetadataCache, IDisposable
 {
@@ -20,6 +21,7 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
     private readonly MetadataCacheOptions _options;
     private readonly TimeProvider _clock;
     private long _accessCounter;
+    private long _revision;
     private bool _disposed;
 
     public MetadataCache(IMongoMetadataSource source, IApplicationOperationService? operations = null, IMetadataInvalidationBus? invalidations = null,
@@ -64,7 +66,7 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
         {
             states = _connections.Where(pair => pair.Key.ProfileId == profileId).Select(pair => pair.Value).ToArray();
             foreach (var state in states) _connections.Remove(ConnectionIdentity.From(state.Profile));
-            foreach (var key in _entries.Keys.Where(key => key.Connection.ProfileId == profileId).ToArray()) _entries.Remove(key);
+            RemoveWhere(key => key.Connection.ProfileId == profileId);
         }
         foreach (var state in states) state.Dispose();
         RaiseChanged(profileId);
@@ -74,7 +76,11 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
     {
         lock (_gate)
         {
-            if (allowed) _samplingProfiles.Add(profileId); else _samplingProfiles.Remove(profileId);
+            if (allowed) { _samplingProfiles.Add(profileId); return; }
+            if (!_samplingProfiles.Remove(profileId)) return;
+            // Withdrawn consent: samples still running for the profile, automatic or explicit, must not be stored.
+            foreach (var (key, entry) in _entries)
+                if (key.Scope == MetadataScope.SampledSchema && key.Connection.ProfileId == profileId) entry.Generation = ++_revision;
         }
     }
 
@@ -97,42 +103,43 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
     {
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(databases);
-        var identity = ConnectionIdentity.From(profile);
+        var key = new MetadataKey(ConnectionIdentity.From(profile), MetadataScope.Databases);
         var names = databases.ToArray();
         var present = names.ToHashSet(StringComparer.Ordinal);
+        bool removed;
         lock (_gate)
         {
             // A database that disappeared from the listing takes its collections and indexes with it.
-            foreach (var key in _entries.Keys.Where(key => key.Connection == identity && key.Database.Length > 0 && !present.Contains(key.Database)).ToArray())
-                _entries.Remove(key);
-            Store(new(identity, MetadataScope.Databases), names);
+            removed = RemoveWhere(existing => existing.Connection == key.Connection && existing.Database.Length > 0 && !present.Contains(existing.Database));
+            Store(key, names);
         }
-        RaiseChanged(profile.Id);
+        RaiseChanged(profile.Id, removed ? null : key);
     }
 
     public void PutCollections(ConnectionProfile profile, string database, IReadOnlyList<string> collections)
     {
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(collections);
-        var identity = ConnectionIdentity.From(profile);
+        var key = new MetadataKey(ConnectionIdentity.From(profile), MetadataScope.Collections, database);
         var present = collections.ToHashSet(StringComparer.Ordinal);
+        bool removed;
         lock (_gate)
         {
-            var known = KnownKinds(identity, database);
-            foreach (var key in _entries.Keys.Where(key => key.Connection == identity && key.Database == database && key.Collection.Length > 0 && !present.Contains(key.Collection)).ToArray())
-                _entries.Remove(key);
-            Store(new(identity, MetadataScope.Collections, database),
-                collections.Select(name => new CollectionEntry(name, known.GetValueOrDefault(name, CollectionKind.Unknown))).ToArray());
+            var known = KnownKinds(key.Connection, database);
+            removed = RemoveWhere(existing => existing.Connection == key.Connection && existing.Database == database && existing.Collection.Length > 0
+                && !present.Contains(existing.Collection));
+            Store(key, collections.Select(name => new CollectionEntry(name, known.GetValueOrDefault(name, CollectionKind.Unknown))).ToArray());
         }
-        RaiseChanged(profile.Id);
+        RaiseChanged(profile.Id, removed ? null : key);
     }
 
     public void PutIndexes(ConnectionProfile profile, string database, string collection, IReadOnlyList<IndexInfo> indexes)
     {
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(indexes);
-        lock (_gate) Store(new(ConnectionIdentity.From(profile), MetadataScope.Indexes, database, collection), indexes.ToArray());
-        RaiseChanged(profile.Id);
+        var key = new MetadataKey(ConnectionIdentity.From(profile), MetadataScope.Indexes, database, collection);
+        lock (_gate) Store(key, indexes.ToArray());
+        RaiseChanged(profile.Id, key);
     }
 
     public Task RefreshAsync(MetadataKey key, CancellationToken cancellationToken = default)
@@ -158,27 +165,59 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(database);
         ArgumentException.ThrowIfNullOrWhiteSpace(collection);
         options = (options ?? new SchemaSampleOptions()).Validate();
-        using var operation = _operations?.Begin($"Amostrando schema — {collection}", ApplicationOperationPriority.Normal, canCancel: true, cancellationToken);
-        var token = operation?.Token ?? cancellationToken;
+        var key = new MetadataKey(ConnectionIdentity.From(profile), MetadataScope.SampledSchema, database, collection);
+        Entry entry;
+        long generation;
+        ConnectionState? state;
+        CancellationToken connectionToken;
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            // The key is registered before the await: disconnection, invalidation or opt-out while sampling supersede the result.
+            if (!_entries.TryGetValue(key, out var existing)) _entries[key] = existing = new Entry { LastAccess = ++_accessCounter };
+            entry = existing;
+            generation = entry.Generation;
+            _connections.TryGetValue(key.Connection, out state);
+            connectionToken = state?.Token ?? CancellationToken.None;
+        }
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, connectionToken);
+        using var operation = _operations?.Begin($"Amostrando schema — {collection}", ApplicationOperationPriority.Normal, canCancel: true, linked.Token);
+        var token = operation?.Token ?? linked.Token;
+        CollectionSchema schema;
+        int documentCount;
         try
         {
             var documents = await _source.SampleSchemaAsync(profile, database, collection, options, token).ConfigureAwait(false);
-            var schema = new SchemaBuilder(_options.SchemaMaximumDepth, _options.SchemaMaximumNodes).AddSample(documents).Build();
-            lock (_gate) Store(new(ConnectionIdentity.From(profile), MetadataScope.SampledSchema, database, collection), schema);
-            operation?.Complete(ApplicationOperationStatus.Success, $"Schema amostrado — {documents.Count} documento(s), {schema.NodeCount} campo(s); somente nomes e tipos");
-            RaiseChanged(profile.Id);
-            return schema;
+            schema = new SchemaBuilder(_options.SchemaMaximumDepth, _options.SchemaMaximumNodes).AddSample(documents).Build();
+            documentCount = documents.Count;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
+            ReleaseEmpty(key, entry, generation);
             operation?.Complete(ApplicationOperationStatus.Cancelled, "Amostragem de schema cancelada");
             throw;
         }
         catch
         {
+            ReleaseEmpty(key, entry, generation);
             operation?.Complete(ApplicationOperationStatus.Error, "Amostragem de schema indisponível");
             throw;
         }
+        bool stored;
+        lock (_gate)
+        {
+            stored = IsCurrent(key, entry, generation) && IsCurrent(key.Connection, state);
+            if (stored) Store(key, schema);
+        }
+        if (!stored)
+        {
+            ReleaseEmpty(key, entry, generation);
+            operation?.Complete(ApplicationOperationStatus.Cancelled, "Amostragem de schema descartada — conexão ou metadados alterados");
+            throw new OperationCanceledException("A conexão ou os metadados mudaram durante a amostragem; o schema não foi guardado.");
+        }
+        operation?.Complete(ApplicationOperationStatus.Success, $"Schema amostrado — {documentCount} documento(s), {schema.NodeCount} campo(s); somente nomes e tipos");
+        RaiseChanged(profile.Id, key);
+        return schema;
     }
 
     public void Invalidate(MetadataInvalidation invalidation)
@@ -191,7 +230,7 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
             {
                 if (key.Connection.ProfileId != invalidation.ProfileId || !Affects(invalidation, key)) continue;
                 if (invalidation.Strength == InvalidationStrength.Strong) _entries.Remove(key);
-                else entry.ForcedStale = true;
+                else { entry.ForcedStale = true; entry.Generation = ++_revision; }
                 changed = true;
             }
         }
@@ -275,9 +314,13 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
     }
 
     // Caller holds _gate. Task.Run keeps the source off the calling thread even when it completes synchronously.
-    private Task StartLoad(MetadataKey key, Entry entry, ConnectionState state) => Task.Run(() => LoadAsync(key, entry, state));
+    private Task StartLoad(MetadataKey key, Entry entry, ConnectionState state)
+    {
+        var generation = entry.Generation;
+        return Task.Run(() => LoadAsync(key, entry, generation, state));
+    }
 
-    private async Task LoadAsync(MetadataKey key, Entry entry, ConnectionState state)
+    private async Task LoadAsync(MetadataKey key, Entry entry, long generation, ConnectionState state)
     {
         var started = Stopwatch.GetTimestamp();
         object? value = null;
@@ -307,19 +350,21 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
         {
             outcome = "cancelled";
         }
-        bool stored;
+        bool present, accepted;
         lock (_gate)
         {
-            // Invalidation, disconnection or disposal replaced the entry: a late result is discarded.
-            stored = !_disposed && _entries.TryGetValue(key, out var current) && ReferenceEquals(current, entry);
+            // Write-through, invalidation, opt-out, disconnection or disposal after the load started supersede it: a late result is discarded.
+            present = !_disposed && _entries.TryGetValue(key, out var current) && ReferenceEquals(current, entry);
+            accepted = present && entry.Generation == generation && IsCurrent(key.Connection, state);
             entry.Loading = null;
-            if (stored)
+            if (accepted)
             {
                 var now = _clock.GetUtcNow();
                 if (value is not null)
                 {
                     if (value is CollectionEntry[] fetched) value = WithKnownKinds(key, fetched);
                     entry.Value = value; entry.LoadedAt = now; entry.ForcedStale = false; entry.Failures = 0; entry.RetryAfter = default;
+                    entry.Generation = ++_revision;
                     if (value is CollectionMetadata metadata) UpdateKind(key, metadata.Kind);
                     if (key.IsCollectionScoped) Evict(key.Connection);
                 }
@@ -327,12 +372,15 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
                 {
                     entry.Failures++;
                     entry.RetryAfter = now + _options.Backoff[Math.Min(entry.Failures, _options.Backoff.Count) - 1];
+                    entry.Generation = ++_revision;
                 }
             }
         }
         AutocompleteMetrics.MetadataRefreshDuration.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds,
-            new KeyValuePair<string, object?>("scope", key.Scope.ToString()), new KeyValuePair<string, object?>("outcome", stored ? outcome : "discarded"));
-        if (stored && value is not null) RaiseChanged(key.Connection.ProfileId);
+            new KeyValuePair<string, object?>("scope", key.Scope.ToString()), new KeyValuePair<string, object?>("outcome", accepted ? outcome : "discarded"));
+        // Terminal notification for every load whose key is still cached (success, failure, cancellation or superseded result), so a consumer
+        // that saw Loading always gets a callback. Keys removed meanwhile were announced by the disconnection or invalidation that removed them.
+        if (present) RaiseChanged(key.Connection.ProfileId, key);
     }
 
     private async Task<object> FetchAsync(MetadataKey key, ConnectionProfile profile, CancellationToken token)
@@ -360,7 +408,7 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
         }
     }
 
-    // Caller holds _gate.
+    // Caller holds _gate. Advancing the generation supersedes any load or sample of the key that started earlier.
     private void Store(MetadataKey key, object value)
     {
         if (!_entries.TryGetValue(key, out var entry)) _entries[key] = entry = new Entry();
@@ -370,7 +418,31 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
         entry.Failures = 0;
         entry.RetryAfter = default;
         entry.LastAccess = ++_accessCounter;
+        entry.Generation = ++_revision;
         if (key.IsCollectionScoped) Evict(key.Connection);
+    }
+
+    // Caller holds _gate.
+    private bool RemoveWhere(Func<MetadataKey, bool> predicate)
+    {
+        var removed = _entries.Keys.Where(predicate).ToArray();
+        foreach (var key in removed) _entries.Remove(key);
+        return removed.Length > 0;
+    }
+
+    // Caller holds _gate. True while the entry is still cached and nothing replaced, invalidated or withdrew it.
+    private bool IsCurrent(MetadataKey key, Entry entry, long generation) =>
+        !_disposed && _entries.TryGetValue(key, out var current) && ReferenceEquals(current, entry) && entry.Generation == generation;
+
+    // Caller holds _gate. A reconnection creates a new state, so work captured under the previous connection never publishes.
+    private bool IsCurrent(ConnectionIdentity connection, ConnectionState? state) =>
+        _connections.TryGetValue(connection, out var current) ? ReferenceEquals(current, state) : state is null;
+
+    // Drops the slot registered by an explicit sample that stored nothing, unless something else started using it.
+    private void ReleaseEmpty(MetadataKey key, Entry entry, long generation)
+    {
+        lock (_gate)
+            if (IsCurrent(key, entry, generation) && entry.Value is null && entry.Loading is null && entry.Failures == 0) _entries.Remove(key);
     }
 
     // Caller holds _gate. A definition carries the collection type that nameOnly listings omit.
@@ -438,7 +510,7 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
         _ => false
     };
 
-    private void RaiseChanged(Guid profileId) => Changed?.Invoke(this, new(profileId));
+    private void RaiseChanged(Guid profileId, MetadataKey? key = null) => Changed?.Invoke(this, new(profileId, key));
 
     private sealed class Entry
     {
@@ -449,6 +521,8 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
         public int Failures { get; set; }
         public DateTimeOffset RetryAfter { get; set; }
         public long LastAccess { get; set; }
+        /// <summary>Advanced under the gate by every change of value or validity; loads and samples capture it before awaiting.</summary>
+        public long Generation { get; set; }
     }
 
     private sealed class ConnectionState(ConnectionProfile profile) : IDisposable

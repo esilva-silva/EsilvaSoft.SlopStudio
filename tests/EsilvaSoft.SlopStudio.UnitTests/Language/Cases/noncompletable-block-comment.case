@@ -1,0 +1,9 @@
+// case: noncompletable-block-comment
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Localização (NonCompletable: comentário)
+db.Clientes.find({ /* Nome| */ })
+// expect.role: NonCompletable
+// expect.empty: true

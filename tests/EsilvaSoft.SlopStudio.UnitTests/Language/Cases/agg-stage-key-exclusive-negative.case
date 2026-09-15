@@ -1,0 +1,11 @@
+// case: agg-stage-key-exclusive-negative
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: ranking.md §1 (chave exclusiva já presente: segundo operador de stage no mesmo objeto); context-engine.md §Caminhada de shapes (menos chaves exclusivas já presentes)
+db.Pedidos.aggregate([ { $match: {}, | } ])
+// expect.role: PropertyKey
+// expect.shape: Stage
+// expect.existingKeys: $match
+// expect.absent: $match, $group, $project, $lookup, $sort

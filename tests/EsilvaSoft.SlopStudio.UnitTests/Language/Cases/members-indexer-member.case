@@ -1,0 +1,12 @@
+// case: members-indexer-member
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: testing.md §Fixtures (db["x-y"].); context-engine.md §Resolução do alvo (db["x-y"] Explicit)
+db["historico-clientes"].|
+// expect.role: MemberAccess
+// expect.receiver: Collection
+// expect.kinds: CollectionMethod
+// expect.target: servidor-alfa/Projetos/historico-clientes Explicit
+// expect.present: find, aggregate, countDocuments
+// expect.absent: getSiblingDB, Collection:Clientes, sort

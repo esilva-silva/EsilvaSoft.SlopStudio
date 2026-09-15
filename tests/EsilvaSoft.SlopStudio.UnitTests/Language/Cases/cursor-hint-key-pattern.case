@@ -1,0 +1,10 @@
+// case: cursor-hint-key-pattern
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: testing.md §Fixtures (hint com índices); MongoDB: hint aceita padrão de chave igual a um índice existente
+db.Pedidos.find({}).hint({ | })
+// expect.role: PropertyKey
+// expect.present: Field:clienteId, Field:criadoEm
+// expect.absent: Field:Nome@Clientes, $eq, $match

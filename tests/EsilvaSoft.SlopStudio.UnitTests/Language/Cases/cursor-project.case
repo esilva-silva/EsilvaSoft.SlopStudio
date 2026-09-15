@@ -1,0 +1,12 @@
+// case: cursor-project
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: testing.md §Fixtures (Cursor e opções: project); mongodb-language.v1.json CursorMethod project → Projection
+db.Pedidos.find({}).project({ | })
+// expect.role: PropertyKey
+// expect.shape: Projection
+// expect.kinds: Field
+// expect.present: Field:total, Field:itens
+// expect.absent: $eq, $match, $and

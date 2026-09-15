@@ -1,0 +1,12 @@
+// case: agg-fields-after-count
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Pipelines ($count: campo de contagem); MongoDB: $count produz um único documento { <nome>: n }
+db.Clientes.aggregate([ { $match: { status: "ativo" } }, { $count: "quantidade" }, { $match: { | } } ])
+// expect.role: PropertyKey
+// expect.stage: 2 $match
+// expect.fields: quantidade
+// expect.present: Field:quantidade
+// expect.absent: Field:Nome, Field:status

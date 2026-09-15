@@ -1,0 +1,14 @@
+// case: meta-collection-members
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: context-engine.md §Exemplos (`db.Clientes.|`): no Console, somente métodos expostos pelo bootstrap (ConsoleBootstrap.js CollectionProxy); knowledge-catalog.md §Contrato com o runtime do Console (bulkWrite)
+db.Clientes.|
+// expect.role: MemberAccess
+// expect.receiver: Collection
+// expect.kinds: CollectionMethod
+// expect.kinds.not: Collection, DatabaseMethod, CursorMethod, Field
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.replace: «»
+// expect.present: find, findOne, aggregate, countDocuments, estimatedDocumentCount, distinct, insertOne, insertMany, updateOne, updateMany, replaceOne, deleteOne, deleteMany, drop, createIndex, dropIndex, stats
+// expect.absent: bulkWrite, findOneAndUpdate, getIndexes, explain, count, getSiblingDB, sort, Collection:Pedidos

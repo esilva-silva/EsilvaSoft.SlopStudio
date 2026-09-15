@@ -1,0 +1,15 @@
+// case: filter-operator-object-string
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Exemplos (OperatorObject tipado pelo campo pai); MongoDB: { campo: { $not: { ... } } } é válido; $and/$or/$nor não são válidos dentro do objeto de operadores
+// note: o shape OperatorObject do catálogo não inclui a categoria logical, logo $not não entra hoje (README D-07).
+db.Clientes.find({ Nome: { | } })
+// expect.role: PropertyKey
+// expect.shape: OperatorObject
+// expect.kinds: QueryOperator
+// expect.parentField: Nome
+// expect.valueTypes: string
+// expect.present: $eq, $ne, $in, $regex, $exists, $not
+// expect.absent: $and, $or, $nor, $match, $set, $sum, Field:status

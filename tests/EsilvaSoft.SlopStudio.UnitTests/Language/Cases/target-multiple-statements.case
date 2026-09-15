@@ -1,0 +1,9 @@
+// case: target-multiple-statements
+// mode: Console
+// target: servidor-alfa/Projetos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: MongoCompletionTargetTests.ExplicitPathsResolveWithoutEvaluatingCode caso "db.orders.find({}); db.customers.find({"
+db.Pedidos.find({}); db.Clientes.find({|
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.absent: Field:total@Pedidos

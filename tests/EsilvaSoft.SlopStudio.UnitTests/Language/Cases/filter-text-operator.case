@@ -1,0 +1,12 @@
+// case: filter-text-operator
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: mongodb-language.v1.json shape TextSearch ($search obrigatório, $language, $caseSensitive, $diacriticSensitive)
+db.Clientes.find({ $text: { | } })
+// expect.role: PropertyKey
+// expect.shape: TextSearch
+// expect.kinds.not: Field, AggregationStage
+// expect.present: $search, $language, $caseSensitive, $diacriticSensitive
+// expect.absent: Field:Nome, $eq, $match, compound

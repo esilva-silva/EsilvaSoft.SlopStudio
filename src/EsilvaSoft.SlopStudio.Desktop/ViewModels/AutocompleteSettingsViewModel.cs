@@ -60,6 +60,7 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
     private AiExecutionProvider _executionProvider;
     private string _chatModel = "";
     private bool _loading;
+    private AutocompleteSettings _loaded = new();
     private long _refreshGeneration;
 
     public IReadOnlyList<string> Modes { get; } = ["Automático (recomendado)", "Básico", "IA local"];
@@ -122,6 +123,7 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
     public void Load(AutocompleteSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        _loaded = settings;
         _loading = true;
         try
         {
@@ -151,7 +153,8 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
     public AutocompleteSettings Snapshot()
     {
         var option = SelectedModelOption;
-        return new AutocompleteSettings
+        // Start from the loaded settings so fields without a control here (list flags) keep their saved values.
+        return (_loaded with
         {
             Enabled = Enabled, Mode = (AutocompleteMode)ModeIndex, Acceleration = (AiAccelerationMode)HardwareIndex,
             ModelDirectory = ModelDirectory.Trim(), SelectedModel = option is { IsExternal: false } ? option.Reference : "",
@@ -160,7 +163,7 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
             DelayMilliseconds = DelayMilliseconds, ExecutionProvider = _executionProvider,
             UseDictionary = UseDictionary, UseInputPanelContext = UseInputPanelContext,
             UseResultPanelContext = UseResultPanelContext, UseEditorContext = UseEditorContext, IncrementalTab = IncrementalTab
-        }.Validate();
+        }).Validate();
     }
 
     /// <summary>Scans the directory and detects hardware when the window opens; the loaded model is not touched.</summary>

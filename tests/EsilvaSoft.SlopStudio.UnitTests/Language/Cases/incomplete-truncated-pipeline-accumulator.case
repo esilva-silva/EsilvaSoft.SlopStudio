@@ -1,0 +1,13 @@
+// case: incomplete-truncated-pipeline-accumulator
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: context-engine.md §Recuperação de erro (MissingClose no fim do documento); testing.md §Context Engine (qualquer truncamento produz árvore)
+db.Pedidos.aggregate([ { $match: { total: { $gt: 10 } } }, { $group: { _id: "$clienteId", soma: { |
+// expect.role: PropertyKey
+// expect.shape: AccumulatorObject
+// expect.stage: 1 $group
+// expect.diagnostics: MissingClose
+// expect.present: $sum, $avg
+// expect.absent: $add, Field:total

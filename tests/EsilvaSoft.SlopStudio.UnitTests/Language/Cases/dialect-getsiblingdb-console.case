@@ -1,0 +1,10 @@
+// case: dialect-getsiblingdb-console
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: testing.md §Fixtures (Dialetos: par de dialect-getsiblingdb-script); ConsoleBootstrap.js DatabaseProxy não expõe getCollectionNames/runCommand
+db.getSiblingDB("Vendas").|
+// expect.role: MemberAccess
+// expect.receiver: Database
+// expect.present: getCollection, getName, Collection:Faturas
+// expect.absent: getCollectionNames, runCommand, adminCommand, getMongo

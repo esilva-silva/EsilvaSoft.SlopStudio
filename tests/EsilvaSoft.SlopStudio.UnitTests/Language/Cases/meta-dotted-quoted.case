@@ -1,0 +1,19 @@
+// case: meta-dotted-quoted
+// mode: Console
+// target: servidor-alfa/Projetos/Projetos
+// metadata: schemas/workspace.json
+// schema: schemas/projetos.json, schemas/clientes.json
+// spec: context-engine.md §Exemplos (`"Cliente.|`); traditional-autocomplete.md §Faixas e aspas (caminho com ponto inclui aspas abertas e o trecho digitado); AC-09
+db.Projetos.find({ "Cliente.| })
+// expect.role: PropertyKeyString
+// expect.shape: Filter
+// expect.kinds: Field
+// expect.parentField: Cliente
+// expect.quote: Double
+// expect.target: servidor-alfa/Projetos/Projetos Explicit
+// expect.replace: «Cliente.»
+// expect.editRange: Field:Cliente.Id => «"Cliente.»
+// expect.present: Field:Cliente.Id, Field:Cliente.Nome
+// expect.absent: Field:Nome, Field:descricao, Field:Cliente.Id@Clientes, $and
+// expect.insert: Field:Cliente.Id => text «"Cliente.Id"»
+// expect.applied: Field:Cliente.Id => «db.Projetos.find({ "Cliente.Id"| })»

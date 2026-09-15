@@ -1,0 +1,11 @@
+// case: rank-pipeline-stage-group
+// group: PipelineElement
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: ranking.md §2 (prefixo; rótulo mais curto) no segundo stage
+db.Pedidos.aggregate([ { $match: { total: { $gt: 0 } } }, { $gr| } ])
+// expect.best: $group
+// expect.acceptable: $group, $graphLookup
+// expect.invalidTop5: $gt, $sum

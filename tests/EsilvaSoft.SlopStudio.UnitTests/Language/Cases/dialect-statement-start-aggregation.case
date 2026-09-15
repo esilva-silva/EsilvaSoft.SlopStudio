@@ -1,0 +1,8 @@
+// case: dialect-statement-start-aggregation
+// mode: Agregação
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: testing.md §Fixtures (Dialetos: mesmo texto); knowledge-catalog.md §Dialetos (AggregationJson não expõe raízes nem funções de script)
+|
+// expect.kinds.not: DslRoot, GlobalFunction, CollectionMethod
+// expect.absent: db, ConnectionPool, getConnection, print, const, find

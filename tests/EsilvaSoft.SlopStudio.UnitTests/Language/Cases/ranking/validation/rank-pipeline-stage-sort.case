@@ -1,0 +1,11 @@
+// case: rank-pipeline-stage-sort
+// group: PipelineElement
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: ranking.md §2 (prefixo; rótulo mais curto); $sortArray (expressão) e $sort modificador de update têm prefixo igual e são inválidos como chave de stage
+db.Pedidos.aggregate([ { $so| } ])
+// expect.best: AggregationStage:$sort
+// expect.acceptable: AggregationStage:$sort, $sortByCount
+// expect.invalidTop5: $sortArray, UpdateOperator:$sort

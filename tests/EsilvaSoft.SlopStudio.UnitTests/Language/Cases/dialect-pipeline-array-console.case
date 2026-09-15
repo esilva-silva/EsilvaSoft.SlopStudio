@@ -1,0 +1,9 @@
+// case: dialect-pipeline-array-console
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: testing.md §Fixtures (Dialetos: mesmo texto de dialect-pipeline-array-aggregation); context-engine.md §Caminhada de shapes (shape nasce da assinatura da chamada; array solto no Console não tem assinatura) — README D-13
+[ { | } ]
+// expect.kinds.not: AggregationStage, Field
+// expect.absent: $match, $group, Field:Nome

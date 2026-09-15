@@ -1,0 +1,11 @@
+// case: update-positional-non-array-negative
+// mode: Console
+// target: servidor-alfa/Projetos/Projetos
+// metadata: schemas/workspace.json
+// schema: schemas/projetos.json
+// spec: context-engine.md §Exemplos (posicionais somente quando o campo é array); Cliente é subdocumento, não array
+db.Projetos.updateOne({}, { $set: { "Cliente.| } })
+// expect.role: PropertyKeyString
+// expect.parentField: Cliente
+// expect.present: Field:Cliente.Id, Field:Cliente.Nome
+// expect.absent: $, $[], Field:Nome

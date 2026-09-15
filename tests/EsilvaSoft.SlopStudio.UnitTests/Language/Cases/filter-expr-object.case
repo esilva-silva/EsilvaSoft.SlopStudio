@@ -1,0 +1,13 @@
+// case: filter-expr-object
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: mongodb-language.v1.json Filter.$expr → Expression → ExpressionOperatorObject (Exclusive ExpressionOperator); MongoDB: $exists/$elemMatch/$regex não são operadores de expressão
+db.Pedidos.find({ $expr: { | } })
+// expect.role: PropertyKey
+// expect.shape: ExpressionOperatorObject
+// expect.kinds: ExpressionOperator
+// expect.kinds.not: Field, QueryOperator, AggregationStage
+// expect.present: $eq, $gt, $and, $add, $cond, $in
+// expect.absent: Field:total, $elemMatch, $regex, $exists, $match

@@ -1,0 +1,12 @@
+// case: cursor-sort-value
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: context-engine.md §Exemplos (sort: valor 1, -1 ou { $meta: "textScore" })
+// note: o catálogo declara SortDirection sem símbolos; os rótulos 1 e -1 exigem dado novo (README D-10).
+db.Pedidos.find({}).sort({ total: | })
+// expect.role: PropertyValue
+// expect.parentField: total
+// expect.present: 1, -1
+// expect.absent: Field:total, $eq, $match

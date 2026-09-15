@@ -1,0 +1,13 @@
+// case: members-indexer-string
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: context-engine.md §Localização do cursor (IndexerString `db["▌` → coleções)
+db["|
+// expect.role: IndexerString
+// expect.kinds: Collection
+// expect.kinds.not: DatabaseMethod, CollectionMethod
+// expect.quote: Double
+// expect.replace: «»
+// expect.present: Collection:historico-clientes, Collection:pedidos-2025, Collection:Clientes
+// expect.absent: getCollection, find, Collection:Faturas

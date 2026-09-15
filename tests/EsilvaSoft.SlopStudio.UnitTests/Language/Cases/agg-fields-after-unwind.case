@@ -1,0 +1,12 @@
+// case: agg-fields-after-unwind
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: testing.md §Fixtures (campos após $unwind); context-engine.md §Pipelines ($unwind: caminho passa a ter o tipo do elemento); MongoDB: projeção de inclusão mantém _id por padrão
+db.Clientes.aggregate([ { $project: { items: 1 } }, { $unwind: "$items" }, { $match: { | } } ])
+// expect.role: PropertyKey
+// expect.stage: 2 $match
+// expect.fields: _id, items, items.sku, items.qtd, items.preco
+// expect.present: Field:items.sku
+// expect.absent: Field:Nome, Field:status

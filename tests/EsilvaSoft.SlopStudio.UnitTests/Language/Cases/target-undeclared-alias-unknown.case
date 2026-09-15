@@ -1,0 +1,10 @@
+// case: target-undeclared-alias-unknown
+// mode: Console
+// target: servidor-alfa/Projetos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: MongoCompletionTargetTests.UnknownOrCommentedPathsDoNotReuseAnotherCollection caso "db.orders.find({}); alias.aggregate(["; context-engine.md §Resolução do alvo (nunca herda coleção de outro statement)
+db.Pedidos.find({}); alias.aggregate([|
+// expect.target: Unknown
+// expect.target.not: servidor-alfa/Projetos/Pedidos
+// expect.absent: Field:total@Pedidos

@@ -1,0 +1,10 @@
+// case: update-set-object-no-modifiers-negative
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: MongoDB: $each/$position/$slice/$sort só são modificadores dentro de $push/$addToSet; em $set o valor é documento literal
+db.Clientes.updateOne({}, { $set: { Cliente: { | } } })
+// expect.role: PropertyKey
+// expect.parentField: Cliente
+// expect.absent: $each, $position, $slice, $sort, $set, $match

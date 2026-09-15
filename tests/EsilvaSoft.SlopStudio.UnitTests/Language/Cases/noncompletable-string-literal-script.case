@@ -1,0 +1,8 @@
+// case: noncompletable-string-literal-script
+// mode: Script
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: MongoCompletionTargetTests.UnknownOrCommentedPathsDoNotReuseAnotherCollection (string literal); 06 §UUID (texto entre aspas nunca é interpretado)
+const rotulo = "db.Clientes.|";
+// expect.role: NonCompletable
+// expect.empty: true

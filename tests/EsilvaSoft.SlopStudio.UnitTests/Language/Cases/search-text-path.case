@@ -1,0 +1,14 @@
+// case: search-text-path
+// mode: Console
+// target: servidor-alfa/Projetos/Projetos
+// metadata: schemas/workspace.json
+// schema: schemas/projetos.json, schemas/pedidos.json
+// spec: testing.md §Fixtures (text.path); MongoDB Search: path nomeia campo(s) da coleção pesquisada
+// note: path é SearchOption com valor Any no catálogo; campo exige FieldPathString (README D-10).
+db.Projetos.aggregate([ { $search: { text: { query: "painel", path: "|" } } } ])
+// expect.role: PropertyValue
+// expect.quote: Double
+// expect.kinds: Field
+// expect.target: servidor-alfa/Projetos/Projetos Explicit
+// expect.present: Field:Nome, Field:descricao, Field:Cliente.Nome
+// expect.absent: Field:total@Pedidos, must, text

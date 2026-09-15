@@ -1,0 +1,16 @@
+// case: filter-dotted-unquoted-recovery
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Recuperação de erro (`Cliente.Id:` em posição de chave → DottedKeyRecovery), aqui dentro de elemento de $or; testing.md §Fixtures (caminho sem aspas, recuperação)
+db.Clientes.find({ $or: [ { Cliente.| } ] })
+// expect.role: PropertyKey
+// expect.diagnostics: DottedKeyRecovery
+// expect.shape: Filter
+// expect.kinds: Field
+// expect.parentField: Cliente
+// expect.replace: «Cliente.»
+// expect.present: Field:Cliente.Id, Field:Cliente.Nome
+// expect.absent: Field:Nome, $or
+// expect.insert: Field:Cliente.Nome => text «"Cliente.Nome"»

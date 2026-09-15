@@ -1,0 +1,10 @@
+// case: dialect-collection-members-console
+// mode: Console
+// target: servidor-alfa/Projetos/Projetos
+// metadata: schemas/workspace.json
+// spec: testing.md §Fixtures (Dialetos); ranking.md §1 (bulkWrite fora do Console); mongodb-language.v1.json CollectionMethod dialeto MongoshScript; ConsoleBootstrap.js CollectionProxy
+db.Projetos.|
+// expect.role: MemberAccess
+// expect.receiver: Collection
+// expect.present: find, updateOne, createIndex
+// expect.absent: bulkWrite, findOneAndUpdate, getIndexes, renameCollection, count

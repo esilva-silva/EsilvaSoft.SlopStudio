@@ -1,0 +1,12 @@
+// case: ranges-field-unquoted-style
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: traditional-autocomplete.md §Faixas e aspas, linha 3 (campo simples em chave conforme estilo dominante: sem aspas)
+db.Clientes.find({ status: "ativo", No| })
+// expect.role: PropertyKey
+// expect.quote: None
+// expect.replace: «No»
+// expect.insert: Field:Nome => text «Nome»
+// expect.applied: Field:Nome => «db.Clientes.find({ status: "ativo", Nome| })»

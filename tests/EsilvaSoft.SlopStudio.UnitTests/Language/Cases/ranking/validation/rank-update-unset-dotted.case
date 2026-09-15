@@ -1,0 +1,11 @@
+// case: rank-update-unset-dotted
+// group: Update
+// mode: Console
+// target: servidor-alfa/Projetos/Projetos
+// metadata: schemas/workspace.json
+// schema: schemas/projetos.json, schemas/clientes.json
+// spec: context-engine.md §Exemplos (caminho parcial Cliente. → filhos); campo raiz e campo homônimo de outra coleção inválidos
+db.Projetos.updateOne({}, { $unset: { "Cliente.N| } })
+// expect.best: Field:Cliente.Nome
+// expect.acceptable: Field:Cliente.Nome
+// expect.invalidTop5: Field:Nome, Field:Cliente.Nome@Clientes, NumberLong

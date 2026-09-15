@@ -1,0 +1,19 @@
+// case: doc06-array-filters-identifier
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: 06-editor-bson-e-uuid.md §Casos obrigatórios (`items.$[item]`: identificadores de arrayFilters declarados); knowledge-catalog.md §Schema (posicionais só em shapes de update)
+// note: o identificador é declarado depois do cursor (terceiro argumento); o contexto precisa do statement inteiro.
+db.Clientes.updateMany(
+    { status: "ativo" },
+    { $set: { "items.|": 0 } },
+    { arrayFilters: [ { "item.qtd": { $gt: 0 } } ] }
+)
+// expect.role: PropertyKeyString
+// expect.shape: FieldValueMap
+// expect.parentField: items
+// expect.quote: Double
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.present: $[item], $[], $
+// expect.absent: $each, $match, $[outro]

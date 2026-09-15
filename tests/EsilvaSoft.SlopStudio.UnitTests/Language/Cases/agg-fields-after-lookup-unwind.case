@@ -1,0 +1,13 @@
+// case: agg-fields-after-lookup-unwind
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: context-engine.md §Pipelines ($lookup adiciona `as` como array de documentos de `from`; $unwind usa o tipo do elemento); paridade com AggregationFieldInferenceTests (joined.code após $unwind)
+db.Pedidos.aggregate([ { $lookup: { from: "Clientes", localField: "clienteId", foreignField: "Id", as: "cliente" } }, { $unwind: "$cliente" }, { $match: { | } } ])
+// expect.role: PropertyKey
+// expect.stage: 2 $match
+// expect.target: servidor-alfa/Projetos/Pedidos Explicit
+// expect.fields.include: total, clienteId, cliente, cliente.Nome, cliente.Id
+// expect.fields.exclude: Nome, Id
+// expect.present: Field:cliente.Nome, Field:total

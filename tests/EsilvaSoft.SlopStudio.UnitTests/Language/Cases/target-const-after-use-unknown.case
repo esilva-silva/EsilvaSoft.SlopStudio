@@ -1,0 +1,10 @@
+// case: target-const-after-use-unknown
+// mode: Script
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: context-engine.md §Resolução do alvo (declaração anterior ao uso)
+p.find({ | });
+const p = db.Pedidos;
+// expect.target: Unknown
+// expect.absent: Field:total@Pedidos

@@ -1,0 +1,14 @@
+// case: filter-elemmatch
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: knowledge-catalog.md §Shapes (FieldPath: caminho do escopo atual, inclusive elemento de array); MongoDB: critérios de $elemMatch valem sobre cada elemento de items
+// note: $elemMatch.valueShape = Filter sem escopo de elemento no catálogo atual (README D-08).
+db.Clientes.find({ items: { $elemMatch: { | } } })
+// expect.role: PropertyKey
+// expect.shape: Filter
+// expect.kinds: Field, QueryOperator
+// expect.parentField: items
+// expect.present: Field:items.sku, Field:items.qtd, Field:items.preco, $or
+// expect.absent: Field:Nome, Field:status, Field:Cliente.Id, $match

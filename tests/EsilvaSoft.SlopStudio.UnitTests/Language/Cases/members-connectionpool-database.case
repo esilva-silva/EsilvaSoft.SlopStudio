@@ -1,0 +1,12 @@
+// case: members-connectionpool-database
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: testing.md §Fixtures (ConnectionPool.P.b.); context-engine.md §Resolução do alvo (ConnectionPool.P.b.c Explicit); coleções vêm da conexão relatorios, não da aba
+ConnectionPool.relatorios.Vendas.|
+// expect.role: MemberAccess
+// expect.receiver: Database
+// expect.kinds: Collection, DatabaseMethod
+// expect.target: relatorios/Vendas/ Explicit
+// expect.present: Collection:Faturas, Collection:Comissoes, getCollection
+// expect.absent: Collection:Metas, Collection:Clientes, find

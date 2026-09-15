@@ -1,0 +1,11 @@
+// case: members-unknown-receiver-negative
+// mode: Script
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: context-engine.md §Não objetivos (não avaliar JavaScript) e §Revisão (fallback produz Unknown, não herda destino)
+const x = obterAlgo();
+x.|
+// expect.role: MemberAccess
+// expect.kinds.not: CollectionMethod, CursorMethod, Collection, DatabaseMethod
+// expect.target: Unknown
+// expect.absent: find, sort, getCollection, Collection:Clientes

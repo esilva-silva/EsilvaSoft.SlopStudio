@@ -1,0 +1,11 @@
+// case: rank-pipeline-subpipeline-project
+// group: PipelineElement
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: mongodb-language.v1.json LookupBody.pipeline → Pipeline → Stage; campo da coleção from não é chave de stage
+db.Pedidos.aggregate([ { $lookup: { from: "Clientes", pipeline: [ { $pro| } ], as: "cliente" } } ])
+// expect.best: $project
+// expect.acceptable: $project, Snippet:stage.project
+// expect.invalidTop5: $push, Field:Nome@Clientes

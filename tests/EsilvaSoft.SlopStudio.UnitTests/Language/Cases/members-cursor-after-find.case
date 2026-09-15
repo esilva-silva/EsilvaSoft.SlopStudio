@@ -1,0 +1,13 @@
+// case: members-cursor-after-find
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: testing.md §Fixtures (cursor após find({})); mongodb-language.v1.json find returns Cursor; ConsoleBootstrap.js CursorProxy (sort, skip, limit, project, hint, collation, comment, batchSize, maxTimeMS, toArray)
+db.Clientes.find({}).|
+// expect.role: MemberAccess
+// expect.receiver: Cursor
+// expect.kinds: CursorMethod
+// expect.kinds.not: CollectionMethod, Collection, Field
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.present: sort, limit, skip, project, hint, collation, comment, batchSize, maxTimeMS, toArray
+// expect.absent: find, updateOne, forEach, hasNext, pretty, itcount

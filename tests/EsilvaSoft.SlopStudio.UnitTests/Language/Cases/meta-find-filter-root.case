@@ -1,0 +1,19 @@
+// case: meta-find-filter-root
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Exemplos — raiz do filtro: Field, QueryOperator[logical], $expr/$jsonSchema/$text/$comment, Snippet[filter]
+db.Clientes.find({
+    |
+})
+// expect.role: PropertyKey
+// expect.shape: Filter
+// expect.kinds: Field, QueryOperator, Snippet
+// expect.kinds.not: AggregationStage, UpdateOperator, Accumulator, CollectionMethod
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.parentField: -
+// expect.replace: «»
+// expect.quote: None
+// expect.present: Field:Id, Field:Nome, Field:status, $and, $or, $nor, $expr, $jsonSchema, $text, $comment, Snippet:filter.equals, Snippet:filter.condition
+// expect.absent: $eq, $in, $gt, $match, $group, $set, $sum, find

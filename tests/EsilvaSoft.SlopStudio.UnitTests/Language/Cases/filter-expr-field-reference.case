@@ -1,0 +1,14 @@
+// case: filter-expr-field-reference
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: context-engine.md §Localização (FieldReferenceString `"$▌"`); testing.md §Fixtures (Filtros: $expr)
+db.Pedidos.find({ $expr: { $gt: [ "$|", 100 ] } })
+// expect.role: FieldReferenceString
+// expect.quote: Double
+// expect.kinds: Field
+// expect.target: servidor-alfa/Projetos/Pedidos Explicit
+// expect.replace: «$»
+// expect.present: Field:total, Field:clienteId, Field:itens.qtd
+// expect.absent: Field:Nome@Clientes, $gt, $sum

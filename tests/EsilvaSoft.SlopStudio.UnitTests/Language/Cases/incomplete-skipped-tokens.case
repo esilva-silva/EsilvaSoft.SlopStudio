@@ -1,0 +1,12 @@
+// case: incomplete-skipped-tokens
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Recuperação de erro (token inesperado → SkippedTokens; continua no próximo token sincronizável `,`)
+db.Clientes.find({ Nome: "Ana" ) , | })
+// expect.role: PropertyKey
+// expect.shape: Filter
+// expect.diagnostics: SkippedTokens
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.present: Field:status

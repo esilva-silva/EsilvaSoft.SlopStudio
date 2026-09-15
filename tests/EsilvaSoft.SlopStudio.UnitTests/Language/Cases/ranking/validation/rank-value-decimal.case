@@ -1,0 +1,11 @@
+// case: rank-value-decimal
+// group: TypedValue
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: ranking.md §4 (construtor do tipo decimal) e §1 (dialeto)
+db.Pedidos.find({ total: Num| })
+// expect.best: NumberDecimal
+// expect.acceptable: NumberDecimal
+// expect.invalidTop5: NumberInt, Field:total

@@ -1,0 +1,15 @@
+// case: filter-dotted-array-children-quoted
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: knowledge-catalog.md §Schema (notação de ponto atravessa arrays de documentos; posicionais só em shapes de update); testing.md §Fixtures (caminho com ponto entre aspas)
+db.Clientes.find({ "items.|": { $exists: true } })
+// expect.role: PropertyKeyString
+// expect.shape: Filter
+// expect.kinds: Field
+// expect.quote: Double
+// expect.parentField: items
+// expect.replace: «items.»
+// expect.present: Field:items.sku, Field:items.qtd, Field:items.preco
+// expect.absent: Field:Nome, $, $[], $[item], $exists

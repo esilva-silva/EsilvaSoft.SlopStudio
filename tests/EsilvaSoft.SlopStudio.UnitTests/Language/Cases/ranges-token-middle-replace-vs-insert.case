@@ -1,0 +1,11 @@
+// case: ranges-token-middle-replace-vs-insert
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Localização do cursor (faixa de substituição = token parcial; faixa de inserção = até o cursor); AC-01 (insert/replace estilo LSP)
+db.Clientes.find({ No|me: 1 })
+// expect.role: PropertyKey
+// expect.replace: «Nome»
+// expect.insertSpan: «No»
+// expect.applied: Field:Nome => «db.Clientes.find({ Nome|: 1 })»

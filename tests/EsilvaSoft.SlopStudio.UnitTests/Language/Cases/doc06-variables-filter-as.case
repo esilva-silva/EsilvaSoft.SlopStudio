@@ -1,0 +1,16 @@
+// case: doc06-variables-filter-as
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: 06-editor-bson-e-uuid.md §Casos obrigatórios (`$$`: variáveis de sistema e declaradas no escopo); context-engine.md §Localização (VariableReferenceString); MongoDB: `as` de $filter declara variável visível em `cond`
+db.Clientes.aggregate([
+    { $project: { itensCaros: { $filter: { input: "$items", as: "item", cond: { $gt: [ "$$|", 100 ] } } } } }
+])
+// expect.role: VariableReferenceString
+// expect.quote: Double
+// expect.kinds: SystemVariable
+// expect.variables: item
+// expect.replace: «$$»
+// expect.present: $$item, $$ROOT, $$CURRENT, $$NOW, $$REMOVE
+// expect.absent: Field:items, $$pedidoCliente, $sum

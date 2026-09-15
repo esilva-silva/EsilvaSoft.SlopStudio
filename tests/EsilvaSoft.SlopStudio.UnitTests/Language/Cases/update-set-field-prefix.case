@@ -1,0 +1,13 @@
+// case: update-set-field-prefix
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json, schemas/projetos.json
+// spec: mongodb-language.v1.json Update → $set → FieldValueMap (FieldPath); testing.md §Fixtures (Updates: $set)
+db.Clientes.updateMany({ status: "inativo" }, { $set: { No| } })
+// expect.role: PropertyKey
+// expect.shape: FieldValueMap
+// expect.kinds: Field
+// expect.replace: «No»
+// expect.present: Field:Nome
+// expect.absent: Field:Nome@Projetos, $set, $match, $nor

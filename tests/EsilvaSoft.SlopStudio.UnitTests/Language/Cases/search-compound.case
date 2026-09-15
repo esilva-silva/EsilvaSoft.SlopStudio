@@ -1,0 +1,12 @@
+// case: search-compound
+// mode: Console
+// target: servidor-alfa/Projetos/Projetos
+// metadata: schemas/workspace.json
+// schema: schemas/projetos.json
+// spec: testing.md §Fixtures (Atlas/MongoDB Search: $search com compound); mongodb-language.v1.json SearchOperatorBody (SearchOption + SearchOperator)
+db.Projetos.aggregate([ { $search: { compound: { | } } } ])
+// expect.role: PropertyKey
+// expect.shape: SearchOperatorBody
+// expect.kinds: SearchOption
+// expect.present: must, mustNot, should, filter, minimumShouldMatch
+// expect.absent: $match, $and, Field:Nome

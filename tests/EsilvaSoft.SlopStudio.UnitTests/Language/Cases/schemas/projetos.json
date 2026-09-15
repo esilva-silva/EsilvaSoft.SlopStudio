@@ -1,0 +1,21 @@
+{
+  "format": "slop-case-schema/1",
+  "description": "Schema sintético de Projetos/Projetos em servidor-alfa. Somente nomes, tipos e estrutura; nenhum valor de documento.",
+  "namespace": { "connection": "servidor-alfa", "database": "Projetos", "collection": "Projetos" },
+  "state": "Fresh",
+  "sampleSize": 0,
+  "fields": [
+    { "path": "_id", "types": ["objectId"], "required": true, "evidence": ["validator", "index"] },
+    { "path": "Nome", "types": ["string"], "required": true, "evidence": ["validator"] },
+    { "path": "descricao", "types": ["string"], "evidence": ["validator"] },
+    { "path": "Cliente", "types": ["object"], "evidence": ["validator"] },
+    { "path": "Cliente.Id", "types": ["uuid"], "evidence": ["validator", "index"] },
+    { "path": "Cliente.Nome", "types": ["string"], "evidence": ["validator"] },
+    { "path": "inicio", "types": ["date"], "evidence": ["validator"] },
+    { "path": "tags", "types": ["array"], "array": true, "elementTypes": ["string"], "evidence": ["validator"] }
+  ],
+  "indexes": [
+    { "name": "_id_", "keys": { "_id": 1 } },
+    { "name": "Cliente.Id_1", "keys": { "Cliente.Id": 1 } }
+  ]
+}

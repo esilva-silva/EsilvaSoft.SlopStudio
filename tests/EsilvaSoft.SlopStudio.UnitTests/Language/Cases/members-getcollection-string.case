@@ -1,0 +1,15 @@
+// case: members-getcollection-string
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Localização do cursor (StringArgument `getCollection("▌")` → nome de coleção)
+db.getCollection("|")
+// expect.role: StringArgument
+// expect.kinds: Collection
+// expect.kinds.not: Field, CollectionMethod
+// expect.quote: Double
+// expect.replace: «»
+// expect.present: Collection:Clientes, Collection:historico-clientes, Collection:pedidos-2025
+// expect.absent: find, Field:Nome, Collection:Faturas
+// expect.insert: Collection:pedidos-2025 => text «pedidos-2025»

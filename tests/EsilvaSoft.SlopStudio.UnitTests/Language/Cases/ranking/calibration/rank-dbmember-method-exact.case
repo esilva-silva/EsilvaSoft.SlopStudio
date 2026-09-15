@@ -1,0 +1,10 @@
+// case: rank-dbmember-method-exact
+// group: DatabaseMember
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: ranking.md §2 (exato 1,00); stats de coleção tem o mesmo rótulo e é inválido como membro de Database
+db.stats|
+// expect.best: DatabaseMethod:stats
+// expect.acceptable: DatabaseMethod:stats
+// expect.invalidTop5: CollectionMethod:stats

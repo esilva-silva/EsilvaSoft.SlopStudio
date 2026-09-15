@@ -1,0 +1,11 @@
+// case: rank-value-uuid-nested
+// group: TypedValue
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: ranking.md §4 (valor tipado: construtor do tipo do campo › literal › objeto de operadores); representação UUID padrão Standard (README §Cabeçalho); GUUID é alias Standard (06 §UUID)
+db.Clientes.find({ "Cliente.Id": | })
+// expect.best: UUID
+// expect.acceptable: UUID, GUUID
+// expect.invalidTop5: Field:Nome, $match, find, $set, Snippet:stage.match

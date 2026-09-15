@@ -1,0 +1,15 @@
+// case: filter-root-keys
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: mongodb-language.v1.json shape Filter (FieldPath, $and/$or/$nor, $expr, $jsonSchema, $text, $where, $comment); MongoDB: $eq/$not/$exists no nível raiz são "unknown top level operator"
+db.Pedidos.find({ | })
+// expect.role: PropertyKey
+// expect.shape: Filter
+// expect.kinds: Field, QueryOperator
+// expect.target: servidor-alfa/Projetos/Pedidos Explicit
+// expect.parentField: -
+// expect.objectDepth: 1
+// expect.present: Field:clienteId, Field:total, Field:itens, $and, $or, $nor, $expr, $comment
+// expect.absent: $eq, $gt, $in, $exists, $elemMatch, $not, $match, $set, $sum, $each, find, Field:Nome@Clientes

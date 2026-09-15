@@ -1,0 +1,10 @@
+// case: rank-collmember-empty-prefix
+// group: CollectionMember
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: ranking.md §4 (membro de Collection: leitura › agregação › escrita › administração; rótulo mais curto); bulkWrite fora do Console; métodos de Database/Cursor inválidos
+db.Pedidos.|
+// expect.best: find
+// expect.acceptable: find, findOne, countDocuments, distinct, aggregate
+// expect.invalidTop5: bulkWrite, getSiblingDB, sort, Collection:Clientes, $match

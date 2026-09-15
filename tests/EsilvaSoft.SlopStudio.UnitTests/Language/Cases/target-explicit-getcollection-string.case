@@ -1,0 +1,7 @@
+// case: target-explicit-getcollection-string
+// mode: Console
+// target: servidor-alfa/Projetos
+// metadata: schemas/workspace.json
+// spec: MongoCompletionTargetTests.ExplicitPathsResolveWithoutEvaluatingCode caso "db.getCollection('customer-history').find({"
+db.getCollection('historico-clientes').find({|
+// expect.target: servidor-alfa/Projetos/historico-clientes Explicit

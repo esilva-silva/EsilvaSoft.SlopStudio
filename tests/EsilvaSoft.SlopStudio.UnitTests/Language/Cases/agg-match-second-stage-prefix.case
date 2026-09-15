@@ -1,0 +1,13 @@
+// case: agg-match-second-stage-prefix
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: context-engine.md §Pipelines ($sort mantém campos); testing.md §Fixtures (Agregação: $match)
+db.Pedidos.aggregate([ { $sort: { criadoEm: -1 } }, { $match: { to| } } ])
+// expect.role: PropertyKey
+// expect.shape: Filter
+// expect.stage: 1 $match
+// expect.replace: «to»
+// expect.fields: _id, clienteId, total, status, itens, itens.sku, itens.qtd, criadoEm, observacao
+// expect.present: Field:total

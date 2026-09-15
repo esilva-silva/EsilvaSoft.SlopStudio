@@ -1,0 +1,11 @@
+// case: rank-sort-field-prefix
+// group: SortProjection
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: mongodb-language.v1.json Sort (FieldPath); ranking.md §Confiança (namespace); createIndex é método
+db.Pedidos.find({}).sort({ cri| })
+// expect.best: Field:criadoEm
+// expect.acceptable: Field:criadoEm
+// expect.invalidTop5: Field:criadoEm@Clientes, createIndex

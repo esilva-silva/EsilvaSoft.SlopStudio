@@ -1,0 +1,12 @@
+// case: agg-array-element-snippets
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: context-engine.md §Localização (ArrayElement `aggregate([ ▌ ])` → elemento do shape); ranking.md §4 (elemento de Pipeline: snippet de stage › stage); mongodb-language.v1.json snippets stage.*
+db.Pedidos.aggregate([ | ])
+// expect.role: ArrayElement
+// expect.shape: Pipeline
+// expect.kinds: Snippet
+// expect.present: Snippet:stage.match, Snippet:stage.group, Snippet:stage.lookup, Snippet:stage.project, Snippet:stage.unwind
+// expect.absent: Snippet:filter.equals, Snippet:update.set, Field:total, find, $eq

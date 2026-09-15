@@ -1,0 +1,18 @@
+// case: doc06-age-gt-operator
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: 06-editor-bson-e-uuid.md §Casos obrigatórios (`{ "age": { "$g`: operadores de comparação aplicáveis); traditional-autocomplete.md §Faixas e aspas (operador em chave; dentro de string aberta)
+db.Clientes.find({ "age": { "$g| })
+// expect.role: PropertyKeyString
+// expect.shape: OperatorObject
+// expect.kinds: QueryOperator
+// expect.parentField: age
+// expect.valueTypes: int, double
+// expect.quote: Double
+// expect.replace: «$g»
+// expect.present: $gt, $gte
+// expect.absent: $group, $graphLookup, $getField, ExpressionOperator:$gt
+// expect.insert: $gt => text «$gt"»
+// expect.applied: $gt => «db.Clientes.find({ "age": { "$gt"| })»

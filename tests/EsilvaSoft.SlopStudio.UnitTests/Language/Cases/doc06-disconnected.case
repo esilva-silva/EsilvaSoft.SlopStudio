@@ -1,0 +1,15 @@
+// case: doc06-disconnected
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// connected: false
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: 06-editor-bson-e-uuid.md §Casos obrigatórios (sem conexão: operadores/snippets locais, sem inventar campos remotos); traditional-autocomplete.md §Estados da lista (conexão desconectada); IMetadataCache.Disconnect remove tudo do perfil
+// note: o schema declarado NÃO entra no cache porque o perfil está desconectado (ver README §connected); a ausência de campos prova que nada é inventado.
+db.Clientes.find({ | })
+// expect.role: PropertyKey
+// expect.shape: Filter
+// expect.target: servidor-alfa/Projetos/Clientes Explicit
+// expect.listState: Disconnected
+// expect.present: $and, $or, $expr, Snippet:filter.equals
+// expect.absent: Field:Nome, Field:Id, Field:status

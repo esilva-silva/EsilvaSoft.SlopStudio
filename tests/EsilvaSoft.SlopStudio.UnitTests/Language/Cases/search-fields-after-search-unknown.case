@@ -1,0 +1,10 @@
+// case: search-fields-after-search-unknown
+// mode: Console
+// target: servidor-alfa/Projetos/Projetos
+// metadata: schemas/workspace.json
+// schema: schemas/projetos.json
+// spec: context-engine.md §Pipelines ($search e transformações desconhecidas → estado Unknown, sem propagar campos antigos como certos)
+db.Projetos.aggregate([ { $search: { text: { query: "painel", path: "Nome" } } }, { $match: { | } } ])
+// expect.role: PropertyKey
+// expect.stage: 1 $match
+// expect.fields: (unknown)

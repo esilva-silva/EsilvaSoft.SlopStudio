@@ -1,0 +1,12 @@
+// case: agg-variables-without-let-negative
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: 06-editor-bson-e-uuid.md §Casos obrigatórios ($$: variáveis declaradas no escopo); variáveis de let de outro statement não vazam
+db.Pedidos.aggregate([ { $lookup: { from: "Clientes", let: { pedidoCliente: "$clienteId" }, pipeline: [], as: "cliente" } } ]);
+db.Pedidos.aggregate([ { $project: { agora: "$$|" } } ])
+// expect.role: VariableReferenceString
+// expect.variables: -
+// expect.present: $$NOW, $$ROOT, $$REMOVE
+// expect.absent: $$pedidoCliente

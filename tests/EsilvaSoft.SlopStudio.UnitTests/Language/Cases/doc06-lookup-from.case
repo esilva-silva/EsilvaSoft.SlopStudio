@@ -1,0 +1,16 @@
+// case: doc06-lookup-from
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: 06-editor-bson-e-uuid.md §Casos obrigatórios ($lookup: coleção estrangeira); mongodb-language.v1.json LookupBody.from = CollectionNameString; MongoDB: $lookup só referencia coleções do mesmo banco
+db.Pedidos.aggregate([
+    { $lookup: { from: "|", localField: "clienteId", foreignField: "Id", as: "cliente" } }
+])
+// expect.role: PropertyValue
+// expect.quote: Double
+// expect.kinds: Collection
+// expect.kinds.not: Field
+// expect.replace: «»
+// expect.present: Collection:Clientes, Collection:Projetos, Collection:historico-clientes, Collection:pedidos-2025
+// expect.absent: Collection:Faturas, Collection:Metas, Collection:Comissoes, Field:total, getCollection

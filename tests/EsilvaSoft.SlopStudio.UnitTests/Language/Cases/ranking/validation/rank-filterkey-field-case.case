@@ -1,0 +1,11 @@
+// case: rank-filterkey-field-case
+// group: FilterKey
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: ranking.md §2 (prefixo com caixa diferente) e §4 (chave de Filter: campo › operador lógico); $nor aceitável; $not/$near/$ne/$nin inválidos na raiz; construtor inválido em chave
+db.Clientes.find({ no| })
+// expect.best: Field:Nome
+// expect.acceptable: Field:Nome, $nor
+// expect.invalidTop5: $not, $ne, $nin, $near, NumberLong

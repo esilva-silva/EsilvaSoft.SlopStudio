@@ -1,0 +1,9 @@
+// case: noncompletable-number-argument
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: context-engine.md §Localização (NonCompletable: número)
+db.Pedidos.find({}).limit(10|0)
+// expect.role: NonCompletable
+// expect.empty: true

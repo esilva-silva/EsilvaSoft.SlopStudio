@@ -17,6 +17,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     private bool _disposed;
     private bool _updatingRecovery;
     private AutocompleteSettings _autocompleteSettings = new();
+    // Persisted form kept as loaded (null = absent) so autosave never drops or materializes custom shortcuts.
+    private EditorKeyBindings? _keyBindings;
     private readonly HashSet<Guid> _excludedProfiles = [];
     private readonly Dictionary<Guid, UuidRepresentation> _profileUuidRepresentations = [];
     private readonly SynchronizationContext? _context = SynchronizationContext.Current;
@@ -31,6 +33,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public IAutocompleteService AutocompleteService { get; }
     public IAiChatService AiChatService { get; }
     public AutocompleteSettingsViewModel AutocompletePreferences { get; }
+    /// <summary>Effective editor shortcuts per command id; defaults until a readable session is loaded.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<EditorKeyGesture>> KeyBindings { get; private set; } = EditorKeyBindings.Resolve(null);
     public ExplorerDetailsViewModel Details { get; }
     public ObservableCollection<WorkspaceTabViewModel> Tabs { get; } = [];
     public ObservableCollection<ExplorerNodeViewModel> Roots { get; } = [];
@@ -134,6 +138,9 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
             await ReloadProfilesAsync();
             var session = await _sessions.LoadSessionAsync();
             _autocompleteSettings = session.Preferences.Autocomplete.Validate();
+            // Invalid shortcuts fail here too, before _initialized, so no save path can replace the snapshot.
+            KeyBindings = EditorKeyBindings.Resolve(session.Preferences.EditorKeyBindings);
+            _keyBindings = session.Preferences.EditorKeyBindings;
             // Startup only reads preferences; the model is validated and loaded on the first AI request.
             await AutocompleteService.ConfigureAsync(_autocompleteSettings);
             AutocompletePreferences.Load(_autocompleteSettings);
@@ -471,7 +478,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
                 ActiveTabId = ActiveTab?.Id,
                 Preferences = new WorkspacePreferences { Autocomplete = _autocompleteSettings, Theme = Theme, CodeFontSize = CodeFontSize, ExplorerWidth = ExplorerWidth, EditorRatio = EditorRatio, RecoverDrafts = RecoverDrafts, ExcludedProfileIds = _excludedProfiles.ToArray(),
                     UuidRepresentation = UuidRepresentation, ProfileUuidRepresentations = new(_profileUuidRepresentations), IdentifierMode = IdentifierMode,
-                    SchemaSamplingProfileIds = Metadata.SchemaSamplingProfiles.ToArray() },
+                    SchemaSamplingProfileIds = Metadata.SchemaSamplingProfiles.ToArray(), EditorKeyBindings = _keyBindings },
                 Tabs = Tabs.Select(t => t.Snapshot()).ToArray()
             };
             await _sessions.SaveSessionAsync(session);

@@ -1,0 +1,12 @@
+// case: search-operators-outside-search-negative
+// mode: Console
+// target: servidor-alfa/Projetos/Projetos
+// metadata: schemas/workspace.json
+// schema: schemas/projetos.json
+// spec: knowledge-catalog.md §Consolidação (não confundir operador autocomplete de Search com autocomplete do editor); SearchOperator/SearchOption só em SearchBody
+db.Projetos.find({ | })
+// expect.role: PropertyKey
+// expect.shape: Filter
+// expect.kinds.not: SearchOperator, SearchOption
+// expect.present: $text
+// expect.absent: compound, text, must, autocomplete, path

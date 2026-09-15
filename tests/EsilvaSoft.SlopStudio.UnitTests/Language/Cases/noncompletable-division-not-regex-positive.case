@@ -1,0 +1,9 @@
+// case: noncompletable-division-not-regex-positive
+// mode: Script
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: context-engine.md §Revisão (regex versus divisão); controle positivo: `/` após número é divisão, não abre regex
+const media = 10 / 2; db.|
+// expect.role: MemberAccess
+// expect.receiver: Database
+// expect.present: Collection:Clientes, getCollection

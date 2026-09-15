@@ -1,0 +1,10 @@
+// case: rank-dbmember-drop
+// group: DatabaseMember
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: ranking.md §1 (papel e shape antes da pontuação): drop exato de coleção não pode vencer dropDatabase como membro de Database
+db.drop|
+// expect.best: dropDatabase
+// expect.acceptable: dropDatabase
+// expect.invalidTop5: CollectionMethod:drop, dropIndex, dropIndexes

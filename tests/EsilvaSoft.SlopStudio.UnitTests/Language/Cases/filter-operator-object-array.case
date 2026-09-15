@@ -1,0 +1,14 @@
+// case: filter-operator-object-array
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Exemplos (OperatorObject tipado); mongodb-language.v1.json QueryOperator category array ($all, $elemMatch, $size); ranking.md §3 ($size compatível com array)
+db.Clientes.find({ tags: { | } })
+// expect.role: PropertyKey
+// expect.shape: OperatorObject
+// expect.kinds: QueryOperator
+// expect.parentField: tags
+// expect.valueTypes: array
+// expect.present: $all, $elemMatch, $size, $in, $exists
+// expect.absent: $each, $push, $match, $slice

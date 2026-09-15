@@ -1,0 +1,14 @@
+// case: meta-db-members
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: context-engine.md §Exemplos (`db.|`): Collection do banco da aba e DatabaseMethod
+db.|
+// expect.role: MemberAccess
+// expect.receiver: Database
+// expect.kinds: Collection, DatabaseMethod
+// expect.kinds.not: CollectionMethod, CursorMethod, Field, QueryOperator, AggregationStage
+// expect.target: servidor-alfa/Projetos/
+// expect.replace: «»
+// expect.present: Collection:Clientes, Collection:Pedidos, Collection:Projetos, getCollection, getSiblingDB, getName, stats, createCollection, dropDatabase
+// expect.absent: find, sort, getDatabase, getCollectionNames, $match, Field:Nome, Collection:Faturas

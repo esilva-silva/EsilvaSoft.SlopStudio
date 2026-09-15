@@ -30,6 +30,10 @@ public sealed record AutocompleteSettings
     public bool UseResultPanelContext { get; init; } = true;
     public bool UseEditorContext { get; init; } = true;
     public bool IncrementalTab { get; init; } = true;
+    /// <summary>Additive to version 1: the contextual list opens by itself on trigger characters; absent keeps it explicit only.</summary>
+    public bool CompletionAutoOpenOnTrigger { get; init; }
+    /// <summary>Additive to version 1: Enter accepts the highlighted list item; false leaves Enter to insert a new line.</summary>
+    public bool CompletionEnterAccepts { get; init; } = true;
 
     public AutocompleteSettings Validate()
     {

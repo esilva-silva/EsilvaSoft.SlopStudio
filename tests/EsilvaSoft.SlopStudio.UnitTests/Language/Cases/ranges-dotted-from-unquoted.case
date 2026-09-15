@@ -1,0 +1,13 @@
+// case: ranges-dotted-from-unquoted
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: traditional-autocomplete.md §Faixas e aspas, linha 4 ("Cliente.Id" sempre com aspas, inclui o trecho Cliente. digitado); phase-2 §Critérios de aceite 6 ("Cliente.Id" a partir de Cliente.); AC-09
+db.Clientes.find({ status: "ativo", Cliente.| })
+// expect.role: PropertyKey
+// expect.diagnostics: DottedKeyRecovery
+// expect.parentField: Cliente
+// expect.replace: «Cliente.»
+// expect.insert: Field:Cliente.Id => text «"Cliente.Id"»
+// expect.applied: Field:Cliente.Id => «db.Clientes.find({ status: "ativo", "Cliente.Id"| })»

@@ -1,0 +1,12 @@
+// case: update-options-keys
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: mongodb-language.v1.json updateMany parâmetro 2 UpdateOptions (upsert, arrayFilters)
+db.Clientes.updateMany({}, { $set: { status: "ativo" } }, { | })
+// expect.role: PropertyKey
+// expect.shape: UpdateOptions
+// expect.kinds.not: Field, UpdateOperator
+// expect.present: upsert, arrayFilters
+// expect.absent: $set, Field:Nome, $match

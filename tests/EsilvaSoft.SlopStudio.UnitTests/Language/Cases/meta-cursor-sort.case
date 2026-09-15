@@ -1,0 +1,15 @@
+// case: meta-cursor-sort
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json, schemas/clientes.json
+// spec: context-engine.md §Exemplos (Cursor.sort → SortSpec → chave FieldPath)
+db.Pedidos.find({}).sort({ | })
+// expect.role: PropertyKey
+// expect.shape: Sort
+// expect.kinds: Field
+// expect.kinds.not: QueryOperator, AggregationStage, CursorMethod
+// expect.target: servidor-alfa/Projetos/Pedidos Explicit
+// expect.replace: «»
+// expect.present: Field:total, Field:criadoEm, Field:status
+// expect.absent: $eq, $match, $meta, sort, Field:Nome@Clientes

@@ -79,6 +79,7 @@ public sealed class LiteDbConnectionProfileRepository : IConnectionProfileReposi
         autocomplete.Validate();
         session.Preferences.ValidateUuid();
         session.Preferences.ValidateMetadata();
+        session.Preferences.ValidateKeyBindings();
         return session;
     }
 
@@ -89,6 +90,7 @@ public sealed class LiteDbConnectionProfileRepository : IConnectionProfileReposi
         session.Preferences.Autocomplete.Validate();
         session.Preferences.ValidateUuid();
         session.Preferences.ValidateMetadata();
+        session.Preferences.ValidateKeyBindings();
         // Persist policy at the boundary as well as in the UI. No credentials or results in this DTO.
         var allowed = session.Preferences.RecoverDrafts
             ? session.Tabs.Where(tab => !tab.ContainsResultData && (tab.ProfileId is null || !session.Preferences.ExcludedProfileIds.Contains(tab.ProfileId.Value))).ToArray()

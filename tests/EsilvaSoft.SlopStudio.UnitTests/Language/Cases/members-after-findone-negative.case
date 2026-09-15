@@ -1,0 +1,9 @@
+// case: members-after-findone-negative
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// spec: mongodb-language.v1.json findOne returns Document (não Cursor): sem métodos de cursor nem de coleção
+db.Clientes.findOne({}).|
+// expect.role: MemberAccess
+// expect.kinds.not: CursorMethod, CollectionMethod, DatabaseMethod, Collection
+// expect.absent: sort, limit, toArray, find, getCollection, Collection:Pedidos

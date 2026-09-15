@@ -1,0 +1,12 @@
+// case: agg-fields-unknown-transform
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: context-engine.md §Pipelines (transformação desconhecida → Unknown, sem propagar campos antigos como certos; explícito informa limite); AggregationFieldInferenceTests.ConstructorsAreOpaqueAndUnknownTransformationsDoNotInventFields
+db.Clientes.aggregate([ { $etapaFutura: {} }, { $match: { | } } ])
+// expect.role: PropertyKey
+// expect.stage: 1 $match
+// expect.fields: (unknown)
+// expect.listState: PipelineFieldsUnknown
+// expect.present: $and, $or

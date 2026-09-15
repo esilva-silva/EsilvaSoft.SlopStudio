@@ -1,0 +1,18 @@
+// case: meta-agg-group-accumulator
+// mode: Console
+// target: servidor-alfa/Projetos/Pedidos
+// metadata: schemas/workspace.json
+// schema: schemas/pedidos.json
+// spec: context-engine.md §Exemplos (GroupBody → chave dinâmica → AccumulatorObject → Accumulator); MongoDB: o valor de um campo de $group precisa ser objeto acumulador ($add não é acumulador)
+db.Pedidos.aggregate([
+    { $group: { _id: "$clienteId", total: { | } } }
+])
+// expect.role: PropertyKey
+// expect.shape: AccumulatorObject
+// expect.kinds: Accumulator
+// expect.kinds.not: Field, ExpressionOperator, AggregationStage, QueryOperator
+// expect.stage: 0 $group
+// expect.target: servidor-alfa/Projetos/Pedidos Explicit
+// expect.replace: «»
+// expect.present: $sum, $avg, $min, $max, $push, $addToSet, $first, $last, $count
+// expect.absent: $add, $match, $eq, $set, Field:total

@@ -1,0 +1,11 @@
+// case: rank-update-addtoset-each
+// group: Update
+// mode: Console
+// target: servidor-alfa/Projetos/Clientes
+// metadata: schemas/workspace.json
+// schema: schemas/clientes.json
+// spec: MongoDB: $addToSet aceita { $each: [...] } (README D-09); $elemMatch (consulta) e $dateAdd (expressão) inválidos
+db.Clientes.updateOne({}, { $addToSet: { tags: { $ea| } } })
+// expect.best: $each
+// expect.acceptable: $each
+// expect.invalidTop5: $elemMatch, $dateAdd
