@@ -15,6 +15,44 @@ namespace EsilvaSoft.SlopStudio.UnitTests;
 public sealed class AdvancedAggregationUiTests
 {
     [Test]
+    public async Task DerivedFieldSuggestionInsertsAtTheCursorAndPreservesUndoOffline()
+    {
+        var session = HeadlessUnitTestSession.GetOrStartForAssembly(typeof(UiTestApp).Assembly);
+        await session.Dispatch<bool>(async () =>
+        {
+            using var context = new WorkspaceTestContext();
+            var networkCalls = 0;
+            context.Mongo.Handler = (_, _) => { networkCalls++; throw new InvalidOperationException("Não deve consultar metadados remotos."); };
+            var completion = new CompletionServiceFake { Handler = _ => Task.FromResult<EsilvaSoft.SlopStudio.Core.AutocompleteResult?>(null) };
+            using var workspace = new WorkspaceViewModel(context.Workspace, context.Repository, completion);
+            var window = new MainWindow { DataContext = workspace }; window.Show(); await window.InitializationTask;
+            var tab = workspace.ActiveTab!; tab.Mode = "Agregação";
+            const string original = "[{ $group: { _id: '$customer', total: { $sum: '$price' } } }, { $project: { value: '$to";
+            tab.Text = original;
+            window.UpdateLayout(); Dispatcher.UIThread.RunJobs();
+            var view = window.GetVisualDescendants().OfType<WorkspaceTabView>().Single();
+            var editor = view.FindControl<MongoTextEditor>("CodeEditor")!;
+            editor.CaretIndex = editor.SelectionStart = editor.SelectionEnd = original.Length;
+            editor.Focus();
+            var suggestionStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+            window.KeyPress(Avalonia.Input.Key.Space, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.Space, null);
+            var field = typeof(WorkspaceTabView).GetField("_completionMenu", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            for (var i = 0; i < 100 && field.GetValue(view) is null; i++) { await Task.Delay(10); Dispatcher.UIThread.RunJobs(); }
+            var menu = (MenuFlyout?)field.GetValue(view);
+            Assert.That(menu, Is.Not.Null);
+            TestContext.Out.WriteLine($"Sugestões de campo derivado via Ctrl+Espaço: {System.Diagnostics.Stopwatch.GetElapsedTime(suggestionStarted).TotalMilliseconds:F1} ms em Headless, sem rede; inserção e undo verificados.");
+            var suggestion = menu!.Items.OfType<MenuItem>().Single(item => item.Header as string == "$total");
+            suggestion.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            Assert.That(tab.Text, Is.EqualTo(original + "tal"));
+            editor.Document.UndoStack.Undo(); Assert.That(tab.Text, Is.EqualTo(original));
+            Assert.That(networkCalls, Is.Zero);
+            menu.Hide();
+            typeof(MainWindow).GetField("_allowClose", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(window, true);
+            window.Close(); return true;
+        }, CancellationToken.None);
+    }
+
+    [Test]
     public async Task AggregationHistoryRendersItsCapturedDestinationInBothThemes()
     {
         var session = HeadlessUnitTestSession.GetOrStartForAssembly(typeof(UiTestApp).Assembly);

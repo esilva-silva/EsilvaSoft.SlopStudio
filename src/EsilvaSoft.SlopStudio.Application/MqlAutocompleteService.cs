@@ -81,7 +81,7 @@ public static class MqlAutocompleteService
                 .Select(field => context.FieldReference ? "$" + field : field)
                 .Where(field => field.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(field => field, StringComparer.OrdinalIgnoreCase)
-                .Select(field => new MqlSuggestion(field, "Campo observado nos resultados carregados", MqlSuggestionKind.Field)));
+                .Select(field => new MqlSuggestion(field, "Campo conhecido no contexto do pipeline", MqlSuggestionKind.Field)));
         }
         if (!context.FieldReference)
             suggestions.AddRange(Operators.Where(op => (context.StageKey ? op.Kind == MqlSuggestionKind.AggregationStage

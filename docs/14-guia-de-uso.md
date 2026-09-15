@@ -2,6 +2,10 @@
 
 ## Consultas avançadas — incremento de 14/09/2026
 
+Depois de um `$group` que cria `total`, Ctrl+Espaço oferece `$total` nas expressões seguintes. Projeções e `$unset` retiram campos das sugestões; `$lookup` distingue `localField` e `foreignField` quando existem resultados conhecidos da coleção relacionada. As sugestões acompanham os ramos de `$facet` e podem ser inseridas/desfeitas no editor sem execução. [Escopo validado e limites](27-consultas-avancadas.md).
+
+O histórico agora inclui Agregação: reabra o pipeline em nova aba com destino e limite originais, sem executar. Falhas e cancelamentos também são registrados quando o histórico está habilitado. As sugestões de campos respeitam a coleção escrita no Console; expressões com destino dinâmico não reutilizam campos de outra coleção. Erros de comando mostram código MongoDB e orientação sem ecoar dados da resposta bruta.
+
 Em **Opções → Validar sintaxe**, valide a seleção ou o editor inteiro sem conexão. Erros informam linha/coluna e selecionam o trecho. No modo **Agregação**, **Analisar pipeline (explain)** mostra o plano bruto estimado em Mensagens, no destino fixo da aba. `$out` e `$merge` são bloqueados no cursor de leitura. Ctrl+Espaço cobre os 12 stages da fase e predicados/acumuladores comuns. [Exemplos de uso, evidência e limites](27-consultas-avancadas.md).
 
 ## Disponibilidade e versões — 13/09/2026

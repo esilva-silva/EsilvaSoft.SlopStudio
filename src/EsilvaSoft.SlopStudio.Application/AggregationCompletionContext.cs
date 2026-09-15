@@ -5,10 +5,11 @@ internal sealed record AggregationCompletionContext(bool StageKey, bool FieldRef
 {
     public static AggregationCompletionContext Read(string text)
     {
-        var stack = new Stack<(char Kind, bool StageObject, string? Stage)>();
+        var stack = new Stack<(char Kind, bool StageObject, bool Pipeline, string? Stage)>();
         var stageKey = false;
         var value = false;
         string? stage = null;
+        var lastWord = "";
         for (var i = 0; i < text.Length; i++)
         {
             var c = text[i];
@@ -29,13 +30,16 @@ internal sealed record AggregationCompletionContext(bool StageKey, bool FieldRef
                     if (text[i] == c) break;
                 }
                 if (i >= text.Length) return new(stageKey, value && start < text.Length && text[start] == '$', false, stage);
+                lastWord = text[start..i];
                 if (stageKey) stage = text[start..i];
                 continue;
             }
             if (c is '{' or '[' or '(')
             {
-                var isStage = c == '{' && stack.TryPeek(out var parent) && parent.Kind == '[';
-                stack.Push((c, isStage, stage));
+                var isStage = c == '{' && stack.TryPeek(out var parent) && parent.Pipeline;
+                var pipeline = c == '[' && (stack.Count == 0 || lastWord == "aggregate" ||
+                    stage == "$facet" || lastWord == "pipeline" && stage is "$lookup" or "$unionWith");
+                stack.Push((c, isStage, pipeline, stage));
                 stageKey = isStage; value = false; continue;
             }
             if (c is '}' or ']' or ')')
@@ -49,7 +53,8 @@ internal sealed record AggregationCompletionContext(bool StageKey, bool FieldRef
             {
                 var start = i;
                 while (i + 1 < text.Length && (char.IsLetterOrDigit(text[i + 1]) || text[i + 1] is '$' or '_' or '.')) i++;
-                if (stageKey) stage = text[start..(i + 1)];
+                lastWord = text[start..(i + 1)];
+                if (stageKey) stage = lastWord;
             }
         }
         return new(stageKey, false, false, stage);

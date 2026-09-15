@@ -2,6 +2,10 @@
 
 ## Consultas avançadas — incremento de 14/09/2026
 
+**Meta textual validada:** joins e evolução de campos concluídos para os stages do escopo; inferência local com limites e sem execução. Campo derivado inserido via Ctrl+Espaço e desfeito no editor real. Suíte completa **650 aprovados, 0 falhas**, `phase2-acceptance.trx`; auditoria requisito a requisito em [27](27-consultas-avancadas.md). Os checkpoints abaixo são históricos e não representam pendências atuais da meta. Release, catálogo amplo e homologação nativa permanecem separados.
+
+Revisão de histórico/contexto/diagnósticos: **643 aprovados, 0 falhas**, `phase2-final-audit.trx`, build sem avisos/erros. Histórico de Agregação com snapshot e opt-out; erro de gravação visível; origens de campos filtradas e wrappers BSON excluídos; erros seguros de comando; seleção real no MongoDB 8.0.30 sem fallback. 18 novas imagens da janela Histórico, além das 18 de validação; 600 claro/720 escuro inspecionados. Pendentes: joins/evolução de schema nas sugestões e revisão final das jornadas.
+
 Checkpoint final deste incremento: suíte regular **623 aprovados, 0 falhas, 0 ignorados**, `phase2-current.trx`. Testes Explicit de IA não integram esse total.
 
 Implementados catálogo dos 12 stages com distinção lexical, validação offline com seleção do erro, proteção compartilhada de `$out`/`$merge` e explain bruto do modo Agregação. Snapshots e cancelamento testados entre abas; resultados anteriores conservados durante explain. Fixture MongoDB 8.0.30 de joins/arrays/facet e plano real aprovada. Build sem avisos/erros; 29 testes focados aprovados. O primeiro checkpoint da suíte completa teve 617 aprovados antes da inclusão de validação/explain. [Escopo, evidência e trabalho restante](27-consultas-avancadas.md); o aceite completo da fase permanece aberto.

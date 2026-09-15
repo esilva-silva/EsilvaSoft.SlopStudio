@@ -115,6 +115,9 @@ public sealed class AdvancedAggregationTests
     [Test]
     public void SuggestionsDistinguishStagesPredicatesAccumulatorsAndReferences()
     {
+        Assert.That(MqlAutocompleteService.GetAggregationSuggestions("[{ $match: { $or: [{ age: { $g").Select(s => s.Text), Does.Contain("$gte").And.Not.Contain("$group"));
+        Assert.That(MqlAutocompleteService.GetAggregationSuggestions("[{ $project: { value: { $cond: [{ $g").Select(s => s.Text), Does.Contain("$gte").And.Not.Contain("$group"));
+        Assert.That(MqlAutocompleteService.GetAggregationSuggestions("[{ $facet: { page: [{ $s").Select(s => s.Text), Does.Contain("$sort"));
         Assert.That(MqlAutocompleteService.GetAggregationSuggestions("db.orders.aggregate([{ $match: { price: { $g").Select(s => s.Text), Does.Contain("$gte").And.Not.Contain("$group"));
         Assert.That(MqlAutocompleteService.GetAggregationSuggestions("[{ $group: { total: { $s").Select(s => s.Text), Does.Contain("$sum").And.Not.Contain("$sort"));
         Assert.That(MqlAutocompleteService.GetAggregationSuggestions("[{ $group: { _id: '$cu", ["customer", "price"]).Select(s => s.Text), Has.Exactly(1).EqualTo("$customer"));

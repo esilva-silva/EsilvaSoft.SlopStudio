@@ -2,6 +2,10 @@
 
 ## Incremento de consultas avançadas — 14/09/2026
 
+**Aceite da meta textual:** **650 aprovados, 0 falhas**, `phase2-acceptance.trx`; build sem avisos/erros. `AggregationFieldInferenceTests` acrescenta projeções, remoções, renomeações, joins, `let` e facets. `DerivedFieldSuggestionInsertsAtTheCursorAndPreservesUndoOffline` valida a jornada real do editor sem rede (90,4 ms no ensaio focado, sem generalizar para desempenho nativo). [Auditoria e limites](27-consultas-avancadas.md). Checkpoints abaixo preservam suas contagens históricas.
+
+Revisão posterior: **643 aprovados, 0 falhas**, `phase2-final-audit.trx`. `AggregationHistoryTests`, `MongoCompletionTargetTests`, fixture real de seleção/erro e 18 PNGs adicionais de Histórico. Não confundir esse total com os checkpoints anteriores abaixo; testes Explicit de modelos permanecem fora da execução regular. Detalhes e pendências em [27](27-consultas-avancadas.md).
+
 Suíte completa após o incremento: **623 aprovados, 0 falhas, 0 ignorados** em `tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/phase2-current.trx`. Testes Explicit de modelos IA continuam fora da seleção regular.
 
 Restore locked e build com `-p:UsedAvaloniaProducts=` aprovados. `phase2-analysis.trx`: 29 testes aprovados, incluindo validação offline, proteção de escrita, autocomplete básico contextual, localização no editor e isolamento/cancelamento de explain. MongoDB portátil **8.0.30**: fixture independente dos 12 stages, join, unwind, facet, resultado Bia/5, contagem 2 e plano real aprovados; nenhuma coleção de saída criada. 18 PNGs `aggregation-diagnostic-*` gerados; inspeção de claro 960 e escuro 1366 confirmou seleção do erro e painel de diagnóstico. Validação Headless não comprova leitor de tela ou sessão nativa. [Pendências de aceite](27-consultas-avancadas.md).

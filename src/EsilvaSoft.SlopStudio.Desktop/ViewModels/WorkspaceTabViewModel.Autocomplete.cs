@@ -12,7 +12,6 @@ public sealed partial class WorkspaceTabViewModel
     public Func<IReadOnlyList<string>> KnownAutocompleteNames { get; set; } = () => [];
     public IReadOnlyList<string> GetObservedCompletionFields(string prefix)
     {
-        if (!Autocomplete.Settings.UseResultPanelContext) return [];
         var target = IsAggregation ? new EsilvaSoft.SlopStudio.Application.SyntaxHighlighting.SyntaxNamespace(Profile?.Name ?? "", Database, Collection)
             : MongoCompletionTarget.Resolve(prefix, CaptureSyntaxContext());
         // A bare field prefix has no query path; use an unambiguous result source in this tab's current destination.
@@ -22,11 +21,16 @@ public sealed partial class WorkspaceTabViewModel
                 .Select(origin => new EsilvaSoft.SlopStudio.Application.SyntaxHighlighting.SyntaxNamespace(origin.Profile!.Name, origin.Database!, origin.Collection!)).Distinct().ToArray();
             if (origins.Length == 1) target = origins[0];
         }
-        if (target is null || target.Collection.Length == 0) return [];
-        var documents = ResultSets.Where(set => set.Origin.Profile?.Name == target.Connection && set.Origin.Database == target.Database &&
-                set.Origin.Collection == target.Collection && (target.Connection != Profile?.Name || set.Origin.Profile == Profile))
-            .SelectMany(set => set.Documents ?? []).Take(8).Select(document => document.Json).Where(json => json.Length <= 65536);
-        return MqlAutocompleteService.InferFieldPaths(documents).Take(128).ToArray();
+        IReadOnlyList<string> Observed(string collection)
+        {
+            if (!Autocomplete.Settings.UseResultPanelContext || target is null || collection.Length == 0) return [];
+            var documents = ResultSets.Where(set => set.Origin.Profile?.Name == target.Connection && set.Origin.Database == target.Database &&
+                    set.Origin.Collection == collection && (target.Connection != Profile?.Name || set.Origin.Profile == Profile))
+                .SelectMany(set => set.Documents ?? []).Take(8).Select(document => document.Json).Where(json => json.Length <= 65536);
+            return MqlAutocompleteService.InferFieldPaths(documents).Take(128).ToArray();
+        }
+        var fields = Observed(target?.Collection ?? "");
+        return Autocomplete.Settings.UseEditorContext ? AggregationFieldInference.Infer(prefix, fields, Observed) : fields;
     }
     public AutocompleteRequest CaptureAutocompleteRequest(string text, int caret)
     {
