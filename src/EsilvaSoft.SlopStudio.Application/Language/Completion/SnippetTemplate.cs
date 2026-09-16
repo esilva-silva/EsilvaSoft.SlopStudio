@@ -230,8 +230,3 @@ public sealed class SnippetTemplate
         private static void FailAt(int position, string message) => throw new FormatException($"Snippet inválido na posição {position}: {message}.");
     }
 }
-
-/// <summary>A occurrence selected by the snippet editor after the template is expanded.</summary>
-public sealed record SnippetPlaceholder(int Index, TextSpan Span, string? DefaultText, IReadOnlyList<string> Choices);
-
-public sealed record SnippetExpansion(string Text, IReadOnlyList<SnippetPlaceholder> Placeholders);

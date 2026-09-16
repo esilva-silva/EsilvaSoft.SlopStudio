@@ -12,7 +12,7 @@ public sealed class BsonDatePresentationTests
     public void MongoshHelperCreatesNativeUtcDateAndKeepsStaticMethods()
     {
         using var engine = new Jint.Engine();
-        engine.Execute(EsilvaSoft.SlopStudio.Infrastructure.MongoshScriptExecutionService.DateHelpers);
+        engine.Execute(EsilvaSoft.SlopStudio.Infrastructure.MongoshScriptTemplate.DateHelpers);
         Assert.That(engine.Evaluate("Date('2024-12-30 20:56:44.999').toISOString()").AsString(), Is.EqualTo("2024-12-30T20:56:44.999Z"));
         Assert.That(engine.Evaluate("new Date('2024-12-30 20:56:44.999') instanceof globalThis.Date").AsBoolean(), Is.True);
         Assert.That(engine.Evaluate("Date.UTC(1970, 0, 1)").AsNumber(), Is.Zero);

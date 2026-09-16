@@ -45,12 +45,12 @@ public sealed class AppUpdateServiceTests
 
         // A running image is opened with delete sharing: it can be renamed but not overwritten.
         using (new FileStream(executable, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
-            Assert.That(GitHubAppUpdateService.ApplyPending(options), Is.True);
+            Assert.That(AppUpdateInstaller.ApplyPending(options), Is.True);
         Assert.That(File.ReadAllText(executable), Is.EqualTo("new"));
         Assert.That(File.ReadAllText(executable + ".old"), Is.EqualTo("old"));
         Assert.That(service.GetStagedUpdate(), Is.Null);
         Assert.That(Directory.GetDirectories(fixture.Updates), Is.Empty);
-        GitHubAppUpdateService.Cleanup(options);
+        AppUpdateInstaller.Cleanup(options);
         Assert.That(File.Exists(executable + ".old"), Is.False);
     }
 
@@ -67,7 +67,7 @@ public sealed class AppUpdateServiceTests
         Assert.That(release.AssetName, Does.EndWith(".tar.gz"));
         using (var operation = new ApplicationOperationService().Begin("Baixando"))
             await service.DownloadAsync(release, operation);
-        Assert.That(GitHubAppUpdateService.ApplyPending(options), Is.True);
+        Assert.That(AppUpdateInstaller.ApplyPending(options), Is.True);
         Assert.That(File.ReadAllText(executable), Is.EqualTo("new"));
         if (!OperatingSystem.IsWindows())
             Assert.That(File.GetUnixFileMode(executable).HasFlag(UnixFileMode.UserExecute), Is.True);
@@ -107,13 +107,13 @@ public sealed class AppUpdateServiceTests
 
         // Blocks staging the executable after the data file was already swapped.
         Directory.CreateDirectory(executable + ".new");
-        Assert.That(GitHubAppUpdateService.ApplyPending(options), Is.False);
+        Assert.That(AppUpdateInstaller.ApplyPending(options), Is.False);
         Assert.That(File.ReadAllText(executable), Is.EqualTo("old"));
         Assert.That(File.ReadAllText(data), Is.EqualTo("old-data"), "Files swapped before the failure are rolled back.");
         Assert.That(service.GetStagedUpdate()?.LastApplyError, Is.Not.Null.And.Not.Empty);
 
         Directory.Delete(executable + ".new");
-        Assert.That(GitHubAppUpdateService.ApplyPending(options), Is.True, "The kept update is retried on the next exit.");
+        Assert.That(AppUpdateInstaller.ApplyPending(options), Is.True, "The kept update is retried on the next exit.");
         Assert.That(File.ReadAllText(executable), Is.EqualTo("new"));
         Assert.That(File.ReadAllText(data), Is.EqualTo("new-data"));
     }
@@ -126,19 +126,19 @@ public sealed class AppUpdateServiceTests
         var payload = Path.Combine(fixture.Updates, "0.5.0", "payload");
         Directory.CreateDirectory(payload);
         File.WriteAllText(Path.Combine(payload, WindowsExecutable), "same");
-        GitHubAppUpdateService.WritePending(fixture.Updates, new PendingAppUpdate("0.5.0", payload, fixture.Target, WindowsExecutable));
-        Assert.That(GitHubAppUpdateService.ApplyPending(options), Is.False);
+        AppUpdateInstaller.WritePending(fixture.Updates, new PendingAppUpdate("0.5.0", payload, fixture.Target, WindowsExecutable));
+        Assert.That(AppUpdateInstaller.ApplyPending(options), Is.False);
         Assert.That(File.Exists(Path.Combine(fixture.Updates, "pending.json")), Is.False);
         Assert.That(Directory.Exists(Path.Combine(fixture.Updates, "0.5.0")), Is.False);
 
         var host = Path.Combine(fixture.Target, WindowsExecutable);
         var version = AppVersion.Parse("0.5.0");
-        Assert.That(GitHubAppUpdateService.DetectAvailability(host, version, "win-x64"), Is.EqualTo(AppUpdateAvailability.Supported));
-        Assert.That(GitHubAppUpdateService.DetectAvailability(host, AppVersion.Parse("0.0.0-local"), "win-x64"), Is.EqualTo(AppUpdateAvailability.Disabled));
-        Assert.That(GitHubAppUpdateService.DetectAvailability(Path.Combine(fixture.Target, "testhost.exe"), version, "win-x64"), Is.EqualTo(AppUpdateAvailability.Disabled));
-        Assert.That(GitHubAppUpdateService.DetectAvailability(host, version, null), Is.EqualTo(AppUpdateAvailability.Disabled));
+        Assert.That(AppUpdateInstaller.DetectAvailability(host, version, "win-x64"), Is.EqualTo(AppUpdateAvailability.Supported));
+        Assert.That(AppUpdateInstaller.DetectAvailability(host, AppVersion.Parse("0.0.0-local"), "win-x64"), Is.EqualTo(AppUpdateAvailability.Disabled));
+        Assert.That(AppUpdateInstaller.DetectAvailability(Path.Combine(fixture.Target, "testhost.exe"), version, "win-x64"), Is.EqualTo(AppUpdateAvailability.Disabled));
+        Assert.That(AppUpdateInstaller.DetectAvailability(host, version, null), Is.EqualTo(AppUpdateAvailability.Disabled));
         File.WriteAllText(Path.Combine(fixture.Target, "EsilvaSoft.SlopStudio.Desktop.dll"), "");
-        Assert.That(GitHubAppUpdateService.DetectAvailability(host, version, "win-x64"), Is.EqualTo(AppUpdateAvailability.Disabled), "dotnet run/build output never replaces itself.");
+        Assert.That(AppUpdateInstaller.DetectAvailability(host, version, "win-x64"), Is.EqualTo(AppUpdateAvailability.Disabled), "dotnet run/build output never replaces itself.");
     }
 
     private static byte[] Zip(params (string Name, string Content)[] entries)

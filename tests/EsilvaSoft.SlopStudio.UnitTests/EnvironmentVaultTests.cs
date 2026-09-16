@@ -112,7 +112,7 @@ public sealed class EnvironmentVaultTests
         var start = MongoshScriptExecutionService.BuildStartInfo("mongodb://user:private-value@server/database", "fixture.js", new Dictionary<string, string> { ["key"] = "private-value" });
         Assert.That(string.Join(" ", start.ArgumentList), Does.Not.Contain("private-value").And.Contain("--nodb"));
         Assert.That(start.Environment["SLOP_CONNECTION_URI"], Does.Contain("private-value"));
-        var script = MongoshScriptExecutionService.BuildScript("{}", "slop.results.emit({value: ENV.get('key')});", "database");
+        var script = MongoshScriptTemplate.BuildScript("{}", "slop.results.emit({value: ENV.get('key')});", "database");
         Assert.That(script, Does.Not.Contain("private-value"));
         File.WriteAllText(Path.Combine(TestContext.CurrentContext.WorkDirectory, "environment-bootstrap.js"), script);
     }

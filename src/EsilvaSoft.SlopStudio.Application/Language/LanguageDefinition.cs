@@ -3,25 +3,6 @@ using System.Text.Json;
 
 namespace EsilvaSoft.SlopStudio.Application.Language;
 
-/// <summary>Rule for the keys of an object shape: field path, operator symbol, fixed name, free name or single exclusive key.</summary>
-public sealed record ShapeKeyRule(string Rule)
-{
-    public IReadOnlyList<string> Names { get; init; } = [];
-    public IReadOnlyList<SymbolKind> Kinds { get; init; } = [];
-    public IReadOnlyList<string> Categories { get; init; } = [];
-    public string? Value { get; init; }
-    public bool Required { get; init; }
-    public string? Scope { get; init; }
-}
-
-/// <summary>Valid keys, values or elements of a MongoDB document or array in a given position.</summary>
-public sealed record ShapeDefinition(string Id)
-{
-    public IReadOnlyList<ShapeKeyRule> Keys { get; init; } = [];
-    public IReadOnlyList<string> Values { get; init; } = [];
-    public string? Element { get; init; }
-}
-
 /// <summary>MongoDB language knowledge loaded from versioned data: symbols, signatures, shapes and snippets.</summary>
 public sealed class LanguageDefinition
 {
@@ -201,46 +182,4 @@ public sealed class LanguageDefinition
         element.TryGetProperty(name, out var value)
             ? (TEnum)Enum.ToObject(typeof(TEnum), value.EnumerateArray().Aggregate(0, (all, item) => all | Convert.ToInt32(Enum.Parse<TEnum>(item.GetString()!), System.Globalization.CultureInfo.InvariantCulture)))
             : fallback;
-}
-
-/// <summary>Minimal structural check of LSP snippet syntax.</summary>
-internal static class SnippetSyntax
-{
-    public static bool IsValid(string body)
-    {
-        var depth = 0;
-        for (var index = 0; index < body.Length; index++)
-        {
-            var character = body[index];
-            if (character == '\\')
-            {
-                if (++index >= body.Length) return false;
-                continue;
-            }
-            if (character == '}' && depth > 0) { depth--; continue; }
-            if (character != '$') continue;
-            if (index + 1 >= body.Length) return false;
-            if (char.IsAsciiDigit(body[index + 1]))
-            {
-                while (index + 1 < body.Length && char.IsAsciiDigit(body[index + 1])) index++;
-                continue;
-            }
-            if (body[index + 1] != '{' || index + 2 >= body.Length || !char.IsAsciiDigit(body[index + 2])) return false;
-            index += 2;
-            while (index + 1 < body.Length && char.IsAsciiDigit(body[index + 1])) index++;
-            if (index + 1 >= body.Length) return false;
-            switch (body[index + 1])
-            {
-                case '}': index++; break;
-                case ':': index++; depth++; break;
-                case '|':
-                    var end = body.IndexOf("|}", index + 2, StringComparison.Ordinal);
-                    if (end < 0) return false;
-                    index = end + 1;
-                    break;
-                default: return false;
-            }
-        }
-        return depth == 0;
-    }
 }

@@ -9,12 +9,6 @@ using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Infrastructure;
 
-/// <summary>When to choose a published folder; the list order is the display order.</summary>
-public sealed record RemoteModelVariantHint(string Folder, string Hint);
-
-/// <summary>A repository of ONNX GenAI exports and the transformers repository it was exported from.</summary>
-public sealed record RemoteModelRepository(string Repository, string? BaseRepository, IReadOnlyList<RemoteModelVariantHint> Variants);
-
 /// <summary>
 /// Lists the ONNX GenAI variants of Hugging Face repositories (top-level folders containing genai_config.json) and installs one
 /// into the models directory. Each listing is pinned to one commit and every file is verified against the hash published by the hub.

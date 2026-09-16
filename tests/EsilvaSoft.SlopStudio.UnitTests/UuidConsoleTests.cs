@@ -78,7 +78,7 @@ public sealed class UuidConsoleTests
         using var engine = CreateMongoshStub();
         Assert.That(Evaluate(engine, $"GUUID('{Sample.ToUpperInvariant()}')").GetProperty("hex").GetString(), Is.EqualTo("00112233445566778899aabbccddeeff"));
         Assert.That(() => engine.Evaluate("JUUID('xyz')"), Throws.InstanceOf<Jint.Runtime.JavaScriptException>().With.Message.Contains("JUUID(...)"));
-        var script = MongoshScriptExecutionService.BuildScript("{}", "print(CGUUID('" + Sample + "'));");
+        var script = MongoshScriptTemplate.BuildScript("{}", "print(CGUUID('" + Sample + "'));");
         Assert.That(script.IndexOf("function CGUUID", StringComparison.Ordinal), Is.GreaterThanOrEqualTo(0).And.LessThan(script.IndexOf("print(CGUUID(", StringComparison.Ordinal)));
     }
 
@@ -96,7 +96,7 @@ public sealed class UuidConsoleTests
         // Stubs record what mongosh would receive from its native BinData and UUID helpers.
         var engine = new Engine();
         engine.Execute("var BinData = (subtype, base64) => ({ subtype, base64 }); var UUID = (hex) => ({ subtype: 4, hex });");
-        engine.Execute(MongoshScriptExecutionService.UuidHelpers);
+        engine.Execute(MongoshScriptTemplate.UuidHelpers);
         return engine;
     }
 

@@ -157,13 +157,13 @@ public static class UuidCodec
     /// ObjectIds are left untouched; <see cref="IdentifierRepresentationService.FormatForDisplay"/> formats both.
     /// </summary>
     public static UuidDisplayText FormatForDisplay(string json, UuidRepresentation representation) =>
-        IdentifierRepresentationService.Format(json, representation, objectIds: false);
+        ExtendedJsonConstructorRewriter.Format(json, representation, objectIds: false);
 
     /// <summary>
     /// Converts UUID("…"), CGUUID("…"), JUUID("…") and GUUID("…") written outside strings and comments into
     /// Canonical Extended JSON. Text that only looks like a UUID remains a string.
     /// </summary>
-    public static string RewriteConstructors(string text) => IdentifierRepresentationService.Rewrite(text, objectIds: false);
+    public static string RewriteConstructors(string text) => ExtendedJsonConstructorRewriter.Rewrite(text, objectIds: false);
 
     private static void Reorder(byte[] bytes, UuidRepresentation representation)
     {
