@@ -7,6 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Platform.Storage;
 using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Application;
+using EsilvaSoft.SlopStudio.Application.Language.Completion;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 namespace EsilvaSoft.SlopStudio.Desktop;
@@ -240,90 +241,71 @@ public partial class WorkspaceTabView : UserControl
     }
     private void EditorKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Tab && e.KeyModifiers == KeyModifiers.None && AcceptCompletion()) { e.Handled = true; return; }
-        if (e.Key == Key.Escape && (CompletionPanel.IsVisible || _completionMenu is not null)) { InvalidateCompletion(); e.Handled = true; return; }
-        if (e.Key == Key.Space && e.KeyModifiers.HasFlag(KeyModifiers.Control)) { e.Handled = true; ShowSuggestions(sender, e); }
+        var tab = DataContext as WorkspaceTabViewModel;
+        var command = tab is null ? null : new EditorCommandDispatcher(tab.KeyBindings).Match(ToEditorKeyEvent(e));
+        if (_traditionalPresenter.IsOpen)
+        {
+            if (e.Key == Key.Down) { _traditionalPresenter.Move(1); RefreshTraditionalCompletionList(); e.Handled = true; return; }
+            if (e.Key == Key.Up) { _traditionalPresenter.Move(-1); RefreshTraditionalCompletionList(); e.Handled = true; return; }
+            if (e.Key == Key.Tab && e.KeyModifiers == KeyModifiers.None && AcceptTraditionalCompletion()) { e.Handled = true; return; }
+            if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None)
+            {
+                if (tab?.Autocomplete.Settings.CompletionEnterAccepts != false && AcceptTraditionalCompletion()) e.Handled = true;
+                else CloseTraditionalCompletion();
+                return;
+            }
+            if (e.Key == Key.Escape) { CloseTraditionalCompletion(); e.Handled = true; return; }
+        }
+        if (e.Key == Key.Tab && e.KeyModifiers == KeyModifiers.None && MoveSnippetPlaceholder(reverse: false)) { e.Handled = true; return; }
+        if (e.Key == Key.Tab && e.KeyModifiers == KeyModifiers.Shift && MoveSnippetPlaceholder(reverse: true)) { e.Handled = true; return; }
+        if (command == EditorCommandIds.InlineAccept && AcceptCompletion()) { e.Handled = true; return; }
+        if (command == EditorCommandIds.InlineDismiss && CompletionPanel.IsVisible) { InvalidateCompletion(); e.Handled = true; return; }
+        if (command == EditorCommandIds.InlineDismiss && _snippetSession is not null) { _snippetSession = null; e.Handled = true; return; }
+        if (command == EditorCommandIds.CompletionShow) { e.Handled = true; ShowTraditionalCompletionList(sender, e); }
     }
-    private async void ShowSuggestions(object? sender, RoutedEventArgs e)
+
+    private static EditorKeyEvent ToEditorKeyEvent(KeyEventArgs e)
+    {
+        var modifiers = (e.KeyModifiers.HasFlag(KeyModifiers.Control) ? EditorKeyModifiers.Control : EditorKeyModifiers.None)
+            | (e.KeyModifiers.HasFlag(KeyModifiers.Shift) ? EditorKeyModifiers.Shift : EditorKeyModifiers.None)
+            | (e.KeyModifiers.HasFlag(KeyModifiers.Alt) ? EditorKeyModifiers.Alt : EditorKeyModifiers.None)
+            | (e.KeyModifiers.HasFlag(KeyModifiers.Meta) ? EditorKeyModifiers.Meta : EditorKeyModifiers.None);
+        char? symbol = e.KeySymbol is { Length: 1 } text ? text[0] : null;
+        var qwertyKey = e.PhysicalKey.ToQwertyKey();
+        EditorKey? physical = Enum.TryParse<EditorKey>(qwertyKey.ToString(), ignoreCase: true, out var parsed) ? parsed : null;
+        var qwertySymbol = e.PhysicalKey.ToQwertyKeySymbol(e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+        char? physicalSymbol = qwertySymbol is { Length: 1 } physicalText ? physicalText[0] : null;
+        return new EditorKeyEvent(modifiers, symbol, physical, physicalSymbol);
+    }
+    private async void ShowTraditionalCompletionList(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not WorkspaceTabViewModel tab) return;
+        if (CodeEditor.SelectionStart != CodeEditor.SelectionEnd) return;
+        var selectedSymbol = _traditionalPresenter.Selected?.SymbolId;
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         InvalidateCompletion();
-        if (!tab.Autocomplete.Settings.Enabled) return;
         EsilvaSoft.SlopStudio.Application.Language.AutocompleteMetrics.CompletionRequested.Add(1,
             new KeyValuePair<string, object?>("modality", "list"), new KeyValuePair<string, object?>("trigger", "invoked"));
         var version = _completionSession.Version;
         var original = tab.Text;
         var caret = Math.Clamp(CodeEditor.CaretIndex, 0, original.Length);
-        var prefix = original[..caret];
         var mode = tab.Mode;
         _completionCancellation?.Cancel();
         using var cancellation = new CancellationTokenSource(); _completionCancellation = cancellation;
         var profile = tab.Profile; var database = tab.Database; var collection = tab.Collection;
-        var menu = new MenuFlyout();
         bool IsCurrent() => _completionSession.Version == version && CodeEditor.CaretIndex == caret && tab.Text == original
             && DataContext == tab && tab.Profile == profile && tab.Database == database && tab.Collection == collection && tab.Mode == mode && !cancellation.IsCancellationRequested;
-        void AddInsertion(string text, string description, int start, int length, string? label = null)
-        {
-            var item = new MenuItem { Header = label ?? text };
-            ToolTip.SetTip(item, description);
-            item.Click += (_, _) =>
-            {
-                if (!IsCurrent()) return;
-                CodeEditor.SelectionStart = start; CodeEditor.SelectionEnd = start + length;
-                CodeEditor.SelectedText = text;
-                CodeEditor.CaretIndex = start + text.Length; CodeEditor.Focus();
-            };
-            menu.Items.Add(item);
-        }
         try
         {
-            var request = new AutocompleteRequest(prefix[Math.Max(0, prefix.Length - AutocompleteRequest.MaximumContextCharacters)..],
-                original[caret..Math.Min(original.Length, caret + AutocompleteRequest.MaximumContextCharacters)], tab.IsConsole ? "javascript" : mode);
-            var pendingCompletion = tab.Autocomplete.GetCompletionAsync(request, cancellation.Token);
             EsilvaSoft.SlopStudio.Application.Language.AutocompleteMetrics.UiDispatcherTime.Record(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds,
                 new KeyValuePair<string, object?>("handler", "list"));
-            var completion = await pendingCompletion;
+            var traditional = await tab.GetTraditionalCompletionsAsync(new Language.Text.AvaloniaTextSnapshot(CodeEditor.Document), caret, cancellation.Token);
             if (!IsCurrent()) return;
-            if (completion is not null) AddInsertion(completion.Text, completion.Description, caret, 0);
-            if (tab.IsConsole)
-            {
-                var fields = tab.GetObservedCompletionFields(prefix);
-                var suggestions = prefix.Contains(".aggregate(", StringComparison.Ordinal)
-                    ? MqlAutocompleteService.GetAggregationSuggestions(prefix, fields) : MqlAutocompleteService.GetSuggestions(prefix, fields);
-                foreach (var suggestion in suggestions)
-                {
-                    var insertion = MqlAutocompleteService.ApplySuggestion(prefix, suggestion);
-                    AddInsertion(insertion, suggestion.Description, 0, caret, suggestion.Text);
-                }
-                try
-                {
-                    var completions = await tab.GetConsoleCompletionsAsync(prefix, cancellation.Token);
-                    if (!IsCurrent()) return;
-                    foreach (var item in completions) AddInsertion(item.Text, item.Description, item.Start, item.Length);
-                }
-                catch (OperationCanceledException) { return; }
-                catch (Exception) { tab.Messages = "Metadados de autocomplete indisponíveis; sugestões locais preservadas."; }
-            }
-            else
-            {
-                var fields = tab.GetObservedCompletionFields(prefix);
-                var suggestions = tab.Mode == "Agregação" ? MqlAutocompleteService.GetAggregationSuggestions(prefix, fields) : MqlAutocompleteService.GetSuggestions(prefix, fields);
-                foreach (var suggestion in suggestions)
-                {
-                    var insertion = MqlAutocompleteService.ApplySuggestion(prefix, suggestion);
-                    AddInsertion(insertion, suggestion.Description, 0, caret, suggestion.Text);
-                }
-            }
-            if (IsCurrent() && menu.Items.Count > 0)
-            {
-                _completionMenu = menu;
-                menu.Closed += (_, _) => { if (ReferenceEquals(_completionMenu, menu)) _completionMenu = null; };
-                menu.ShowAt(CodeEditor);
-            }
+            ShowTraditionalCompletion(traditional.Items, traditional.IsIncomplete);
+            if (selectedSymbol is not null && _traditionalPresenter.Select(selectedSymbol) is not null) RefreshTraditionalCompletionList();
         }
         catch (OperationCanceledException) { }
-        catch (Exception) { tab.Messages = "Autocomplete indisponível nesta solicitação."; }
+        catch (Exception) { tab.Messages = "Sugestões tradicionais indisponíveis nesta solicitação."; }
         finally { if (ReferenceEquals(_completionCancellation, cancellation)) _completionCancellation = null; }
     }
 }

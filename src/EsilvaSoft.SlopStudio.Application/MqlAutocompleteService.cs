@@ -50,6 +50,7 @@ public static class MqlAutocompleteService
         new("$literal", "Valor literal sem interpretar operadores", MqlSuggestionKind.AggregationExpression)
     ];
 
+    [Obsolete("Use CompletionContextEngine and CompletionService. This compatibility API is not used by the editor completion list.")]
     public static IReadOnlyList<MqlSuggestion> GetSuggestions(string input, IEnumerable<string>? knownFields = null, int maximum = 12)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximum);
@@ -68,11 +69,12 @@ public static class MqlAutocompleteService
         return suggestions.Take(maximum).ToArray();
     }
 
+    [Obsolete("Use CompletionContextEngine and CompletionService. This compatibility API is not used by the editor completion list.")]
     public static IReadOnlyList<MqlSuggestion> GetAggregationSuggestions(string input, IEnumerable<string>? knownFields = null, int maximum = 12)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximum);
         var prefix = GetCurrentPrefix(input);
-        var context = AggregationCompletionContext.Read(input);
+        var context = LegacyMqlSuggestionContext.Read(input);
         if (context.InComment) return [];
         var suggestions = new List<MqlSuggestion>();
         if (!context.StageKey)
@@ -91,6 +93,7 @@ public static class MqlAutocompleteService
         return suggestions.Take(maximum).ToArray();
     }
 
+    [Obsolete("Use CompletionEdit from the traditional completion provider.")]
     public static string ApplySuggestion(string input, MqlSuggestion suggestion)
     {
         ArgumentNullException.ThrowIfNull(input);

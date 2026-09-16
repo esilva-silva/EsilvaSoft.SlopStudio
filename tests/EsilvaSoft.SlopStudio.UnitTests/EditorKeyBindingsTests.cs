@@ -72,6 +72,26 @@ public sealed class EditorKeyBindingsTests
         });
     }
 
+    [Test]
+    public void DispatcherUsesProducedSymbolBeforePhysicalFallbackAndHonorsCustomBindings()
+    {
+        var defaults = new EditorCommandDispatcher(EditorKeyBindings.Resolve(null));
+        var custom = new EditorCommandDispatcher(EditorKeyBindings.Resolve(new EditorKeyBindings
+        {
+            Bindings = new() { [EditorCommandIds.CompletionShow] = ["Ctrl+Shift+Space"] }
+        }));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(defaults.Match(new(EditorKeyModifiers.Control, '.', EditorKey.Space, ';')), Is.EqualTo(EditorCommandIds.CompletionShow), "O símbolo produzido funciona em layouts não-US.");
+            Assert.That(defaults.Match(new(EditorKeyModifiers.Control, null, EditorKey.Space)), Is.EqualTo(EditorCommandIds.CompletionShow), "Sem símbolo, a tecla física é o fallback.");
+            Assert.That(defaults.Match(new(EditorKeyModifiers.Control, ':', EditorKey.Space, ';')), Is.Null, "Símbolo presente e diferente bloqueia o fallback físico.");
+            Assert.That(defaults.Match(new(EditorKeyModifiers.None, null, EditorKey.Tab)), Is.EqualTo(EditorCommandIds.InlineAccept));
+            Assert.That(custom.Match(new(EditorKeyModifiers.Control | EditorKeyModifiers.Shift, null, EditorKey.Space)), Is.EqualTo(EditorCommandIds.CompletionShow));
+            Assert.That(custom.Match(new(EditorKeyModifiers.Control, '.', EditorKey.Space, '.')), Is.Null, "A preferência substitui, em vez de complementar, o padrão do comando.");
+        });
+    }
+
     [TestCase("")]
     [TestCase(" ")]
     [TestCase("Ctrl+")]

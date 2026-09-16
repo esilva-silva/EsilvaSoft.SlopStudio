@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using EsilvaSoft.SlopStudio.Application;
 using EsilvaSoft.SlopStudio.Application.Language;
+using EsilvaSoft.SlopStudio.Application.Language.Completion;
 using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
@@ -31,6 +32,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public UuidPreferenceViewModel UuidPreferences { get; }
     public IdentifierPreferenceViewModel IdentifierPreferences { get; }
     public IAutocompleteService AutocompleteService { get; }
+    /// <summary>Deterministic catalog completion shared by all editor tabs.</summary>
+    public ICompletionProvider? TraditionalCompletion { get; }
     public IAiChatService AiChatService { get; }
     public AutocompleteSettingsViewModel AutocompletePreferences { get; }
     /// <summary>Effective editor shortcuts per command id; defaults until a readable session is loaded.</summary>
@@ -61,6 +64,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public event EventHandler? LayoutChanged;
 
     public WorkspaceViewModel(WorkspaceService workspace, IWorkspaceSessionRepository sessions, IAutocompleteService? autocomplete = null, ILocalModelCatalog? modelCatalog = null, IAiChatService? aiChat = null,
+        IKnowledgeCatalog? knowledgeCatalog = null,
         ILocalAiModelService? localModels = null, IAppUpdateService? updates = null, IRemoteModelSource? remoteModels = null, IMetadataCache? metadata = null)
     {
         _workspace = workspace; _sessions = sessions; Operations = new(workspace.Operations); Details = new ExplorerDetailsViewModel(workspace);
@@ -70,6 +74,9 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         Metadata.Changed += OnMetadataChanged;
         Updates = new(updates, workspace.Operations);
         AutocompleteService = autocomplete ?? new AutocompleteService();
+        var effectiveCatalog = knowledgeCatalog ?? new KnowledgeCatalog([new LanguageCatalogSource(), new MetadataCatalogSource(Metadata)]);
+        TraditionalCompletion = new TraditionalCompletionProvider(
+            new CompletionService(effectiveCatalog, profiles: new WorkspaceCompletionProfileResolver(() => Profiles)));
         AiChatService = aiChat ?? new AiChatService();
         AutocompletePreferences = new(AutocompleteService, modelCatalog, async settings =>
         {
@@ -226,8 +233,13 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     private void OnMetadataChanged(object? sender, MetadataChangedEventArgs e)
     {
         if (_disposed) return;
-        if (_context is null || SynchronizationContext.Current == _context) RefreshSyntaxContexts();
-        else _context.Post(_ => RefreshSyntaxContexts(), null);
+        void Refresh()
+        {
+            RefreshSyntaxContexts();
+            foreach (var tab in Tabs) tab.NotifyMetadataChanged(e);
+        }
+        if (_context is null || SynchronizationContext.Current == _context) Refresh();
+        else _context.Post(_ => Refresh(), null);
     }
 
     private void RefreshSyntaxContexts()
@@ -370,6 +382,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     {
         tab.KnownSyntaxNamespaces = KnownSyntaxNamespaces;
         tab.Autocomplete = AutocompleteService;
+        tab.TraditionalCompletion = TraditionalCompletion;
+        tab.KeyBindings = KeyBindings;
         tab.AiChat = AiChatService;
         tab.KnownAutocompleteNames = () => KnownAutocompleteNames(tab);
         tab.UuidPolicy = CaptureUuidPolicy(); Tabs.Add(tab); tab.DraftChanged += OnDraftChanged;

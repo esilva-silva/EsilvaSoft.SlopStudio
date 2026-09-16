@@ -19,7 +19,7 @@ public static class BasicAutocompleteProvider
             ? Keywords.AsEnumerable()
             : Word.Matches(prefix[..start] + "\n" + request.Suffix).Select(m => m.Value).Concat(Keywords)
                 .Concat(request.Dictionary.Where(word => !CompletionPrivacy.ContainsSensitiveText(word)));
-        var candidate = words.Concat(MqlAutocompleteService.GetSuggestions(partial).Select(s => s.Text))
+        var candidate = words
             .Where(w => w.Length > partial.Length && w.StartsWith(partial, StringComparison.Ordinal))
             .Distinct(StringComparer.Ordinal).OrderBy(w => w.Length).ThenBy(w => w, StringComparer.Ordinal).FirstOrDefault();
         return candidate is null ? null : new(candidate[partial.Length..], false, "Autocomplete básico local");

@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui" xmlns:syntax="using:EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" xmlns:core="using:EsilvaSoft.SlopStudio.Core" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" x:Class="EsilvaSoft.SlopStudio.Desktop.WorkspaceTabView" x:DataType="vm:WorkspaceTabViewModel">
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:syntax="using:EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" xmlns:core="using:EsilvaSoft.SlopStudio.Core" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" xmlns:completion="using:EsilvaSoft.SlopStudio.Application.Language.Completion" x:Class="EsilvaSoft.SlopStudio.Desktop.WorkspaceTabView" x:DataType="vm:WorkspaceTabViewModel">
   <Grid RowDefinitions="Auto,*">
     <Border Padding="12,6" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Background="{DynamicResource SecondaryBackground}">
       <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
@@ -74,7 +74,7 @@
                       <TextBox Grid.Row="5" Grid.ColumnSpan="2" Text="{Binding Comment}" />
                     </Grid>
                     <WrapPanel>
-                      <Button Content="Sugestões (Ctrl+Espaço)" Click="ShowSuggestions" />
+                      <Button Content="Sugestões (Ctrl+.)" Click="ShowTraditionalCompletionList" />
                       <Button Content="Ver primeiros documentos" Command="{Binding FirstDocumentsCommand}" IsVisible="{Binding IsQuery}" />
                     </WrapPanel>
                     <StackPanel IsVisible="{Binding IsConsole}" Spacing="4">
@@ -105,6 +105,30 @@
               <local:InlineCompletionTextBlock x:Name="CompletionText" VerticalAlignment="Top" FontFamily="{StaticResource CodeFont}" FontSize="{Binding CodeFontSize}" LineHeight="{Binding CodeLineHeight}" TextWrapping="NoWrap" Foreground="{DynamicResource Syntax.GhostText}" AutomationProperties.Name="Sugestão: Tab avança; Esc descarta"/>
             </Border>
             <Border x:Name="GhostCaret" IsVisible="{Binding #CompletionPanel.IsVisible}" Width="1" Height="{Binding CodeLineHeight}" Background="{DynamicResource PrimaryText}"/>
+          </Canvas>
+          <Canvas x:Name="TraditionalCompletionLayer" ClipToBounds="True">
+            <Border x:Name="TraditionalCompletionPanel" IsVisible="False" Width="400" MaxHeight="180" Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource ControlBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="4" BoxShadow="0 4 12 0 #40000000" AutomationProperties.Name="Sugestões contextuais">
+              <Grid RowDefinitions="Auto,*,Auto">
+                <TextBlock x:Name="TraditionalCompletionStatus" Classes="metadata" Margin="8,4" Text="↑↓ mover · Enter/Tab aceita · Esc fecha" TextTrimming="CharacterEllipsis" />
+                <ListBox x:Name="TraditionalCompletionList" Grid.Row="1" MaxHeight="80" SelectionChanged="TraditionalCompletionSelectionChanged" DoubleTapped="AcceptTraditionalCompletion">
+                  <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                  </ListBox.ItemsPanel>
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="completion:CompletionItem">
+                      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="6,3" AutomationProperties.Name="{Binding AccessibleName}">
+                        <TextBlock Grid.Column="0" Text="{Binding Kind}" Classes="metadata" />
+                        <TextBlock Grid.Column="1" Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="2" Text="{Binding LabelDetail}" Classes="metadata" TextTrimming="CharacterEllipsis" MaxWidth="130" />
+                      </Grid>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+                <TextBlock x:Name="TraditionalCompletionDocumentation" Grid.Row="2" Classes="metadata" Margin="8,6,8,4" MaxHeight="54" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" AutomationProperties.Name="Detalhes da sugestão selecionada" />
+              </Grid>
+            </Border>
           </Canvas>
         </Grid>
       </Grid>

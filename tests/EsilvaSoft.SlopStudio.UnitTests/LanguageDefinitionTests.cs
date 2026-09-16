@@ -7,6 +7,8 @@ using Jint;
 
 namespace EsilvaSoft.SlopStudio.UnitTests;
 
+#pragma warning disable CS0618 // Compatibility coverage for retired MQL suggestion API.
+
 [TestFixture]
 public sealed class LanguageDefinitionTests
 {
@@ -115,3 +117,4 @@ public sealed class LanguageDefinitionTests
     private static string[] Keys(Engine engine, string expression) =>
         JsonSerializer.Deserialize<string[]>(engine.Evaluate("JSON.stringify(" + expression + ")").AsString())!;
 }
+#pragma warning restore CS0618

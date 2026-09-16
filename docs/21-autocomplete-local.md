@@ -14,9 +14,13 @@ Decisão: reutilizar Core/Application para abstrações/regras e concentrar Micr
 
 Referências oficiais: [API GenAI C#](https://onnxruntime.ai/docs/genai/api/csharp.html), [formato de configuração](https://onnxruntime.ai/docs/genai/reference/config.html), [fontes da versão 0.15.2](https://github.com/microsoft/onnxruntime-genai/tree/v0.15.2). A API é preview; versão fixada para manter o contrato reproduzível.
 
+## Estado da Fase 2 tradicional
+
+O caminho tradicional atual é separado do fluxo legado de IA: `AvaloniaTextSnapshot` captura o documento sem materializá-lo, e a cadeia segue lexer compartilhado → parser tolerante → contexto → `CompletionService` → catálogo/ranking → `CompletionWindowPresenter`. `Ctrl+.` abre a lista e `Ctrl+Espaço` é alias; a lista é determinística, filtrável e não executa consultas. Este documento contém seções históricas sobre IA local e o antigo menu; elas não são evidência de que esses fluxos pertençam à lista tradicional. Consulte o [estado detalhado da Fase 2](auto-complite/phases/phase-2-traditional-autocomplete.md).
+
 ## Arquitetura implementada
 
-Editor → AutocompleteContextBuilder → CompletionSession → IAutocompleteService → AutocompleteService → AiAutocompleteProvider → ILocalModelRuntime → OnnxLocalModelRuntime. BasicAutocompleteProvider tem prioridade para identificadores próximos, nomes conhecidos e keywords JavaScript/MongoDB, reutilizando os operadores de MqlAutocompleteService. Uma resposta determinística evita debounce e inferência. Ctrl+Espaço mantém o menu Console/MQL.
+O diagrama abaixo é histórico do fluxo de IA local. Para a lista tradicional, consulte a cadeia documentada na seção anterior; não há concatenação de sugestões de IA/básicas nessa lista.
 
 Core contém requests, resultados, definições e preferências. Application contém contratos, seleção AI/básico, cache, proteção simples do contexto e CompletionSession. Infrastructure concentra todos os tipos ONNX, descoberta de arquivos e diagnóstico técnico. Desktop só conhece contratos de autocomplete; código do editor não acessa ONNX, tokenizer, providers ou caminhos físicos.
 

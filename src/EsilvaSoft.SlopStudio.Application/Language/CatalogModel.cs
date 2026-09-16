@@ -96,6 +96,8 @@ public sealed record CatalogQuery(SymbolKinds Kinds, EditorDialects Dialect, str
     public IReadOnlyList<ConnectionProfile> Connections { get; init; } = [];
     /// <summary>Tab-local evidence, such as fields of results loaded in the tab.</summary>
     public IReadOnlyList<CollectionSchema> LocalSchemas { get; init; } = [];
+    /// <summary>Tab-local declarations (names only); values are never part of completion knowledge.</summary>
+    public IReadOnlyList<CatalogSymbol> LocalSymbols { get; init; } = [];
     public int MaximumCandidates { get; init; } = 200;
     /// <summary>
     /// Applied to every metadata read of the query. Explicit invocation may use <see cref="MetadataAccess.LoadIfNeeded"/> for the requested scopes;

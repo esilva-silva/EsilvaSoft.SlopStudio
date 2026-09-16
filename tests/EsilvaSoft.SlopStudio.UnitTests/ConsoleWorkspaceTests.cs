@@ -7,35 +7,6 @@ namespace EsilvaSoft.SlopStudio.UnitTests;
 [TestFixture]
 public sealed class ConsoleWorkspaceTests
 {
-    [Test] public async Task AutocompleteResolvesEachLevelAsynchronouslyAndQuotesInvalidNames()
-    {
-        using var context = new WorkspaceTestContext();
-        var profile = ConnectionProfile.Create("Production Cluster", "mongodb://host"); await context.Repository.SaveAsync(profile);
-        var completion = new ConsoleAutocompleteService(context.Workspace);
-        Assert.That((await completion.GetAsync("", profile, "db", CancellationToken.None)).Select(c => c.Text), Does.Contain("db").And.Contain("ConnectionPool"));
-        var names = await completion.GetAsync("ConnectionPool.", profile, "db", CancellationToken.None);
-        Assert.That(names.Single().Text, Is.EqualTo("[\"Production Cluster\"]"));
-        Assert.That(names.Single().Start, Is.EqualTo("ConnectionPool".Length));
-        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var reply = new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        context.Mongo.Handler = (method, args) => {
-            Assert.That(method, Is.EqualTo("GetDatabaseNamesAsync"));
-            Assert.That(((ConnectionProfile)args[0]!).Id, Is.EqualTo(profile.Id)); started.SetResult(); return reply.Task;
-        };
-        var pending = completion.GetAsync("ConnectionPool[\"Production Cluster\"].", profile, "db", CancellationToken.None);
-        await started.Task; Assert.That(pending.IsCompleted, Is.False);
-        reply.SetResult(["Company-Db"]);
-        Assert.That((await pending).Select(c => c.Text), Does.Contain("[\"Company-Db\"]"));
-        context.Mongo.Handler = (method, args) => {
-            Assert.That(method, Is.EqualTo("GetCollectionNamesAsync")); Assert.That(args[1], Is.EqualTo("Company-Db"));
-            return Task.FromResult<IReadOnlyList<string>>(["customer-history", "Customers"]);
-        };
-        var collections = await completion.GetAsync("ConnectionPool[\"Production Cluster\"][\"Company-Db\"].", profile, "db", CancellationToken.None);
-        Assert.That(collections.Select(c => c.Text), Does.Contain("[\"customer-history\"]").And.Contain("Customers"));
-        var local = await completion.GetAsync("db.", profile, "Company-Db", CancellationToken.None);
-        Assert.That(local.Select(c => c.Text), Does.Contain("getCollection(\"colecao\")"));
-    }
-
     [Test] public async Task ConsoleTabsKeepCapturedDestinationAndCancelIndependently()
     {
         using var context = new WorkspaceTestContext();

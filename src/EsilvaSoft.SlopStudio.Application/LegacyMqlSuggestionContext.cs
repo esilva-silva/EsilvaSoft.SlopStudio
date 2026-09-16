@@ -1,9 +1,10 @@
 namespace EsilvaSoft.SlopStudio.Application;
 
 /// <summary>Tolerant lexical context for incomplete JSON/MQL. Never evaluates editor text.</summary>
-internal sealed record AggregationCompletionContext(bool StageKey, bool FieldReference, bool InComment, string? Stage)
+/// <summary>Compatibility parser used only by obsolete MQL suggestion APIs; editor completion uses CompletionContextEngine.</summary>
+internal sealed record LegacyMqlSuggestionContext(bool StageKey, bool FieldReference, bool InComment, string? Stage)
 {
-    public static AggregationCompletionContext Read(string text)
+    public static LegacyMqlSuggestionContext Read(string text)
     {
         var stack = new Stack<(char Kind, bool StageObject, bool Pipeline, string? Stage)>();
         var stageKey = false;

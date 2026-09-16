@@ -2,6 +2,10 @@
 
 Registro da implementação de 12/09/2026, com atualização documental em 13/09/2026. Escopo: JSON, Extended JSON/BSON textual, JavaScript usado no Console/mongosh, Query API, pipelines, Atlas Search e DSL local. Não adiciona linguagens genéricas, dependências, execução ou validação MongoDB.
 
+## Relação com o autocomplete tradicional
+
+O `MongoLexer` é compartilhado pelo highlighting e pelo autocomplete tradicional; a lista usa `Ctrl+.` com `Ctrl+Espaço` como alias e não reinterpreta o texto com um segundo lexer. A captura de documento do editor usa `AvaloniaTextSnapshot`; a medição completa de UI por tecla permanece pendente.
+
 ## Arquitetura
 
 ✅ O checkout atual usa [MongoTextEditor](../src/EsilvaSoft.SlopStudio.Desktop/SyntaxHighlighting/MongoTextEditor.cs), derivado de AvaloniaEdit.TextEditor, com documento, seleção, undo e linhas visuais do AvaloniaEdit. LongLineElementGenerator trata linhas longas e a classificação semântica é aplicada pelo adaptador. As descrições de TextBox/TextPresenter e medições de 12/09 nas seções históricas abaixo correspondem à implementação anterior; não homologam a migração atual. 🚧 Folding, acessibilidade e performance integral exigem validação própria. Consolidação na v0.6.0 e estabilidade na v1.0.0; ver [inventário](24-inventario-roadmap.md).

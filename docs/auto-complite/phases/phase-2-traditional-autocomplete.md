@@ -6,12 +6,14 @@ Roadmap: v0.6.0 (EDT-02) · Depende de: Fase 1 · Habilita: Fase 3 e 5.1 (tradic
 
 Substituir o menu `Ctrl+Espaço` por uma lista contextual (`Ctrl+.`) baseada em documento → parser → `CompletionContext` → provider → catálogo → ranking → itens → editor, com baixa latência, UI sempre responsiva, cancelamento rápido, snippets com placeholders e atalhos como dados.
 
-## Situação atual
+## Situação inicial da meta (histórica)
 
 - `ShowSuggestions` monta `MenuFlyout` concatenando `MqlAutocompleteService`, `ConsoleAutocompleteService` e uma sugestão IA/básica; sem ranking, filtro, tipos ou placeholders; sugestões MQL substituem 0..cursor.
 - Seis mecanismos independentes de interpretação do texto.
 - Ghost text atual executa trabalho pesado na UI por tecla e por movimento de cursor.
 - Atalhos codificados; `AvaloniaEdit` completion e snippets não utilizados.
+
+O estado verificado desta implementação está na tabela **Estado da implementação** abaixo; os itens acima preservam o ponto de partida da meta e não descrevem o checkout atual.
 
 ## Incrementos
 
@@ -19,7 +21,7 @@ Substituir o menu `Ctrl+Espaço` por uma lista contextual (`Ctrl+.`) baseada em 
 | --- | --- | --- |
 | 2.1 | `AvaloniaTextSnapshot`; extração do `MongoLexer` do highlighting | Highlighting inalterado; snapshot sem cópia |
 | 2.2 | `TolerantParser`, `SyntaxTreeCache`, reparse por statement | Testes de propriedade e diferencial |
-| 2.3 | `CompletionContextEngine`: papéis, `NamespaceTargetResolver`, `ShapeWalker`, `PipelineInfo` | Fixtures de contexto |
+| 2.3 | Inicial: contexto lexical, alvo estático e `ShapeWalker` de parâmetros; faltam memoização, escopos JS completos e integração com o editor | Fixtures de contexto |
 | 2.4 | `CompletionService`, `CompletionRanker`, `SnippetTemplate`, resolve tardio, `CompletionUsageTracker` | Conjunto-ouro de ranking |
 | 2.5 | Desktop: `CompletionWindowPresenter`, `SnippetInserter`, `EditorCommandDispatcher`, `EditorKeyBindings`, arbitragem | Headless + PNG |
 | 2.6 | Migração: remover `MenuFlyout`; tornar obsoletos serviços antigos; ghost atual obtém campos pelo catálogo e contexto (tira trabalho da UI) | Sem chamadores de produção dos serviços antigos |
@@ -116,12 +118,17 @@ Execução iniciada em 15/09/2026 com os perfis de [agents](../agents/README.md)
 | Incremento | Estado | Evidência |
 | --- | --- | --- |
 | Pré-requisito K12 (MongoDB Knowledge) | Concluído | Geração por entrada no `MetadataCache`: write-through, invalidação soft, disconnect e opt-out descartam carga/amostra tardias; `Changed` terminal com `Key` para sucesso, falha, cancelamento e descarte; `CatalogQuery.Access` propagado a todos os `Get` (Peek não agenda carga; escopo sem valor e sem carga = `Unavailable`). Os 3 `PhaseOneReviewTests` vermelhos da Fase 1 passam sem mudança de asserção; 14 testes novos |
-| Pré-requisito T08 Core (Traditional Completion) | Concluído (Core/persistência) | `AutocompleteSettings.CompletionAutoOpenOnTrigger=false`, `CompletionEnterAccepts=true`; `WorkspacePreferences.EditorKeyBindings` v1 aditivo com `EditorKeyGesture` (tecla nomeada ou pontuação, sem Avalonia); ausente → padrões não gravados; inválido, repetido ou em conflito → sessão ilegível, falha visível e nunca sobrescrita (leitura, gravação e autosave). 54 testes. Despacho de teclado pendente (2.5) |
-| 2.1 Snapshot e lexer compartilhado | Application concluída; `AvaloniaTextSnapshot` pendente | `Language.Text` (`TextSpan`, `ITextSnapshot`, `TextSnapshotVersion(DocumentId, Sequence)`, `StringTextSnapshot`) e `Language.Syntax.MongoLexer` único, consumido pelo highlighting. Golden de 235 casos gerado **antes** da extração e idêntico depois; `SyntaxHighlighting*` sem alteração; PNGs `syntax-*` idênticos na região do editor (diferença intermitente só no aviso de autosave da barra de status, anterior a este lote). Job curto (não é aceite): highlight 16 KiB 471,7 → 113,3 µs (1 322 → 306 KB); 64 KiB 3 631,6 → 957,4 µs (5 296 → 1 242 KB); `MongoLexer.Tokenize` 1 MB 2,6 ms sem alocação |
-| 2.2 Parser tolerante incremental | Em andamento | — |
-| 2.3–2.6 | Pendentes | — |
+| Pré-requisito T08 Core (Traditional Completion) | Concluído (Core/persistência e despacho inicial) | `AutocompleteSettings.CompletionAutoOpenOnTrigger=false`, `CompletionEnterAccepts=true`; `WorkspacePreferences.EditorKeyBindings` v1 aditivo com `EditorKeyGesture` (tecla nomeada ou pontuação, sem Avalonia); ausente → padrões não gravados; inválido, repetido ou em conflito → sessão ilegível, falha visível e nunca sobrescrita (leitura, gravação e autosave). `EditorCommandDispatcher` recebe símbolo produzido antes do fallback físico, e a aba recebe os gestos efetivos do workspace. Testes Core e Headless provam ABNT2 simulado, fallback sem símbolo e que uma preferência substitui `Ctrl+.`. |
+| 2.1 Snapshot e lexer compartilhado | Application/Desktop concluída; baseline de UI pendente | `AvaloniaTextSnapshot` usa `TextDocument.CreateSnapshot()` sem materializar o texto, mantém offsets UTF-16, histórico via `ITextSourceVersion` e foi integrado ao pedido tradicional do editor; `Language.Text` (`TextSpan`, `ITextSnapshot`, `TextSnapshotVersion`, `StringTextSnapshot`) e `Language.Syntax.MongoLexer` único continuam consumidos pelo highlighting. Golden de 235 casos gerado **antes** da extração e idêntico depois; `SyntaxHighlighting*` sem alteração; PNGs `syntax-*` idênticos na região do editor. Job curto (não é aceite): highlight 16 KiB 471,7 → 113,3 µs; 64 KiB 3 631,6 → 957,4 µs; `MongoLexer.Tokenize` 1 MB 2,6 ms sem alocação. Medição UI por tecla ainda pendente |
+| 2.2 Parser tolerante incremental | Em andamento — parser estrutural inicial + cache de versão | `MongoSyntaxTree`/`TolerantParser` adicionados; truncamentos, fechamento incompatível/ausente, profundidade 512 e semicolon em grupos cobertos. `SyntaxTreeCache` reutiliza statements não afetados em edição única, preserva equivalência diferencial e descarta resultados tardios; históricos com múltiplas mudanças fazem fallback seguro para parse completo. Checkpoints lexicais e benchmarks ainda pendentes |
+| 2.3 | Inicial | Papéis lexicais, spans, alvo estático, aliases `const` e shapes de parâmetros cobertos; o escopo agora propaga a coleção explicitamente resolvida (`db.Pedidos`) em vez da coleção padrão da aba; faltam memoização, escopos JS completos e integração com o editor |
+| 2.4 | Inicial | `CompletionContextCache` memoiza por identidade completa do snapshot, cursor, dialeto, escopo e gatilho, e a aba reutiliza sua versão enquanto o texto não muda. Uma lista visível é reconsultada em `Peek` quando `MetadataCache.Changed` afeta o perfil/banco/coleção da aba, preservando `SymbolId`; digitação não agenda carga. `PipelineInfo` conservador cobre estágios preservadores, projeção, grupo, lookup e count; falta ligá-lo ao parser/contexto real e cobrir facets/unwind/replaceRoot |
+| 2.4 Completion/ranking | Núcleo inicial | Contratos de contexto/item/edição, `CompletionService`, provider tradicional, ranking determinístico, snippets LSP e uso em memória adicionados; faltam shapes semânticos, quotas, top-K parcial, resolve tardio e corpus MRR |
+| 2.4 | Inicial | Ranker usa top-K parcial determinístico, preserva destaques e não deduz tipo por texto localizado; ainda faltam gates de ranking/uso integrado |
+| 2.5 | Inicial | A lista contextual sobreposta usa `CompletionWindowPresenter`, seleção por `SymbolId`, filtro por texto, ↑/↓/Enter/Tab/Esc, snippets navegáveis e `VirtualizingStackPanel`; um teste cobre 100 itens ordenados. `Ctrl+.`/`Ctrl+Espaço` e a preferência persistida são despachados por símbolo produzido e fallback físico; `Enter` respeita `CompletionEnterAccepts`. A documentação estruturada e livre de valores é resolvida em worker só para o item destacado, com cancelamento e descarte por geração; PNGs `traditional-list-Light/Dark-960` foram inspecionados. Faltam acessibilidade aprofundada e matriz visual completa |
+| 2.6 | Inicial | `MenuFlyout`, `ConsoleAutocompleteService`, `ShowSuggestions` e `AggregationCompletionContext` saíram do caminho da lista. As APIs de sugestão MQL estão obsoletas e sem chamadores de produção; a inferência de schema permanece. Falta migrar o ghost para contexto/catálogo e medir a UI por tecla antes/depois |
 
-Suíte após integração dos lotes acima: 1 021 testes aprovados, 0 falhas.
+Suíte após integração dos lotes acima: 1 101 testes aprovados, 0 falhas.
 
 ## Revisão de tarefas e pré-requisitos
 

@@ -2059,17 +2059,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     private void SuggestMql()
     {
-        var suggestions = MqlAutocompleteService.GetSuggestions(QueryFilter, _knownFields);
         QuerySuggestions.Clear();
-        foreach (var suggestion in suggestions)
-        {
-            QuerySuggestions.Add(suggestion);
-        }
-
-        SelectedQuerySuggestion = QuerySuggestions.FirstOrDefault();
-        AutocompleteSuggestions = suggestions.Count == 0
-            ? "Nenhuma sugestão para o contexto atual."
-            : "Escolha uma sugestão e aplique-a ao filtro.";
+        SelectedQuerySuggestion = null;
+        AutocompleteSuggestions = "As sugestões contextuais ficam no editor: use Ctrl+. ou Ctrl+Espaço.";
     }
 
     private bool CanApplyQuerySuggestion() => SelectedQuerySuggestion is not null;
@@ -2077,23 +2069,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanApplyQuerySuggestion))]
     private void ApplyQuerySuggestion()
     {
-        if (SelectedQuerySuggestion is null)
-        {
-            return;
-        }
-
-        var suggestion = SelectedQuerySuggestion;
-        QueryFilter = MqlAutocompleteService.ApplySuggestion(QueryFilter, suggestion);
-        StatusMessage = $"Sugestão {suggestion.Text} aplicada ao filtro. Revise o JSON antes de executar.";
+        StatusMessage = "Aplique sugestões diretamente no editor com Ctrl+. ou Ctrl+Espaço.";
     }
 
     [RelayCommand]
     private void SuggestAggregation()
     {
-        var suggestions = MqlAutocompleteService.GetAggregationSuggestions(AggregationPipeline, _knownFields);
-        AutocompleteSuggestions = suggestions.Count == 0
-            ? "Nenhuma sugestão de estágio para o contexto atual."
-            : string.Join(" · ", suggestions.Select(suggestion => $"{suggestion.Text} — {suggestion.Description}"));
+        AutocompleteSuggestions = "As sugestões de agregação ficam no editor: use Ctrl+. ou Ctrl+Espaço.";
     }
 
     [RelayCommand(CanExecute = nameof(CanExecuteQuery))]

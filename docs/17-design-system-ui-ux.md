@@ -106,7 +106,7 @@ Resultados permanecem em Extended JSON, separados de stdout/stderr; consultas ma
 | --- | --- |
 | F5 | Executar conteúdo completo da aba |
 | Ctrl+Enter | Console: seleção ou statement no cursor; Script/Agregação: seleção ou conteúdo completo |
-| Ctrl+Espaço | Sugestões no editor; não substitui trecho se o texto mudou |
+| Ctrl+. / Ctrl+Espaço | Abre a lista contextual de sugestões (principal / alias); não abre com seleção ativa nem aplica resultado de texto/destino antigo |
 | Ctrl+T / Ctrl+O / Ctrl+S | Criar aba / abrir arquivo / salvar arquivo |
 | Ctrl+Tab / Ctrl+Shift+Tab | Alternar abas |
 | Ctrl+W | Fechar aba com tratamento de alterações e execução |
@@ -114,6 +114,8 @@ Resultados permanecem em Extended JSON, separados de stdout/stderr; consultas ma
 | Escape | Fechar modal; no workspace, cancelar operação da aba ativa |
 
 Ao fechar uma aba executando: interromper e aguardar ou cancelar o fechamento. Cancelamento informa que efeitos no servidor não são revertidos e podem ser incertos. Abas alteradas oferecem salvar, descartar ou cancelar. Confirmações destrutivas, auditoria e bloqueios de somente leitura continuam nas ferramentas existentes.
+
+Os atalhos do editor usam `EditorKeyBindings` persistido: a preferência substitui os gestos padrão de cada comando. Para pontuação, o editor prioriza o símbolo produzido pelo layout; sem símbolo, usa a tecla física QWERTY como fallback. Assim, `Ctrl+.` funciona em ABNT2 e um símbolo diferente nunca dispara pelo código físico US.
 
 ### Recuperação e privacidade
 

@@ -9,6 +9,8 @@ using Avalonia.Media;
 using EsilvaSoft.SlopStudio.Application;
 using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
+using EsilvaSoft.SlopStudio.Application.Language.Completion;
+using EsilvaSoft.SlopStudio.Application.Language.Text;
 
 namespace EsilvaSoft.SlopStudio.Desktop;
 
@@ -21,8 +23,13 @@ public partial class WorkspaceTabView
     private string? _completionOriginal;
     private int _completionCaret;
     private bool _attached;
-    private MenuFlyout? _completionMenu;
     private bool _acceptingCompletion;
+    private SnippetSession? _snippetSession;
+    private readonly CompletionWindowPresenter _traditionalPresenter = new();
+    private CancellationTokenSource? _traditionalDocumentationCancellation;
+    private long _traditionalDocumentationGeneration;
+    private string? _traditionalCompletionDocument;
+    private bool _traditionalCompletionIncomplete;
 
     private void InitializeAutocomplete()
     {
@@ -30,7 +37,7 @@ public partial class WorkspaceTabView
         CodeEditor.PropertyChanged += EditorCompletionChanged;
         CodeEditor.LayoutUpdated += (_, _) => PositionGhostText();
         CodeEditor.AddHandler(ScrollViewer.ScrollChangedEvent, (_, _) => PositionGhostText());
-        CodeEditor.LostFocus += (_, _) => { if (_completionMenu is null) InvalidateCompletion(); };
+        CodeEditor.LostFocus += (_, _) => InvalidateCompletion();
         DataContextChanged += (_, _) => BindCompletionTab();
         AttachedToVisualTree += (_, _) => { _completionSession.Dispose(); _completionSession = new(); _attached = true; BindCompletionTab(); };
         DetachedFromVisualTree += (_, _) => { _attached = false; InvalidateCompletion(); _completionSession.Dispose(); UnbindCompletionTab(); };
@@ -42,6 +49,7 @@ public partial class WorkspaceTabView
         if (!_attached || DataContext is not WorkspaceTabViewModel tab) return;
         _completionTab = tab;
         tab.PropertyChanged += CompletionContextChanged;
+        tab.TraditionalCompletionRefreshRequested += TraditionalCompletionRefreshRequested;
         tab.Autocomplete.SettingsChanged += CompletionSettingsChanged;
     }
 
@@ -49,11 +57,17 @@ public partial class WorkspaceTabView
     {
         if (_completionTab is not { } tab) return;
         tab.PropertyChanged -= CompletionContextChanged;
+        tab.TraditionalCompletionRefreshRequested -= TraditionalCompletionRefreshRequested;
         tab.Autocomplete.SettingsChanged -= CompletionSettingsChanged;
         _completionTab = null;
     }
 
     private void CompletionSettingsChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(InvalidateCompletion);
+    private void TraditionalCompletionRefreshRequested(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
+    {
+        if (_traditionalPresenter.IsOpen && DataContext == sender && CodeEditor.SelectionStart == CodeEditor.SelectionEnd)
+            ShowTraditionalCompletionList(this, new Avalonia.Interactivity.RoutedEventArgs());
+    });
     private void CompletionContextChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (_acceptingCompletion) return;
@@ -69,7 +83,7 @@ public partial class WorkspaceTabView
         _completionCancellation?.Cancel();
         _completion = null; _completionOriginal = null;
         CompletionPanel.IsVisible = false;
-        _completionMenu?.Hide(); _completionMenu = null;
+        CloseTraditionalCompletion();
     }
 
     private async void EditorCompletionChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -77,6 +91,13 @@ public partial class WorkspaceTabView
         if (_acceptingCompletion) return;
         if (e.Property != MongoTextEditor.TextProperty && e.Property != MongoTextEditor.CaretIndexProperty
             && e.Property != MongoTextEditor.SelectionStartProperty && e.Property != MongoTextEditor.SelectionEndProperty) return;
+        _snippetSession = null;
+        if (_traditionalPresenter.IsOpen && e.Property == MongoTextEditor.TextProperty && CodeEditor.SelectionStart == CodeEditor.SelectionEnd)
+        {
+            _traditionalPresenter.SetFilter(CurrentCompletionPrefix());
+            RefreshTraditionalCompletionList();
+            return;
+        }
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         InvalidateCompletion();
         if (!_attached || !CodeEditor.IsKeyboardFocusWithin || CodeEditor.SelectionStart != CodeEditor.SelectionEnd
@@ -129,6 +150,171 @@ public partial class WorkspaceTabView
         return true;
     }
 
+    private void ShowTraditionalCompletion(IEnumerable<CompletionItem> items, bool isIncomplete = false)
+    {
+        _traditionalPresenter.Show(items);
+        if (_traditionalPresenter.Items.Count == 0) { _traditionalPresenter.Close(); return; }
+        _traditionalCompletionDocument = CodeEditor.Text ?? "";
+        _traditionalCompletionIncomplete = isIncomplete;
+        TraditionalCompletionPanel.IsVisible = true;
+        var availableWidth = Math.Max(0, TraditionalCompletionLayer.Bounds.Width);
+        var panelWidth = Math.Min(400, availableWidth);
+        TraditionalCompletionPanel.Width = panelWidth > 0 ? panelWidth : 400;
+        RefreshTraditionalCompletionList();
+        var caret = Math.Clamp(CodeEditor.CaretIndex, 0, CodeEditor.Document.TextLength);
+        if (CodeEditor.TextArea.TextView.TranslatePoint(CodeEditor.PositionInTextView(caret), TraditionalCompletionLayer) is { } point)
+        {
+            var effectiveWidth = TraditionalCompletionPanel.Width > 0 ? TraditionalCompletionPanel.Width : 400;
+            var maxLeft = Math.Max(0, TraditionalCompletionLayer.Bounds.Width - effectiveWidth);
+            Canvas.SetLeft(TraditionalCompletionPanel, Math.Clamp(point.X, 0, maxLeft));
+            const double panelHeight = 180;
+            var below = point.Y + CodeEditor.LineHeight;
+            var top = below + panelHeight <= TraditionalCompletionLayer.Bounds.Height
+                ? below
+                : Math.Max(0, point.Y - panelHeight);
+            Canvas.SetTop(TraditionalCompletionPanel, top);
+        }
+    }
+
+    private void RefreshTraditionalCompletionList()
+    {
+        TraditionalCompletionList.ItemsSource = _traditionalPresenter.Items.ToArray();
+        TraditionalCompletionList.SelectedItem = _traditionalPresenter.Selected;
+        TraditionalCompletionStatus.Text = _traditionalPresenter.Items.Count == 0
+            ? "Nenhuma sugestão corresponde ao texto atual"
+            : $"{_traditionalPresenter.Items.Count} itens{(_traditionalCompletionIncomplete ? " · dados ainda carregando" : "")} · ↑↓ mover · Enter/Tab aceita · Esc fecha";
+        ResolveTraditionalDocumentation(_traditionalPresenter.Selected);
+    }
+
+    private void CloseTraditionalCompletion()
+    {
+        _traditionalPresenter.Close();
+        _traditionalDocumentationCancellation?.Cancel();
+        _traditionalDocumentationCancellation = null;
+        _traditionalDocumentationGeneration++;
+        _traditionalCompletionDocument = null;
+        _traditionalCompletionIncomplete = false;
+        if (this.FindControl<Avalonia.Controls.TextBlock>("TraditionalCompletionDocumentation") is { } documentation) documentation.Text = "";
+        if (this.FindControl<Avalonia.Controls.Border>("TraditionalCompletionPanel") is { } panel) panel.IsVisible = false;
+    }
+
+    private string CurrentCompletionPrefix()
+    {
+        var text = CodeEditor.Text ?? "";
+        var caret = Math.Clamp(CodeEditor.CaretIndex, 0, text.Length);
+        var start = caret;
+        while (start > 0 && (char.IsLetterOrDigit(text[start - 1]) || text[start - 1] is '_' or '$')) start--;
+        return text[start..caret];
+    }
+
+    private bool AcceptTraditionalCompletion()
+    {
+        var item = _traditionalPresenter.Selected;
+        if (item is null) return false;
+        var text = item.Edit.NewText;
+        IReadOnlyList<SnippetPlaceholder>? placeholders = null;
+        if (item.Edit.IsSnippet && SnippetTemplate.TryParse(text, out var template, out _))
+        {
+            var expansion = template!.Expand(); text = expansion.Text; placeholders = expansion.Placeholders;
+        }
+        var original = CodeEditor.Text ?? "";
+        var caret = Math.Clamp(CodeEditor.CaretIndex, 0, original.Length);
+        var exactEdit = string.Equals(original, _traditionalCompletionDocument, StringComparison.Ordinal);
+        var replacement = exactEdit ? item.Edit.ReplaceRange : new TextSpan(caret - CurrentCompletionPrefix().Length, CurrentCompletionPrefix().Length);
+        if (replacement.Start < 0 || replacement.End > original.Length) { CloseTraditionalCompletion(); return false; }
+        var start = replacement.Start;
+        _acceptingCompletion = true;
+        try
+        {
+            using (CodeEditor.Document.RunUpdate()) CodeEditor.Document.Replace(start, replacement.Length, text);
+            CodeEditor.CaretIndex = start + text.Length;
+            CodeEditor.SelectionStart = CodeEditor.SelectionEnd = CodeEditor.CaretIndex;
+        }
+        finally { _acceptingCompletion = false; }
+        CloseTraditionalCompletion();
+        if (placeholders is not null) BeginSnippet(start, placeholders);
+        return true;
+    }
+
+    private void TraditionalCompletionSelectionChanged(object? sender, Avalonia.Controls.SelectionChangedEventArgs e)
+    {
+        if (TraditionalCompletionList.SelectedItem is CompletionItem item)
+        {
+            _traditionalPresenter.Select(item.SymbolId);
+            ResolveTraditionalDocumentation(item);
+        }
+    }
+
+    private async void ResolveTraditionalDocumentation(CompletionItem? item)
+    {
+        _traditionalDocumentationCancellation?.Cancel();
+        if (item is null || !TraditionalCompletionPanel.IsVisible) return;
+        var generation = ++_traditionalDocumentationGeneration;
+        var document = _traditionalCompletionDocument;
+        var cancellation = new CancellationTokenSource();
+        _traditionalDocumentationCancellation = cancellation;
+        TraditionalCompletionDocumentation.Text = "Carregando detalhes…";
+        try
+        {
+            var resolved = await Task.Run(() => CompletionDocumentationResolver.Resolve(item, cancellation.Token), cancellation.Token);
+            if (generation != _traditionalDocumentationGeneration || cancellation.IsCancellationRequested || !TraditionalCompletionPanel.IsVisible
+                || !string.Equals(document, CodeEditor.Text ?? "", StringComparison.Ordinal) || _traditionalPresenter.Selected?.SymbolId != item.SymbolId) return;
+            TraditionalCompletionDocumentation.Text = resolved.Text;
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            if (ReferenceEquals(_traditionalDocumentationCancellation, cancellation)) _traditionalDocumentationCancellation = null;
+            cancellation.Dispose();
+        }
+    }
+
+    private void AcceptTraditionalCompletion(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (AcceptTraditionalCompletion()) e.Handled = true;
+    }
+
+    private void BeginSnippet(int insertionStart, IReadOnlyList<SnippetPlaceholder> placeholders)
+    {
+        var ordered = placeholders.OrderBy(placeholder => placeholder.Index == 0 ? int.MaxValue : placeholder.Index)
+            .Select(placeholder => new TextSpan(insertionStart + placeholder.Span.Start, placeholder.Span.Length)).ToArray();
+        if (ordered.Length == 0) return;
+        _snippetSession = new SnippetSession(CodeEditor.Text ?? "", ordered, 0);
+        SelectSnippetPlaceholder(_snippetSession);
+    }
+
+    private bool MoveSnippetPlaceholder(bool reverse)
+    {
+        var session = _snippetSession;
+        if (session is null || !string.Equals(CodeEditor.Text, session.DocumentText, StringComparison.Ordinal)) { _snippetSession = null; return false; }
+        var next = session.Current + (reverse ? -1 : 1);
+        if (next < 0 || next >= session.Placeholders.Length) { _snippetSession = null; return false; }
+        session.Current = next;
+        SelectSnippetPlaceholder(session);
+        return true;
+    }
+
+    private void SelectSnippetPlaceholder(SnippetSession session)
+    {
+        var span = session.Placeholders[session.Current];
+        _acceptingCompletion = true;
+        try
+        {
+            CodeEditor.SelectionStart = span.Start;
+            CodeEditor.SelectionEnd = span.End;
+            CodeEditor.CaretIndex = span.Start;
+        }
+        finally { _acceptingCompletion = false; }
+        CodeEditor.Focus();
+    }
+
+    private sealed class SnippetSession(string documentText, TextSpan[] placeholders, int current)
+    {
+        public string DocumentText { get; } = documentText;
+        public TextSpan[] Placeholders { get; } = placeholders;
+        public int Current { get; set; } = current;
+    }
+
     private void PositionGhostText()
     {
         if (!CompletionPanel.IsVisible || _completion is null || _completionOriginal is not { } original) return;
@@ -157,7 +343,7 @@ public partial class WorkspaceTabView
 
     public bool DismissCompletion()
     {
-        if (!CompletionPanel.IsVisible && _completionMenu is null) return false;
+        if (!CompletionPanel.IsVisible && !_traditionalPresenter.IsOpen) return false;
         InvalidateCompletion(); return true;
     }
 }

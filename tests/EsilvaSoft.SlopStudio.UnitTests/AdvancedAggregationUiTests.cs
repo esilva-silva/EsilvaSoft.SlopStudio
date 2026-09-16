@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using EsilvaSoft.SlopStudio.Application.Language.Completion;
 using EsilvaSoft.SlopStudio.Desktop;
 using EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
@@ -23,10 +24,9 @@ public sealed class AdvancedAggregationUiTests
             using var context = new WorkspaceTestContext();
             var networkCalls = 0;
             context.Mongo.Handler = (_, _) => { networkCalls++; throw new InvalidOperationException("Não deve consultar metadados remotos."); };
-            var completion = new CompletionServiceFake { Handler = _ => Task.FromResult<EsilvaSoft.SlopStudio.Core.AutocompleteResult?>(null) };
-            using var workspace = new WorkspaceViewModel(context.Workspace, context.Repository, completion);
+            using var workspace = new WorkspaceViewModel(context.Workspace, context.Repository);
             var window = new MainWindow { DataContext = workspace }; window.Show(); await window.InitializationTask;
-            var tab = workspace.ActiveTab!; tab.Mode = "Agregação";
+            var tab = workspace.ActiveTab!; tab.Mode = "Agregação"; tab.TraditionalCompletion = new DerivedFieldProvider();
             const string original = "[{ $group: { _id: '$customer', total: { $sum: '$price' } } }, { $project: { value: '$to";
             tab.Text = original;
             window.UpdateLayout(); Dispatcher.UIThread.RunJobs();
@@ -36,20 +36,31 @@ public sealed class AdvancedAggregationUiTests
             editor.Focus();
             var suggestionStarted = System.Diagnostics.Stopwatch.GetTimestamp();
             window.KeyPress(Avalonia.Input.Key.Space, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.Space, null);
-            var field = typeof(WorkspaceTabView).GetField("_completionMenu", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-            for (var i = 0; i < 100 && field.GetValue(view) is null; i++) { await Task.Delay(10); Dispatcher.UIThread.RunJobs(); }
-            var menu = (MenuFlyout?)field.GetValue(view);
-            Assert.That(menu, Is.Not.Null);
+            var panel = view.FindControl<Border>("TraditionalCompletionPanel")!;
+            var list = view.FindControl<ListBox>("TraditionalCompletionList")!;
+            for (var i = 0; i < 100 && !panel.IsVisible; i++) { await Task.Delay(10); Dispatcher.UIThread.RunJobs(); }
+            Assert.That(panel.IsVisible, Is.True);
             TestContext.Out.WriteLine($"Sugestões de campo derivado via Ctrl+Espaço: {System.Diagnostics.Stopwatch.GetElapsedTime(suggestionStarted).TotalMilliseconds:F1} ms em Headless, sem rede; inserção e undo verificados.");
-            var suggestion = menu!.Items.OfType<MenuItem>().Single(item => item.Header as string == "$total");
-            suggestion.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            list.SelectedItem = ((IEnumerable<CompletionItem>)list.ItemsSource!).Single(item => item.Label == "$total");
+            window.KeyPress(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.Enter, null);
             Assert.That(tab.Text, Is.EqualTo(original + "tal"));
             editor.Document.UndoStack.Undo(); Assert.That(tab.Text, Is.EqualTo(original));
             Assert.That(networkCalls, Is.Zero);
-            menu.Hide();
             typeof(MainWindow).GetField("_allowClose", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(window, true);
             window.Close(); return true;
         }, CancellationToken.None);
+    }
+
+    private sealed class DerivedFieldProvider : ICompletionProvider
+    {
+        public CompletionProviderKind Kind => CompletionProviderKind.Traditional;
+
+        public ValueTask<CompletionResponse> CompleteAsync(CompletionRequest request, CancellationToken cancellationToken = default)
+        {
+            var item = new CompletionItem("pipeline.total", "$total", "Campo conhecido no contexto do pipeline", CompletionItemKind.Field,
+                new(request.Context.ReplaceSpan, request.Context.ReplaceSpan, "$total"), "$total", 0, CompletionSource.Local);
+            return ValueTask.FromResult(new CompletionResponse(request, new(request.Context.Version, [item], false)));
+        }
     }
 
     [Test]

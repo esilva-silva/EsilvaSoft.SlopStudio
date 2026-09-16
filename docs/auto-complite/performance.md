@@ -182,6 +182,10 @@ Regras:
 
 ## Benchmarks
 
+### Estado da medição de ranking — 15/09/2026
+
+`CompletionRankerBenchmarks` foi ajustado para não ser `sealed`, requisito do BenchmarkDotNet. A execução curta do ranking (20, 200 e 2 000 candidatos) ainda não produziu números: o gerador encontra projetos `EsilvaSoft.SlopStudio.Benchmarks.csproj` homônimos em worktrees `.claude` e recusa escolher um. A tentativa fora do sandbox confirmou que não é limitação de permissão. Executar o job em um checkout sem esses worktrees; resultados `NA` não são métricas e não podem validar o orçamento de ranking.
+
 ### Projeto
 
 ```text
@@ -266,6 +270,27 @@ Matriz adicional obrigatória: alternar 2/10 abas com schemas distintos; 4 conex
 Tradicional preemptivo: computação p95 ≤ 5 ms e evento→ghost p95 ≤ 20 ms, quente, zero chamadas Mongo/IA. IA preemptiva: última edição→candidato validado ≤ 600 ms provisórios, incluindo debounce/fila/encode/prefill/decode/UI; abster-se após prazo. Não confundir 0–20 ms pretendidos com resultado medido. Relatar CPU média/pico, alocação, GC, working set e inferências evitadas; energia quando houver instrumento disponível, sem inventar estimativa.
 
 Gates: zero aplicação obsoleta, zero I/O automático, nenhum vazamento de valores; orçamentos quantitativos revisados em máquina identificada. Regressão >20% no p95 em duas rodadas exige investigação. Nenhum gate é aprovado por mudar golden/assertion ou usar média como p95. Riscos sem reprodução ficam identificados como tal. Performance e Testing acompanham cada lote; P58 só consolida evidência.
+
+### Fase 2 — protocolo e estado
+
+A plataforma de aceite é **Windows x64**. Para documentos de até 64 KiB, registrar p95 de trabalho de UI por tecla (≤ 2 ms), construção de contexto (≤ 5 ms), tecla → lista visível (≤ 50 ms) e refiltro com a lista aberta (≤ 8 ms), além da alocação por tecla no caminho sem IA (≤ 64 KB). Para 1 MB, registrar construção de contexto com p95 ≤ 20 ms. Cada resultado deve identificar commit, configuração Release, SO, runtime, CPU, memória, tamanho/posição da edição e estado frio ou quente.
+
+O **job completo** do BenchmarkDotNet, sem `--job short`, produz a evidência quantitativa de aceite e regressão. O **job curto** serve somente para diagnóstico rápido e ordem de grandeza; suas médias não são p95 e não aprovam gate. Sequência de reprodução:
+
+```bash
+dotnet restore EsilvaSoft.SlopStudio.slnx --locked-mode
+dotnet build EsilvaSoft.SlopStudio.slnx --no-restore
+dotnet test EsilvaSoft.SlopStudio.slnx --no-build --no-restore
+dotnet run -c Release --project tests/EsilvaSoft.SlopStudio.Benchmarks -- --filter "*"
+```
+
+Diagnóstico curto, sempre rotulado como não conclusivo:
+
+```bash
+dotnet run -c Release --project tests/EsilvaSoft.SlopStudio.Benchmarks -- --filter "*" --job short --inProcess
+```
+
+Estado atual: lexer/highlighting e ranking possuem benchmarks no projeto; parser/cache ainda não têm benchmark dedicado, e contexto, lista visível/refiltro e alocação por tecla ainda não têm medição final da Fase 2. Permanecem pendentes o job completo em Windows x64, a coleta Headless e nativa da UI e a cobertura de 1 KiB, 16 KiB, 64 KiB e 1 MB nas posições início/meio/fim. Os números da Fase 1 acima continuam apenas como baseline histórica; nenhum gate da Fase 2 está declarado aprovado.
 
 
 ## Benchmark do Schema Discovery / Schema Learning

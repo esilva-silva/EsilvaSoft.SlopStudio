@@ -1,5 +1,9 @@
 # Matriz de validação
 
+## Fase 2 — autocomplete tradicional (estado em 16/09/2026)
+
+Build focalizado e suíte UnitTests foram executados em Windows x64: **1126 aprovados, 0 falhas**. Esta evidência cobre testes automatizados; não substitui MongoDB real, leitor de tela, layouts nativos ou métricas p95. `AvaloniaTextSnapshot` e o caminho contextual estão cobertos por testes focados. Permanecem pendentes o corpus MRR/top-K, a matriz de 18 PNGs e os gates de desempenho da UI.
+
 ## Autocomplete — Fase 1: catálogo de conhecimento — 14/09/2026
 
 Restore `--locked-mode` da solução aprovado, com lockfiles novos do projeto de benchmarks para Cpu, WinML e Cuda. Build Debug WinML: 0 avisos, 0 erros. Suíte regular: **681 aprovados, 0 falhas, 4 ignorados**, em `tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/fase1-regular.trx`. Os ignorados exigem MongoDB portátil ausente nesta máquina, inclusive o novo `MetadataSourceListsKindsValidatorsIndexesAndSamplesWithoutValues`. Testes Explicit de modelos seguem fora da seleção.

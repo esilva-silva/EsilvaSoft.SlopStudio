@@ -7,6 +7,8 @@ using MongoDB.Bson.Serialization;
 
 namespace EsilvaSoft.SlopStudio.UnitTests;
 
+#pragma warning disable CS0618 // Compatibility coverage for retired MQL suggestion API.
+
 [TestFixture]
 public sealed class AdvancedAggregationTests
 {
@@ -125,3 +127,4 @@ public sealed class AdvancedAggregationTests
         Assert.That(MqlAutocompleteService.ApplySuggestion("[{ $match: {}, ", new("$limit", "", MqlSuggestionKind.AggregationStage)), Is.EqualTo("[{ $match: {}, $limit"));
     }
 }
+#pragma warning restore CS0618

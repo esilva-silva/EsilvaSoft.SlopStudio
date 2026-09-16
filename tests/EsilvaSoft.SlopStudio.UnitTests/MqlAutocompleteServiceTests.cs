@@ -3,6 +3,8 @@ using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.UnitTests;
 
+#pragma warning disable CS0618 // Compatibility coverage for retired MQL suggestion API.
+
 [TestFixture]
 public sealed class MqlAutocompleteServiceTests
 {
@@ -91,3 +93,4 @@ public sealed class MqlAutocompleteServiceTests
         });
     }
 }
+#pragma warning restore CS0618
