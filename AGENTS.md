@@ -7,12 +7,14 @@
 - Produto: IDE desktop MongoDB em .NET 10/Avalonia; Windows e Linux; interface e documentação em pt-BR, identificadores em inglês.
 - Mantenha o nome EsilvaSoft.SlopStudio e a licença MIT. Não transformar o desktop em site ou adicionar dependência comercial sem pedido específico.
 
-## Responsabilidades
+## Responsabilidades e agentes especializados
 
-- UI/UX: hierarquia, tokens, tipografia, teclado, foco, estados vazios/erro e evidência visual nos dois temas.
-- Arquitetura: contexto fixo por aba, snapshots antes de awaits, cancelamento isolado, contratos explícitos e persistência versionada.
-- Qualidade: cenários observáveis, fixtures independentes, integridade BSON, concorrência, privacidade e distinção entre teste automatizado e homologação real.
-- Esses papéis são regras reutilizáveis do repositório; não exigem criar tarefas ou agentes paralelos automaticamente.
+- O diretório central `/agents/` concentra todos os agentes especializados da solução e sua orquestração por metas (`agents/goal-orchestrator.md`).
+- A abstração de modelos e regras de escalonamento residem em `agents/capabilities.md`.
+- UI/UX: hierarquia, tokens, tipografia, teclado, foco, estados vazios/erro e evidência visual nos dois temas (`agents/ui-ux-agent.md`).
+- Arquitetura: contexto fixo por aba, snapshots antes de awaits, cancelamento isolado, contratos explícitos e persistência versionada (`agents/architecture-agent.md`).
+- Qualidade: cenários observáveis, fixtures independentes, integridade BSON, concorrência, privacidade e distinção entre teste automatizado e homologação real (`agents/qa-testing-agent.md`, `agents/code-review-agent.md`).
+- Esses papéis são regras reutilizáveis do repositório; consulte `agents/README.md` para o catálogo completo.
 
 ## Invariantes
 
