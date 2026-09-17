@@ -1,3 +1,4 @@
+using EsilvaSoft.SlopStudio.LocalAi.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using EsilvaSoft.SlopStudio.Application;
 using EsilvaSoft.SlopStudio.Core;

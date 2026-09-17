@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using EsilvaSoft.SlopStudio.Application;
-using EsilvaSoft.SlopStudio.Application.Language;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Infrastructure;
 

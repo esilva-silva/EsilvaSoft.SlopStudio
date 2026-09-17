@@ -4,10 +4,6 @@ using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
-public sealed record IdentifierModeChoice(IdentifierRepresentationMode Value, string Label);
-
-public sealed record IdentifierPreviewRow(string Label, string Code, string Details);
-
 /// <summary>Global identifier mode (Standard, ObjectId or UUID v4) with a preview adapted to the selected mode.</summary>
 public sealed partial class IdentifierPreferenceViewModel : ObservableObject
 {

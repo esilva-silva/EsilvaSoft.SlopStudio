@@ -5,8 +5,6 @@ using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
-public enum AppUpdateUiState { Hidden, Available, ManualOnly, Downloading, Ready }
-
 /// <summary>Top-bar update action: checks periodically, downloads on request and reports through the global operation bar.</summary>
 public sealed partial class AppUpdateViewModel : ObservableObject, IDisposable
 {

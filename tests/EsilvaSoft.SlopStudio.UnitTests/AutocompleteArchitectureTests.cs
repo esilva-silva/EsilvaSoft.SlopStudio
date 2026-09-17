@@ -1,6 +1,7 @@
+using EsilvaSoft.SlopStudio.LocalAi.Core;
 using System.Reflection;
 using EsilvaSoft.SlopStudio.Application;
-using EsilvaSoft.SlopStudio.Application.Language;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
 
 namespace EsilvaSoft.SlopStudio.UnitTests;
 

@@ -7,7 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Platform.Storage;
 using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Application;
-using EsilvaSoft.SlopStudio.Application.Language.Completion;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Completion;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 namespace EsilvaSoft.SlopStudio.Desktop;

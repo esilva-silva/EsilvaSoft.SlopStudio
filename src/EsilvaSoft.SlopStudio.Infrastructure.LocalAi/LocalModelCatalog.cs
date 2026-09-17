@@ -1,0 +1,87 @@
+using EsilvaSoft.SlopStudio.LocalAi.Core;
+using System.Text.Json;
+using EsilvaSoft.SlopStudio.Application;
+using EsilvaSoft.SlopStudio.Core;
+
+namespace EsilvaSoft.SlopStudio.Infrastructure.LocalAi;
+
+/// <summary>Each immediate subfolder of the models directory is a candidate model. Validation is structural and never loads weights.</summary>
+public sealed class LocalModelCatalog(string? defaultDirectory = null, IReadOnlyList<IModelAdapter>? adapters = null) : ILocalModelCatalog
+{
+    private const int MaximumCandidates = 100;
+    private readonly IReadOnlyList<IModelAdapter> _adapters = adapters ?? ModelAdapters.Default;
+    public string DefaultDirectory { get; } = defaultDirectory ?? LocalWorkspacePaths.GetModelsDirectory();
+
+    public Task<IReadOnlyList<LocalModelValidation>> DiscoverAsync(CancellationToken cancellationToken = default) => DiscoverAsync(DefaultDirectory, cancellationToken);
+
+    /// <summary>Invalid folders are returned with their state and never prevent the other models from being listed or loaded.</summary>
+    public Task<IReadOnlyList<LocalModelValidation>> DiscoverAsync(string directory, CancellationToken cancellationToken = default) => Task.Run<IReadOnlyList<LocalModelValidation>>(() =>
+    {
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory)) return [];
+        return Directory.EnumerateDirectories(directory)
+            .Where(path => !Path.GetFileName(path).StartsWith('.'))
+            .Order(StringComparer.OrdinalIgnoreCase).Take(MaximumCandidates)
+            .Select(path => Validate(path, cancellationToken)).ToArray();
+    }, cancellationToken);
+
+    public Task<LocalModelValidation> ValidateAsync(string path, CancellationToken cancellationToken = default) =>
+        Task.Run(() => Validate(path, cancellationToken), cancellationToken);
+
+    private LocalModelValidation Validate(string path, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+            return new(null, new(LocalModelState.NotInstalled, "Modelo não instalado. Selecione um modelo do diretório ou uma pasta ONNX GenAI externa. Autocomplete básico ativo.")) { Path = path ?? "" };
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        var folder = new DirectoryInfo(root).Name;
+        LocalModelValidation Rejected(LocalModelState state, string message) => new(null, new(state, message) { ModelName = folder }) { Path = root };
+        try
+        {
+            var configPath = Path.Combine(root, "genai_config.json");
+            if (!File.Exists(configPath))
+                return Rejected(LocalModelState.MissingFiles, "Arquivos ausentes: genai_config.json. Selecione a pasta de uma exportação ONNX Runtime GenAI.");
+            using var config = ReadJson(configPath);
+            var model = config.RootElement.GetProperty("model");
+            var type = model.GetProperty("type").GetString() ?? "";
+            var decoder = model.GetProperty("decoder").GetProperty("filename").GetString();
+            if (string.IsNullOrWhiteSpace(decoder) || Path.IsPathRooted(decoder)) throw new InvalidDataException();
+            var decoderPath = Path.GetFullPath(Path.Combine(root, decoder));
+            var containedRoot = Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
+            if (!decoderPath.StartsWith(containedRoot, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                throw new InvalidDataException();
+            var missing = new[] { decoderPath, Path.Combine(root, "tokenizer.json"), Path.Combine(root, "tokenizer_config.json") }
+                .Where(file => !File.Exists(file) || new FileInfo(file).Length == 0).Select(Path.GetFileName).ToArray();
+            if (missing.Length > 0) return Rejected(LocalModelState.MissingFiles, "Arquivos ausentes ou vazios: " + string.Join(", ", missing) + ".");
+            var adapter = _adapters.FirstOrDefault(candidate => candidate.CanHandle(type, root));
+            if (adapter is null)
+                return Rejected(LocalModelState.Unsupported, $"Arquitetura \"{type[..Math.Min(type.Length, 64)]}\" não suportada. Suportadas: {string.Join("; ", _adapters.Select(a => a.Description))}.");
+            LocalModelMetadata? metadata;
+            try { metadata = LocalModelMetadataReader.Read(root); }
+            catch (Exception ex) when (ex is JsonException or InvalidDataException or InvalidOperationException or FormatException)
+            {
+                return Rejected(LocalModelState.Invalid, $"{LocalModelMetadata.FileName} inválido: confira nomes, tipos e limites dos campos.");
+            }
+            using var tokenizer = ReadJson(Path.Combine(root, "tokenizer.json"));
+            using (ReadJson(Path.Combine(root, "tokenizer_config.json"))) { }
+            if (adapter.Validate(new(root, type, decoderPath, tokenizer.RootElement)) is { } failure) return Rejected(failure.State, failure.Message);
+            token.ThrowIfCancellationRequested();
+            var name = string.IsNullOrWhiteSpace(metadata?.Name) ? folder : metadata.Name;
+            var definition = new LocalModelDefinition(folder, name, root, adapter.Architecture, Path.Combine(root, "tokenizer.json"))
+            {
+                PromptFormat = adapter.PromptFormat, Capabilities = metadata?.Capabilities ?? adapter.DefaultCapabilities, Metadata = metadata
+            };
+            return new(definition, new(LocalModelState.Available, "Arquivos encontrados. Use Testar modelo para validar inferência e provider.") { ModelName = name }) { Path = root };
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or KeyNotFoundException or InvalidOperationException or ArgumentException)
+        {
+            return Rejected(LocalModelState.Invalid, "Modelo inválido: confira genai_config.json, decoder ONNX, tokenizer.json e tokenizer_config.json.");
+        }
+    }
+
+    internal static JsonDocument ReadJson(string path, long maximumBytes = 32 * 1024 * 1024)
+    {
+        if (new FileInfo(path).Length > maximumBytes) throw new InvalidDataException();
+        using var stream = File.OpenRead(path);
+        return JsonDocument.Parse(stream);
+    }
+}

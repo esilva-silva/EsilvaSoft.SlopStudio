@@ -2,12 +2,6 @@ using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Application;
 
-/// <summary>Disabled outside a published executable; ManualOnly when the installation folder is not writable.</summary>
-public enum AppUpdateAvailability { Disabled, ManualOnly, Supported }
-
-/// <summary>A verified package waiting for the application to exit; <paramref name="LastApplyError"/> reports a failed previous attempt.</summary>
-public sealed record StagedAppUpdate(AppVersion Version, string? LastApplyError);
-
 public interface IAppUpdateService
 {
     AppUpdateAvailability Availability { get; }

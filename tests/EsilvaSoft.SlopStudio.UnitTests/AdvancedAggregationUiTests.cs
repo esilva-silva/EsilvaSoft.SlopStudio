@@ -5,7 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using EsilvaSoft.SlopStudio.Application.Language.Completion;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Completion;
 using EsilvaSoft.SlopStudio.Desktop;
 using EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;

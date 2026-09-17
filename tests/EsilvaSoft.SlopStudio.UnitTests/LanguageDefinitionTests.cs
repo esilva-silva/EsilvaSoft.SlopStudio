@@ -1,7 +1,7 @@
 using System.Text.Json;
 using EsilvaSoft.SlopStudio.Application;
-using EsilvaSoft.SlopStudio.Application.Language;
-using EsilvaSoft.SlopStudio.Application.SyntaxHighlighting;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.SyntaxHighlighting;
 using EsilvaSoft.SlopStudio.Infrastructure;
 using Jint;
 

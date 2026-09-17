@@ -182,9 +182,28 @@ Regras:
 
 ## Benchmarks
 
-### Estado da medição de ranking — 15/09/2026
+### Estado da medição de ranking — 15/09/2026 (superada, ver baseline pós-ADR-040 abaixo)
 
 `CompletionRankerBenchmarks` foi ajustado para não ser `sealed`, requisito do BenchmarkDotNet. A execução curta do ranking (20, 200 e 2 000 candidatos) ainda não produziu números: o gerador encontra projetos `EsilvaSoft.SlopStudio.Benchmarks.csproj` homônimos em worktrees `.claude` e recusa escolher um. A tentativa fora do sandbox confirmou que não é limitação de permissão. Executar o job em um checkout sem esses worktrees; resultados `NA` não são métricas e não podem validar o orçamento de ranking.
+
+### Baseline pós-ADR-040 (extração de Autocomplete.Core) — 17/09/2026
+
+Medição em AMD Ryzen 9 7900 3.70GHz, Windows 11 25H2, .NET SDK 10.0.401, BenchmarkDotNet 0.15.8, job padrão. O bug de descoberta de projeto descrito acima (múltiplos `.csproj` homônimos por causa dos worktrees `.claude/worktrees/*` de agentes) persiste — não foi corrigido, apenas contornado com `--inProcess`, que evita a resolução externa de projeto. Isso não é uma correção definitiva do bug do gerador; enquanto existirem esses worktrees, `--inProcess` continua necessário para obter qualquer número.
+
+```bash
+dotnet run -c Release --project tests/EsilvaSoft.SlopStudio.Benchmarks -- --filter "*CompletionRanker*|*MongoLexer*|*SyntaxHighlighting*" --inProcess
+```
+
+| Benchmark | Candidatos/tamanho | Tempo médio | Alocação |
+| --- | --- | ---: | ---: |
+| `CompletionRanker.Rank` | 20 candidatos | 2,243 µs | 2,8 KB |
+| `CompletionRanker.Rank` | 200 candidatos | 26,889 µs | 29,16 KB |
+| `CompletionRanker.Rank` | 2 000 candidatos | 110,695 µs | 215,49 KB |
+| `MongoLexer.Tokenize` | 1 MB | 2 447,482 µs | 21 B (praticamente zero-alloc) |
+| `SyntaxHighlightingService` completo | 1 MB | 14 009,777 µs | 18 593,56 KB |
+| `SyntaxHighlightingService` incremental | 1 MB | 2 629,424 µs | 9 530,10 KB |
+
+Leitura: é a primeira baseline numérica de ranking desde a reorganização física do ADR-040; não é o job completo sem `--job short`/`--inProcess` exigido pelo protocolo da Fase 2 (seção "Fase 2 — protocolo e estado" abaixo), portanto ainda não aprova o gate de orçamento de ranking (p95 ≤ 2 ms para 200 candidatos) — a média de 26,889 µs para 200 candidatos está bem abaixo do orçamento, mas p95/p99 seguem pendentes. `MongoLexer.Tokenize` e `SyntaxHighlightingService` não tinham baseline registrada em 1 MB antes desta medição.
 
 ### Projeto
 

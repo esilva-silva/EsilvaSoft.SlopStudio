@@ -1,4 +1,4 @@
-using EsilvaSoft.SlopStudio.Application.Language.Text;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Text;
 
 namespace EsilvaSoft.SlopStudio.UnitTests.Language.Text;
 

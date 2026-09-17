@@ -4,8 +4,9 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using EsilvaSoft.SlopStudio.Application;
-using EsilvaSoft.SlopStudio.Application.Language.Completion;
-using EsilvaSoft.SlopStudio.Application.Language.Text;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Completion;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Text;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 namespace EsilvaSoft.SlopStudio.Desktop;
@@ -144,7 +145,7 @@ public partial class WorkspaceTabView
         var selectedSymbol = _traditionalPresenter.Selected?.SymbolId;
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         InvalidateCompletion();
-        Application.Language.AutocompleteMetrics.CompletionRequested.Add(1,
+        AutocompleteMetrics.CompletionRequested.Add(1,
             new KeyValuePair<string, object?>("modality", "list"), new KeyValuePair<string, object?>("trigger", "invoked"));
         var version = _completionSession.Version;
         var original = tab.Text;
@@ -157,7 +158,7 @@ public partial class WorkspaceTabView
             && DataContext == tab && tab.Profile == profile && tab.Database == database && tab.Collection == collection && tab.Mode == mode && !cancellation.IsCancellationRequested;
         try
         {
-            Application.Language.AutocompleteMetrics.UiDispatcherTime.Record(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+            AutocompleteMetrics.UiDispatcherTime.Record(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds,
                 new KeyValuePair<string, object?>("handler", "list"));
             var traditional = await tab.GetTraditionalCompletionsAsync(new Language.Text.AvaloniaTextSnapshot(CodeEditor.Document), caret, cancellation.Token);
             if (!IsCurrent()) return;

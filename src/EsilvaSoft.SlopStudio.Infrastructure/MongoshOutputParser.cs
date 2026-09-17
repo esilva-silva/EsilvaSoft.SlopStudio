@@ -27,5 +27,3 @@ public static class MongoshOutputParser
         return new ParsedMongoshOutput(results, console.ToString().TrimEnd());
     }
 }
-
-public sealed record ParsedMongoshOutput(IReadOnlyList<string> Results, string ConsoleOutput);

@@ -7,12 +7,6 @@ using MongoDB.Driver;
 
 namespace EsilvaSoft.SlopStudio.Infrastructure;
 
-public sealed class ConsoleDatabaseSessionFactory(MongoClientPool? clients = null) : IConsoleDatabaseSessionFactory
-{
-    public IConsoleDatabaseSession Create(IReadOnlyList<ConnectionProfile> resolvedProfiles, int documentLimit, int timeoutMs) =>
-        new ConsoleDatabaseSession(resolvedProfiles, documentLimit, timeoutMs, clients ?? MongoClientPool.Shared);
-}
-
 internal sealed class ConsoleDatabaseSession(IReadOnlyList<ConnectionProfile> profiles, int documentLimit, int timeoutMs, MongoClientPool clients) : IConsoleDatabaseSession
 {
     private readonly Dictionary<Guid, MongoClient> _clients = [];

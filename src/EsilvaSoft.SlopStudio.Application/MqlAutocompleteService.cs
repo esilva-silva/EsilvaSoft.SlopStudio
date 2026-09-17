@@ -1,3 +1,4 @@
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Application;
@@ -112,7 +113,7 @@ public static class MqlAutocompleteService
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumDepth);
         // The catalog schema builder owns field inference; paths keep their discovery order.
-        return new Language.SchemaBuilder(maximumDepth, int.MaxValue).AddDocuments(documents).Build().Paths().ToHashSet(StringComparer.Ordinal);
+        return new SchemaBuilder(maximumDepth, int.MaxValue).AddDocuments(documents).Build().Paths().ToHashSet(StringComparer.Ordinal);
     }
 
     public static string InferJsonSchema(IEnumerable<string> documents, int maximumDepth = 12) => JsonSchemaInference.Infer(documents, maximumDepth);

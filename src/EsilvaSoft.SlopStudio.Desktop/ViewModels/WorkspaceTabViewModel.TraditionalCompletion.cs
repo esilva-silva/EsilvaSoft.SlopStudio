@@ -1,8 +1,8 @@
 using EsilvaSoft.SlopStudio.Application;
-using EsilvaSoft.SlopStudio.Application.Language;
-using EsilvaSoft.SlopStudio.Application.Language.Completion;
-using EsilvaSoft.SlopStudio.Application.Language.Context;
-using EsilvaSoft.SlopStudio.Application.Language.Text;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Completion;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Context;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Text;
 using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;

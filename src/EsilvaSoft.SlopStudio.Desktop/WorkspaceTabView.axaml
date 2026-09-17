@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui" xmlns:syntax="using:EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" xmlns:core="using:EsilvaSoft.SlopStudio.Core" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" xmlns:completion="using:EsilvaSoft.SlopStudio.Application.Language.Completion" x:Class="EsilvaSoft.SlopStudio.Desktop.WorkspaceTabView" x:DataType="vm:WorkspaceTabViewModel">
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:syntax="using:EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" xmlns:core="using:EsilvaSoft.SlopStudio.Core" xmlns:localai="using:EsilvaSoft.SlopStudio.LocalAi.Core" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" xmlns:completion="using:EsilvaSoft.SlopStudio.Autocomplete.Core.Completion" x:Class="EsilvaSoft.SlopStudio.Desktop.WorkspaceTabView" x:DataType="vm:WorkspaceTabViewModel">
   <Grid RowDefinitions="Auto,*">
     <Border Padding="12,6" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Background="{DynamicResource SecondaryBackground}">
       <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
@@ -244,7 +244,7 @@
               <TextBlock Text="Conversa" Classes="metadata" IsVisible="{Binding HasChatMessages}" />
               <ItemsControl ItemsSource="{Binding ChatMessages}" IsVisible="{Binding HasChatMessages}">
                 <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="core:AiChatMessage">
+                  <DataTemplate x:DataType="localai:AiChatMessage">
                     <Border Classes="card" Padding="8" Margin="0,0,0,4">
                       <StackPanel Spacing="4">
                         <TextBlock Text="{Binding Author}" FontWeight="SemiBold" Classes="metadata" />

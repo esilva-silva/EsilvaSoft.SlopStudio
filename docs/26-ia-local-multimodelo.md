@@ -54,7 +54,7 @@ Validação estrutural, sem carregar pesos. Uma pasta inválida nunca impede a l
 | `Unsupported` | Nenhum adapter aceita a arquitetura, ou o tokenizer não tem os tokens FIM exigidos |
 | `Invalid` | JSON malformado, decoder fora da pasta, manifesto com IDs incorretos ou `slopstudio-model.json` inválido |
 
-Diferenças de arquitetura ficam em `IModelAdapter` (Infrastructure): validação específica, tokenizer, prompt e tokens de parada. Hoje existem `QwenCoderModelAdapter` (`qwen2`) e `DeepSeekCoderModelAdapter` (`llama` com `slopcoder_manifest.json`). Cada modelo usa sempre o próprio tokenizer. Uma nova família é um novo adapter, não um `if` espalhado.
+Diferenças de arquitetura ficam em `IModelAdapter` (`Infrastructure.LocalAi` desde a ADR-040, 17/09/2026; antes em `Infrastructure`): validação específica, tokenizer, prompt e tokens de parada. Hoje existem `QwenCoderModelAdapter` (`qwen2`) e `DeepSeekCoderModelAdapter` (`llama` com `slopcoder_manifest.json`). Cada modelo usa sempre o próprio tokenizer. Uma nova família é um novo adapter, não um `if` espalhado.
 
 ## Metadata opcional
 

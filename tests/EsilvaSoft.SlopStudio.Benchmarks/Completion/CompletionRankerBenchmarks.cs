@@ -1,6 +1,6 @@
 using BenchmarkDotNet.Attributes;
-using EsilvaSoft.SlopStudio.Application.Language.Completion;
-using EsilvaSoft.SlopStudio.Application.Language.Text;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Completion;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Text;
 
 namespace EsilvaSoft.SlopStudio.Benchmarks.Completion;
 

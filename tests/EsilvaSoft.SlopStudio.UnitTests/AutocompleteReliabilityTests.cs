@@ -1,5 +1,7 @@
+using EsilvaSoft.SlopStudio.LocalAi.Core;
 using System.Reflection;
 using EsilvaSoft.SlopStudio.Application;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
 using EsilvaSoft.SlopStudio.Infrastructure;

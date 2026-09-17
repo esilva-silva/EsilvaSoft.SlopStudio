@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="../EsilvaSoft.SlopStudio.Application/EsilvaSoft.SlopStudio.Application.csproj" />
     <ProjectReference Include="../EsilvaSoft.SlopStudio.Infrastructure/EsilvaSoft.SlopStudio.Infrastructure.csproj" />
+    <ProjectReference Include="../EsilvaSoft.SlopStudio.Infrastructure.LocalAi/EsilvaSoft.SlopStudio.Infrastructure.LocalAi.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" />

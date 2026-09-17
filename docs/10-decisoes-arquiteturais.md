@@ -211,3 +211,43 @@ Licença (`license_name` do card) e fonte aparecem antes do download; a lista é
 ## Revisão do plano de autocomplete — 15/09/2026
 
 Relaciona ADR-007/027/030/031/033/037 às decisões de plano AC-12 e AC-19–24: quatro providers com infraestrutura compartilhada, dois preemptivos independentes, híbrido sequencial, LoadedOnly atômico, cache/contexto por revisão e aprendizado probabilístico persistente de find. Schema Learning usa o proprietário LiteDB existente, sem dados brutos nem consultas extras. Estado: especificado para implementação; não promove UI/ONNX pendentes a implementados. [Plano revisado](auto-complite/README.md), [tarefas por agente](auto-complite/execution-plan.md) e [schema learning](auto-complite/schema-learning.md).
+
+## ADR-040 — Núcleos isolados de autocomplete e IA local; divisão de Infrastructure (17/09/2026)
+
+**Estado: implementada; build e suíte de testes verdes (1127/1127).** Revisa a suposição de ADR-007/027/030/033/037 de que autocomplete determinístico e IA local podiam conviver com o domínio MongoDB dentro dos mesmos assemblies.
+
+**Motivação.** O acoplamento indevido não estava no código e sim no projeto. `Application/Language/**` e `Application/SyntaxHighlighting/**` já eram puros — nenhum `using` de `MongoDB.Driver`, `LiteDB` ou `Avalonia` — mas nada impedia estruturalmente que voltassem a depender de metadados reais, de persistência ou do runtime de inferência; a invariante "o autocomplete determinístico funciona offline e sem IA" dependia de disciplina de revisão. Do mesmo modo, `Infrastructure` referenciava simultaneamente `MongoDB.Driver`, `LiteDB`, `Jint` e `Microsoft.ML.OnnxRuntimeGenAI*`, e registrava os três domínios no mesmo `ServiceCollectionExtensions`: o runtime de IA tinha `MongoDB.Driver` a um `using` de distância. A fronteira passa a ser física e verificada pelo compilador, não por convenção.
+
+**Decisão.** Três projetos novos e a divisão de `Infrastructure`, mantendo as quatro camadas conceituais:
+
+- `EsilvaSoft.SlopStudio.Autocomplete.Core` — contratos de completion, lexer/parser tolerante a erros, contexto, ranking, snippets, cache de schema (interface), syntax highlighting e o recurso embutido `mongodb-language.v1.json`. Sem pacote NuGet.
+- `EsilvaSoft.SlopStudio.LocalAi.Core` — contratos e políticas puras de IA local (`IAiChatService`, `IAiHardwareProbe`, `ILocalAiModelService`, `ILocalModelCatalog`, `ILocalModelRuntime`, `IRemoteModelSource`, `ICompletionPromptBuilder`, `ITokenizer`, estados, riscos e exceções de modelo) e os DTOs correspondentes. Sem pacote NuGet. Implementações concretas de orquestração (`AiChatService`, `LocalAiModelService`, `LocalModelAiChatService`, construtores FIM) permanecem em `Application`.
+- `EsilvaSoft.SlopStudio.Infrastructure.LocalAi` — adaptadores ONNX (`Onnx*`), adaptadores de modelo por arquitetura, `HuggingFaceModelSource`, `RemoteModelRepository`, seleção de provider/plano de execução, catálogo e leitor de metadados. Leva consigo os pacotes `Microsoft.ML.OnnxRuntime*`, que saem de `Infrastructure`.
+- `EsilvaSoft.SlopStudio.Infrastructure` mantém MongoDB, LiteDB, console Jint e atualização de aplicativo. O registro de DI divide-se em `AddSlopStudioInfrastructure` e `AddSlopStudioLocalAiInfrastructure`; o composition root do `Desktop` chama os dois. Nenhum invariante muda: continua havendo um único proprietário LiteDB registrado em DI.
+- Os namespaces dos tipos movidos acompanham o assembly (`EsilvaSoft.SlopStudio.Autocomplete.Core`, `...LocalAi.Core`, `...Infrastructure.LocalAi`), em vez de conservar o namespace antigo por conveniência.
+
+**Grafo de dependências final (nove projetos, sem ciclo).**
+
+```text
+Core                     (zero pacotes, zero ProjectReference)
+  ← Autocomplete.Core    (zero pacotes; só Core)
+  ← LocalAi.Core         (zero pacotes; só Core)
+  ← Application          (zero pacotes; Core + Autocomplete.Core + LocalAi.Core)
+      ← Infrastructure           (MongoDB.Driver, LiteDB, Jint, Logging.Abstractions)
+      ← Infrastructure.LocalAi   (Microsoft.ML.OnnxRuntime*, DI; Application + LocalAi.Core)
+          ← Desktop      (Avalonia, CommunityToolkit.Mvvm; Application + as duas Infrastructure)
+              ← UnitTests, Benchmarks, tools/BrandAssets
+```
+
+`Infrastructure` e `Infrastructure.LocalAi` não se referenciam. `Core` não referencia `Application`, `Infrastructure` nem `Desktop`; `Application` não referencia `Infrastructure` nem `Desktop`. `Autocomplete.Core` não alcança `MongoDB.Driver`, `LiteDB`, `Avalonia` nem `Microsoft.ML.OnnxRuntime*`; `LocalAi.Core` e `Infrastructure.LocalAi` não alcançam `MongoDB.Driver`, `LiteDB` nem `Avalonia`.
+
+**Desvios aceitos em relação ao desenho original.** A extração encontrou seis pontos em que o mapeamento inicial produziria ciclo ou pioraria a coesão. Todos foram aceitos como definitivos; nenhum reintroduz driver, persistência ou UI nos núcleos puros.
+
+1. `AutocompleteMode`, `AutocompleteSettings` e `ResultCompleteness` permanecem em `Core` porque `WorkspacePreferences`, `StructuredResultSet` e `StructuredResultDocument` — domínio de workspace/resultado, que pertence a `Core` — dependem deles. Por consequência `AiAccelerationMode`, `AiExecutionProvider` e `LocalModelRole` também permanecem em `Core`. São enums e um DTO de preferências versionado, sem comportamento; movê-los exigiria arrastar o domínio de workspace junto, sem ganho de isolamento.
+2. `CompletionPrivacy` fica em `Autocomplete.Core`, não em `LocalAi.Core`: além dos provedores de IA, é usado por `SchemaBuilder`. A regra fail-closed de redação continua aplicável offline, o que é o comportamento desejado.
+3. `MetadataCache` permanece em `Application` implementando `IMetadataCache` (declarada em `Autocomplete.Core`), por depender de `IApplicationOperationService`. É exatamente a separação pretendida: contrato no núcleo, implementação com orquestração e progresso na camada de casos de uso.
+4. `AiProviderUnavailableException` permanece em `Application`, embora derive de `LocalModelUnavailableException` (`LocalAi.Core`), porque formata a mensagem com `LocalAiStatusFormatter`. Mover o formatador para `LocalAi.Core` colocaria texto de apresentação em pt-BR dentro de um núcleo de contratos — pior do que o desvio.
+5. `LocalWorkspacePaths` move de `Infrastructure` para `Application`: é usado por `Infrastructure` e por `Infrastructure.LocalAi`, que não podem se referenciar. São cálculos de caminho puros (`Environment.GetFolderPath`/`Path.Combine`), sem I/O, e a localização do workspace é política de aplicação.
+6. `Autocomplete.Core` e `LocalAi.Core` referenciam `Core` em vez de serem folhas sem dependência. `Core` tem zero pacotes e zero referências; a dependência é sobre DTOs de domínio inertes, e nenhuma restrição obrigatória da meta fala em "zero ProjectReference" — fala em isolamento de infraestrutura, UI e runtime de ML, que se mantém.
+
+**Descartados.** Mover `WorkspacePreferences`/`StructuredResultSet`/`StructuredResultDocument` para desfazer o desvio 1 (refatoração ampla do domínio sem ganho real de isolamento); transformar `Core` em vários assemblies por domínio Mongo/Workspace/Update/Uuid/ExtendedJson (não resolve acoplamento algum, só fragmenta o build — a organização em subpastas é suficiente); duplicar `LocalWorkspacePaths` nas duas Infrastructure.

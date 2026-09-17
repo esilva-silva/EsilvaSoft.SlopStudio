@@ -444,3 +444,9 @@ DirectML no mesmo processo, download pelo **Baixar modelo**, NPU e CUDA.
 ## Revisão do plano de autocomplete — 15/09/2026
 
 Concluída revisão documental do autocomplete contra b082d4a: inventário atualizado, arquitetura/fases/risco/performance/testes revistos, tarefas e dez perfis documentados. Acrescentado Schema Discovery/Learning por resultados find, probabilístico, incremental e persistente no LiteDB existente. Implementação desses novos contratos/providers/analyzer ainda pendente; nenhuma homologação real nova declarada. [Plano revisado](auto-complite/README.md), [tarefas por agente](auto-complite/execution-plan.md) e [schema learning](auto-complite/schema-learning.md).
+
+## Núcleos isolados de autocomplete e IA local — 17/09/2026
+
+Reestruturação puramente física, sem mudança de regra de negócio: extração de `EsilvaSoft.SlopStudio.Autocomplete.Core`, `EsilvaSoft.SlopStudio.LocalAi.Core` e `EsilvaSoft.SlopStudio.Infrastructure.LocalAi` a partir de `Core`/`Application`/`Infrastructure`, isolando fisicamente o núcleo de autocomplete determinístico e o de IA/ML local do domínio MongoDB/LiteDB/UI. `Infrastructure` mantém MongoDB, LiteDB, console Jint e atualização de aplicativo; `Infrastructure.LocalAi` leva os adaptadores ONNX e os pacotes `Microsoft.ML.OnnxRuntime*`. O composition root do Desktop passa a chamar `AddSlopStudioInfrastructure` e `AddSlopStudioLocalAiInfrastructure`. Namespaces dos tipos movidos acompanham o novo assembly. Detalhes, grafo de dependências final (nove projetos sem ciclo) e os seis desvios aceitos em relação ao desenho original: [ADR-040](10-decisoes-arquiteturais.md).
+
+Evidência: build e suíte completa verdes, **1127/1127 testes aprovados**, sem regressão de performance observada. Nenhum requisito muda de status por esta entrada: é reorganização estrutural de projetos existentes, não nova funcionalidade — os status ✅/🚧/📋/🧪 do catálogo funcional permanecem os mesmos de antes da extração.

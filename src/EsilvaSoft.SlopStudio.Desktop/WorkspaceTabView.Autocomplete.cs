@@ -7,9 +7,11 @@ using Avalonia.Media;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using EsilvaSoft.SlopStudio.Application;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
-using EsilvaSoft.SlopStudio.Application.Language.Completion;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Completion;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.SyntaxHighlighting;
 
 namespace EsilvaSoft.SlopStudio.Desktop;
 
@@ -114,7 +116,7 @@ public partial class WorkspaceTabView
         {
             var pending = _completionSession.RequestAsync(tab.Autocomplete, request);
             // Synchronous work of this editor event on the UI thread, including the immediate dictionary lookup.
-            Application.Language.AutocompleteMetrics.UiDispatcherTime.Record(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+            AutocompleteMetrics.UiDispatcherTime.Record(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds,
                 new KeyValuePair<string, object?>("handler", "inline"));
             var result = await pending;
             if (result is null || !_attached || !CodeEditor.IsKeyboardFocusWithin || DataContext != tab || CodeEditor.Text != original
@@ -164,7 +166,7 @@ public partial class WorkspaceTabView
         var caret = _completionCaret;
         var lineRange = CodeEditor.VisibleLineRange(caret);
         var lineStart = lineRange.Start;
-        var suffixEnd = CodeEditor.Document.GetLineByOffset(caret).Length > Application.SyntaxHighlighting.SyntaxHighlightingOptions.LongLineThreshold
+        var suffixEnd = CodeEditor.Document.GetLineByOffset(caret).Length > SyntaxHighlightingOptions.LongLineThreshold
             ? lineRange.End : Math.Min(original.Length, caret + 32768);
         if (textView.TranslatePoint(CodeEditor.PositionInTextView(lineStart), GhostLayer) is not { } point) return;
         Canvas.SetLeft(CompletionPanel, point.X); Canvas.SetTop(CompletionPanel, point.Y);
@@ -175,8 +177,8 @@ public partial class WorkspaceTabView
             Canvas.SetLeft(GhostCaret, caretPoint.X); Canvas.SetTop(GhostCaret, caretPoint.Y);
         }
         CompletionText.Show(original[lineStart..caret], _completion.Text, original[caret..suffixEnd],
-            SyntaxHighlighting.SyntaxStyles.Brush(CodeEditor, Application.SyntaxHighlighting.SyntaxTokenType.Default),
-            SyntaxHighlighting.SyntaxStyles.Brush(CompletionText, Application.SyntaxHighlighting.SyntaxTokenType.GhostText),
+            SyntaxHighlighting.SyntaxStyles.Brush(CodeEditor, SyntaxTokenType.Default),
+            SyntaxHighlighting.SyntaxStyles.Brush(CompletionText, SyntaxTokenType.GhostText),
             CodeEditor.Snapshot is { } snapshot && snapshot.Text == original ? snapshot : null, lineStart);
     }
 

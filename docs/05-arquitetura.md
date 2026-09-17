@@ -26,22 +26,59 @@ global.json
 Directory.Build.props
 Directory.Packages.props
 src/
-  EsilvaSoft.SlopStudio.Core/
-  EsilvaSoft.SlopStudio.Application/
-  EsilvaSoft.SlopStudio.Infrastructure/ # LiteDB, MongoDB.Driver e mongosh
-  EsilvaSoft.SlopStudio.Atlas/          # planejado no backlog sem versão
-  EsilvaSoft.SlopStudio.Desktop/
+  EsilvaSoft.SlopStudio.Core/                 # domínio Mongo, workspace, update, UUID, Extended JSON
+  EsilvaSoft.SlopStudio.Autocomplete.Core/    # núcleo determinístico de completion e highlighting
+  EsilvaSoft.SlopStudio.LocalAi.Core/         # contratos e políticas puras de IA local
+  EsilvaSoft.SlopStudio.Application/          # casos de uso e orquestração
+  EsilvaSoft.SlopStudio.Infrastructure/       # LiteDB, MongoDB.Driver, console Jint, mongosh, update
+  EsilvaSoft.SlopStudio.Infrastructure.LocalAi/ # ONNX Runtime GenAI, adaptadores e fonte remota de modelos
+  EsilvaSoft.SlopStudio.Atlas/                # planejado no backlog sem versão
+  EsilvaSoft.SlopStudio.Desktop/              # Avalonia MVVM e composition root
 tests/
   EsilvaSoft.SlopStudio.UnitTests/
-  EsilvaSoft.SlopStudio.IntegrationTests/
-  EsilvaSoft.SlopStudio.UiTests/
-  EsilvaSoft.SlopStudio.ArchitectureTests/
+  EsilvaSoft.SlopStudio.Benchmarks/
+  EsilvaSoft.SlopStudio.IntegrationTests/     # planejado
+  EsilvaSoft.SlopStudio.UiTests/              # planejado
+  EsilvaSoft.SlopStudio.ArchitectureTests/    # planejado
   Fixtures/
+tools/
+  BrandAssets/
 docs/
-eng/                                     # scripts de build/test/package
+eng/                                          # scripts de build/test/package
 ```
 
-O núcleo implementado usa `Core`, `Application`, `Infrastructure`, `Desktop` e `UnitTests`. A decomposição futura de `Infrastructure` em adaptadores MongoDB, persistência, plataforma, editor e Atlas ocorrerá quando cada contrato tiver implementação e teste próprios. Todos os projetos atuais têm alvo `net10.0`; APIs específicas ficam em adaptadores de plataforma.
+A solução implementada tem nove projetos: `Core`, `Autocomplete.Core`, `LocalAi.Core`, `Application`, `Infrastructure`, `Infrastructure.LocalAi`, `Desktop`, `UnitTests` e `Benchmarks` (`tools/BrandAssets` fica fora da slnx). Todos têm alvo `net10.0`; APIs específicas ficam em adaptadores de plataforma. A decomposição adicional de `Infrastructure` em adaptadores de plataforma, editor e Atlas ocorrerá quando cada contrato tiver implementação e teste próprios.
+
+### Grafo de projetos
+
+```mermaid
+flowchart TD
+  ACORE[Autocomplete.Core] --> CORE[Core<br/>zero pacotes]
+  AICORE[LocalAi.Core] --> CORE
+  APP[Application] --> CORE
+  APP --> ACORE
+  APP --> AICORE
+  INFRA[Infrastructure<br/>MongoDB.Driver, LiteDB, Jint] --> APP
+  INFRAAI[Infrastructure.LocalAi<br/>ONNX Runtime GenAI] --> APP
+  INFRAAI --> AICORE
+  DESK[Desktop<br/>Avalonia, composition root] --> APP
+  DESK --> INFRA
+  DESK --> INFRAAI
+```
+
+As setas apontam para a dependência. O grafo não tem ciclo: `Core` não referencia nenhuma camada superior, `Application` não referencia `Infrastructure` nem `Desktop`, e as duas `Infrastructure` não se referenciam.
+
+| Projeto | Responsabilidade | Não pode conter |
+| --- | --- | --- |
+| `Core` | Modelos e contratos de domínio: MongoDB, workspace/preferências, atualização, UUID, Extended JSON | Qualquer pacote NuGet e qualquer I/O |
+| `Autocomplete.Core` | Completion determinístico: lexer/parser tolerante a erros, contexto, ranking, snippets, contratos de cache de schema, syntax highlighting, política de privacidade do contexto | MongoDB.Driver, LiteDB, Avalonia, ONNX Runtime, acesso a arquivo ou rede |
+| `LocalAi.Core` | Contratos e políticas puras de IA local: serviço de modelo, catálogo, runtime, tokenizer, construtor de prompt, estados, riscos e exceções | Regras de MongoDB, persistência, UI e qualquer runtime de inferência |
+| `Application` | Casos de uso, validações, serviços de linguagem e orquestração de IA (implementações concretas), barra de operações, caminhos do workspace | Referência a `Infrastructure`, `Infrastructure.LocalAi` ou `Desktop` |
+| `Infrastructure` | Adaptadores MongoDB.Driver, proprietário único LiteDB, console Jint, runner mongosh, atualização por GitHub Releases | ONNX Runtime e qualquer tipo de Avalonia |
+| `Infrastructure.LocalAi` | Adaptadores ONNX Runtime GenAI, adaptadores por arquitetura de modelo, catálogo/metadados locais, download Hugging Face, seleção de provider | MongoDB.Driver, LiteDB e qualquer tipo de Avalonia |
+| `Desktop` | Apresentação Avalonia MVVM e composition root (`AddSlopStudioInfrastructure` + `AddSlopStudioLocalAiInfrastructure`) | Uso direto de driver concreto de banco |
+
+O isolamento é verificado pelo compilador, não por convenção: o autocomplete determinístico não tem como alcançar metadados reais, persistência ou inferência, e o runtime de IA não tem como alcançar `MongoDB.Driver`. Consulte [ADR-040](10-decisoes-arquiteturais.md) para a decisão completa e os desvios aceitos.
 
 ## Responsabilidades e contratos
 
@@ -129,4 +166,4 @@ ConsoleAutocompleteService lê catálogos através de WorkspaceService; view des
 
 ## Autocomplete local opcional — 11/09/2026
 
-Reutiliza Core/Application/Infrastructure/Desktop: IAutocompleteService independente da UI, providers básico/IA, runtime ONNX GenAI isolado, tokenizer nativo/FIM e catálogo de modelos externos. Uma sessão de completion por editor descarta respostas antigas; um gate global limita inferências; sessão de modelo lazy/reutilizável. Preferências versionadas são aditivas no proprietário LiteDB. [Contrato e limites](21-autocomplete-local.md).
+IAutocompleteService independente da UI, providers básico/IA, runtime ONNX GenAI isolado, tokenizer nativo/FIM e catálogo de modelos externos. Desde a [ADR-040](10-decisoes-arquiteturais.md) o núcleo determinístico vive em `Autocomplete.Core`, os contratos de IA local em `LocalAi.Core` e o runtime ONNX em `Infrastructure.LocalAi`; o restante do fluxo continua em `Application`/`Desktop`. Uma sessão de completion por editor descarta respostas antigas; um gate global limita inferências; sessão de modelo lazy/reutilizável. Preferências versionadas são aditivas no proprietário LiteDB. [Contrato e limites](21-autocomplete-local.md).

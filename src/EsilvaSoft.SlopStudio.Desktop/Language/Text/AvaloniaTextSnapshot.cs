@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 using AvaloniaEdit.Document;
-using EsilvaSoft.SlopStudio.Application.Language.Text;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Text;
 
 namespace EsilvaSoft.SlopStudio.Desktop.Language.Text;
 

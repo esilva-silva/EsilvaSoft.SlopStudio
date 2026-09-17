@@ -1,3 +1,4 @@
+using EsilvaSoft.SlopStudio.LocalAi.Core;
 using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.UnitTests;

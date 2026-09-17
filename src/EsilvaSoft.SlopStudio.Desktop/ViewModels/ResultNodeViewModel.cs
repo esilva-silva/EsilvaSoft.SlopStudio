@@ -6,16 +6,6 @@ using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
-public enum ResultNodeKind { ResultSet, Document, Field, Notice }
-
-/// <summary>Expansion and document rows of one rendered result, kept while the same execution is re-rendered.</summary>
-internal sealed class ResultTreeState
-{
-    public HashSet<string> Expanded { get; } = new(StringComparer.Ordinal);
-    public Dictionary<ResultDocumentViewModel, ResultNodeViewModel> DocumentNodes { get; } = [];
-    public bool Rendered { get; set; }
-}
-
 /// <summary>Row of the results tree. Children are created on first expansion; before that only a placeholder exists.</summary>
 public sealed partial class ResultNodeViewModel : ObservableObject
 {
