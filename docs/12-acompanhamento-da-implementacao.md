@@ -75,13 +75,13 @@ extrapolada ou inferida para preencher essa lacuna.
 
 ## Consultas avançadas — incremento de 14/09/2026
 
-**Meta textual validada:** joins e evolução de campos concluídos para os stages do escopo; inferência local com limites e sem execução. Campo derivado inserido via Ctrl+Espaço e desfeito no editor real. Suíte completa **650 aprovados, 0 falhas**, `phase2-acceptance.trx`; auditoria requisito a requisito em [27](27-consultas-avancadas.md). Os checkpoints abaixo são históricos e não representam pendências atuais da meta. Release, catálogo amplo e homologação nativa permanecem separados.
+**Meta textual validada:** joins e evolução de campos concluídos para os stages do escopo; inferência local com limites e sem execução. Campo derivado inserido via Ctrl+Espaço e desfeito no editor real. Suíte completa **650 aprovados, 0 falhas**, `phase2-acceptance.trx`; auditoria requisito a requisito em [27](backlog/27-consultas-avancadas.md). Os checkpoints abaixo são históricos e não representam pendências atuais da meta. Release, catálogo amplo e homologação nativa permanecem separados.
 
 Revisão de histórico/contexto/diagnósticos: **643 aprovados, 0 falhas**, `phase2-final-audit.trx`, build sem avisos/erros. Histórico de Agregação com snapshot e opt-out; erro de gravação visível; origens de campos filtradas e wrappers BSON excluídos; erros seguros de comando; seleção real no MongoDB 8.0.30 sem fallback. 18 novas imagens da janela Histórico, além das 18 de validação; 600 claro/720 escuro inspecionados. Pendentes: joins/evolução de schema nas sugestões e revisão final das jornadas.
 
 Checkpoint final deste incremento: suíte regular **623 aprovados, 0 falhas, 0 ignorados**, `phase2-current.trx`. Testes Explicit de IA não integram esse total.
 
-Implementados catálogo dos 12 stages com distinção lexical, validação offline com seleção do erro, proteção compartilhada de `$out`/`$merge` e explain bruto do modo Agregação. Snapshots e cancelamento testados entre abas; resultados anteriores conservados durante explain. Fixture MongoDB 8.0.30 de joins/arrays/facet e plano real aprovada. Build sem avisos/erros; 29 testes focados aprovados. O primeiro checkpoint da suíte completa teve 617 aprovados antes da inclusão de validação/explain. [Escopo, evidência e trabalho restante](27-consultas-avancadas.md); o aceite completo da fase permanece aberto.
+Implementados catálogo dos 12 stages com distinção lexical, validação offline com seleção do erro, proteção compartilhada de `$out`/`$merge` e explain bruto do modo Agregação. Snapshots e cancelamento testados entre abas; resultados anteriores conservados durante explain. Fixture MongoDB 8.0.30 de joins/arrays/facet e plano real aprovada. Build sem avisos/erros; 29 testes focados aprovados. O primeiro checkpoint da suíte completa teve 617 aprovados antes da inclusão de validação/explain. [Escopo, evidência e trabalho restante](backlog/27-consultas-avancadas.md); o aceite completo da fase permanece aberto.
 
 ## Situação vigente e revisão documental — 13/09/2026
 
@@ -435,7 +435,7 @@ Restore locked e build sem restore com `-p:UsedAvaloniaProducts=` aprovados, zer
 
 Inclui dois testes de integração com MongoDB portátil 8.0.30 em Windows, paginação/CRUD protegido/conflito/exportação, 18 PNGs da barra concorrente nos temas/tamanhos/escalas declarados, undo real de formatação e correção do teste de linha com dois milhões de caracteres antes falho. Nenhuma asserção de limite visual foi enfraquecida. Startup Headless quente: 9 ms na última execução, 464 ms em execução anterior isolada; cenário de duas páginas de 100 em 5.000 documentos com edição/conflito/exportação: 55 ms (anterior 84 ms). Esses números são observações locais, não benchmark de produção.
 
-Não encerrados: Linux gráfico, diálogos nativos/clipboard, leitor de tela, cold start/CPU/RAM nativos e matriz ampliada de autenticação/topologia. WSL sem distribuição disponível; acesso Linux solicitado. Veja a [auditoria completa e o inventário anterior às alterações](25-auditoria-mvp-performance.md). Não declarar v0.5.0 pronta por esses testes.
+Não encerrados: Linux gráfico, diálogos nativos/clipboard, leitor de tela, cold start/CPU/RAM nativos e matriz ampliada de autenticação/topologia. WSL sem distribuição disponível; acesso Linux solicitado. Veja a [auditoria completa e o inventário anterior às alterações](done/release_v0.5.0/25-auditoria-mvp-performance.md). Não declarar v0.5.0 pronta por esses testes.
 
 ## SlopCoder-Mongo-1.5B-full INT8 como modelo sugerido — 13/09/2026
 
@@ -523,3 +523,51 @@ Concluída revisão documental do autocomplete contra b082d4a: inventário atual
 Reestruturação puramente física, sem mudança de regra de negócio: extração de `EsilvaSoft.SlopStudio.Autocomplete.Core`, `EsilvaSoft.SlopStudio.LocalAi.Core` e `EsilvaSoft.SlopStudio.Infrastructure.LocalAi` a partir de `Core`/`Application`/`Infrastructure`, isolando fisicamente o núcleo de autocomplete determinístico e o de IA/ML local do domínio MongoDB/LiteDB/UI. `Infrastructure` mantém MongoDB, LiteDB, console Jint e atualização de aplicativo; `Infrastructure.LocalAi` leva os adaptadores ONNX e os pacotes `Microsoft.ML.OnnxRuntime*`. O composition root do Desktop passa a chamar `AddSlopStudioInfrastructure` e `AddSlopStudioLocalAiInfrastructure`. Namespaces dos tipos movidos acompanham o novo assembly. Detalhes, grafo de dependências final (nove projetos sem ciclo) e os seis desvios aceitos em relação ao desenho original: [ADR-040](10-decisoes-arquiteturais.md).
 
 Evidência: build e suíte completa verdes, **1127/1127 testes aprovados**, sem regressão de performance observada. Nenhum requisito muda de status por esta entrada: é reorganização estrutural de projetos existentes, não nova funcionalidade — os status ✅/🚧/📋/🧪 do catálogo funcional permanecem os mesmos de antes da extração.
+
+
+## Reorganização de fases e documentação — 18/09/2026
+
+Meta documental e de interface. O roadmap passou de seis para **oito fases** e a documentação ganhou separação explícita entre planejado, em execução, concluído e adiado. **Nenhum documento, requisito, ADR ou código funcional foi apagado.**
+
+### Movimentações de arquivo
+
+| Origem | Destino | Motivo |
+| --- | --- | --- |
+| `docs/25-auditoria-mvp-performance.md` | `docs/done/release_v0.5.0/25-auditoria-mvp-performance.md` | Evidência da v0.5.0, arquivada junto da release. Links internos reescritos para `../../`. |
+| `docs/27-consultas-avancadas.md` | `docs/backlog/27-consultas-avancadas.md` | A v0.6.0 deixou de ser "consultas avançadas". O documento recebeu cabeçalho de reclassificação e é preservado como evidência histórica. |
+
+Os demais documentos numerados permanecem na raiz de `docs/` por serem transversais a várias fases (governança, arquitetura, design system, segurança, qualidade e validação), conforme a regra da meta. `docs/auto-complite/phases/phase-1..5-*.md` **não** foram movidos: são sub-fases do subsistema de autocomplete, com numeração própria, referenciadas pelas fases 2 e 3 do produto.
+
+### Documentos criados
+
+`docs/phases/README.md` e os oito `docs/phases/phase-NN-vX.Y.Z/README.md`; `docs/backlog/README.md` e `bkl-01` a `bkl-05`; `docs/done/README.md`, `docs/done/release_v0.5.0/README.md` e `docs/done/release_v0.5.0/pendencias-de-homologacao.md`.
+
+### Reclassificações de requisito
+
+| Requisito | Antes | Depois | Decisão |
+| --- | --- | --- | --- |
+| Administração, índices, coleções, views, validação, transferência lógica | v0.7.0 | v0.10.0 (Fase 6) | Reordenação do roadmap oficial. Código preservado e integrado; pontos de entrada removidos por não ser a fase atual. |
+| AGG-01/02/03/04 (modo Agregação) | v0.6.0 | Backlog (`bkl-04`) | A v0.6.0 passou a ser organização dos projetos e autocomplete básico. Implementação parcial documentada como **antecipação técnica**, não como escopo concluído. |
+| EDT-06, TRF-05 (Script Engine entre conexões) | v0.8.0 | Backlog (`bkl-03`) | A v0.8.0 passou a ser abertura e salvamento de arquivos de texto. Console Jint continua ativo; modo Script/mongosh desativado no seletor. |
+| EDT-07 (exportar query para C#) | v0.6.0 | Backlog (`bkl-05`) | Sem caminho integrado e sem fase atribuída. |
+| Cofre criptográfico (recorte de CON-07) | v0.5.0 | Backlog (`bkl-01`) | O cofre **não existe**: o LiteDB é aberto sem senha e os valores de ambiente são gravados em JSON puro. O armazenamento local permanece, por ser necessário à resolução de `${ENV.get(...)}`. |
+
+### Alterações de interface
+
+- Removidos da barra superior: botão **Ferramentas** e botão **Ambientes** (rotulado "Ambientes / Key Vault"). O grid passou de dez para oito colunas.
+- Removidas do menu de contexto do Explorer as quatro entradas que abriam a janela de Ferramentas. Preservadas as demais, inclusive geradores de script, "Ver índices" e "Detalhes e estatísticas".
+- Removido o `ComboBox` "Modo do editor". **Console** é o único modo oferecido.
+- `WorkspaceTabViewModel` passou a distinguir `Modes` (modos que o editor entende, incluindo Script e Agregação) de `SelectableModes` (o que a interface oferece). Essa separação foi necessária para que rascunhos e histórico salvos em Script ou Agregação reabram como foram gravados — reduzir `Modes` diretamente causava conversão silenciosa para Console em `Restore`.
+- `WorkspaceToolsWindow`, `EnvironmentsWindow`, `EnvironmentsViewModel`, `ConsoleRuntime`, `MongoshScriptExecutionService`, o parser e o validador de agregação permanecem íntegros nos seus projetos, sem mudança de camada.
+
+### Testes
+
+`AppUpdateUiTests.RenderTopBar` e `DatabaseExplorerUiTests` foram ajustados aos pontos de entrada removidos e agora **asseram a ausência** dos botões e das entradas de menu; o segundo passou a exercitar `WorkspaceToolsWindow` diretamente, provando que a janela continua funcional sem entrada visual. Novo arquivo `DisabledFeatureEntryPointsTests` cobre: `SelectableModes` com apenas Console, restauração fiel de rascunhos em modos desativados, ausência do seletor de modos e ausência dos botões na barra.
+
+Os testes que atribuem `Mode = "Script"` ou `"Agregação"` diretamente **não** foram alterados: são a evidência de que o código preservado continua íntegro.
+
+### Validação executada nesta meta
+
+`dotnet build` sem avisos e sem erros; `dotnet test` com **1156 aprovados, 0 falhas, 4 ignorados** (Explicit). `node scripts/build-docs-index.cjs` regenerou o índice com 84 documentos.
+
+**O que esta meta não fez:** nenhum gate de homologação real foi fechado. A v0.5.0 foi arquivada por escopo funcional, com as pendências de Windows/Linux, leitor de tela, diálogos nativos e matriz de autenticação registradas em [`done/release_v0.5.0/pendencias-de-homologacao.md`](done/release_v0.5.0/pendencias-de-homologacao.md). A reorganização não foi usada para ocultar teste falho ou pendência.

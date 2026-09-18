@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:syntax="using:EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" x:Class="EsilvaSoft.SlopStudio.Desktop.MainWindow" x:DataType="vm:WorkspaceViewModel" Title="EsilvaSoft.SlopStudio" Icon="/Assets/slop-studio.ico" Width="1440" Height="900" MinWidth="960" MinHeight="620">
   <Grid RowDefinitions="40,*,36">
     <Border Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Padding="8,3">
-      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="4">
+      <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,Auto" ColumnSpacing="4">
         <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,12,0" VerticalAlignment="Center" AutomationProperties.Name="Slop Studio">
           <Image Source="{StaticResource BrandSymbol}" Width="32" Height="32" />
           <TextBlock Text="slop studio" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" />
@@ -30,21 +30,14 @@
             <TextBlock Text="Salvar" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
-        <Button Grid.Column="5" Click="OpenTools" IsEnabled="{Binding HasActiveTab}" ToolTip.Tip="Documentos, índices, administração e transferências" AutomationProperties.Name="Ferramentas">
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <Path Classes="command-icon" Data="{StaticResource ToolsIcon}" />
-            <TextBlock Text="Ferramentas" VerticalAlignment="Center" />
-          </StackPanel>
-        </Button>
-        <Button Grid.Column="6" Content="Ambientes" Click="OpenEnvironments" HorizontalAlignment="Center" ToolTip.Tip="Ambientes / Key Vault"/>
-        <Button Grid.Column="7" x:Name="UpdateButton" Classes="primary" Click="UpdateButtonClick" IsVisible="{Binding Updates.IsVisible}" ToolTip.Tip="{Binding Updates.ToolTip}" AutomationProperties.Name="Atualizar o Slop Studio" AutomationProperties.HelpText="{Binding Updates.ToolTip}">
+        <Button Grid.Column="5" x:Name="UpdateButton" Classes="primary" Click="UpdateButtonClick" IsVisible="{Binding Updates.IsVisible}" ToolTip.Tip="{Binding Updates.ToolTip}" AutomationProperties.Name="Atualizar o Slop Studio" AutomationProperties.HelpText="{Binding Updates.ToolTip}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <Path Classes="command-icon" Data="{StaticResource DownloadIcon}" />
             <TextBlock Classes="command-label" Text="{Binding Updates.Label}" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
-        <ComboBox Grid.Column="8" ItemsSource="{Binding Themes}" SelectedItem="{Binding Theme}" Width="100" AutomationProperties.Name="Tema" />
-        <Button Grid.Column="9" Content="···" ToolTip.Tip="Mais ações" AutomationProperties.Name="Mais ações">
+        <ComboBox Grid.Column="6" ItemsSource="{Binding Themes}" SelectedItem="{Binding Theme}" Width="100" AutomationProperties.Name="Tema" />
+        <Button Grid.Column="7" Content="···" ToolTip.Tip="Mais ações" AutomationProperties.Name="Mais ações">
           <Button.Flyout>
             <MenuFlyout>
               <MenuItem Header="Salvar como…" Click="SaveAs" />
@@ -92,9 +85,6 @@
                         <MenuItem Header="Abrir shell / script" Click="ExplorerGenerate" Tag="Shell"/>
                         <MenuItem Header="Script de criação de coleção" Click="ExplorerGenerate" Tag="CreateCollection" IsVisible="{Binding IsDatabase}"/>
                         <MenuItem Header="Script de remoção do banco" Click="ExplorerGenerate" Tag="DropDatabase" IsVisible="{Binding IsDatabase}"/>
-                        <MenuItem Header="Criar coleção…" Click="ExplorerTools" Tag="Coleções" IsVisible="{Binding IsDatabase}"/>
-                        <MenuItem Header="Documentos: inserir / atualizar / excluir…" Click="ExplorerTools" Tag="Documentos" IsVisible="{Binding IsCollection}"/>
-                        <MenuItem Header="Criar / remover índices…" Click="ExplorerTools" Tag="Índices" IsVisible="{Binding HasCollection}"/>
                         <MenuItem Header="Gerar script CRUD" IsVisible="{Binding HasCollection}">
                           <MenuItem Header="Find" Click="ExplorerGenerate" Tag="Find"/>
                           <MenuItem Header="Insert" Click="ExplorerGenerate" Tag="Insert"/>
@@ -107,7 +97,6 @@
                         <MenuItem Header="Script de criação do índice" Click="ExplorerGenerate" Tag="CreateIndex" IsVisible="{Binding IsIndex}"/>
                         <MenuItem Header="Remover índice…" Click="ExplorerDropIndex" IsVisible="{Binding IsIndex}"/>
                         <MenuItem Header="Copiar definição" Click="ExplorerCopyDefinition" IsVisible="{Binding IsIndex}"/>
-                        <MenuItem Header="Administração do banco / coleção…" Click="ExplorerTools" Tag="Coleções"/>
                       </ContextMenu>
                     </Grid.ContextMenu>
                     <Path Width="16" Height="16" Stretch="Uniform" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.75" Data="{StaticResource DatabaseIcon}" VerticalAlignment="Center" />

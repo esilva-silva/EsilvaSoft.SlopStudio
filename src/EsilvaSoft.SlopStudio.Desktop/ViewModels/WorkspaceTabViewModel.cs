@@ -24,7 +24,12 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     public string? MissingTargetHost { get; private set; }
     public bool ContainsResultData { get; set; }
     public event EventHandler? DraftChanged;
+    // Modos que o editor entende. Script e Agregação continuam aqui para que rascunhos e histórico
+    // salvos nesses modos reabram como foram gravados, sem conversão silenciosa.
     public IReadOnlyList<string> Modes { get; } = ["Console", "Script", "Agregação"];
+    // Modos oferecidos pela interface na fase atual. Script e Agregação estão no backlog
+    // (docs/backlog/bkl-03-script-engine-entre-conexoes.md e bkl-04-modo-aggregation.md).
+    public IReadOnlyList<string> SelectableModes { get; } = ["Console"];
 
     [ObservableProperty] private ConnectionProfile? _profile;
     [ObservableProperty] private bool _isConnected;

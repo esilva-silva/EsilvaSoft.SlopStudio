@@ -22,13 +22,13 @@ UI: nenhum comportamento visual novo; os testes Headless existentes de highlight
 
 ## Incremento de consultas avançadas — 14/09/2026
 
-**Aceite da meta textual:** **650 aprovados, 0 falhas**, `phase2-acceptance.trx`; build sem avisos/erros. `AggregationFieldInferenceTests` acrescenta projeções, remoções, renomeações, joins, `let` e facets. `DerivedFieldSuggestionInsertsAtTheCursorAndPreservesUndoOffline` valida a jornada real do editor sem rede (90,4 ms no ensaio focado, sem generalizar para desempenho nativo). [Auditoria e limites](27-consultas-avancadas.md). Checkpoints abaixo preservam suas contagens históricas.
+**Aceite da meta textual:** **650 aprovados, 0 falhas**, `phase2-acceptance.trx`; build sem avisos/erros. `AggregationFieldInferenceTests` acrescenta projeções, remoções, renomeações, joins, `let` e facets. `DerivedFieldSuggestionInsertsAtTheCursorAndPreservesUndoOffline` valida a jornada real do editor sem rede (90,4 ms no ensaio focado, sem generalizar para desempenho nativo). [Auditoria e limites](backlog/27-consultas-avancadas.md). Checkpoints abaixo preservam suas contagens históricas.
 
-Revisão posterior: **643 aprovados, 0 falhas**, `phase2-final-audit.trx`. `AggregationHistoryTests`, `MongoCompletionTargetTests`, fixture real de seleção/erro e 18 PNGs adicionais de Histórico. Não confundir esse total com os checkpoints anteriores abaixo; testes Explicit de modelos permanecem fora da execução regular. Detalhes e pendências em [27](27-consultas-avancadas.md).
+Revisão posterior: **643 aprovados, 0 falhas**, `phase2-final-audit.trx`. `AggregationHistoryTests`, `MongoCompletionTargetTests`, fixture real de seleção/erro e 18 PNGs adicionais de Histórico. Não confundir esse total com os checkpoints anteriores abaixo; testes Explicit de modelos permanecem fora da execução regular. Detalhes e pendências em [27](backlog/27-consultas-avancadas.md).
 
 Suíte completa após o incremento: **623 aprovados, 0 falhas, 0 ignorados** em `tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/phase2-current.trx`. Testes Explicit de modelos IA continuam fora da seleção regular.
 
-Restore locked e build com `-p:UsedAvaloniaProducts=` aprovados. `phase2-analysis.trx`: 29 testes aprovados, incluindo validação offline, proteção de escrita, autocomplete básico contextual, localização no editor e isolamento/cancelamento de explain. MongoDB portátil **8.0.30**: fixture independente dos 12 stages, join, unwind, facet, resultado Bia/5, contagem 2 e plano real aprovados; nenhuma coleção de saída criada. 18 PNGs `aggregation-diagnostic-*` gerados; inspeção de claro 960 e escuro 1366 confirmou seleção do erro e painel de diagnóstico. Validação Headless não comprova leitor de tela ou sessão nativa. [Pendências de aceite](27-consultas-avancadas.md).
+Restore locked e build com `-p:UsedAvaloniaProducts=` aprovados. `phase2-analysis.trx`: 29 testes aprovados, incluindo validação offline, proteção de escrita, autocomplete básico contextual, localização no editor e isolamento/cancelamento de explain. MongoDB portátil **8.0.30**: fixture independente dos 12 stages, join, unwind, facet, resultado Bia/5, contagem 2 e plano real aprovados; nenhuma coleção de saída criada. 18 PNGs `aggregation-diagnostic-*` gerados; inspeção de claro 960 e escuro 1366 confirmou seleção do erro e painel de diagnóstico. Validação Headless não comprova leitor de tela ou sessão nativa. [Pendências de aceite](backlog/27-consultas-avancadas.md).
 
 Este documento separa o que já possui evidência local do que exige um ambiente MongoDB/mongosh real. Nenhuma linha marcada como pendente deve ser apresentada como homologada.
 
@@ -322,7 +322,7 @@ Restore locked e build sem restore com `-p:UsedAvaloniaProducts=` aprovados, zer
 
 Inclui dois testes de integração com MongoDB portátil 8.0.30 em Windows, paginação/CRUD protegido/conflito/exportação, 18 PNGs da barra concorrente nos temas/tamanhos/escalas declarados, undo real de formatação e correção do teste de linha com dois milhões de caracteres antes falho. Nenhuma asserção de limite visual foi enfraquecida. Startup Headless quente: 9 ms na última execução, 464 ms em execução anterior isolada; cenário de duas páginas de 100 em 5.000 documentos com edição/conflito/exportação: 55 ms (anterior 84 ms). Esses números são observações locais, não benchmark de produção.
 
-Não encerrados: Linux gráfico, diálogos nativos/clipboard, leitor de tela, cold start/CPU/RAM nativos e matriz ampliada de autenticação/topologia. WSL sem distribuição disponível; acesso Linux solicitado. Veja a [auditoria completa e o inventário anterior às alterações](25-auditoria-mvp-performance.md). Não declarar v0.5.0 pronta por esses testes.
+Não encerrados: Linux gráfico, diálogos nativos/clipboard, leitor de tela, cold start/CPU/RAM nativos e matriz ampliada de autenticação/topologia. WSL sem distribuição disponível; acesso Linux solicitado. Veja a [auditoria completa e o inventário anterior às alterações](done/release_v0.5.0/25-auditoria-mvp-performance.md). Não declarar v0.5.0 pronta por esses testes.
 
 ## IA local multimodelo — 13/09/2026
 

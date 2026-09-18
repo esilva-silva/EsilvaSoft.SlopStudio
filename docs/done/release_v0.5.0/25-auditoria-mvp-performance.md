@@ -1,6 +1,6 @@
 # Auditoria do MVP e polimento de performance
 
-Inventário inicial em 13/09/2026, antes de alterar a implementação. Escopo oficial: Fase 1 / v0.5.0 do [roadmap](09-plano-de-implementacao.md), interpretado pelo [inventário](24-inventario-roadmap.md) e pelos ADRs. A solicitação acrescenta acompanhamento global concorrente e revisão de responsividade. Implementado significa caminho concreto no checkout, não homologação real.
+Inventário inicial em 13/09/2026, antes de alterar a implementação. Escopo oficial: Fase 1 / v0.5.0 do [roadmap](../../09-plano-de-implementacao.md), interpretado pelo [inventário](../../24-inventario-roadmap.md) e pelos ADRs. A solicitação acrescenta acompanhamento global concorrente e revisão de responsividade. Implementado significa caminho concreto no checkout, não homologação real.
 
 | Requisito obrigatório / recorte | Classificação inicial | Evidência e pendência |
 | --- | --- | --- |
