@@ -1,13 +1,10 @@
 using System.Text.Json;
-using EsilvaSoft.SlopStudio.Application;
 using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Autocomplete.Core.SyntaxHighlighting;
 using EsilvaSoft.SlopStudio.Infrastructure;
 using Jint;
 
 namespace EsilvaSoft.SlopStudio.UnitTests;
-
-#pragma warning disable CS0618 // Compatibility coverage for retired MQL suggestion API.
 
 [TestFixture]
 public sealed class LanguageDefinitionTests
@@ -50,8 +47,6 @@ public sealed class LanguageDefinitionTests
     public void LanguageCoversSuggestionsOfTheCurrentAutocomplete()
     {
         var names = LanguageDefinition.Default.Symbols.Select(symbol => symbol.Name).ToHashSet(StringComparer.Ordinal);
-        // The current list repeats $set, $unset and $push as update operator and as stage or accumulator.
-        Assert.That(MqlAutocompleteService.GetSuggestions("$", maximum: 1000).Select(suggestion => suggestion.Text).Distinct(), Is.SubsetOf(names));
         Assert.That(Words("db getCollection getConnection ConnectionPool find findOne aggregate limit sort countDocuments insertOne updateOne deleteOne console const let function return ObjectId NumberLong NumberDecimal UUID CGUUID JUUID GUUID true false null"),
             Is.SubsetOf(names));
     }
@@ -117,4 +112,3 @@ public sealed class LanguageDefinitionTests
     private static string[] Keys(Engine engine, string expression) =>
         JsonSerializer.Deserialize<string[]>(engine.Evaluate("JSON.stringify(" + expression + ")").AsString())!;
 }
-#pragma warning restore CS0618

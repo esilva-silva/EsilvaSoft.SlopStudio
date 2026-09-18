@@ -13,7 +13,7 @@ Inventário inicial em 13/09/2026, antes de alterar a implementação. Escopo of
 | Update/replace e edição BSON | ✅ Implementado | DocumentMutationViewModel; identidade, conflito e projeção protegidos; homologação real pendente |
 | Delete/deleteMany | 🚧 Parcialmente implementado | Confirmação existe; revisar inclusão de filtro no Console e contexto capturado |
 | BSON/UUID/ObjectId/datas | ✅ Implementado | Codecs e fixtures independentes existentes; preservar os contratos |
-| Autocomplete simples sem IA | ✅ Implementado | MqlAutocompleteService/BasicAutocompleteProvider; revisar cancelamento, debounce e fontes limitadas |
+| Autocomplete simples sem IA | ✅ Implementado | CompletionService/BasicAutocompleteProvider; revisar cancelamento, debounce e fontes limitadas |
 | Formatar JSON/query/script pelo editor, com undo | ❌ Não implementado | ExtendedJsonFormatter apenas apresenta resultados; falta comando integrado |
 | Exportar página JSON | ⚠️ Implementado com problema | QueryResultExportSerializer materializa buffer, array e string completos; revisar escrita incremental e cancelamento |
 | Exportar página CSV | ❌ Não implementado | Implementar contrato TRF-01: união de campos, BSON canônico, escaping e política de fórmulas explícita |
