@@ -1,4 +1,4 @@
-using EsilvaSoft.SlopStudio.Application.Language;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Infrastructure;
 using MongoDB.Bson;
 

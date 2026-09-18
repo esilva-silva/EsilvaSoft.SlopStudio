@@ -1,3 +1,4 @@
+using EsilvaSoft.SlopStudio.LocalAi.Core;
 using System.Text.RegularExpressions;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;

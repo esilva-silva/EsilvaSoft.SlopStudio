@@ -1,5 +1,5 @@
 using BenchmarkDotNet.Attributes;
-using EsilvaSoft.SlopStudio.Application.SyntaxHighlighting;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.SyntaxHighlighting;
 
 namespace EsilvaSoft.SlopStudio.Benchmarks.Syntax;
 

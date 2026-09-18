@@ -7,7 +7,8 @@
 Especialista em governança arquitetural, design de contratos, delimitação de camadas e garantia das invariantes estruturais do projeto **EsilvaSoft.SlopStudio**.
 
 ## Responsibilities
-- Definir e preservar as fronteiras entre as camadas da solução: `Core`, `Application`, `Infrastructure` e `Desktop`.
+- Definir e preservar as fronteiras entre as camadas da solução: `Core`, `Autocomplete.Core`, `LocalAi.Core`, `Application`, `Infrastructure`, `Infrastructure.LocalAi` e `Desktop` (grafo e responsabilidades em `docs/05-arquitetura.md`, decisão em ADR-040).
+- Manter `Autocomplete.Core` e `LocalAi.Core` sem pacotes NuGet, e `Infrastructure.LocalAi` sem MongoDB.Driver/LiteDB.
 - Assegurar que `Core` contenha apenas contratos de domínio, modelos BSON puros e interfaces sem dependências de frameworks ou I/O externo.
 - Assegurar que `Application` orquestre casos de uso, validações e serviços de linguagem sem referenciar `Desktop` ou bibliotecas de UI.
 - Garantir que `Infrastructure` concentre todos os adaptadores de I/O externo (MongoDB.Driver, LiteDB, Jint, ONNX Runtime GenAI, Process runners).

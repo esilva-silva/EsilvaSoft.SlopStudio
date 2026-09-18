@@ -1,5 +1,7 @@
 # Autocomplete local — análise e contrato de implementação
 
+> **Nota de estrutura (ADR-040, 17/09/2026):** as seções abaixo registram a análise original de 11/09/2026, quando a solução tinha quatro projetos (`Core`, `Application`, `Infrastructure`, `Desktop`). Desde a ADR-040, o núcleo determinístico de autocomplete/highlighting foi extraído para `EsilvaSoft.SlopStudio.Autocomplete.Core`, os contratos e políticas puras de IA local para `EsilvaSoft.SlopStudio.LocalAi.Core`, e os adaptadores ONNX Runtime GenAI para `EsilvaSoft.SlopStudio.Infrastructure.LocalAi`. Ver [arquitetura atual](05-arquitetura.md) e [ADR-040](10-decisoes-arquiteturais.md).
+
 ## Análise inicial da solução (11/09/2026)
 
 `EsilvaSoft.SlopStudio.slnx` contém Core, Application, Infrastructure, Desktop e UnitTests. Todos usam .NET 10, nullable, analisadores como erros, pacotes centralizados e lockfiles. `tools/BrandAssets` é uma ferramenta auxiliar fora da solução. O CI existente executa restore travado, build e NUnit em Windows/Linux; publicação ARM64 e instalação nativa não eram gates implementados.
@@ -22,7 +24,7 @@ O caminho tradicional atual é separado do fluxo legado de IA: `AvaloniaTextSnap
 
 O diagrama abaixo é histórico do fluxo de IA local. Para a lista tradicional, consulte a cadeia documentada na seção anterior; não há concatenação de sugestões de IA/básicas nessa lista.
 
-Core contém requests, resultados, definições e preferências. Application contém contratos, seleção AI/básico, cache, proteção simples do contexto e CompletionSession. Infrastructure concentra todos os tipos ONNX, descoberta de arquivos e diagnóstico técnico. Desktop só conhece contratos de autocomplete; código do editor não acessa ONNX, tokenizer, providers ou caminhos físicos.
+Core contém requests, resultados, definições e preferências. Application contém contratos, seleção AI/básico, cache, proteção simples do contexto e CompletionSession. Infrastructure concentra todos os tipos ONNX, descoberta de arquivos e diagnóstico técnico. Desktop só conhece contratos de autocomplete; código do editor não acessa ONNX, tokenizer, providers ou caminhos físicos. **Desde a ADR-040 (17/09/2026):** os contratos e políticas puras de IA local (`ILocalAiModelService`, `ILocalModelRuntime`, `ITokenizer`, `ICompletionPromptBuilder`, estados e exceções) ficam em `LocalAi.Core`; os adaptadores ONNX (`OnnxLocalModelRuntime` e afins), descoberta de arquivos e catálogo remoto ficam em `Infrastructure.LocalAi`. As implementações concretas de orquestração (`LocalAiModelService`, `LocalModelAiChatService`, os construtores FIM) permanecem em `Application`. Ver [arquitetura](05-arquitetura.md) e [ADR-040](10-decisoes-arquiteturais.md).
 
 Uma CompletionSession por editor mantém debounce (150 ms), CancellationTokenSource próprio e versão monotônica. Edição, cursor, seleção, contexto, troca de preferências e saída da árvore visual invalidam sugestões. A resposta só aparece na view que capturou o pedido; a aceitação verifica novamente texto/cursor. A alteração do explorer não redireciona a aba e autocomplete nunca executa consultas.
 

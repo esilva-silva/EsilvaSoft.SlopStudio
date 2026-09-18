@@ -1,3 +1,5 @@
+using EsilvaSoft.SlopStudio.Infrastructure.LocalAi;
+using EsilvaSoft.SlopStudio.LocalAi.Core;
 using EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting;
 using Avalonia;
 using Avalonia.Controls;
@@ -6,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Desktop;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;

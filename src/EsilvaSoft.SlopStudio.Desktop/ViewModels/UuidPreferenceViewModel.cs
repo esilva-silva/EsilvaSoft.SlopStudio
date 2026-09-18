@@ -4,13 +4,6 @@ using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
-public sealed record UuidRepresentationChoice(UuidRepresentation? Value, string Label);
-
-public sealed record UuidPreviewRow(UuidRepresentation Representation, string Code, string Details, bool IsSelected)
-{
-    public string Marker => IsSelected ? "Selecionada" : "";
-}
-
 /// <summary>Global or per-connection UUID choice, previewing one fixed UUID in the four IDE forms.</summary>
 public sealed partial class UuidPreferenceViewModel : ObservableObject
 {

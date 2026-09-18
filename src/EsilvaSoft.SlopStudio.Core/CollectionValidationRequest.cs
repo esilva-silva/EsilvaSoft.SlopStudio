@@ -49,16 +49,3 @@ public sealed record CollectionValidationRequest(
         return this;
     }
 }
-
-public enum CollectionValidationLevel
-{
-    Off,
-    Strict,
-    Moderate
-}
-
-public enum CollectionValidationAction
-{
-    Error,
-    Warn
-}

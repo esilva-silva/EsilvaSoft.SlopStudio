@@ -1,5 +1,5 @@
-using EsilvaSoft.SlopStudio.Application.Language;
-using EsilvaSoft.SlopStudio.Application.Language.Context;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Context;
 
 namespace EsilvaSoft.SlopStudio.UnitTests.Language.Context;
 

@@ -6,6 +6,7 @@
     <IsPublishable>false</IsPublishable>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/EsilvaSoft.SlopStudio.Autocomplete.Core/EsilvaSoft.SlopStudio.Autocomplete.Core.csproj" />
     <ProjectReference Include="../../src/EsilvaSoft.SlopStudio.Application/EsilvaSoft.SlopStudio.Application.csproj" />
   </ItemGroup>
   <ItemGroup>

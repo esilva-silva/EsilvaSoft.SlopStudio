@@ -1,5 +1,5 @@
-using EsilvaSoft.SlopStudio.Application.Language.Completion;
-using EsilvaSoft.SlopStudio.Application.Language.Text;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Completion;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Text;
 using EsilvaSoft.SlopStudio.Desktop;
 
 namespace EsilvaSoft.SlopStudio.UnitTests;

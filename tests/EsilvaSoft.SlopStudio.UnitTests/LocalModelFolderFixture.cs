@@ -1,3 +1,4 @@
+using EsilvaSoft.SlopStudio.LocalAi.Core;
 using System.Text.Json;
 using EsilvaSoft.SlopStudio.Application;
 using EsilvaSoft.SlopStudio.Core;

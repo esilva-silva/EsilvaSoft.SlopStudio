@@ -1,5 +1,5 @@
 using System.Text;
-using EsilvaSoft.SlopStudio.Application.SyntaxHighlighting;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.SyntaxHighlighting;
 
 namespace EsilvaSoft.SlopStudio.UnitTests.Language.Syntax;
 

@@ -1,5 +1,5 @@
 using AvaloniaEdit.Document;
-using EsilvaSoft.SlopStudio.Application.Language.Text;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Text;
 using EsilvaSoft.SlopStudio.Desktop.Language.Text;
 
 namespace EsilvaSoft.SlopStudio.UnitTests.Language.Text;

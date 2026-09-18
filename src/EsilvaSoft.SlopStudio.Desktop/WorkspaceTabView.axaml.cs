@@ -7,7 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Platform.Storage;
 using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Application;
-using EsilvaSoft.SlopStudio.Application.Language.Completion;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Completion;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 namespace EsilvaSoft.SlopStudio.Desktop;
@@ -15,7 +15,6 @@ namespace EsilvaSoft.SlopStudio.Desktop;
 public partial class WorkspaceTabView : UserControl
 {
     public string? SelectedCode => CodeEditor.SelectedText;
-    private CancellationTokenSource? _completionCancellation;
     public string? ExecutionCode(bool partial)
     {
         if (!partial) return null;
@@ -41,7 +40,7 @@ public partial class WorkspaceTabView : UserControl
                     return await Dialogs.ChooseCancelableAsync(owner, "Confirmar escrita no Console", request.Context + "\n\nConfirmar o envio desta operação?", token, "Executar", "Cancelar") == "Executar";
                 });
         };
-        DetachedFromVisualTree += (_, _) => { _completionCancellation?.Cancel(); _formatCancellation?.Cancel(); };
+        DetachedFromVisualTree += (_, _) => { _completionTab?.CancelTraditionalCompletion(); _formatCancellation?.Cancel(); };
         AttachedToVisualTree += (_, _) =>
         {
             if (TopLevel.GetTopLevel(this) is MainWindow { WorkspaceModel: { } vm })

@@ -3,11 +3,6 @@ using System.Text.Json;
 
 namespace EsilvaSoft.SlopStudio.Core;
 
-public enum ExtendedJsonShape { Document, Array, Scalar }
-
-/// <summary>Human description of one Extended JSON value. <see cref="Display"/> keeps the literal digits of numeric wrappers.</summary>
-public readonly record struct ExtendedJsonDescription(string TypeName, string Display, ExtendedJsonShape Shape, int ChildCount);
-
 /// <summary>Recognizes BSON types expressed as Canonical (and legacy) Extended JSON without converting their values.</summary>
 public static class ExtendedJsonValue
 {

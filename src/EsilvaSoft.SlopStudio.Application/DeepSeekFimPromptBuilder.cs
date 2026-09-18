@@ -1,3 +1,5 @@
+using EsilvaSoft.SlopStudio.LocalAi.Core;
+
 namespace EsilvaSoft.SlopStudio.Application;
 
 public sealed class DeepSeekFimPromptBuilder : ICompletionPromptBuilder

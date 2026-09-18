@@ -10,7 +10,7 @@ using AvaloniaEdit;
 using AvaloniaEdit.Document;
 using AvaloniaEdit.Editing;
 using AvaloniaEdit.Rendering;
-using EsilvaSoft.SlopStudio.Application.SyntaxHighlighting;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.SyntaxHighlighting;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 namespace EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting;

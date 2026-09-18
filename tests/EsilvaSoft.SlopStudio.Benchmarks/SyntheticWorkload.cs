@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using EsilvaSoft.SlopStudio.Application.Language;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Benchmarks;

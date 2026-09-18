@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using EsilvaSoft.SlopStudio.Application;
-using EsilvaSoft.SlopStudio.Application.Language;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
@@ -163,11 +163,11 @@ public sealed partial class WorkspaceViewModel
     }
 
     // Loaded metadata only (Peek): typing never schedules a remote refresh in this path.
-    private EsilvaSoft.SlopStudio.Application.SyntaxHighlighting.SyntaxNamespace[] KnownSyntaxNamespaces()
+    private EsilvaSoft.SlopStudio.Autocomplete.Core.SyntaxHighlighting.SyntaxNamespace[] KnownSyntaxNamespaces()
     {
         var names = new Dictionary<Guid, string>();
         foreach (var profile in Profiles) names.TryAdd(profile.Id, profile.Name);
-        var result = Profiles.Select(profile => new EsilvaSoft.SlopStudio.Application.SyntaxHighlighting.SyntaxNamespace(profile.Name)).ToList();
+        var result = Profiles.Select(profile => new EsilvaSoft.SlopStudio.Autocomplete.Core.SyntaxHighlighting.SyntaxNamespace(profile.Name)).ToList();
         foreach (var item in Metadata.SnapshotNamespaces(4096))
             if (names.TryGetValue(item.ProfileId, out var name)) result.Add(new(name, item.Database, item.Collection, item.Index));
         return result.Take(4096).ToArray();

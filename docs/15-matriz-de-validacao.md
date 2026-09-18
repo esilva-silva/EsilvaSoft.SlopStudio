@@ -1,4 +1,4 @@
-# Matriz de validação
+﻿# Matriz de validação
 
 ## Fase 2 — autocomplete tradicional (estado em 16/09/2026)
 
@@ -342,3 +342,30 @@ Não encerrados: Linux gráfico, diálogos nativos/clipboard, leitor de tela, co
 ## Revisão do plano de autocomplete — 15/09/2026
 
 Revisão documental, sem alteração de código de produto: inspeção estática e pesquisa técnica; validação de links/índice offline registrada ao concluir. Nenhum build/teste de produto, MongoDB real, modelo/CPU/GPU/NPU, teclado/IME ou PNG novo é alegado. Fase 1 continua com aceite parcial; schema learning, quatro providers, flags/atalhos e novos gates de concorrência/persistência/UI estão planejados, com casos em execution-plan/testing. [Plano revisado](auto-complite/README.md), [tarefas por agente](auto-complite/execution-plan.md) e [schema learning](auto-complite/schema-learning.md).
+
+## Autocomplete tradicional — fechamento de lacunas (17/09/2026) — CONCLUÍDO
+
+> Encerrada por decisão do responsável com pendências aceitas em aberto. As linhas marcadas como pendentes abaixo
+> **não foram verificadas** e não devem ser lidas como aprovadas.
+
+Build `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore`: **0 avisos, 0 erros**.
+Testes `dotnet test EsilvaSoft.SlopStudio.slnx --no-build --no-restore`: **1 156 aprovados, 0 falhas** (entrada: 1 127).
+
+| Área | Evidência local | Validação pendente |
+| --- | --- | --- |
+| Lex único por requisição | `ShapeWalkerTokenSourceTests.WalkUsesTheTokensItReceivesInsteadOfLexingAgain` | — |
+| Estreitamento em pipeline nu | `ShapeWalkerTokenSourceTests.RootShapeAppliesOnlyWhenThereIsNoEnclosingCall` | — |
+| Vírgula devolve o quadro da chave | `ShapeWalkerTokenSourceTests.CommaReturnsToTheEnclosingObjectShape` | — |
+| Acesso por gatilho (`Invoked` carrega, digitar não) | `TraditionalCompletionIntegrationTests`, testes do motor | — |
+| Campos do pipeline por `LocalSchemas` | `PipelineStageReader` + testes de contexto | Homologação com coleção real |
+| Descarte de resposta obsoleta e CTS por aba | `TraditionalCompletionIntegrationTests` | — |
+| Sinal de uso ponta a ponta | `TraditionalCompletionUsageSignalTests` (6 testes) | — |
+| Isolamento do núcleo (sem IA, sem rede, sem UI) | `AutocompleteArchitectureTests` (6 testes, agora varrendo todos os subespaços) | — |
+| Alocação ≤ 64 KB por tecla, catálogo embarcado | `NameTableAllocationTests`; ver [performance](auto-complite/performance.md) | — |
+| **Alocação ≤ 64 KB por tecla, campos de metadados** | **estourado: 174,72 KB a partir de ~1 000 campos** | **`MetadataCatalogSource.Describe` por candidato; não corrigido** |
+| **Latência p95/p99 dos gates da Fase 2** | **nenhuma** | **Job completo do BenchmarkDotNet; não concluído nesta sessão** |
+| `TypeMismatchPenalty` | nenhuma | Exige propagar `ApplicableTypes` ao `CompletionItem` |
+| Elo `Stage → GroupBody` | nenhuma | `ShapeWalker.Match` ignora `Exclusive`/`rule.Names` |
+| Matriz de 18 PNGs (claro/escuro, 4 estados) | nenhuma | Fora do escopo desta entrega |
+| Highlighting em 64 KiB | 3,5 ms medidos contra orçamento de 2 ms | Não corrigido |
+| MongoDB real, leitor de tela, diálogos nativos | nenhuma | Homologação manual pendente |

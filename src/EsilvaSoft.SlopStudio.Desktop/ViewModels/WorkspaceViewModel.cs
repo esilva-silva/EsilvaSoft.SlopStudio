@@ -1,7 +1,8 @@
+using EsilvaSoft.SlopStudio.LocalAi.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using EsilvaSoft.SlopStudio.Application;
-using EsilvaSoft.SlopStudio.Application.Language;
-using EsilvaSoft.SlopStudio.Application.Language.Completion;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Completion;
 using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
@@ -32,6 +33,12 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public IAutocompleteService AutocompleteService { get; }
     /// <summary>Deterministic catalog completion shared by all editor tabs.</summary>
     public ICompletionProvider? TraditionalCompletion { get; }
+    /// <summary>
+    /// Sinal de uso da sessão, compartilhado por todas as abas: quem aprende é o usuário, não a aba, e uma sugestão
+    /// aceita em uma aba deve subir na seguinte. É só memória — nomes, sem valores — e nunca chega ao LiteDB nem à
+    /// sessão persistida. Compartilhar isto não é compartilhar cancelamento: o CancellationTokenSource segue por aba.
+    /// </summary>
+    public CompletionUsageTracker CompletionUsage { get; } = new();
     public IAiChatService AiChatService { get; }
     public AutocompleteSettingsViewModel AutocompletePreferences { get; }
     /// <summary>Effective editor shortcuts per command id; defaults until a readable session is loaded.</summary>
@@ -61,7 +68,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         AutocompleteService = autocomplete ?? new AutocompleteService();
         var effectiveCatalog = knowledgeCatalog ?? new KnowledgeCatalog([new LanguageCatalogSource(), new MetadataCatalogSource(Metadata)]);
         TraditionalCompletion = new TraditionalCompletionProvider(
-            new CompletionService(effectiveCatalog, profiles: new WorkspaceCompletionProfileResolver(() => Profiles)));
+            new CompletionService(effectiveCatalog, new CompletionRanker(usage: CompletionUsage),
+                new WorkspaceCompletionProfileResolver(() => Profiles)));
         AiChatService = aiChat ?? new AiChatService();
         AutocompletePreferences = new(AutocompleteService, modelCatalog, async settings =>
         {
@@ -173,7 +181,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         _debounce?.Cancel(); _debounce?.Dispose();
         foreach (var root in Roots) root.Invalidate();
         Details.Clear();
-        foreach (var tab in Tabs) { tab.DraftChanged -= OnDraftChanged; tab.CancelCommand.Execute(null); }
+        foreach (var tab in Tabs) { tab.DraftChanged -= OnDraftChanged; tab.CancelCommand.Execute(null); tab.Dispose(); }
         Metadata.Changed -= OnMetadataChanged;
         if (_ownsMetadata && Metadata is IDisposable metadata) metadata.Dispose();
         _saveGate.Dispose();

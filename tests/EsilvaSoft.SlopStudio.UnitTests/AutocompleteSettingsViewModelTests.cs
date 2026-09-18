@@ -1,3 +1,4 @@
+using EsilvaSoft.SlopStudio.Infrastructure.LocalAi;
 using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
 using EsilvaSoft.SlopStudio.Infrastructure;

@@ -1,4 +1,4 @@
-using EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting;
+﻿using EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting;
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
@@ -7,9 +7,12 @@ using Avalonia.Media;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using EsilvaSoft.SlopStudio.Application;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
-using EsilvaSoft.SlopStudio.Application.Language.Completion;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Completion;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Context;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.SyntaxHighlighting;
 
 namespace EsilvaSoft.SlopStudio.Desktop;
 
@@ -34,6 +37,8 @@ public partial class WorkspaceTabView
     private long _traditionalDocumentationGeneration;
     private string? _traditionalCompletionDocument;
     private bool _traditionalCompletionIncomplete;
+    /// <summary>Contexto que produziu a lista exibida; usado para registrar o uso com a mesma chave do ranqueamento.</summary>
+    private CompletionContext? _traditionalCompletionContext;
 
     private void InitializeAutocomplete()
     {
@@ -84,7 +89,8 @@ public partial class WorkspaceTabView
     private void InvalidateCompletion()
     {
         _completionSession.Invalidate();
-        _completionCancellation?.Cancel();
+        // Owned by the tab itself (EditorRequestScope), never a raw CTS shared across views or tabs.
+        _completionTab?.CancelTraditionalCompletion();
         _completion = null; _completionOriginal = null;
         CompletionPanel.IsVisible = false;
         CloseTraditionalCompletion();
@@ -102,6 +108,16 @@ public partial class WorkspaceTabView
             RefreshTraditionalCompletionList();
             return;
         }
+        // Additive, opt-in: only a trigger character (never every keystroke) may open the list by itself, and only
+        // with CompletionTrigger.TriggerCharacter, which the engine keeps on MetadataAccess.Peek — no query on typing.
+        // Checked on the next dispatcher tick (ScheduleTraditionalTriggerCheck), not inline: this very keystroke's own
+        // cascade of dependent property changes (CaretIndex/CaretOffset, the two-way bound tab.Text) has not
+        // necessarily settled while this Text change notification is running, and the normal inline-ghost path below
+        // must still run unaffected for every ordinary character.
+        if (!_traditionalPresenter.IsOpen && e.Property == MongoTextEditor.TextProperty && CodeEditor.SelectionStart == CodeEditor.SelectionEnd
+            && _attached && CodeEditor.IsKeyboardFocusWithin && DataContext is WorkspaceTabViewModel triggerTab
+            && triggerTab.Autocomplete.Settings.CompletionAutoOpenOnTrigger)
+            ScheduleTraditionalTriggerCheck(triggerTab);
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         InvalidateCompletion();
         if (!_attached || !CodeEditor.IsKeyboardFocusWithin || CodeEditor.SelectionStart != CodeEditor.SelectionEnd
@@ -114,7 +130,7 @@ public partial class WorkspaceTabView
         {
             var pending = _completionSession.RequestAsync(tab.Autocomplete, request);
             // Synchronous work of this editor event on the UI thread, including the immediate dictionary lookup.
-            Application.Language.AutocompleteMetrics.UiDispatcherTime.Record(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+            AutocompleteMetrics.UiDispatcherTime.Record(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds,
                 new KeyValuePair<string, object?>("handler", "inline"));
             var result = await pending;
             if (result is null || !_attached || !CodeEditor.IsKeyboardFocusWithin || DataContext != tab || CodeEditor.Text != original
@@ -164,7 +180,7 @@ public partial class WorkspaceTabView
         var caret = _completionCaret;
         var lineRange = CodeEditor.VisibleLineRange(caret);
         var lineStart = lineRange.Start;
-        var suffixEnd = CodeEditor.Document.GetLineByOffset(caret).Length > Application.SyntaxHighlighting.SyntaxHighlightingOptions.LongLineThreshold
+        var suffixEnd = CodeEditor.Document.GetLineByOffset(caret).Length > SyntaxHighlightingOptions.LongLineThreshold
             ? lineRange.End : Math.Min(original.Length, caret + 32768);
         if (textView.TranslatePoint(CodeEditor.PositionInTextView(lineStart), GhostLayer) is not { } point) return;
         Canvas.SetLeft(CompletionPanel, point.X); Canvas.SetTop(CompletionPanel, point.Y);
@@ -175,8 +191,8 @@ public partial class WorkspaceTabView
             Canvas.SetLeft(GhostCaret, caretPoint.X); Canvas.SetTop(GhostCaret, caretPoint.Y);
         }
         CompletionText.Show(original[lineStart..caret], _completion.Text, original[caret..suffixEnd],
-            SyntaxHighlighting.SyntaxStyles.Brush(CodeEditor, Application.SyntaxHighlighting.SyntaxTokenType.Default),
-            SyntaxHighlighting.SyntaxStyles.Brush(CompletionText, Application.SyntaxHighlighting.SyntaxTokenType.GhostText),
+            SyntaxHighlighting.SyntaxStyles.Brush(CodeEditor, SyntaxTokenType.Default),
+            SyntaxHighlighting.SyntaxStyles.Brush(CompletionText, SyntaxTokenType.GhostText),
             CodeEditor.Snapshot is { } snapshot && snapshot.Text == original ? snapshot : null, lineStart);
     }
 
@@ -190,6 +206,9 @@ public partial class WorkspaceTabView
     {
         var tab = DataContext as WorkspaceTabViewModel;
         var command = tab is null ? null : new EditorCommandDispatcher(tab.KeyBindings).Match(ToEditorKeyEvent(e));
+        // Desfazer logo após aceitar é arrependimento, e o aceite é um único passo de desfazer porque a inserção roda
+        // dentro de um só RunUpdate. O rastreador é quem decide se veio dentro da janela; fora dela a chamada é inerte.
+        if (e.Key == Key.Z && e.KeyModifiers == KeyModifiers.Control) RecordCompletionUndoneIfPending();
         if (_traditionalPresenter.IsOpen)
         {
             if (e.Key == Key.Down) { _traditionalPresenter.Move(1); RefreshTraditionalCompletionList(); e.Handled = true; return; }

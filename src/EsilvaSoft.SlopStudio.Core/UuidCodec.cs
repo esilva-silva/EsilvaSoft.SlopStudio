@@ -1,46 +1,7 @@
-using System.Collections.Frozen;
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace EsilvaSoft.SlopStudio.Core;
-
-/// <summary>How the IDE writes and reads 16-byte UUID binaries. The choice never rewrites stored bytes.</summary>
-[JsonConverter(typeof(JsonStringEnumConverter<UuidRepresentation>))]
-public enum UuidRepresentation { Standard, CSharpLegacy, JavaLegacy, GoStandard }
-
-public enum UuidDisplayKind { NotUuid, Uuid, UnknownLegacy }
-
-public readonly record struct UuidDisplayValue(UuidDisplayKind Kind, string Text);
-
-public sealed record UuidDisplayText(string Text, int UnknownLegacyCount);
-
-/// <summary>
-/// Immutable identifier mode plus global and per-connection UUID representation, captured before an operation starts.
-/// The mode is global; only the UUID byte order can be overridden per connection.
-/// </summary>
-public sealed class UuidDisplayPolicy
-{
-    public static UuidDisplayPolicy Default { get; } = new(UuidRepresentation.Standard, null);
-
-    public UuidDisplayPolicy(UuidRepresentation global, IReadOnlyDictionary<Guid, UuidRepresentation>? overrides,
-        IdentifierRepresentationMode mode = IdentifierRepresentationMode.Standard)
-    {
-        if (!Enum.IsDefined(global) || overrides?.Values.Any(value => !Enum.IsDefined(value)) == true)
-            throw new ArgumentOutOfRangeException(nameof(global), "Representação UUID desconhecida.");
-        if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode), "Modo de identificador desconhecido.");
-        Global = global;
-        Mode = mode;
-        Overrides = (overrides ?? new Dictionary<Guid, UuidRepresentation>()).ToFrozenDictionary();
-    }
-
-    public UuidRepresentation Global { get; }
-    public IdentifierRepresentationMode Mode { get; }
-    public IReadOnlyDictionary<Guid, UuidRepresentation> Overrides { get; }
-    public UuidRepresentation Resolve(Guid? profileId) => profileId is { } id && Overrides.TryGetValue(id, out var value) ? value : Global;
-    public IdentifierDisplayOptions ResolveOptions(Guid? profileId) => new(Mode, Resolve(profileId));
-}
 
 /// <summary>
 /// Single UUID codec of the IDE: byte order, BSON subtype, named shell constructors and human-readable output.

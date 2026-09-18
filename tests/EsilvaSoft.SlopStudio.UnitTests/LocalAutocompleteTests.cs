@@ -1,4 +1,7 @@
+using EsilvaSoft.SlopStudio.Infrastructure.LocalAi;
+using EsilvaSoft.SlopStudio.LocalAi.Core;
 using EsilvaSoft.SlopStudio.Application;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Infrastructure;
 using Jint;

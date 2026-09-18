@@ -1,11 +1,8 @@
 using System.Text;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Application;
-
-public sealed record AutocompleteContextSnapshot(string Text, int Caret, string Language,
-    string Input = "", IReadOnlyList<string>? ResultFields = null, IReadOnlyList<string>? KnownNames = null,
-    IReadOnlyList<string>? RecentCommands = null, string? FileName = null);
 
 /// <summary>Builds a small, local context from a captured tab. Never expands ENV or reads credentials.</summary>
 public static class AutocompleteContextBuilder

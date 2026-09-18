@@ -1,5 +1,6 @@
 using System.Diagnostics;
-using EsilvaSoft.SlopStudio.Application.Language;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
+using EsilvaSoft.SlopStudio.LocalAi.Core;
 using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Application;

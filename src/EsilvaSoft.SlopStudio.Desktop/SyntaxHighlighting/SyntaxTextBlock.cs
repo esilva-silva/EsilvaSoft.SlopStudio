@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
-using EsilvaSoft.SlopStudio.Application.SyntaxHighlighting;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.SyntaxHighlighting;
 
 namespace EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting;
 

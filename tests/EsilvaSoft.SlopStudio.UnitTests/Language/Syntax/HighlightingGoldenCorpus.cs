@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
-using EsilvaSoft.SlopStudio.Application.SyntaxHighlighting;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.SyntaxHighlighting;
 
 namespace EsilvaSoft.SlopStudio.UnitTests.Language.Syntax;
 

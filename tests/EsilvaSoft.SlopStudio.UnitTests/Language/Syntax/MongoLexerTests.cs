@@ -1,5 +1,5 @@
 using System.Globalization;
-using EsilvaSoft.SlopStudio.Application.Language.Syntax;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Syntax;
 
 namespace EsilvaSoft.SlopStudio.UnitTests.Language.Syntax;
 

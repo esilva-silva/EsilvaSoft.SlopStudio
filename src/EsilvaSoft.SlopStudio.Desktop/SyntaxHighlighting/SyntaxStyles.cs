@@ -3,17 +3,10 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Utilities;
-using EsilvaSoft.SlopStudio.Application.SyntaxHighlighting;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.SyntaxHighlighting;
 
 namespace EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting;
 
-public sealed class SyntaxSettings : AvaloniaObject
-{
-    public static readonly AttachedProperty<SyntaxLanguage> LanguageProperty =
-        AvaloniaProperty.RegisterAttached<SyntaxSettings, Control, SyntaxLanguage>("Language", SyntaxLanguage.MongoScript, inherits: true);
-    public static SyntaxLanguage GetLanguage(Control control) => control.GetValue(LanguageProperty);
-    public static void SetLanguage(Control control, SyntaxLanguage value) => control.SetValue(LanguageProperty, value);
-}
 public static class SyntaxStyles
 {
     public static string ResourceKey(SyntaxTokenType type) => "Syntax." + (type == SyntaxTokenType.PropertyName ? "Property" : type.ToString());

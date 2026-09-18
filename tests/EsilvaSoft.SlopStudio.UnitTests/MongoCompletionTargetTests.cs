@@ -1,5 +1,5 @@
 using EsilvaSoft.SlopStudio.Application;
-using EsilvaSoft.SlopStudio.Application.SyntaxHighlighting;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.SyntaxHighlighting;
 using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
 

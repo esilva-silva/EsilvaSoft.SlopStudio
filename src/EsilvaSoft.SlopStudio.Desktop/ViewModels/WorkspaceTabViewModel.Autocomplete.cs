@@ -1,24 +1,25 @@
 using EsilvaSoft.SlopStudio.Application;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 public sealed partial class WorkspaceTabViewModel
 {
-    public Func<IReadOnlyList<EsilvaSoft.SlopStudio.Application.SyntaxHighlighting.SyntaxNamespace>> KnownSyntaxNamespaces { get; set; } = () => [];
+    public Func<IReadOnlyList<EsilvaSoft.SlopStudio.Autocomplete.Core.SyntaxHighlighting.SyntaxNamespace>> KnownSyntaxNamespaces { get; set; } = () => [];
     public void RefreshSyntaxContext() => OnPropertyChanged("SyntaxContext");
-    public EsilvaSoft.SlopStudio.Application.SyntaxHighlighting.SyntaxContext CaptureSyntaxContext() =>
+    public EsilvaSoft.SlopStudio.Autocomplete.Core.SyntaxHighlighting.SyntaxContext CaptureSyntaxContext() =>
         new(KnownSyntaxNamespaces().Append(new(Profile?.Name ?? "", Database, Collection)).Distinct().ToArray(), Profile?.Name ?? "", Database, Collection);
     public Func<IReadOnlyList<string>> KnownAutocompleteNames { get; set; } = () => [];
     public IReadOnlyList<string> GetObservedCompletionFields(string prefix)
     {
-        var target = IsAggregation ? new EsilvaSoft.SlopStudio.Application.SyntaxHighlighting.SyntaxNamespace(Profile?.Name ?? "", Database, Collection)
+        var target = IsAggregation ? new EsilvaSoft.SlopStudio.Autocomplete.Core.SyntaxHighlighting.SyntaxNamespace(Profile?.Name ?? "", Database, Collection)
             : MongoCompletionTarget.Resolve(prefix, CaptureSyntaxContext());
         // A bare field prefix has no query path; use an unambiguous result source in this tab's current destination.
         if (target is null && prefix.All(c => char.IsLetterOrDigit(c) || c is '_' or '$'))
         {
             var origins = ResultSets.Select(set => set.Origin).Where(origin => origin.Profile == Profile && origin.Database == Database && origin.HasCollection)
-                .Select(origin => new EsilvaSoft.SlopStudio.Application.SyntaxHighlighting.SyntaxNamespace(origin.Profile!.Name, origin.Database!, origin.Collection!)).Distinct().ToArray();
+                .Select(origin => new EsilvaSoft.SlopStudio.Autocomplete.Core.SyntaxHighlighting.SyntaxNamespace(origin.Profile!.Name, origin.Database!, origin.Collection!)).Distinct().ToArray();
             if (origins.Length == 1) target = origins[0];
         }
         IReadOnlyList<string> Observed(string collection)
@@ -50,7 +51,7 @@ public sealed partial class WorkspaceTabViewModel
         var language = Mode switch { "Agregação" => "json", "Script" => "JavaScript (mongosh)", _ => "Mongo Console JavaScript" };
         var request = AutocompleteContextBuilder.Build(new(text, caret, language,
             InputJson, fields, names, history, FilePath), settings);
-        EsilvaSoft.SlopStudio.Application.Language.AutocompleteMetrics.ContextBuildDuration.Record(
+        EsilvaSoft.SlopStudio.Autocomplete.Core.AutocompleteMetrics.ContextBuildDuration.Record(
             System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds, new KeyValuePair<string, object?>("pipeline", "legacy"));
         return request;
     }

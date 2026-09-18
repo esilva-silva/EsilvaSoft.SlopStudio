@@ -4,7 +4,7 @@ using System.Text.Json;
 using Acornima;
 using Acornima.Ast;
 using EsilvaSoft.SlopStudio.Application;
-using EsilvaSoft.SlopStudio.Application.Language;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Core;
 using Jint;
 using MongoDB.Bson;

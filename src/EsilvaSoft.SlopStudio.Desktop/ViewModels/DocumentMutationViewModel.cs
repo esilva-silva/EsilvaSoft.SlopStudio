@@ -4,8 +4,6 @@ using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
-public enum DocumentWriteConflict { None, Changed, Removed }
-
 /// <param name="workspace">Application service that performs the confirmed operation.</param>
 /// <param name="profile">Destination captured when the editor opened.</param>
 /// <param name="database">Destination database.</param>

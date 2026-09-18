@@ -4,6 +4,7 @@ using Avalonia.Markup.Xaml;
 using EsilvaSoft.SlopStudio.Application;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
 using EsilvaSoft.SlopStudio.Infrastructure;
+using EsilvaSoft.SlopStudio.Infrastructure.LocalAi;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EsilvaSoft.SlopStudio.Desktop;
@@ -23,6 +24,7 @@ public partial class App : Avalonia.Application
         }
         var services = new ServiceCollection();
         services.AddSlopStudioInfrastructure(LocalWorkspacePaths.GetDatabasePath());
+        services.AddSlopStudioLocalAiInfrastructure();
         services.AddSingleton<WorkspaceService>();
         services.AddSingleton<WorkspaceViewModel>();
         _serviceProvider = services.BuildServiceProvider();

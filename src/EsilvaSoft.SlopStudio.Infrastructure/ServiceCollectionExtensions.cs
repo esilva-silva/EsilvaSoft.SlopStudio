@@ -1,5 +1,6 @@
 using EsilvaSoft.SlopStudio.Application;
-using EsilvaSoft.SlopStudio.Application.Language;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
+using EsilvaSoft.SlopStudio.LocalAi.Core;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EsilvaSoft.SlopStudio.Infrastructure;
@@ -14,16 +15,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IResultPageExportService, LocalResultPageExportService>();
         services.AddSingleton<MongoClientPool>();
         services.AddSingleton<IAutocompleteDiagnostics, AutocompleteDiagnostics>();
-        services.AddSingleton<ILocalModelCatalog>(_ => new LocalModelCatalog());
-        services.AddSingleton<IRemoteModelSource>(_ => new HuggingFaceModelSource());
-        services.AddSingleton<IAiHardwareProbe, OnnxHardwareProbe>();
-        // One model service shared by autocomplete, chat and the preferences window.
-        services.AddSingleton<ILocalAiModelService>(provider => new LocalAiModelService(
-            provider.GetRequiredService<ILocalModelCatalog>(),
-            () => new OnnxLocalModelRuntime(provider.GetRequiredService<IAutocompleteDiagnostics>(), provider.GetRequiredService<IAiHardwareProbe>()),
-            provider.GetRequiredService<IAiHardwareProbe>(),
-            provider.GetRequiredService<IAutocompleteDiagnostics>(),
-            provider.GetRequiredService<IApplicationOperationService>()));
         services.AddSingleton<AiAutocompleteProvider>(provider => new(provider.GetRequiredService<ILocalAiModelService>()));
         services.AddSingleton<IAutocompleteService, AutocompleteService>();
         services.AddSingleton<IAiChatService, LocalModelAiChatService>();
