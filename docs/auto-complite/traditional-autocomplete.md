@@ -145,7 +145,7 @@ A condição da meta (`{ Campo: { $eq: ${1:value} } }`) vira `filter.condition`,
 | Hoje | Depois |
 | --- | --- |
 | `ShowSuggestions` + `MenuFlyout` | `CompletionWindowPresenter` |
-| `MqlAutocompleteService.GetSuggestions`/`GetAggregationSuggestions`/`ApplySuggestion` | `CompletionService` (fachada marcada obsoleta até remoção) |
+| `MqlAutocompleteService.GetSuggestions`/`GetAggregationSuggestions`/`ApplySuggestion` | `CompletionService` (removidos; o catálogo é a única fonte de operadores) |
 | `ConsoleAutocompleteService` | Fontes de coleções/métodos + resolvedor de alvo |
 | Sugestão IA/básica no topo do menu | Removida da lista; IA passa ao `Ctrl+;` |
 | Operação visível "Gerando sugestões locais" | Removida (trabalho em memória); só cargas remotas aparecem com prioridade `Low` |

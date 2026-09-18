@@ -1,62 +1,11 @@
 using EsilvaSoft.SlopStudio.Application;
-using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.UnitTests;
-
-#pragma warning disable CS0618 // Compatibility coverage for retired MQL suggestion API.
 
 [TestFixture]
 public sealed class MqlAutocompleteServiceTests
 {
     private static readonly string[] ExpectedFieldPaths = ["name", "address", "address.city", "tags", "tags.name"];
-
-    [Test]
-    public void GetSuggestionsWithFieldPrefixReturnsObservedField()
-    {
-        var suggestions = MqlAutocompleteService.GetSuggestions("{ \"sta", ["status", "createdAt"]);
-
-        Assert.That(suggestions, Does.Contain(new MqlSuggestion("status", "Campo observado nos resultados carregados", MqlSuggestionKind.Field)));
-    }
-
-    [Test]
-    public void GetSuggestionsWithOperatorPrefixReturnsCompatibleOperators()
-    {
-        var suggestions = MqlAutocompleteService.GetSuggestions("{ \"age\": { \"$g");
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(suggestions.Select(suggestion => suggestion.Text), Does.Contain("$gt"));
-            Assert.That(suggestions.Select(suggestion => suggestion.Text), Does.Contain("$gte"));
-        });
-    }
-
-    [Test]
-    public void GetAggregationSuggestionsReturnsOnlyAggregationStages()
-    {
-        var suggestions = MqlAutocompleteService.GetAggregationSuggestions("[{ \"$l");
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(suggestions.Select(suggestion => suggestion.Text), Does.Contain("$limit"));
-            Assert.That(suggestions, Is.All.Matches<MqlSuggestion>(suggestion => suggestion.Kind == MqlSuggestionKind.AggregationStage));
-        });
-    }
-
-    [Test]
-    public void ApplySuggestionReplacesCurrentToken()
-    {
-        var result = MqlAutocompleteService.ApplySuggestion("{ \"age\": { \"$g", new MqlSuggestion("$gte", "Maior ou igual a", MqlSuggestionKind.QueryOperator));
-
-        Assert.That(result, Is.EqualTo("{ \"age\": { \"$gte"));
-    }
-
-    [Test]
-    public void ApplySuggestionCreatesFilterSkeletonFromEmptyFilter()
-    {
-        var result = MqlAutocompleteService.ApplySuggestion("{}", new MqlSuggestion("status", "Campo", MqlSuggestionKind.Field));
-
-        Assert.That(result, Is.EqualTo("{\n  \"status\": null\n}"));
-    }
 
     [Test]
     public void InferFieldPathsReturnsNestedAndArrayFields()
@@ -93,4 +42,3 @@ public sealed class MqlAutocompleteServiceTests
         });
     }
 }
-#pragma warning restore CS0618
