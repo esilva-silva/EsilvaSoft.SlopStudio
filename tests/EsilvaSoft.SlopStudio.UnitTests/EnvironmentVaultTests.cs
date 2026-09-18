@@ -1,3 +1,4 @@
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
 using EsilvaSoft.SlopStudio.Infrastructure;
@@ -181,6 +182,9 @@ public sealed class EnvironmentVaultTests
         tab.Mode = "Script"; // This scenario exercises the separate mongosh runner.
         var execution = tab.ExecuteCommand.ExecuteAsync("print('pending')");
         Assert.That(tab.IsRunning, Is.True);
+        var identity = ConnectionIdentity.From(profile);
+        model.Metadata.PutCollections(profile, "database", ["collection"]);
+        Assert.That(model.Metadata.IsConnected(identity), Is.True, "Precondition: schema is cached for the still-open connection.");
         var opening = new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
         context.Mongo.Handler = (_, _) => opening.Task;
         var pending = model.OpenConnectionAsync(profile);
@@ -194,6 +198,10 @@ public sealed class EnvironmentVaultTests
             Assert.That(model.Roots[0].Children.All(n => n.Kind == ExplorerNodeKind.Placeholder), Is.True);
             Assert.That(tab.IsConnected, Is.False);
             Assert.That(tab.IsRunning, Is.True);
+            // The invalidation must reach the metadata cache, not just the explorer/tab UI state: a stale schema
+            // must never be served to autocomplete after the environment/credentials it was learned under changed.
+            Assert.That(model.Metadata.IsConnected(identity), Is.False, "Invalidating the environment must disconnect the cache, not only the UI.");
+            Assert.That(model.Metadata.GetCollections(identity, "database", MetadataAccess.Peek).Value, Is.Null);
         });
         tab.CancelCommand.Execute(null); await execution;
     }

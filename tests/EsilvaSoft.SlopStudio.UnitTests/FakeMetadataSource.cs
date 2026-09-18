@@ -9,8 +9,12 @@ internal sealed class FakeMetadataSource : IMongoMetadataSource
 {
     private int _calls;
     private int _completed;
+    private int _concurrent;
+    private int _maxConcurrent;
     public int Calls => Volatile.Read(ref _calls);
     public int Completed => Volatile.Read(ref _completed);
+    /// <summary>Highest number of calls observed in flight at the same time, to assert concurrency caps.</summary>
+    public int MaxConcurrent => Volatile.Read(ref _maxConcurrent);
     public TaskCompletionSource? Gate { get; set; }
     public bool IgnoreCancellation { get; set; }
     public Exception? Failure { get; set; }
@@ -20,8 +24,8 @@ internal sealed class FakeMetadataSource : IMongoMetadataSource
     public IReadOnlyList<SampledDocument> Sample { get; set; } = [];
 
     public Task<IReadOnlyList<string>> ListDatabaseNamesAsync(ConnectionProfile profile, CancellationToken cancellationToken) => Call(() => Databases(profile.Name), cancellationToken);
-    public Task<IReadOnlyList<string>> ListCollectionNamesAsync(ConnectionProfile profile, string database, CancellationToken cancellationToken) =>
-        Call<IReadOnlyList<string>>(() => Collections(database).Select(definition => definition.Name).ToArray(), cancellationToken);
+    public Task<IReadOnlyList<CollectionEntry>> ListCollectionNamesAsync(ConnectionProfile profile, string database, CancellationToken cancellationToken) =>
+        Call<IReadOnlyList<CollectionEntry>>(() => Collections(database).Select(definition => new CollectionEntry(definition.Name, definition.Kind)).ToArray(), cancellationToken);
     public Task<CollectionDefinition?> GetCollectionDefinitionAsync(ConnectionProfile profile, string database, string collection, CancellationToken cancellationToken) =>
         Call(() => Collections(database).SingleOrDefault(definition => definition.Name == collection), cancellationToken);
     public Task<IReadOnlyList<IndexInfo>> ListIndexesAsync(ConnectionProfile profile, string database, string collection, CancellationToken cancellationToken) => Call(() => Indexes, cancellationToken);
@@ -31,12 +35,24 @@ internal sealed class FakeMetadataSource : IMongoMetadataSource
     private async Task<T> Call<T>(Func<T> value, CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref _calls);
+        var concurrent = Interlocked.Increment(ref _concurrent);
+        InterlockedMax(ref _maxConcurrent, concurrent);
         try
         {
             if (Gate is { } gate) await (IgnoreCancellation ? gate.Task : gate.Task.WaitAsync(cancellationToken));
             if (Failure is { } failure) throw failure;
             return value();
         }
-        finally { Interlocked.Increment(ref _completed); }
+        finally { Interlocked.Decrement(ref _concurrent); Interlocked.Increment(ref _completed); }
+    }
+
+    private static void InterlockedMax(ref int target, int candidate)
+    {
+        int current;
+        do
+        {
+            current = Volatile.Read(ref target);
+            if (candidate <= current) return;
+        } while (Interlocked.CompareExchange(ref target, candidate, current) != current);
     }
 }

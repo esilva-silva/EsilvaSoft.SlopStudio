@@ -35,7 +35,17 @@ public sealed class AutocompleteService(AiAutocompleteProvider? ai = null, IAuto
         if (ai is not null) await ai.Models.SwitchModelAsync(settings, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<AutocompleteResult?> GetCompletionAsync(AutocompleteRequest request, CancellationToken cancellationToken = default)
+    public Task<AutocompleteResult?> GetCompletionAsync(AutocompleteRequest request, CancellationToken cancellationToken = default) =>
+        GetCompletionAsync(request, CompletionSourcePolicy.All, cancellationToken);
+
+    /// <summary>
+    /// Mesmo pipeline, com as origens restritas pela política do chamador: uma origem desligada não é consultada nem
+    /// como alternativa, e <see cref="CompletionSourcePolicy.MayLoadModel"/> falso impede que este pedido carregue ou
+    /// troque o modelo local. A política entra na chave do cache: um resultado obtido com mais origens disponíveis
+    /// não pode ser servido a um pedido mais restrito.
+    /// </summary>
+    public async Task<AutocompleteResult?> GetCompletionAsync(AutocompleteRequest request, CompletionSourcePolicy policy,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
@@ -44,17 +54,19 @@ public sealed class AutocompleteService(AiAutocompleteProvider? ai = null, IAuto
         if (!settings.Enabled) return null;
         request = request.Bounded();
         var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-            System.Text.Json.JsonSerializer.Serialize(new { request, revision }))));
+            System.Text.Json.JsonSerializer.Serialize(new { request, revision, policy }))));
         lock (_gate)
         {
             if (_cache.TryGetValue(key, out var cached) && cached.Expires > _clock.GetUtcNow()) return cached.Result;
         }
-        AutocompleteResult? result = settings.UseDictionary ? BasicAutocompleteProvider.GetCompletion(request) : null;
-        if (result is null && settings.Mode != AutocompleteMode.Basic && ai is not null
+        var dictionary = settings.UseDictionary && policy.Dictionary;
+        AutocompleteResult? result = dictionary ? BasicAutocompleteProvider.GetCompletion(request) : null;
+        if (result is null && policy.Ai && settings.Mode != AutocompleteMode.Basic && ai is not null
             && !CompletionPrivacy.ContainsSensitiveText(request.Prefix + request.Suffix + request.Context))
-            result = await ai.GetCompletionAsync(request, settings, cancellationToken).ConfigureAwait(false);
+            result = await ai.GetCompletionAsync(request, settings,
+                policy.MayLoadModel ? AiModelLoadPolicy.LoadIfNeeded : AiModelLoadPolicy.LoadedOnly, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        if (result is null && settings.UseDictionary)
+        if (result is null && dictionary)
         {
             result = BasicAutocompleteProvider.GetCompletion(request);
             diagnostics?.Record("autocomplete.basic.used");

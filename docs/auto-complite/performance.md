@@ -122,7 +122,8 @@ Pendentes: p95/p99 com job completo, medição Headless e nativa do dispatcher, 
 | Alocação por tecla, caminho sem IA | ≤ 64 KB | Pressão de GC | `MemoryDiagnoser` | 2 |
 | Seleção de fatos + builder | p95 ≤ 10 ms | Pequeno frente ao TTFT | BenchmarkDotNet | 3 |
 | Tokenização de até 2 048 tokens | p95 ≤ 5 ms (Qwen nativo); DeepSeek .NET a medir | Não dominar a latência | `Explicit` | 3 |
-| Camada 0 do inline | p95 ≤ 5 ms após o gatilho | Imperceptível | BenchmarkDotNet + Headless | 5 |
+| Camada 0 do inline | p95 ≤ 5 ms após o gatilho | Imperceptível | BenchmarkDotNet + Headless | 5 — **atendida em 18/09/2026** (p95 0,009–0,068 ms); ver [seção acima](#camada-0-do-inline-51--medição-de-18092026) |
+| Edição → ghost (5.1, tradicional) | p95 ≤ 20 ms | Percepção de imediato | Headless, `TimeProvider` falso | 5 — **medida e NÃO atendida em 18/09/2026** (excedente de 17,6–27,1 ms sobre o debounce, dominado pela resolução do temporizador do Windows); meta mantida sem ajuste |
 | Camada 1 do inline, pausa → ghost | p95 ≤ TTFT medido + 150 ms e ≤ 600 ms; acima, a camada é desativada para o par modelo/hardware | TTFT de referência em [23](../23-onnx-slopcoder.md) | `Explicit` | 5 |
 | `Ctrl+;` → primeiro texto | p95 ≤ 1 s com indicador; timeout 10 s | Ação explícita com feedback | `Explicit` | 4 |
 | Memória do catálogo, 1 000 coleções × 1 000 campos com LRU | ≤ 64 MB | Aplicação desktop | `MemoryDiagnoser` + working set | 1 |
@@ -375,6 +376,24 @@ As três primeiras linhas viraram teste permanente em
 `tests/EsilvaSoft.SlopStudio.UnitTests/NameTableAllocationTests.cs`, que falha se a alocação por consulta ultrapassar
 64 KB. A guarda é de alocação, não de latência: uma regressão de alocação não aparece como erro, só como digitação
 engasgada, e por isso é afirmada em teste e não apenas observada em benchmark.
+
+## Camada 0 do inline (5.1) — medição de 18/09/2026
+
+Computação determinística de `TraditionalPreemptiveCompletionProvider`, catálogo de linguagem embarcado: **p50 0,002 ms, p95 0,009 ms, máx 0,013 ms.** Com 200 campos de schema (teto do modo automático): **p50 0,044 ms, p95 0,068 ms, máx 4,24 ms.** A meta de camada 0 (p95 ≤ 5 ms após o gatilho) **é atendida** nos dois cenários.
+
+### Edição → ghost — meta de 20 ms NÃO comprovadamente atendida
+
+Medido em Headless com debounce configurado em 50 ms: o excedente sobre o debounce ficou em **17,6–27,1 ms** (primeira sugestão do processo: 92 ms, 112 ms, 108 ms; aquecida: 77 ms, 68 ms, 77 ms). O trabalho de geração propriamente dito é ~0,07 ms (linha acima); o excedente é dominado pela **resolução do temporizador do Windows (~15,6 ms)** somada a dois saltos de despachante (dispatch da UI). **Registrado como não atendido, com o número medido acima. A meta provisória de 20 ms não foi ajustada** — a lacuna é do mecanismo de temporização/despacho, não da geração da sugestão.
+
+## Cache de tokens da Fase 2 — ganho medido em 18/09/2026
+
+BenchmarkDotNet, AMD Ryzen 9 7900, Windows 11 25H2, .NET 10.0.12. Análise por tecla voltou ao patamar da baseline anterior ao cache (1 MiB/meio: 7,78 ms → 7,38 ms). A análise repetida da mesma versão de documento — refiltro com a lista aberta, sem reprocessar o texto — ficou substancialmente mais barata:
+
+| Cenário | Ganho |
+| --- | --- |
+| 64 KiB, edição no fim | 0,37× do tempo anterior |
+| 1 MiB, edição no meio | 0,14× do tempo anterior |
+| 1 MiB, edição no início | 71 ns (efetivamente reaproveitado sem reprocessar) |
 
 ### Pendências honestas desta remedição
 

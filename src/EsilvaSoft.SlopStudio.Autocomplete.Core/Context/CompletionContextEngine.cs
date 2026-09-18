@@ -14,19 +14,58 @@ public sealed class CompletionContextEngine
     public static CompletionContextAnalysis Analyze(ContextRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var caret = request.ValidCaret;
+        var mode = Mode(request);
         var text = request.Snapshot.GetText(0, request.Snapshot.Length);
-        var tokens = new List<MongoToken>();
-        MongoLexer.Tokenize(text.AsSpan(), tokens, mode: request.Dialect == EditorDialects.AggregationJson ? MongoLexerMode.Json : MongoLexerMode.Script,
-            cancellationToken: cancellationToken);
+        var tokens = new List<MongoToken>(Math.Min(text.Length / 3 + 8, 8192));
+        MongoLexer.Tokenize(text.AsSpan(), tokens, mode: mode, cancellationToken: cancellationToken);
+        return Analyze(request, mode, text, tokens, cancellationToken);
+    }
 
+    /// <summary>
+    /// Analyzes reusing the lexing of this snapshot kept by <paramref name="tokens"/>. This is the typing path: one
+    /// keystroke costs one lexing of the document, and every repeated analysis of the same version — refiltering with
+    /// the list open, a second provider, ghost text — costs nothing, not even materializing the text. No syntax node is
+    /// built here; the cache is keyed by document, so a tab never sees another tab's tokens.
+    /// </summary>
+    public static CompletionContextAnalysis Analyze(ContextRequest request, TokenCache? tokens,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (tokens is null) return Analyze(request, cancellationToken);
+        var lexed = tokens.GetOrLex(request.Snapshot, Mode(request), cancellationToken);
+        return Analyze(request, lexed.Mode, lexed.Text, lexed.Tokens, cancellationToken);
+    }
+
+    /// <summary>
+    /// Analyzes reusing the syntax tree of this snapshot kept by <paramref name="trees"/>. Reserved for consumers that
+    /// already need the nodes of the tree: a tree is more expensive than the tokens the context actually reads, so the
+    /// typing path uses <see cref="TokenCache"/> instead. The cache keys every entry by document, so a tab never sees
+    /// another tab's tree; a snapshot already superseded by a newer version has no current tree and is lexed on its own,
+    /// because its result will be discarded by the caller anyway and must never be built from another version's tokens.
+    /// </summary>
+    public static CompletionContextAnalysis Analyze(ContextRequest request, SyntaxTreeCache? trees,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var mode = Mode(request);
+        var text = request.Snapshot.GetText(0, request.Snapshot.Length);
+        return Analyze(request, mode, text, Tokens(request, trees, text, mode, cancellationToken), cancellationToken);
+    }
+
+    private static CompletionContextAnalysis Analyze(ContextRequest request, MongoLexerMode mode, string text,
+        IReadOnlyList<MongoToken> tokens, CancellationToken cancellationToken)
+    {
+        var caret = request.ValidCaret;
         var tokenIndex = FindTokenAt(tokens, caret);
         if (tokenIndex >= 0 && IsNonCompletable(tokens[tokenIndex])) return Empty(request, CompletionCursorRole.NonCompletable, caret);
 
         var tabTarget = request.TabScope is { } tabScope
             ? new NamespaceTarget(null, tabScope.Database, tabScope.Collection, NamespaceTargetConfidence.TabDefault) { Connection = tabScope.Connection }
             : null;
-        var target = NamespaceTargetResolver.Resolve(text, caret, tabTarget, request.Dialect, cancellationToken);
+        // Os tokens da árvore são exatamente os do documento em modo Script; o resolvedor filtra comentários sozinho.
+        var target = mode == MongoLexerMode.Script
+            ? NamespaceTargetResolver.Resolve(text, tokens, caret, tabTarget, request.Dialect, cancellationToken)
+            : NamespaceTargetResolver.Resolve(text, caret, tabTarget, request.Dialect, cancellationToken);
 
         var token = tokenIndex >= 0 ? tokens[tokenIndex] : default;
         var prefix = tokenIndex >= 0 && token.Kind is MongoTokenKind.Identifier or MongoTokenKind.String
@@ -63,6 +102,22 @@ public sealed class CompletionContextEngine
         return new(context, role, insert, quote, false, target);
     }
 
+    private static MongoLexerMode Mode(ContextRequest request) =>
+        request.Dialect == EditorDialects.AggregationJson ? MongoLexerMode.Json : MongoLexerMode.Script;
+
+    /// <summary>
+    /// Tokens da versão pedida: os da árvore quando ela é a corrente do documento, senão uma lexificação própria.
+    /// Em ambos os caminhos o fluxo de tokens é o mesmo do documento inteiro — nada é truncado por janela.
+    /// </summary>
+    private static IReadOnlyList<MongoToken> Tokens(ContextRequest request, SyntaxTreeCache? trees, string text,
+        MongoLexerMode mode, CancellationToken cancellationToken)
+    {
+        if (trees?.GetOrParse(request.Snapshot, mode, cancellationToken).Tree is { } tree) return tree.Tokens;
+        var tokens = new List<MongoToken>(Math.Min(text.Length / 3 + 8, 8192));
+        MongoLexer.Tokenize(text.AsSpan(), tokens, mode: mode, cancellationToken: cancellationToken);
+        return tokens;
+    }
+
     // Ctrl+Espaço não é digitação: uma invocação explícita pode agendar carga; digitar nunca agenda.
     private static MetadataAccess Access(CompletionTrigger trigger) =>
         trigger == CompletionTrigger.Invoked ? MetadataAccess.LoadIfNeeded : MetadataAccess.Peek;
@@ -95,7 +150,7 @@ public sealed class CompletionContextEngine
         new(new CompletionContext(request.Snapshot.Version, request.Dialect, SymbolKinds.None, string.Empty, new TextSpan(caret, 0)),
             role, new TextSpan(caret, 0), null, false, NamespaceTarget.Unknown);
 
-    private static CompletionCursorRole Classify(string text, List<MongoToken> tokens, int current, int caret,
+    private static CompletionCursorRole Classify(string text, IReadOnlyList<MongoToken> tokens, int current, int caret,
         EditorDialects dialect, out SymbolKinds expected, out char? quote)
     {
         quote = null;
@@ -126,13 +181,13 @@ public sealed class CompletionContextEngine
     }
 
     private static bool IsNonCompletable(MongoToken token) => token.Kind is MongoTokenKind.LineComment or MongoTokenKind.BlockComment or MongoTokenKind.Regex or MongoTokenKind.Number;
-    private static int FindTokenAt(List<MongoToken> tokens, int caret)
+    private static int FindTokenAt(IReadOnlyList<MongoToken> tokens, int caret)
     {
         for (var index = 0; index < tokens.Count; index++) if (tokens[index].Span.IntersectsWith(caret)) return index;
         return -1;
     }
-    private static int PreviousIndex(List<MongoToken> tokens, int exclusive) => Math.Clamp(exclusive - 1, -1, tokens.Count - 1);
-    private static string PreviousText(List<MongoToken> tokens, string text, int exclusive)
+    private static int PreviousIndex(IReadOnlyList<MongoToken> tokens, int exclusive) => Math.Clamp(exclusive - 1, -1, tokens.Count - 1);
+    private static string PreviousText(IReadOnlyList<MongoToken> tokens, string text, int exclusive)
     {
         var index = PreviousIndex(tokens, exclusive);
         return index < 0 ? string.Empty : text.Substring(tokens[index].Start, tokens[index].Length);

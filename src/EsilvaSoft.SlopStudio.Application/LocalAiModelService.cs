@@ -98,7 +98,7 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
     }
 
     public async Task<LocalModelGeneration> GenerateAsync(LocalModelRole role, AutocompleteSettings settings, Func<LocalModelDefinition, ModelGenerationRequest> request,
-        AiRequestPriority priority, CancellationToken cancellationToken = default)
+        AiRequestPriority priority, AiModelLoadPolicy load = AiModelLoadPolicy.LoadIfNeeded, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(request);
@@ -114,7 +114,9 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             token.ThrowIfCancellationRequested();
-            var loaded = await EnsureLoadedAsync(key, settings, token).ConfigureAwait(false);
+            var loaded = load == AiModelLoadPolicy.LoadedOnly
+                ? RequireLoaded(key)
+                : await EnsureLoadedAsync(key, settings, token).ConfigureAwait(false);
             RequireCapability(loaded.Model, role);
             lock (_stateGate) { _active = linked; _activePreemption = preemption; _activePriority = priority; }
             if (priority == AiRequestPriority.Background && _gate.HasWaiters((int)AiRequestPriority.Interactive)) preemption.Cancel();
@@ -291,6 +293,25 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
     {
         lock (_stateGate)
             if (_active is not null && _activePriority == AiRequestPriority.Background) _activePreemption?.Cancel();
+    }
+
+    /// <summary>
+    /// Política <see cref="AiModelLoadPolicy.LoadedOnly"/>: atende apenas o modelo desta exata chave já carregado.
+    /// Deliberadamente não passa por <see cref="EnsureLoadedAsync"/>, que descarregaria o modelo de outra chave (o do
+    /// chat, por exemplo) e iniciaria a carga do novo. Um pedido automático não pode trocar o modelo do usuário por
+    /// digitação, então aqui a única saída possível é recusar, sem nenhum efeito sobre o estado carregado.
+    /// Chamado com <c>_gate</c> tomado, que é quem guarda <c>_loaded</c>, <c>_loading</c> e <c>_key</c>.
+    /// </summary>
+    private ActiveModel RequireLoaded(ModelKey key)
+    {
+        if (_loaded is { } loaded && _key == key) return loaded;
+        var different = _loaded is not null || _loading is not null;
+        throw new LocalModelUnavailableException(different
+            ? "O modelo carregado é de outra configuração; a sugestão automática não troca de modelo."
+            : "Nenhum modelo carregado; a sugestão automática não carrega modelo por digitação.")
+        {
+            UnavailableReason = different ? LocalModelUnavailableReason.DifferentConfiguration : LocalModelUnavailableReason.NotLoaded
+        };
     }
 
     private async Task<ActiveModel> EnsureLoadedAsync(ModelKey key, AutocompleteSettings settings, CancellationToken token)

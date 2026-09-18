@@ -16,6 +16,13 @@
 >   de 17/09/2026).
 > - A afirmação "Fases 2–5: propostas" não vale para a Fase 2, cujo caminho tradicional está entregue com as
 >   pendências listadas em [acompanhamento](../12-acompanhamento-da-implementacao.md).
+> - **A seção 8 ("Caches e riscos de fundo") também está desatualizada e não deve ser lida como lista de
+>   defeitos abertos.** Revisão de código de 18/09/2026 confirmou que geração por chave, single-flight,
+>   write-through com guarda de geração, `SampleSchemaAsync` protegido contra desconexão/invalidação, `Peek`
+>   propagado via `CatalogQuery.Access` e `Changed` terminal por chave **já estão implementados e têm teste**.
+>   O que resta de fato pendente nessa área está registrado com evidência e gatilho de reabertura em
+>   [decisions.md](decisions.md#pendências-arquiteturais-registradas)
+>   (PEND-K11-SECRET, PEND-K11-L, PEND-K14-KIND, PEND-K16-QUOTA) e no [execution-plan.md](execution-plan.md).
 >
 > Para o estado corrente, use o [acompanhamento](../12-acompanhamento-da-implementacao.md) e a
 > [matriz de validação](../15-matriz-de-validacao.md), não este retrato.

@@ -79,13 +79,8 @@ public sealed class EditorKeyBindingsSessionTests
         var path = NewDatabasePath();
         using var context = new WorkspaceTestContext();
         var custom = new Dictionary<string, string[]> { ["editor.completion.show"] = ["Alt+.", "Ctrl+Space"], ["editor.inline.accept"] = [] };
-        var expected = new Dictionary<string, string[]>
-        {
-            ["editor.completion.show"] = ["Alt+.", "Ctrl+Space"],
-            ["editor.completion.ai"] = ["Ctrl+;"],
-            ["editor.inline.accept"] = [],
-            ["editor.inline.dismiss"] = ["Escape"]
-        };
+        // Os comandos sem entrada mantêm a tabela oficial; só os dois personalizados mudam.
+        var expected = ExpectedDefaults.ToDictionary(entry => entry.Key, entry => custom.TryGetValue(entry.Key, out var gestures) ? gestures : entry.Value);
         using (var repository = new LiteDbConnectionProfileRepository(path))
         {
             await repository.SaveSessionAsync(new WorkspaceSession { Preferences = new() { Theme = "Escuro", EditorKeyBindings = new() { Bindings = custom } } });
@@ -110,6 +105,27 @@ public sealed class EditorKeyBindingsSessionTests
         }
     }
 
+    [Test]
+    public async Task ASessionThatOverridesTheListWithCtrlDotStaysReadableEvenThoughItIsNoLongerADefault()
+    {
+        var path = NewDatabasePath();
+        var custom = new Dictionary<string, string[]> { ["editor.completion.show"] = ["Ctrl+."] };
+        using (var repository = new LiteDbConnectionProfileRepository(path))
+        {
+            await repository.SaveSessionAsync(new WorkspaceSession { Preferences = new() { Theme = "Escuro", EditorKeyBindings = new() { Bindings = custom } } });
+            var restored = (await repository.LoadSessionAsync()).Preferences.EditorKeyBindings;
+            var dispatcher = new EditorCommandDispatcher(EditorKeyBindings.Resolve(restored));
+            Assert.Multiple(() =>
+            {
+                Assert.That(restored!.Bindings, Is.EqualTo(custom), "O override do usuário nunca é reescrito nem removido.");
+                Assert.That(restored.Version, Is.EqualTo(1));
+                Assert.That(dispatcher.Match(new(EditorKeyModifiers.Control, '.', null, '.'), EditorCommandScope.Global), Is.EqualTo(EditorCommandIds.CompletionShow));
+            });
+        }
+        // O serializador escapa '+' como +; o que importa é que só a entrada escrita pelo usuário está no disco.
+        Assert.That(ReadRawSession(path), Does.Contain("\"editor.completion.show\":[\"Ctrl\\u002B.\"]").And.Not.Contain("editor.inline.accept"));
+    }
+
     private static IEnumerable<TestCaseData> InvalidPreferences()
     {
         static TestCaseData Shortcut(string name, string json, string? reason) =>
@@ -124,7 +140,8 @@ public sealed class EditorKeyBindingsSessionTests
         yield return Shortcut("Version0", "{\"Version\":0,\"Bindings\":{}}", "versão 0 não suportada");
         yield return Shortcut("NullBindings", "{\"Version\":1,\"Bindings\":null}", "lista de atalhos ausente");
         yield return Shortcut("NullGestureList", "{\"Version\":1,\"Bindings\":{\"editor.completion.show\":null}}", "lista de gestos nula para 'editor.completion.show'");
-        yield return Shortcut("ConflictWithDefault", "{\"Version\":1,\"Bindings\":{\"editor.completion.show\":[\"Tab\"]}}", "gesto 'Tab' atribuído a 'editor.completion.show' e 'editor.inline.accept'");
+        yield return Shortcut("ConflictWithDefaultInTheSameScope", "{\"Version\":1,\"Bindings\":{\"editor.completion.next\":[\"Tab\"]}}",
+            "gesto 'Tab' atribuído a 'editor.completion.next' e 'editor.completion.accept' no mesmo escopo List");
         yield return Shortcut("RepeatedGesture", "{\"Version\":1,\"Bindings\":{\"editor.completion.show\":[\"Ctrl+.\",\"ctrl+.\"]}}", "gesto 'Ctrl+.' repetido em 'editor.completion.show'");
         yield return Shortcut("ArrayInsteadOfObject", "[]", null);
         yield return Shortcut("TextInsteadOfList", "{\"Version\":1,\"Bindings\":{\"editor.completion.show\":\"Ctrl+.\"}}", null);

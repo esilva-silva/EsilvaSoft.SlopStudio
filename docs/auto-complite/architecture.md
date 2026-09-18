@@ -6,7 +6,7 @@ Revisada em 15/09/2026 contra `b082d4a`. Estado real em [current-state.md](curre
 
 | Provider proposto | Geração compartilhada | Disparo / saída | Política |
 | --- | --- | --- | --- |
-| `TraditionalCompletionProvider` | `CompletionService` + catálogo + ranker | Ctrl+. (alias Ctrl+Espaço) / lista | Explicit, sem IA |
+| `TraditionalCompletionProvider` | `CompletionService` + catálogo + ranker | Ctrl+Espaço (override salvo em Ctrl+. continua funcional, sem ser mais o padrão) / lista | Explicit, sem IA |
 | `AiCompletionProvider` | Fatos + builder + `AiGenerationPipeline` + output | Ctrl+; / prévia | Interactive, carga permitida |
 | `TraditionalPreemptiveCompletionProvider` | Mesmo CompletionService/ranker | Edição / ghost | Peek, prefixo estrito, confiança |
 | `AiPreemptiveCompletionProvider` | Mesmo AiGenerationPipeline/output | Edição / ghost | Background, LoadedOnly, prazo curto |
@@ -31,7 +31,7 @@ public interface ICompletionProvider
 
 - AST: `(EditorId, DocumentVersion, Dialect)`; contexto: acrescentar Caret, Selection, TargetIdentity/ConnectionGeneration, CatalogRevision, LocalEvidenceRevision, SettingsRevision. Gatilho é política do pedido, não motivo para duplicar AST. Não memoizar contexto só por versão/cursor.
 - `RequestStamp`: identidade acima + RequestId monotônico e PresentationGeneration; IA acrescenta ModelRevision/Contract. Mesma versão textual em outra aba não equivale ao mesmo pedido.
-- Um escopo de lista, um de IA explícita e um coordinator automático por editor; dentro do último, token filho para cada provider. Todas as apresentações passam pela geração comum de UI. `Ctrl+.` cancela prévia/IA pendente e abre lista; `Ctrl+;` fecha lista e substitui ghost. Chat preempta Background no serviço de modelo, não cancela CTS arbitrário de outra aba.
+- Um escopo de lista, um de IA explícita e um coordinator automático por editor; dentro do último, token filho para cada provider. Todas as apresentações passam pela geração comum de UI. `Ctrl+Espaço` cancela prévia/IA pendente e abre lista; `Ctrl+;` fecha lista e substitui ghost (reconhecido, sem fluxo de IA implementado). Chat preempta Background no serviço de modelo, não cancela CTS arbitrário de outra aba.
 - Mesmo refiltro dentro de token cria novo stamp e invalida callbacks anteriores; reutiliza cálculo/candidatos somente quando a cobertura continua válida. Backspace/alargamento de prefixo exige nova consulta se a lista anterior foi limitada.
 - Publicar e aceitar são operações no dispatcher com nova conferência do stamp. CTS cooperativo é otimização; guarda de validade é garantia. Edit/undo ABA, cancelamento ignorado e troca de perfil/modelo são testes obrigatórios.
 
@@ -148,7 +148,7 @@ flowchart LR
 
 ## Fluxos
 
-### Tradicional (`Ctrl+.`)
+### Tradicional (`Ctrl+Espaço`)
 
 Descrito no [README](README.md#fluxo-principal-ctrl). Pontos essenciais: snapshot sem materializar string via `TextDocument.CreateSnapshot()`; contexto memoizado por versão e cursor; consulta ao catálogo sem I/O; lista marcada `IsIncomplete` quando algum escopo está carregando; `CatalogChanged` reconsulta a lista aberta se a versão ainda for a mesma.
 
@@ -221,7 +221,7 @@ Regras:
 1. A captura (snapshot, cursor, perfil, banco, coleção, modo) ocorre antes de qualquer `await`.
 2. Toda aplicação na UI confere: editor anexado, `DataContext` inalterado, versão do documento, cursor, seleção vazia e destino da aba. Falha em qualquer item descarta silenciosamente.
 3. Cancelamento é cooperativo; o descarte por versão protege contra providers que ignoram o token (comportamento já testado).
-4. Comandos explícitos arbitram a apresentação: Ctrl+. cancela IA/prévia; Ctrl+; fecha lista e substitui ghost. Os tokens continuam isolados, ligados à geração de apresentação.
+4. Comandos explícitos arbitram a apresentação: Ctrl+Espaço cancela IA/prévia e abre lista; Ctrl+; fecha lista e substitui ghost, sem fluxo de IA implementado nesta entrega. Os tokens continuam isolados, ligados à geração de apresentação.
 5. Abas diferentes nunca compartilham CTS.
 
 ### Fontes de cancelamento

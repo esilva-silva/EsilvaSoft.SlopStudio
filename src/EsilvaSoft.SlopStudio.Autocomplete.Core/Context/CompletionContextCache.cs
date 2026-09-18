@@ -1,14 +1,18 @@
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Syntax;
 using EsilvaSoft.SlopStudio.Autocomplete.Core.Text;
 
 namespace EsilvaSoft.SlopStudio.Autocomplete.Core.Context;
 
 /// <summary>
 /// Small per-editor context cache. A context is immutable and keyed by the full captured request identity, so a
-/// changed destination or cursor can never reuse semantic data from another request.
+/// changed destination or cursor can never reuse semantic data from another request. It owns the tokens of the documents
+/// it analyzes, so a repeated analysis of the same version does not read or lex the document again; entries are keyed by
+/// document and released by <see cref="ClearDocument"/>. No syntax tree is built on this path: nothing here reads nodes.
 /// </summary>
 public sealed class CompletionContextCache
 {
     private readonly object _gate = new();
+    private readonly TokenCache _tokens = new();
     private Entry? _last;
 
     public CompletionContextAnalysis Analyze(ContextRequest request, CancellationToken cancellationToken = default)
@@ -18,16 +22,18 @@ public sealed class CompletionContextCache
         var key = ContextKey.From(request);
         lock (_gate)
             if (_last is { Key: var cached } entry && cached == key) return entry.Analysis;
-        var analysis = CompletionContextEngine.Analyze(request, cancellationToken);
+        var analysis = CompletionContextEngine.Analyze(request, _tokens, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         lock (_gate) _last = new(key, analysis);
         return analysis;
     }
 
+    /// <summary>Releases everything held for a closed document: its context, its text and its tokens.</summary>
     public void ClearDocument(long documentId)
     {
         lock (_gate)
             if (_last?.Key.Version.DocumentId == documentId) _last = null;
+        _tokens.RemoveDocument(documentId);
     }
 
     private sealed record Entry(ContextKey Key, CompletionContextAnalysis Analysis);

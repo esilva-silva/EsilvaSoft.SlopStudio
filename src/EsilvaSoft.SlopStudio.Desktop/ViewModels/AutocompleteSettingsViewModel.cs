@@ -50,6 +50,20 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
     [ObservableProperty] private bool _useResultPanelContext = true;
     [ObservableProperty] private bool _useEditorContext = true;
     [ObservableProperty] private bool _incrementalTab = true;
+    [ObservableProperty] private bool _completionAutoOpenOnTrigger;
+    [ObservableProperty] private bool _completionEnterAccepts = true;
+    // As três propriedades abaixo espelham o par valor/efetivo de AutocompleteSettings: o campo privado guarda
+    // exatamente o que está persistido (nulo = ausente/nunca tocado pelo usuário nesta janela) e a propriedade
+    // "Effective" alimenta o CheckBox. Um toggle do usuário materializa o valor explícito; "Usar padrão" volta a nulo.
+    private bool? _inlineEnabledOverride;
+    private bool? _inlineUseTraditionalOverride;
+    private bool? _inlineUseAiOverride;
+    [ObservableProperty] private bool _inlineEnabledEffective = true;
+    [ObservableProperty] private bool _inlineEnabledIsOverridden;
+    [ObservableProperty] private bool _inlineUseTraditionalEffective = true;
+    [ObservableProperty] private bool _inlineUseTraditionalIsOverridden;
+    [ObservableProperty] private bool _inlineUseAiEffective;
+    [ObservableProperty] private bool _inlineUseAiIsOverridden;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasModelDetails))] private string _modelDetails = "";
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasModelDiagnostics))] private string _modelDiagnostics = "";
     [ObservableProperty] private string _detectedHardware = "Hardware ainda não consultado.";
@@ -59,6 +73,66 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
     [ObservableProperty] private bool _isBusy;
 
     partial void OnHardwareIndexChanged(int value) => RefreshStatus();
+
+    partial void OnInlineEnabledEffectiveChanged(bool value)
+    {
+        if (_loading) return;
+        _inlineEnabledOverride = value;
+        InlineEnabledIsOverridden = true;
+    }
+
+    partial void OnInlineUseTraditionalEffectiveChanged(bool value)
+    {
+        if (_loading) return;
+        _inlineUseTraditionalOverride = value;
+        InlineUseTraditionalIsOverridden = true;
+    }
+
+    partial void OnInlineUseAiEffectiveChanged(bool value)
+    {
+        if (_loading) return;
+        _inlineUseAiOverride = value;
+        InlineUseAiIsOverridden = true;
+    }
+
+    /// <summary>Sem override explícito, a sugestão determinística automática segue o dicionário local, como no valor efetivo do modelo.</summary>
+    partial void OnUseDictionaryChanged(bool value)
+    {
+        if (_loading || _inlineUseTraditionalOverride.HasValue) return;
+        SetEffectiveWhileLoading(() => InlineUseTraditionalEffective = value);
+    }
+
+    [RelayCommand]
+    private void ResetInlineEnabled()
+    {
+        _inlineEnabledOverride = null;
+        InlineEnabledIsOverridden = false;
+        SetEffectiveWhileLoading(() => InlineEnabledEffective = true);
+    }
+
+    [RelayCommand]
+    private void ResetInlineUseTraditional()
+    {
+        _inlineUseTraditionalOverride = null;
+        InlineUseTraditionalIsOverridden = false;
+        SetEffectiveWhileLoading(() => InlineUseTraditionalEffective = UseDictionary);
+    }
+
+    [RelayCommand]
+    private void ResetInlineUseAi()
+    {
+        _inlineUseAiOverride = null;
+        InlineUseAiIsOverridden = false;
+        SetEffectiveWhileLoading(() => InlineUseAiEffective = false);
+    }
+
+    /// <summary>Reassigns an "Effective" property without the change being mistaken for a fresh user override.</summary>
+    private void SetEffectiveWhileLoading(Action assign)
+    {
+        var wasLoading = _loading;
+        _loading = true;
+        try { assign(); } finally { _loading = wasLoading; }
+    }
 
     partial void OnModelPathChanged(string value)
     {
@@ -91,6 +165,13 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
             UseDictionary = settings.UseDictionary; UseInputPanelContext = settings.UseInputPanelContext;
             UseResultPanelContext = settings.UseResultPanelContext; UseEditorContext = settings.UseEditorContext;
             IncrementalTab = settings.IncrementalTab; ChatEnabled = settings.ChatEnabled; _chatModel = settings.ChatModel;
+            CompletionAutoOpenOnTrigger = settings.CompletionAutoOpenOnTrigger; CompletionEnterAccepts = settings.CompletionEnterAccepts;
+            _inlineEnabledOverride = settings.InlineEnabledValue; InlineEnabledIsOverridden = _inlineEnabledOverride.HasValue;
+            InlineEnabledEffective = settings.InlineEnabled;
+            _inlineUseTraditionalOverride = settings.InlineUseTraditionalValue; InlineUseTraditionalIsOverridden = _inlineUseTraditionalOverride.HasValue;
+            InlineUseTraditionalEffective = settings.InlineUseTraditional;
+            _inlineUseAiOverride = settings.InlineUseAiValue; InlineUseAiIsOverridden = _inlineUseAiOverride.HasValue;
+            InlineUseAiEffective = settings.InlineUseAi;
             ModelDirectory = settings.ModelDirectory; ModelPath = settings.ModelPath;
             Models.Clear();
             SelectedModelOption = settings.SelectedModel.Length > 0 ? Add(new(settings.SelectedModel, false))
@@ -120,7 +201,10 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
             ContextTokens = ContextTokens, MaximumCompletionTokens = MaximumTokens,
             DelayMilliseconds = DelayMilliseconds, ExecutionProvider = _executionProvider,
             UseDictionary = UseDictionary, UseInputPanelContext = UseInputPanelContext,
-            UseResultPanelContext = UseResultPanelContext, UseEditorContext = UseEditorContext, IncrementalTab = IncrementalTab
+            UseResultPanelContext = UseResultPanelContext, UseEditorContext = UseEditorContext, IncrementalTab = IncrementalTab,
+            CompletionAutoOpenOnTrigger = CompletionAutoOpenOnTrigger, CompletionEnterAccepts = CompletionEnterAccepts,
+            InlineEnabledValue = _inlineEnabledOverride, InlineUseTraditionalValue = _inlineUseTraditionalOverride,
+            InlineUseAiValue = _inlineUseAiOverride
         }).Validate();
     }
 

@@ -1,6 +1,6 @@
 # Decisões propostas
 
-Estado: **Plano revisado** em 15/09/2026. AC-03/04/05/06/11/14 têm base implementada na Fase 1, com aceite parcial e divergências registradas ([estado e desvios](phases/phase-1-data-traditional.md#estado-da-implementação)). Ao serem aceitas, promover para [10 — ADRs](../10-decisoes-arquiteturais.md) com numeração oficial e revisão explícita das ADRs afetadas; essa promoção ainda não foi feita.
+Estado: **Plano revisado** em 15/09/2026. AC-03/04/05/06/11/14 têm base implementada na Fase 1, com aceite parcial e divergências registradas ([estado e desvios](phases/phase-1-data-traditional.md#estado-da-implementação)). AC-08 (política de atalhos, lote W0) tem base implementada e validada em 18/09/2026, com o detalhe de estado registrado na própria decisão abaixo. Ao serem aceitas, promover para [10 — ADRs](../10-decisoes-arquiteturais.md) com numeração oficial e revisão explícita das ADRs afetadas; essa promoção ainda não foi feita.
 
 ## AC-01 — Contratos in-process inspirados em LSP
 
@@ -54,9 +54,12 @@ Estado: **Plano revisado** em 15/09/2026. AC-03/04/05/06/11/14 têm base impleme
 
 ## AC-08 — Atalhos
 
-**Decisão.** `Ctrl+.` abre a lista (principal), `Ctrl+Espaço` permanece como alias, `Ctrl+;` pede IA. Registro mínimo de comandos persistido de forma aditiva, sem tela de edição nesta meta. Pontuação casa por `KeySymbol`, com `PhysicalKey` como alternativa.
-**Alternativas.** Manter só `Ctrl+Espaço` (conflita com troca de IME em alguns sistemas); casar por `Key` (quebra em layouts como ABNT2).
-**Consequências.** Homologação nativa de layouts e plataformas.
+**Estado: implementado (W0, 18/09/2026).** Build 0 avisos; suíte 1170 aprovados, 0 falhas.
+
+**Decisão revisada.** `Ctrl+.` foi removido dos padrões por decisão explícita do produto; `Ctrl+Espaço` é o único gatilho padrão da lista básica, `Ctrl+;` pede IA (reconhecido, mas sem runtime nesta entrega — nunca insere `;`, nunca abre a lista no lugar). Doze comandos (`EditorCommandIds`) organizados em quatro escopos (`EditorCommandScope { Global, List, Snippet, Inline }`), cada um resolvido isoladamente por `EditorCommandDispatcher.Match`; o mesmo gesto pode ser padrão em escopos diferentes (`Tab`/`Esc` servem lista, snippet e ghost), mas duplicidade dentro do mesmo escopo torna a sessão ilegível. Registro persistido de forma aditiva em `EditorKeyBindings` (`CurrentVersion = 1`, sem migração de dado), sem tela de edição nesta meta. Como os padrões nunca são gravados na sessão, um override anterior de `Ctrl+.` continua legível e funcional, sem ser removido, adicionado ou reescrito. Pontuação casa pelo símbolo produzido pelo layout, com o símbolo físico como alternativa; teclas nomeadas casam por identidade de tecla — corrigido um defeito em que a decisão anterior (`||` entre as duas comparações) deixava `Ctrl` sozinho abrir a lista e uma tecla desconhecida aceitar o ghost, por `null == null` casar com qualquer gesto quando o evento não carregava tecla nem símbolo. Ver [editor-integration.md](editor-integration.md#arbitragem-de-teclado).
+**Limitação conhecida, não resolvida.** Sem `Ctrl+.`, `Ctrl+Espaço` é o único disparo padrão do básico e colide com a troca de IME em Windows e Linux. Esta meta não entrega tela de edição de atalhos; o único contorno é um override manual em `EditorKeyBindings`.
+**Alternativas.** Manter `Ctrl+.` como principal (rejeitado nesta revisão pelo produto); casar só por `Key` (quebra em layouts como ABNT2).
+**Consequências.** Homologação nativa de layouts, plataformas e IME reais permanece pendente (ABNT2/US em Windows; X11/Wayland em Linux); teste Headless não substitui essa homologação.
 
 ## AC-09 — Caminhos com ponto sempre entre aspas
 
@@ -159,3 +162,49 @@ Estas decisões atualizam o plano; não marcam UI ou providers implementados. Re
 ## AC-24 — Aprendizado contínuo de find e persistência LiteDB
 
 Novo requisito de 15/09/2026 substitui adiamento da persistência de schema. Reutilizar amostra dos resultados já retornados, enfileirar sem bloquear consulta/UI, extrair deltas probabilísticos e persistir estrutura/estatísticas no proprietário LiteDB existente. Identidade segura de origem, transação/idempotência, projeção/cobertura, opt-outs e limites definidos em schema-learning.md. Campos aprendidos são observados, não schema rígido nem prova de ausência. Nenhuma consulta adicional automática. Tarefas L11–L16, dono MongoDB Knowledge, com testes/performance desde o hook.
+
+## Pendências arquiteturais registradas
+
+**Revisão de código de 18/09/2026.**
+
+Estas quatro entradas não são decisões fechadas de escopo novo: são pendências identificadas na revisão de código de K11/K14/K16/L, registradas com seu próprio gatilho de reabertura para não serem perdidas nem confundidas com defeito atual.
+
+### PEND-K11-SECRET
+
+**`ConnectionIdentity` não muda; revisão de segredo é tratada por invalidação.** `ConnectionIdentity` permanece derivada da configuração bruta (`ProfileId` + `TargetHost` + fingerprint da connection string salva). Revisão de ENV/cofre é tratada por **invalidação**, não por identidade: salvar ambientes dispara `InvalidateEnvironment` → `MetadataCache.Disconnect(profileId)`.
+
+**Gatilho de reabertura.** Surgir um chamador real de `IConnectionSecretStore.SetPassword`/`Remove` capaz de trocar credencial **sem** desconectar o perfil; nesse dia o chamador passa a ser obrigado a publicar `new MetadataInvalidation(profileId, MetadataChange.Connection)` no `IMetadataInvalidationBus`, e ainda assim **não** é preciso alterar `ConnectionIdentity`. Vira defeito real somente se alguém servir metadado de um cache não invalidado após troca de credencial.
+
+### PEND-K11-L
+
+**`ConnectionIdentity` não pode virar chave persistida de schema aprendido.** A fase L não pode usá-la para esse fim. L14 define chave própria e estável (`ProfileId` + `Database` + `Collection` + versão de schema), sem URI, credencial, host resolvido ou revisão volátil. A identidade governa apenas escopo em memória.
+
+### PEND-K14-KIND
+
+**`CollectionKind` fica `Unknown` até a definição carregar; perda aceita da API escolhida.** A listagem de coleções devolve `CollectionKind.Unknown` até a definição ser carregada. `MongoDB.Driver 3.11.1` não expõe `nameOnly`/`authorizedCollections` em `ListCollectionsOptions`, e as operações de baixo nível são internas; obter o tipo no mesmo custo exigiria `RunCommandAsync("listCollections", nameOnly: true, authorizedCollections: true)` **com drenagem manual de cursor (`getMore`/`killCursors`)**, sob pena de truncar a listagem. Perda aceita como consequência consciente da API escolhida; `WithKnownKinds` retro-preenche o tipo quando a definição chega.
+
+**Gatilho de reabertura.** Qualquer regra de **comportamento** (não de ícone) passar a depender do tipo antes da definição — por exemplo suprimir sugestões de escrita em view/time series, ou a fase L pular views no aprendizado. Implementação então restrita a `MongoMetadataSource.cs`, com teste contra MongoDB real em banco com mais coleções que um lote.
+
+### PEND-K16-QUOTA
+
+**`KnowledgeCatalog.Query` sem cota por tipo/fonte; pré-requisito de L15.** `KnowledgeCatalog.Query` drena as fontes em ordem até `MaximumCandidates`, sem cota por tipo ou por fonte. Sem efeito enquanto as fontes atuais não disputam os mesmos kinds.
+
+**Gatilho.** É **pré-requisito de entrada** de `LearnedSchemaCatalogSource` (L15) — quando duas fontes passarem a produzir `Field`/`Collection` para o mesmo alvo, a ausência de cota deixa uma fonte ocultar a outra, e o truncamento deixa de ser reportável com honestidade. Implementar como **K16-b antes de L15**, não depois (ver [execution-plan.md](execution-plan.md)).
+
+## Correções da revisão W1-K/W2a/W3 (18/09/2026)
+
+### DEC-INLINE-LOADEDONLY
+
+**A política de carga é parâmetro de `GenerateAsync`, não filtro do chamador.** `ILocalAiModelService.GenerateAsync` recebe `AiModelLoadPolicy`. Com `LoadedOnly`, o serviço atende **somente** se o modelo da chave exata (pasta + aceleração + execution provider) já estiver carregado; caso contrário lança `LocalModelUnavailableException` com `UnavailableReason` tipado, sem passar por `EnsureLoadedAsync` — portanto sem carregar, descarregar ou trocar o modelo de outra funcionalidade. O caminho automático (ghost) usa `LoadedOnly`; o pedido explícito continua podendo carregar sob demanda. Filtrar por `LocalModelStatus.State` no chamador é insuficiente: `Status` reflete *algum* modelo pronto, não o desta chave.
+
+### DEC-INLINE-SOURCES
+
+**`CompletionSourcePolicy` transporta a decisão de `InlineCompletionPolicy` até o serviço.** As origens permitidas (dicionário, IA) e a permissão de carga são decididas uma única vez pela política do ghost e viajam como valor por `CompletionSession` → `IAutocompleteService` → `AiAutocompleteProvider`. Nenhum consumidor recombina flags e nenhuma origem desligada reaparece por atalho interno (era o caso do dicionário em `GetImmediateCompletion` com `InlineUseTraditional = false`).
+
+### DEC-INLINE-INCOMPLETE
+
+**`CompletionList.IsIncomplete` cobre as três formas de corte.** Além de `CatalogCompleteness != Complete`, também o esgotamento de `MaximumCandidates` (que uma fonte única não reporta como `Partial`) e o corte por `MaximumItems` com mais candidatos do que os devolvidos. O portão de confiança do ghost depende de "o conjunto inteiro foi visto" para afirmar continuação única; sem os dois últimos sinais ele afirmaria unicidade a partir de uma amostra.
+
+### DEC-INLINE-SNAPSHOT
+
+**O caminho automático recebe o `ITextSnapshot` do editor.** `WorkspaceTabViewModel.GetInlineCompletionAsync` tem sobrecarga por snapshot, alimentada com o `AvaloniaTextSnapshot` do documento. Só assim `TokenCache` reaproveita a lexificação da tecla anterior — um `StringTextSnapshot` novo por tecla nunca casa com a entrada anterior. A sobrecarga por texto mantém contador e identidade de documento **próprios** do automático, separados dos da lista explícita.

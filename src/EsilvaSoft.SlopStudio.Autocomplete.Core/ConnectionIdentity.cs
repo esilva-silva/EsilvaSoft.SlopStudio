@@ -8,6 +8,10 @@ namespace EsilvaSoft.SlopStudio.Autocomplete.Core;
 /// Identity of a connection for metadata: profile, explicit target and a hash of the saved connection string.
 /// Editing a profile or routing to another instance never reuses metadata from the previous configuration.
 /// </summary>
+/// <remarks>
+/// Fingerprints the raw saved string, not the value resolved by <c>OperationEnvironment</c>: resolution is async and
+/// I/O-bound, and an ENV/vault revision is volatile and must not enter this key. See PEND-K11-SECRET in decisions.md.
+/// </remarks>
 public sealed record ConnectionIdentity(Guid ProfileId, string? TargetHost, string Fingerprint)
 {
     public static ConnectionIdentity From(ConnectionProfile profile)

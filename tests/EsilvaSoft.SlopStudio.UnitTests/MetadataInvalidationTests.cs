@@ -77,6 +77,28 @@ public sealed class MetadataInvalidationTests
     }
 
     [Test]
+    public void DistinctHostsWithTheSameNamespaceNamesNeverShareCachedSchema()
+    {
+        // Same database/collection names, different origin: PEND-K11-SECRET keeps ConnectionIdentity tied to the raw
+        // saved connection string, so two profiles pointing at different hosts must never answer from one another's cache.
+        using var cache = new MetadataCache(new FakeMetadataSource());
+        var profileA = ConnectionProfile.Create("A", "mongodb://host-a/database");
+        var profileB = ConnectionProfile.Create("B", "mongodb://host-b/database");
+        var identityA = ConnectionIdentity.From(profileA);
+        var identityB = ConnectionIdentity.From(profileB);
+        Assert.That(identityA, Is.Not.EqualTo(identityB));
+
+        cache.PutCollections(profileA, "loja", ["clientes"]);
+        cache.PutCollections(profileB, "loja", ["pedidos"]);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(cache.GetCollections(identityA, "loja", MetadataAccess.Peek).Value!.Select(c => c.Name), Is.EqualTo(Expect.Words("clientes")));
+            Assert.That(cache.GetCollections(identityB, "loja", MetadataAccess.Peek).Value!.Select(c => c.Name), Is.EqualTo(Expect.Words("pedidos")));
+        });
+    }
+
+    [Test]
     public async Task ExplorerLoadsWriteThroughAndFeedNamesWithoutRemoteMetadataCalls()
     {
         using var context = new WorkspaceTestContext();

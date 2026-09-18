@@ -47,7 +47,7 @@ public sealed partial class ConsoleMongoIntegrationTests
             Assert.That(resumoDefinition!.Kind, Is.EqualTo(CollectionKind.View));
             Assert.That(clientesDefinition!.ValidatorJson, Does.Contain("Nome"));
             Assert.That(await source.GetCollectionDefinitionAsync(profile, "meta", "inexistente", CancellationToken.None), Is.Null);
-            Assert.That(await source.ListCollectionNamesAsync(profile, "meta", CancellationToken.None), Is.SupersetOf(Expect.Words("clientes resumo")));
+            Assert.That((await source.ListCollectionNamesAsync(profile, "meta", CancellationToken.None)).Select(entry => entry.Name), Is.SupersetOf(Expect.Words("clientes resumo")));
             Assert.That((await source.ListIndexesAsync(profile, "meta", "clientes", CancellationToken.None)).Select(index => index.Name), Does.Contain("Cliente.Id_1"));
             Assert.That(schema.Find("Cliente.Id")!.PrimaryType, Is.EqualTo("int"));
             Assert.That(schema.Find("Itens.Sku"), Is.Not.Null);

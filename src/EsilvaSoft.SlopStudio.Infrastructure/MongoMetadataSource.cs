@@ -25,13 +25,14 @@ public sealed class MongoMetadataSource(IConnectionSecretStore? secrets = null, 
         return (await cursor.ToListAsync(cancellationToken).ConfigureAwait(false)).Order(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
-    public async Task<IReadOnlyList<string>> ListCollectionNamesAsync(ConnectionProfile profile, string database, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<CollectionEntry>> ListCollectionNamesAsync(ConnectionProfile profile, string database, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(database);
         var target = (await ClientAsync(profile, cancellationToken).ConfigureAwait(false)).GetDatabase(database);
-        // nameOnly avoids collection locks; authorizedCollections also works without the listCollections privilege.
+        // Kind stays Unknown until a definition loads (WithKnownKinds fills it later); see PEND-K14-KIND in decisions.md.
         using var names = await target.ListCollectionNamesAsync(new ListCollectionNamesOptions { AuthorizedCollections = true }, cancellationToken).ConfigureAwait(false);
-        return (await names.ToListAsync(cancellationToken).ConfigureAwait(false)).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        return (await names.ToListAsync(cancellationToken).ConfigureAwait(false))
+            .Select(name => new CollectionEntry(name, CollectionKind.Unknown)).OrderBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
     public async Task<CollectionDefinition?> GetCollectionDefinitionAsync(ConnectionProfile profile, string database, string collection, CancellationToken cancellationToken)
@@ -125,17 +126,18 @@ public sealed class MongoMetadataSource(IConnectionSecretStore? secrets = null, 
 
     private static CollectionDefinition ToDefinition(BsonDocument document)
     {
-        var kind = document.GetValue("type", "collection").ToString() switch
-        {
-            "view" => CollectionKind.View,
-            "timeseries" => CollectionKind.TimeSeries,
-            "collection" => CollectionKind.Collection,
-            _ => CollectionKind.Unknown
-        };
         var validator = document.TryGetValue("options", out var options) && options.IsBsonDocument
             && options.AsBsonDocument.TryGetValue("validator", out var value) && value.IsBsonDocument ? value.ToJson(CanonicalJson) : null;
-        return new(document["name"].AsString, kind, validator);
+        return new(document["name"].AsString, KindOf(document), validator);
     }
+
+    private static CollectionKind KindOf(BsonDocument document) => document.GetValue("type", "collection").ToString() switch
+    {
+        "view" => CollectionKind.View,
+        "timeseries" => CollectionKind.TimeSeries,
+        "collection" => CollectionKind.Collection,
+        _ => CollectionKind.Unknown
+    };
 
     private async Task<MongoClient> ClientAsync(ConnectionProfile profile, CancellationToken cancellationToken)
     {

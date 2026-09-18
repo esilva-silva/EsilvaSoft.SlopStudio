@@ -33,6 +33,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public IAutocompleteService AutocompleteService { get; }
     /// <summary>Deterministic catalog completion shared by all editor tabs.</summary>
     public ICompletionProvider? TraditionalCompletion { get; }
+    /// <summary>Gerador determinístico da sugestão automática; independe de modelo de IA e de conexão aberta.</summary>
+    public ICompletionProvider? InlinePreemptiveCompletion { get; }
     /// <summary>
     /// Sinal de uso da sessão, compartilhado por todas as abas: quem aprende é o usuário, não a aba, e uma sugestão
     /// aceita em uma aba deve subir na seguinte. É só memória — nomes, sem valores — e nunca chega ao LiteDB nem à
@@ -43,6 +45,11 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public AutocompleteSettingsViewModel AutocompletePreferences { get; }
     /// <summary>Effective editor shortcuts per command id; defaults until a readable session is loaded.</summary>
     public IReadOnlyDictionary<string, IReadOnlyList<EditorKeyGesture>> KeyBindings { get; private set; } = EditorKeyBindings.Resolve(null);
+    /// <summary>
+    /// Single dispatcher instance built from <see cref="KeyBindings"/>, shared by every tab. Immutable and stateless,
+    /// so the desktop reuses this one instance across every key event instead of constructing a dispatcher per keystroke.
+    /// </summary>
+    public EditorCommandDispatcher Commands { get; private set; } = new(EditorKeyBindings.Resolve(null));
     public ExplorerDetailsViewModel Details { get; }
     public IReadOnlyList<string> Themes { get; } = ["Sistema", "Claro", "Escuro"];
     [ObservableProperty] private string _theme = "Sistema";
@@ -67,9 +74,13 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         Updates = new(updates, workspace.Operations);
         AutocompleteService = autocomplete ?? new AutocompleteService();
         var effectiveCatalog = knowledgeCatalog ?? new KnowledgeCatalog([new LanguageCatalogSource(), new MetadataCatalogSource(Metadata)]);
-        TraditionalCompletion = new TraditionalCompletionProvider(
-            new CompletionService(effectiveCatalog, new CompletionRanker(usage: CompletionUsage),
-                new WorkspaceCompletionProfileResolver(() => Profiles)));
+        // Um único CompletionService serve a lista explícita e a sugestão automática: mesmo catálogo, mesmo
+        // ranqueamento, mesmo sinal de uso. O que difere entre os dois provedores é apenas a política de disparo,
+        // de confiança e de acesso a metadados.
+        var completionService = new CompletionService(effectiveCatalog, new CompletionRanker(usage: CompletionUsage),
+            new WorkspaceCompletionProfileResolver(() => Profiles));
+        TraditionalCompletion = new TraditionalCompletionProvider(completionService);
+        InlinePreemptiveCompletion = new TraditionalPreemptiveCompletionProvider(completionService);
         AiChatService = aiChat ?? new AiChatService();
         AutocompletePreferences = new(AutocompleteService, modelCatalog, async settings =>
         {
@@ -93,6 +104,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
             _autocompleteSettings = session.Preferences.Autocomplete.Validate();
             // Invalid shortcuts fail here too, before _initialized, so no save path can replace the snapshot.
             KeyBindings = EditorKeyBindings.Resolve(session.Preferences.EditorKeyBindings);
+            Commands = new EditorCommandDispatcher(KeyBindings);
             _keyBindings = session.Preferences.EditorKeyBindings;
             // Startup only reads preferences; the model is validated and loaded on the first AI request.
             await AutocompleteService.ConfigureAsync(_autocompleteSettings);

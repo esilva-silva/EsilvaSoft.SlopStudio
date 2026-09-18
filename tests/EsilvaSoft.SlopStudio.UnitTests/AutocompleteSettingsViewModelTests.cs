@@ -41,4 +41,65 @@ public sealed class AutocompleteSettingsViewModelTests
         preferences.Load(saved);
         Assert.That(preferences.SelectedModelOption!.Reference, Is.EqualTo("Coder-3B"));
     }
+
+    [Test]
+    public async Task UntouchedInlineFlagsStayAbsentAndFollowTheirLiveDefaults()
+    {
+        AutocompleteSettings? saved = null;
+        var preferences = new AutocompleteSettingsViewModel(new CompletionServiceFake(), catalog: null, settings => { saved = settings; return Task.CompletedTask; });
+        preferences.Load(new());
+
+        // Nothing was touched: the effective values mirror the defaults, and no override is materialized.
+        Assert.That((preferences.InlineEnabledEffective, preferences.InlineUseTraditionalEffective, preferences.InlineUseAiEffective), Is.EqualTo((true, true, false)));
+        Assert.That((preferences.InlineEnabledIsOverridden, preferences.InlineUseTraditionalIsOverridden, preferences.InlineUseAiIsOverridden), Is.EqualTo((false, false, false)));
+
+        // InlineUseTraditional keeps tracking UseDictionary live while it has no explicit override.
+        preferences.UseDictionary = false;
+        Assert.That(preferences.InlineUseTraditionalEffective, Is.False);
+        Assert.That(preferences.InlineUseTraditionalIsOverridden, Is.False);
+
+        await preferences.ApplyCommand.ExecuteAsync(null);
+        Assert.That(saved!.InlineEnabledValue, Is.Null, "Never touched by the user: the field stays absent in the persisted document.");
+        Assert.That(saved.InlineUseTraditionalValue, Is.Null);
+        Assert.That(saved.InlineUseAiValue, Is.Null);
+        // The effective (derived) values must still be correct for a fresh load elsewhere in the app.
+        Assert.That((saved.InlineEnabled, saved.InlineUseTraditional, saved.InlineUseAi), Is.EqualTo((true, false, false)));
+    }
+
+    [Test]
+    public async Task TogglingAnInlineFlagMaterializesAnExplicitValueAndResetClearsIt()
+    {
+        AutocompleteSettings? saved = null;
+        var preferences = new AutocompleteSettingsViewModel(new CompletionServiceFake(), catalog: null, settings => { saved = settings; return Task.CompletedTask; });
+        preferences.Load(new());
+
+        preferences.InlineUseAiEffective = true;
+        Assert.That(preferences.InlineUseAiIsOverridden, Is.True);
+        await preferences.ApplyCommand.ExecuteAsync(null);
+        Assert.That(saved!.InlineUseAiValue, Is.True, "A user toggle must persist as an explicit value, not just the effective default.");
+
+        preferences.ResetInlineUseAiCommand.Execute(null);
+        Assert.That(preferences.InlineUseAiIsOverridden, Is.False);
+        Assert.That(preferences.InlineUseAiEffective, Is.False);
+        await preferences.ApplyCommand.ExecuteAsync(null);
+        Assert.That(saved.InlineUseAiValue, Is.Null, "Usar padrão must restore the absent state, not just flip the checkbox back to false.");
+
+        // An explicit false must be distinguished from absence when reloaded (round-trip through Load/Snapshot).
+        preferences.InlineEnabledEffective = false;
+        var snapshot = preferences.Snapshot();
+        Assert.That(snapshot.InlineEnabledValue, Is.False);
+        preferences.Load(snapshot);
+        Assert.That((preferences.InlineEnabledEffective, preferences.InlineEnabledIsOverridden), Is.EqualTo((false, true)));
+    }
+
+    [Test]
+    public async Task CompletionListPreferencesRoundTrip()
+    {
+        AutocompleteSettings? saved = null;
+        var preferences = new AutocompleteSettingsViewModel(new CompletionServiceFake(), catalog: null, settings => { saved = settings; return Task.CompletedTask; });
+        preferences.Load(new() { CompletionAutoOpenOnTrigger = true, CompletionEnterAccepts = false });
+        Assert.That((preferences.CompletionAutoOpenOnTrigger, preferences.CompletionEnterAccepts), Is.EqualTo((true, false)));
+        await preferences.ApplyCommand.ExecuteAsync(null);
+        Assert.That((saved!.CompletionAutoOpenOnTrigger, saved.CompletionEnterAccepts), Is.EqualTo((true, false)));
+    }
 }

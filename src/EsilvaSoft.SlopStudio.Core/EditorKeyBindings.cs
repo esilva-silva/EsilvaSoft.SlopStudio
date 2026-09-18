@@ -3,7 +3,9 @@ namespace EsilvaSoft.SlopStudio.Core;
 /// <summary>
 /// Additive to session version 1. <see cref="Bindings"/> overrides <see cref="Defaults"/> per command: a command without an
 /// entry keeps its defaults and an empty list leaves it unbound. Unknown commands, malformed gestures, null lists, a gesture
-/// bound twice and versions other than 1 are invalid and make the whole session unreadable.
+/// bound twice <em>inside the same <see cref="EditorCommandScope"/></em> and versions other than 1 are invalid and make the
+/// whole session unreadable. The same gesture in two different scopes is legal and is resolved by scope precedence at the
+/// call site, which is what lets Tab accept a completion item, jump to the next snippet placeholder and accept ghost text.
 /// </summary>
 public sealed record EditorKeyBindings
 {
@@ -13,8 +15,16 @@ public sealed record EditorKeyBindings
 
     public static IReadOnlyDictionary<string, IReadOnlyList<string>> Defaults { get; } = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
     {
-        [EditorCommandIds.CompletionShow] = ["Ctrl+.", "Ctrl+Space"],
+        [EditorCommandIds.CompletionShow] = ["Ctrl+Space"],
         [EditorCommandIds.CompletionAi] = ["Ctrl+;"],
+        [EditorCommandIds.CompletionNext] = ["Down"],
+        [EditorCommandIds.CompletionPrevious] = ["Up"],
+        [EditorCommandIds.CompletionAccept] = ["Tab"],
+        [EditorCommandIds.CompletionAcceptEnter] = ["Enter"],
+        [EditorCommandIds.CompletionClose] = ["Escape"],
+        [EditorCommandIds.SnippetNext] = ["Tab"],
+        [EditorCommandIds.SnippetPrevious] = ["Shift+Tab"],
+        [EditorCommandIds.SnippetCancel] = ["Escape"],
         [EditorCommandIds.InlineAccept] = ["Tab"],
         [EditorCommandIds.InlineDismiss] = ["Escape"]
     };
@@ -36,12 +46,13 @@ public sealed record EditorKeyBindings
             if (bindings.Version != CurrentVersion) throw Invalid($"versão {bindings.Version} não suportada.");
             if (bindings.Bindings is null) throw Invalid("lista de atalhos ausente.");
             foreach (var command in bindings.Bindings.Keys)
-                if (!Defaults.ContainsKey(command)) throw Invalid($"comando '{command}' desconhecido.");
+                if (!EditorCommandIds.TryGetScope(command, out _)) throw Invalid($"comando '{command}' desconhecido.");
         }
         var effective = new Dictionary<string, IReadOnlyList<EditorKeyGesture>>(StringComparer.Ordinal);
-        var owners = new Dictionary<EditorKeyGesture, string>();
+        var owners = new Dictionary<(EditorCommandScope Scope, EditorKeyGesture Gesture), string>();
         foreach (var command in EditorCommandIds.All)
         {
+            _ = EditorCommandIds.TryGetScope(command, out var scope);
             string[]? custom = null;
             var overridden = bindings is not null && bindings.Bindings.TryGetValue(command, out custom);
             IReadOnlyList<string>? texts = overridden ? custom : Defaults[command];
@@ -50,8 +61,13 @@ public sealed record EditorKeyBindings
             for (var index = 0; index < texts.Count; index++)
             {
                 if (!EditorKeyGesture.TryParse(texts[index], out var gesture, out var error)) throw Invalid($"{error} (comando '{command}').");
-                if (!owners.TryAdd(gesture, command))
-                    throw Invalid(owners[gesture] == command ? $"gesto '{gesture}' repetido em '{command}'." : $"gesto '{gesture}' atribuído a '{owners[gesture]}' e '{command}'.");
+                if (!owners.TryAdd((scope, gesture), command))
+                {
+                    var owner = owners[(scope, gesture)];
+                    throw Invalid(owner == command
+                        ? $"gesto '{gesture}' repetido em '{command}' (escopo {scope})."
+                        : $"gesto '{gesture}' atribuído a '{owner}' e '{command}' no mesmo escopo {scope}.");
+                }
                 gestures[index] = gesture;
             }
             effective[command] = gestures;

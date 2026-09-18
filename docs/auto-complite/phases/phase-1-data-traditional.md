@@ -1,10 +1,26 @@
 # Fase 1 — Dados tradicionais e aprendizado dinâmico
 
-**Revisada em 15/09/2026: base implementada, aceite parcial.** Roadmap v0.6.0 (EDT-02); habilita Fase 2/3. Não reconstruir catálogo/benchmarks já existentes.
+**Revisada em 18/09/2026: K11–K16 e K16-b concluídos, aceite ainda parcial.** Roadmap v0.6.0 (EDT-02); habilita Fase 2/3. Não reconstruir catálogo/benchmarks já existentes.
 
 ## Estado da implementação
 
 LanguageDefinition/mongodb-language.v1.json, KnowledgeCatalog/NameTable, MetadataCache/MongoMetadataSource, SchemaBuilder, write-through/invalidations e AutocompleteMetrics/Benchmarks já existem no b082d4a. Campos de resultados são memoizados, mas aprendizado persistente ainda não existe. Detalhes em [current-state](../current-state.md).
+
+### K11–K16 e K16-b — concluídos em 18/09/2026
+
+Trabalho real entregue nesta rodada, sem reescrever o que já existia:
+
+- **K11 (escopo reduzido).** A mudança de contrato de `ConnectionIdentity` proposta originalmente foi **rejeitada**; o requisito passou a cobrir apenas travas de regressão sobre o comportamento já existente: cache esvaziado após `InvalidateEnvironment` e hosts distintos com o mesmo nome de namespace sem reuso cruzado entre conexões. Gerações por chave, single-flight, write-through com guarda de geração, `SampleSchemaAsync` protegido contra desconexão/invalidação, `Peek` propagado e `Changed` terminal por chave **já existiam com teste antes desta meta** — não são entrega deste lote, só ficaram cobertos pelas duas travas novas.
+- **K12.** Cancelamento adicionado ao scan de substring de `NameTable.Collect`, que antes varria a tabela inteira sem interrupção quando prefixo/camel humps não preenchiam o máximo pedido.
+- **K13.** Limite de cargas simultâneas no `MetadataCache`: no máximo 2 por conexão e 4 globais, evitando que uma aba com muitas coleções recém-abertas sature o pool de conexão.
+- **K14.** A memoização de mescla em `MetadataCatalogSource` deixou de ser um cache sem limite e virou LRU de 8 entradas.
+- **K15.** `CollectionSchema.Merge` deixou de aceitar `int.MaxValue` como teto implícito de profundidade/nós e passou a respeitar `SchemaMaximumDepth`/`SchemaMaximumNodes`.
+- **K16-b.** Cota por fonte em `KnowledgeCatalog.Query`: impede que uma fonte oculte totalmente outra quando ambas produzem candidatos do mesmo `kind`, mesmo com `MaximumCandidates` atingido. É pré-requisito de L15 (ainda não iniciado).
+
+### Ainda aberto na Fase 1
+
+- **K17** (relatório de performance do catálogo) não iniciado.
+- **Toda a fase L (L11–L16, schema learning persistido em LiteDB) não iniciada.** Nada neste lote grava schema aprendido em disco.
 
 ### Desvios em relação ao plano
 

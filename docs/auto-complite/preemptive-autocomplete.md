@@ -1,6 +1,8 @@
 # Autocomplete preemptivo (inline)
 
-Revisão de 15/09/2026. **Planejado**, além do dicionário lexical/ghost legados. Preemptivo descreve o disparo automático, não a tecnologia de geração.
+Revisão de 18/09/2026. **5.1 (Traditional Preemptive) implementado** desde o lote de 18/09/2026; 5.2 e 5.3 continuam **planejados**. Preemptivo descreve o disparo automático, não a tecnologia de geração.
+
+**Ordem de fonte efetiva do ghost, implementada em 5.1:** determinístico (`TraditionalPreemptiveCompletionProvider`) → dicionário lexical local → IA. A IA automática só entra com `InlineUseAi = true` **e** modelo já em `Ready` (LoadedOnly); nenhum caminho de digitação carrega, troca ou inicializa modelo. Detalhe e evidência em [phase-5-preemptive](phases/phase-5-preemptive.md#51-traditional-preemptive-completion--concluído-em-18092026-com-pendências-abertas).
 
 ```text
 Preemptive Completion
@@ -14,12 +16,14 @@ TraditionalPreemptiveCompletionProvider usa CompletionService e CompletionRanker
 
 Um InlineCompletionCoordinator por editor possui a sugestão automática. Um presenter atende todos os ghosts, inclusive IA explícita; não criar parser/ranker/renderizador por provider.
 
-## 5.1 Traditional Preemptive Completion
+## 5.1 Traditional Preemptive Completion — implementado em 18/09/2026
 
 ```text
 Edição → snapshot/cursor → Context Engine → Knowledge Catalog (Peek)
       → CompletionService → Ranking → confiança → Inline Suggestion
 ```
+
+Implementado por `InlineCompletionCoordinator`, `TraditionalPreemptiveCompletionProvider`, `InlineCompletionConfidence`, `InlineCompletionPolicy` e `InlineCompletionEditorState`, cobertos por 47 testes novos. Computação p95 ≤ 5 ms medida e atendida; edição → ghost p95 ≤ 20 ms medida e **não atendida** (17,6–27,1 ms de excedente sobre o debounce, dominado pela resolução do temporizador do Windows). Ver [performance](performance.md) e [phase-5-preemptive](phases/phase-5-preemptive.md).
 
 Fontes determinísticas: campos/tipos, operadores, métodos, collections, databases, stages, snippets, estruturas de filtros/updates. Sem modelo, rede, amostragem ou contexto IA. Cache ausente não dispara carga pelo automático: usar o disponível; enriquecimento vem do Explorer, comando explícito ou refresh autorizado.
 
@@ -87,6 +91,8 @@ Experimento futuro de extensão: só após 5.1/5.2, no máximo uma extensão, me
 ## Gatilhos e inibições
 
 Só edição elegível: ponto em receptor, prefixo de campo, abertura de objeto, dois-pontos, vírgula, parêntese e nova linha são categorias a avaliar. Cursor sem edição, seleção, perda de foco, IME, lista/snippet ativos, comentário/regex/número, sufixo conflitante e contexto desconhecido suspendem. Lookup dinâmico não herda última coleção.
+
+**IME — pendência de implementação, não só de homologação.** `InlineCompletionEditorState.Composing` existe e é respeitado pelo coordinator (testado), mas nenhum editor real publica esse estado: `ImeComposing` é sempre falso em produção. Até o editor propagar a composição de IME, a inibição descrita acima não vale fora dos testes.
 
 Esc suprime a âncora atual; refresh/resposta tardia não ressuscita ghost. Nova edição pode criar pedido. Trocar aba/destino/modo/preferências invalida tudo.
 

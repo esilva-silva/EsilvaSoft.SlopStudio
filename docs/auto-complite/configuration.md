@@ -24,6 +24,8 @@ Especificação de 15/09/2026; novos campos ainda **não implementados**. Evolui
 
 Delay adaptativo, pesos, margem de confiança, número de candidatos, linhas do ghost e orçamento total automático são constantes internas em `LanguageServiceOptions`, medidas antes de expor controles. Não acrescentar opções de ociosidade, warmup, alternativas ou Ctrl+→ nesta entrega.
 
+**Estado de implementação — lote de 18/09/2026 (5.1):** `InlineEnabled`, `InlineUseTraditional` e `InlineUseAi` existem como propriedades anuláveis de `AutocompleteSettings` e são lidas/gravadas pelo `InlineCompletionCoordinator`/`InlineCompletionPolicy`, com a migração descrita abaixo. **Nenhuma das três tem controle visual em `AutocompleteSettingsWindow`**: só são editáveis por quem altera o JSON persistido diretamente. A UI para essas flags é pendência de implementação, não apenas de homologação.
+
 ## Precedência
 
 ```text
@@ -38,12 +40,12 @@ Tradicional inline não depende de TraditionalEnabled; desligar lista não elimi
 
 ## Migração
 
-- Documento v1 antigo sem flags: preservar Enabled/Mode e derivar InlineUseTraditional de UseDictionary; InlineUseAi de Mode != Basic para conservar intenção do comportamento automático legado, sujeito ao novo gating LoadedOnly. Instalação nova usa false para IA automática. Aviso textual nas preferências explica o estado efetivo.
+- Documento v1 antigo sem flags: preservar Enabled/Mode e derivar InlineUseTraditional de UseDictionary. **InlineUseAi ausente é false também na migração** (decisão de 18/09/2026, W3): derivá-lo de Mode != Basic, como previa a redação anterior, ligaria inferência automática para praticamente toda instalação existente, o oposto do opt-in exigido pela meta; a IA explícita continua disponível e inalterada. Instalação nova usa false. Aviso textual nas preferências explica o estado efetivo (pendente).
 - Distinguir **campo ausente de false explícito** no DTO de leitura ou por presença JSON; não inferir migração apenas pelo inicializador da propriedade. `TraditionalEnabled` ausente = true, `InlineEnabled` ausente = true.
 - Modo Ai legado já permite dicionário; não reinterpretá-lo como exclusão do tradicional.
 - Opções UseEditorContext/UseResultPanelContext/UseInputPanelContext continuam governando contexto transitório. Persistir entrada JSON permanece opt-in separado; habilitar contexto não autoriza salvar Input.
 - Mesmas regras de falha: configuração ilegível não vira sessão vazia; erro de gravação fica visível e preserva estado. Nenhum resultado, prompt, credencial ou cache entra nos rascunhos.
-- Atalhos em `EditorKeyBindings` aditivo, sem tela nova: Ctrl+., alias Ctrl+Espaço, Ctrl+;, Tab/Enter/Esc. Validar conflitos/layouts conforme [editor](editor-integration.md).
+- Atalhos em `EditorKeyBindings` aditivo, sem tela nova: implementado em W0 (18/09/2026) com `Ctrl+Espaço` (básico), `Ctrl+;` (IA, sem runtime ainda), `Tab`/`Shift+Tab`/`Enter`/`Esc` por escopo. `Ctrl+.` saiu dos padrões; um override explícito já salvo continua legível e não é reescrito. Validar conflitos/layouts conforme [editor](editor-integration.md#atalhos).
 
 ## Aceite
 

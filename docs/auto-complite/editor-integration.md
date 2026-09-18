@@ -54,41 +54,40 @@ Substitui a sobreposição `InlineCompletionTextBlock` + `Canvas` ([preemptive-a
 
 ## Arbitragem de teclado
 
-Prioridade de estados: **lista aberta › sessão de snippet › ghost visível › IA pendente › nenhum**.
+**Estado: implementado (lote W0, 18/09/2026).** Build 0 avisos; suíte 1170 aprovados, 0 falhas.
 
-| Tecla | Lista aberta | Snippet ativo | Ghost visível | IA pendente | Nenhum |
-| --- | --- | --- | --- | --- | --- |
-| `Tab` | Aceita item | Próximo placeholder | Aceita (inteiro ou incremental) | Comportamento normal | Normal |
-| `Shift+Tab` | — | Placeholder anterior | Normal | Normal | Normal |
-| `Enter` | Aceita item (configurável) | Encerra snippet e insere linha | Nova linha, descarta ghost | Nova linha, cancela | Normal |
-| `Esc` | Fecha lista | Encerra snippet | Descarta ghost | Cancela geração | Cancela execução em andamento (global, existente) |
-| `↑`/`↓` | Navega | Normal | Descarta e move cursor | Cancela e move | Normal |
-| `Ctrl+.` | Recalcula | Abre lista | Oculta ghost, abre lista | Cancela IA, abre lista | Abre lista |
-| `Ctrl+;` | Fecha lista, pede IA | Encerra snippet, pede IA | Substitui ghost por IA | Ignora | Pede IA |
-| `Alt+]` / `Alt+[` | — | — | Próxima/anterior alternativa | — | — |
-| `Ctrl+→` | Normal | Normal | Aceita próxima palavra (se habilitado) | Normal | Normal |
+`EditorCommandScope { Global, List, Snippet, Inline }` substitui a tabela de precedência descritiva por resolução por escopo: `EditorCommandDispatcher.Match(keyEvent, scope)` responde só dentro do escopo consultado, e quem decide qual escopo consultar primeiro é o chamador do editor (lista aberta › sessão de snippet › ghost visível › global). O mesmo gesto pode ser o padrão de comandos diferentes em escopos diferentes — é isso que permite `Tab` aceitar item da lista, avançar placeholder de snippet e aceitar ghost, e `Esc` fechar cada um desses três estados; duplicidade **dentro do mesmo escopo** é inválida e nunca é resolvida silenciosamente ([`EditorKeyBindings`](../../src/EsilvaSoft.SlopStudio.Core/EditorKeyBindings.cs)).
 
-`F6`, `Ctrl+Enter`, `F5`, `Ctrl+T/W/O/S` e `Ctrl+Tab` permanecem inalterados.
+Doze comandos ([`EditorCommandIds`](../../src/EsilvaSoft.SlopStudio.Core/EditorCommandIds.cs)), todos rebindáveis:
+
+| Comando | Escopo | Padrão |
+| --- | --- | --- |
+| `editor.completion.show` | Global | `Ctrl+Espaço` |
+| `editor.completion.ai` | Global | `Ctrl+;` |
+| `editor.completion.next` | List | `↓` |
+| `editor.completion.previous` | List | `↑` |
+| `editor.completion.accept` | List | `Tab` |
+| `editor.completion.accept.enter` | List | `Enter` (governado por `CompletionEnterAccepts`) |
+| `editor.completion.close` | List | `Esc` |
+| `editor.snippet.next` | Snippet | `Tab` |
+| `editor.snippet.previous` | Snippet | `Shift+Tab` |
+| `editor.snippet.cancel` | Snippet | `Esc` |
+| `editor.inline.accept` | Inline | `Tab` |
+| `editor.inline.dismiss` | Inline | `Esc` |
+
+`F6`, `Ctrl+Enter`, `F5`, `Ctrl+T/W/O/S` e `Ctrl+Tab` permanecem inalterados e fora deste registro. `editor.completion.ai` já é reconhecido e marca a tecla como tratada, mas não tem runtime nesta entrega: nunca insere `;`, nunca abre a lista tradicional no lugar e nunca dispara consulta; a aba apenas informa indisponibilidade de forma discreta. A IA explícita propriamente dita pertence à Fase 4 e continua **não implementada**.
 
 ## Atalhos
 
-Não existe sistema de keybindings. É proposto um registro mínimo de comandos, sem tela de edição nesta meta.
+`EditorKeyBindings { Version = 1, Bindings: comando → gestos }` é aditivo em `WorkspacePreferences`, sem tela de edição nesta meta.
 
-| Comando | Padrão |
-| --- | --- |
-| `editor.completion.show` | `Ctrl+.`, `Ctrl+Espaço` |
-| `editor.completion.ai` | `Ctrl+;` |
-| Disparo inline manual adicional | Adiado; Ctrl+; atende IA explícita |
-| `editor.inline.accept` | `Tab` |
-| Aceite por palavra adicional | Adiado; reutilizar Tab incremental |
-| `editor.inline.dismiss` | `Esc` |
-| Alternativas inline | Adiadas; um candidato inicial |
-
-- **Persistência:** `EditorKeyBindings { Version = 1, Bindings: comando → gestos }`, aditivo em `WorkspacePreferences`. Ausente → padrões. Validação segue o padrão existente: valor inválido torna a sessão ilegível e ela nunca é sobrescrita.
-- **Despacho:** `EditorCommandDispatcher` no handler de túnel do editor substitui os `if` de `EditorKeyDown`; `MainWindow.OnWorkspaceKeyDown` consulta o dispatcher antes das regras globais.
-- **Layout de teclado:** teclas nomeadas casam por `Key` + modificadores. Pontuação (`.`, `;`, `]`, `[`, `\`) casa primeiro por `KeyEventArgs.KeySymbol` (caractere produzido pelo layout) e, na ausência, por `PhysicalKey`. Isso evita que `Ctrl+;` dispare pela tecla física de `;` do layout US em teclados ABNT2, onde a posição e o código virtual diferem. Com `Ctrl` pressionado, algumas plataformas podem não entregar `KeySymbol`; validar em Windows (US e ABNT2) e Linux (X11 e Wayland).
-- **Conflitos conhecidos:** `Ctrl+.` é usado por alguns IMEs asiáticos para alternar pontuação; documentar no guia. `Ctrl+Espaço` alterna IME em alguns sistemas — por isso `Ctrl+.` passa a ser o principal.
-- **Documentação:** tabela de atalhos de [17 — Design system](../17-design-system-ui-ux.md) atualizada na Fase 2.
+- **Persistência:** ausente → padrões. Validação segue o padrão existente: comando desconhecido, lista de gestos nula, gesto malformado, gesto repetido/atribuído a dois comandos **no mesmo escopo** ou versão diferente de 1 tornam a sessão ilegível, com falha visível, e ela nunca é sobrescrita (leitura, gravação e autosave). `EditorKeyBindings.CurrentVersion` permanece `1`; não há migração de dado.
+- **Compatibilidade com `Ctrl+.`:** `Ctrl+.` foi removido dos padrões (decisão explícita do produto, ver [AC-08](decisions.md#ac-08--atalhos)). Como os padrões nunca são materializados na sessão, `editor.completion.show: ["Ctrl+."]` só existe em disco como override explícito que o usuário já tinha salvo; esse override continua legível e funcional, e nunca é removido, adicionado ou reescrito em uma sessão existente.
+- **Despacho:** `EditorCommandDispatcher.Match` recebe o evento normalizado (`EditorKeyEvent`) e o escopo já escolhido pelo chamador; `WorkspaceTabView.Autocomplete.cs` consulta List, depois Snippet, depois Inline e por fim Global.
+- **Layout de teclado (correção de defeito):** a decisão de casamento passou a ser pela **espécie do gesto**, não por uma cadeia de `||`. Gesto de tecla nomeada (`Tab`, `Enter`, `Esc`, setas) casa por identidade de tecla (`PhysicalKey`); gesto de pontuação (`.`, `;`, `]`, `[`, `\`) casa pelo símbolo produzido pelo layout ativo e, na ausência, pelo símbolo físico. Um evento sem tecla e sem símbolo (`EditorKeyEvent.HasTrigger == false`, como um modificador pressionado sozinho) nunca casa com nada. Antes da correção, `Matches` terminava em `gesture.Key == keyEvent.PhysicalKey || gesture.Symbol == keyEvent.PhysicalSymbol`; uma tecla modificadora produz `Symbol`, `PhysicalKey` e `PhysicalSymbol` todos `null`, então `null == null` casava indevidamente com `Ctrl+.` e com `Ctrl+Espaço` — `Ctrl` sozinho abria a lista. O mesmo defeito fazia uma tecla desconhecida sem modificador casar com `Tab` e aceitar o ghost text. Dois outros defeitos foram corrigidos no mesmo lote: gestos ligados a `Enter` nunca casavam porque o enum `Key` do Avalonia nomeia o valor físico `"Return"` e `EditorKey` o chama de `Enter`; e a navegação por `↑`/`↓` era um no-op silencioso porque substituir o `ItemsSource` por um array com a mesma instância selecionada fazia o `ListBox` reemitir `SelectionChanged` e desfazer o movimento recém-aplicado.
+- **Conflitos conhecidos (limitação, não resolvida):** com `Ctrl+.` fora dos padrões, `Ctrl+Espaço` é o único disparo padrão do autocomplete básico explícito e **colide com a troca de método de entrada (IME) em Windows e Linux**. Esta meta não entrega tela de edição de atalhos; o único contorno para quem é afetado é um override manual em `EditorKeyBindings` gravando outro gesto para `editor.completion.show`. `Ctrl+;` pode colidir com pontuação de alguns IMEs asiáticos.
+- **Documentação:** tabela de atalhos de [17 — Design system](../17-design-system-ui-ux.md) e correção de decisão em [AC-08](decisions.md#ac-08--atalhos) atualizadas nesta entrega.
+- **Pendente:** homologação em layouts físicos reais (ABNT2 e US em Windows; X11 e Wayland em Linux), IME real e leitor de tela. Teste Headless não substitui nenhuma dessas.
 
 ## Foco, seleção e IME
 

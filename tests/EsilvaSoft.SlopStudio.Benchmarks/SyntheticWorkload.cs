@@ -52,8 +52,8 @@ public sealed class SyntheticMetadataSource(int collections, int fields, bool va
 
     public Task<IReadOnlyList<string>> ListDatabaseNamesAsync(ConnectionProfile profile, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<string>>(["db"]);
 
-    public Task<IReadOnlyList<string>> ListCollectionNamesAsync(ConnectionProfile profile, string database, CancellationToken cancellationToken) =>
-        Task.FromResult(CollectionNames);
+    public Task<IReadOnlyList<CollectionEntry>> ListCollectionNamesAsync(ConnectionProfile profile, string database, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<CollectionEntry>>(CollectionNames.Select(name => new CollectionEntry(name, CollectionKind.Unknown)).ToArray());
 
     public Task<CollectionDefinition?> GetCollectionDefinitionAsync(ConnectionProfile profile, string database, string collection, CancellationToken cancellationToken) =>
         Task.FromResult<CollectionDefinition?>(new(collection, CollectionKind.Collection,

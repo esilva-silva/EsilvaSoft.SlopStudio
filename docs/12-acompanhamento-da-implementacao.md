@@ -1,5 +1,111 @@
 ﻿# Acompanhamento da implementação
 
+## Fase 1 (K11–K16, K16-b) e Fase 5.1 (Traditional Preemptive) — 18/09/2026
+
+Build `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore`: **0 avisos, 0 erros**. Suíte
+`dotnet test EsilvaSoft.SlopStudio.slnx --no-build --no-restore`: **1273 aprovados, 0 falhas** (baseline de entrada: 1154).
+
+### Fase 1 — K11–K16 e K16-b
+
+Trabalho real entregue, sem reconstruir catálogo/benchmarks já existentes: cancelamento no scan de substring de
+`NameTable.Collect` (K12); limite de cargas simultâneas no `MetadataCache` — 2 por conexão, 4 globais (K13); a
+memoização de mescla em `MetadataCatalogSource` virou LRU de 8 entradas (K14); `CollectionSchema.Merge` deixou de usar
+`int.MaxValue` como teto implícito e passou a respeitar `SchemaMaximumDepth`/`SchemaMaximumNodes` (K15); cota por fonte
+em `KnowledgeCatalog.Query` que impede uma fonte de ocultar totalmente outra quando ambas produzem candidatos do mesmo
+`kind` (K16-b), pré-requisito de L15.
+
+**K11 teve o escopo reduzido**: a mudança de contrato de `ConnectionIdentity` proposta originalmente foi rejeitada.
+Gerações por chave, single-flight, write-through com guarda de geração, `SampleSchemaAsync` protegido contra
+desconexão/invalidação, `Peek` propagado e `Changed` terminal por chave **já existiam com teste antes desta meta** —
+não são entrega deste lote. K11 ganhou duas travas de regressão novas: cache esvaziado após `InvalidateEnvironment` e
+hosts distintos com o mesmo nome de namespace sem reuso cruzado entre conexões.
+
+**Ainda aberto na Fase 1:** K17 (relatório de performance do catálogo) não iniciado; **toda a fase L (L11–L16, schema
+learning persistido em LiteDB) não iniciada**. Detalhe em
+[phase-1-data-traditional](auto-complite/phases/phase-1-data-traditional.md#k11k16-e-k16-b--concluídos-em-18092026).
+
+### Fase 5.1 — Traditional Preemptive Completion
+
+Entregue `TraditionalPreemptiveCompletionProvider` (determinístico, `MetadataAccess.Peek`, sem rede/ONNX/I-O),
+`InlineCompletionConfidence` (abstenção por prefixo vazio, catálogo truncado, palavra completa, snippet, mais de uma
+continuação estrita, continuação fora do top-1 ou margem top-1/top-2 abaixo de 0,20), `InlineCompletionCoordinator`
+com debounce por `TimeProvider` e uma pendência substituível por editor, `InlineCompletionPolicy` e
+`InlineCompletionEditorState`. 47 testes novos cobrem relógio falso (20 teclas abaixo do debounce → zero computação;
+a pausa gera exatamente uma), os sete gatilhos de cancelamento, provider que ignora cancelamento tendo o resultado
+descartado, isolamento entre abas, funcionamento sem modelo/MongoDB, supressão pelo automático quando a lista
+explícita está aberta, combinações das flags, LoadedOnly em três fases, migração, abstenção por
+ambiguidade/truncamento e aceite como operação única de undo sem executar consulta.
+
+**A fonte padrão do ghost automático mudou**: a ordem passou a ser determinístico → dicionário lexical local → IA. A
+IA automática só é alcançada com `InlineUseAi = true` **e** modelo já em `Ready` (LoadedOnly); nenhum caminho de
+digitação carrega, troca ou inicializa modelo. `AiAutocompleteProvider` foi preservado, apenas deixou de ser o padrão.
+
+Flags aditivas em `AutocompleteSettings`, persistidas como anuláveis para distinguir **ausente** de **`false`
+explícito**: `InlineEnabled` (efetivo `?? true`), `InlineUseTraditional` (efetivo `?? UseDictionary`), `InlineUseAi`
+(efetivo `?? false`, inclusive na migração de documento v1 antigo — decisão de 18/09/2026, W3, registrada em
+[configuration](auto-complite/configuration.md#migração): a redação anterior da especificação mandava derivar
+`InlineUseAi` de `Mode != Basic` na migração, o que ligaria inferência automática em praticamente toda instalação
+existente; a implementação usa `false` também na migração, mantendo o opt-in exigido).
+
+**Pendências que não podem ser declaradas resolvidas:**
+
+- **IME.** `InlineCompletionEditorState.Composing` existe e é respeitado pelo coordinator (testado), mas o editor
+  **não publica** o estado de composição — `ImeComposing` é sempre falso em produção. A regra "não sugerir durante
+  composição de IME" é pendência de implementação, não de homologação.
+- **Sem UI para as três flags inline** em `AutocompleteSettingsWindow`; só editáveis pelo JSON persistido.
+- **Edição → ghost, meta de 20 ms: NÃO atendida.** Medido em Headless com debounce de 50 ms: excedente de
+  17,6–27,1 ms sobre o debounce (primeira sugestão do processo 92/112/108 ms; aquecida 77/68/77 ms). O trabalho de
+  geração é ~0,07 ms; o excedente é dominado pela resolução do temporizador do Windows (~15,6 ms) mais dois saltos de
+  despachante. A meta não foi ajustada. Computação p95 ≤ 5 ms **é atendida** (catálogo de linguagem: p95 0,009 ms;
+  200 campos de schema: p95 0,068 ms). Ver [performance](auto-complite/performance.md).
+- Matriz de 18 PNGs de homologação visual não produzida nesta entrega.
+- Fases 3, 4, 5.2 e 5.3 não iniciadas; `Ctrl+;` continua apenas informando indisponibilidade.
+- Homologação real (layouts físicos ABNT2/US em Windows e Linux X11/Wayland, IME real, leitor de tela, MongoDB real,
+  modelos ONNX reais) não executada.
+
+Também registrado nesta rodada: ganho medido do cache de tokens da Fase 2 (BenchmarkDotNet, Ryzen 9 7900, Windows 11
+25H2, .NET 10.0.12) — análise por tecla voltou ao patamar da baseline (1 MiB/meio: 7,78 → 7,38 ms) e o refiltro com a
+lista aberta ficou muito mais barato (64 KiB/fim 0,37×; 1 MiB/meio 0,14×; 1 MiB/início 71 ns). Detalhe completo em
+[performance](auto-complite/performance.md), [preemptive-autocomplete](auto-complite/preemptive-autocomplete.md) e
+[phase-5-preemptive](auto-complite/phases/phase-5-preemptive.md).
+
+## W0 — Política de atalhos do autocomplete (18/09/2026) — CONCLUÍDO
+
+Lote reservado à política de teclado do autocomplete determinístico, sem tela de edição de atalhos. Build 0 avisos;
+suíte completa **1170 aprovados, 0 falhas**.
+
+- `EditorCommandScope { Global, List, Snippet, Inline }` (novo) e doze `EditorCommandIds` substituem a arbitragem
+  descritiva por resolução por escopo: `EditorCommandDispatcher.Match(keyEvent, scope)` responde só dentro do escopo
+  consultado pelo chamador (lista aberta › sessão de snippet › ghost visível › global). O mesmo gesto pode ser padrão
+  de comandos diferentes em escopos diferentes (`Tab`/`Esc` servem lista, snippet e ghost); duplicidade **no mesmo
+  escopo** torna a sessão ilegível.
+- **`Ctrl+.` removido dos padrões** por decisão explícita do produto. `Ctrl+Espaço` é agora o único gatilho padrão do
+  básico explícito; `Ctrl+;` continua reconhecido para IA explícita, mas sem runtime — nunca insere `;`, nunca abre a
+  lista tradicional no lugar, nunca dispara consulta; a aba apenas informa indisponibilidade. Como os padrões nunca são
+  gravados na sessão, um override de `Ctrl+.` já salvo por um usuário continua legível e funcional, e nunca é
+  removido, adicionado ou reescrito. `EditorKeyBindings.CurrentVersion` permanece `1`; não há migração de dado.
+- **Três defeitos corrigidos** em `EditorCommandDispatcher.Matches`: (1) `Ctrl` sozinho abria a lista e uma tecla
+  desconhecida sem modificador aceitava o ghost, porque a decisão terminava em
+  `gesture.Key == keyEvent.PhysicalKey || gesture.Symbol == keyEvent.PhysicalSymbol` e um evento só com modificador
+  produz `Symbol`/`PhysicalKey`/`PhysicalSymbol` todos `null`, casando por `null == null`; a correção decide pela
+  espécie do gesto (tecla nomeada por identidade de tecla; pontuação pelo símbolo produzido pelo layout, com o físico
+  como alternativa) e um evento sem `HasTrigger` nunca casa. (2) Gestos ligados a `Enter` físico nunca casavam, porque
+  o enum `Key` do Avalonia nomeia o valor físico `"Return"` e `EditorKey` o chama de `Enter`. (3) A navegação por
+  `↑`/`↓` era um no-op silencioso: trocar o `ItemsSource` por um array com a mesma instância selecionada fazia o
+  `ListBox` reemitir `SelectionChanged` e desfazer o movimento recém-aplicado.
+- Mudança de cursor e de seleção agora apenas invalidam/cancelam a sugestão; só alteração de texto agenda uma nova.
+- Textos de UI passaram a derivar dos gestos efetivos (`WorkspaceTabViewModel.GestureText`), com projeção de exibição
+  em pt-BR (`↑`, `↓`, `Esc`, `Ctrl+Espaço`); o formato canônico persistido (`EditorKeyGesture.ToString()`) não mudou.
+- **Limitação conhecida, registrada e não resolvida:** sem `Ctrl+.`, `Ctrl+Espaço` é o único disparo padrão do básico
+  e colide com a troca de método de entrada (IME) em Windows e Linux. Esta meta não entrega tela de edição de
+  atalhos; o único contorno para quem é afetado é um override manual em `EditorKeyBindings`.
+- **Pendências que não podem ser declaradas concluídas:** homologação em layouts físicos reais (ABNT2 e US em
+  Windows; X11 e Wayland em Linux), IME real, leitor de tela e MongoDB real — teste Headless não substitui nenhuma
+  delas. As Fases 1, 3, 4 e 5 do plano de autocomplete seguem em aberto; W0 cobriu somente a política de teclado.
+
+Detalhe: [editor-integration.md](auto-complite/editor-integration.md#arbitragem-de-teclado),
+[AC-08](auto-complite/decisions.md#ac-08--atalhos) e [estado da Fase 2](auto-complite/phases/phase-2-traditional-autocomplete.md#estado-da-implementação).
+
 ## Autocomplete tradicional — fechamento de lacunas (17/09/2026) — CONCLUÍDO
 
 Entrega focada em fechar defeitos que violavam critérios de aceite do autocomplete determinístico, mais o backlog já

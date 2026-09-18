@@ -9,6 +9,7 @@ using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Autocomplete.Core.Completion;
 using EsilvaSoft.SlopStudio.Autocomplete.Core.Context;
 using EsilvaSoft.SlopStudio.Autocomplete.Core.Text;
+using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 namespace EsilvaSoft.SlopStudio.Desktop;
@@ -79,12 +80,39 @@ public partial class WorkspaceTabView
 
     private void RefreshTraditionalCompletionList()
     {
+        // Captured before ItemsSource changes: assigning a new array that still contains the same selected item
+        // instance makes the ListBox keep that old selection and raise SelectionChanged for it before we get to set
+        // SelectedItem below. TraditionalCompletionSelectionChanged would otherwise feed that stale reselection back
+        // into the presenter (undoing Move/Select), so the explicit SelectedItem assignment must use this captured
+        // value instead of re-reading _traditionalPresenter.Selected after ItemsSource has already round-tripped it.
+        var desired = _traditionalPresenter.Selected;
         TraditionalCompletionList.ItemsSource = _traditionalPresenter.Items.ToArray();
-        TraditionalCompletionList.SelectedItem = _traditionalPresenter.Selected;
+        TraditionalCompletionList.SelectedItem = desired;
         TraditionalCompletionStatus.Text = _traditionalPresenter.Items.Count == 0
             ? "Nenhuma sugestão corresponde ao texto atual"
-            : $"{_traditionalPresenter.Items.Count} itens{(_traditionalCompletionIncomplete ? " · dados ainda carregando" : "")} · ↑↓ mover · Enter/Tab aceita · Esc fecha";
-        ResolveTraditionalDocumentation(_traditionalPresenter.Selected);
+            : $"{_traditionalPresenter.Items.Count} itens{(_traditionalCompletionIncomplete ? " · dados ainda carregando" : "")} · {TraditionalCompletionShortcutsText()}";
+        ResolveTraditionalDocumentation(desired);
+    }
+
+    /// <summary>
+    /// Formats the effective gestures for the list's own commands instead of a fixed "↑↓ mover · Enter/Tab aceita ·
+    /// Esc fecha": a session that rebinds any of them would otherwise leave the status line describing a shortcut
+    /// that no longer works.
+    /// </summary>
+    private string TraditionalCompletionShortcutsText()
+    {
+        if (DataContext is not WorkspaceTabViewModel tab) return "";
+        var move = JoinGestures(tab.GestureText(EditorCommandIds.CompletionPrevious), tab.GestureText(EditorCommandIds.CompletionNext));
+        var accept = JoinGestures(tab.GestureText(EditorCommandIds.CompletionAcceptEnter), tab.GestureText(EditorCommandIds.CompletionAccept));
+        var close = JoinGestures(tab.GestureText(EditorCommandIds.CompletionClose));
+        return $"{move} mover · {accept} aceita · {close} fecha";
+    }
+
+    /// <summary>Distinct, non-empty gesture texts joined by "/"; "atalho não configurado" when every one is unbound.</summary>
+    private static string JoinGestures(params string?[] gestures)
+    {
+        var distinct = gestures.Where(gesture => !string.IsNullOrEmpty(gesture)).Distinct().ToArray();
+        return distinct.Length == 0 ? "atalho não configurado" : string.Join("/", distinct);
     }
 
     /// <summary>Immediately before the caret: the two characters this editor treats as automatic-open triggers.
@@ -119,10 +147,17 @@ public partial class WorkspaceTabView
         if (this.FindControl<Border>("TraditionalCompletionPanel") is { } panel) panel.IsVisible = false;
     }
 
+    /// <summary>
+    /// Reads the native, anchor-tracked <c>CaretOffset</c> instead of the wrapped <c>CaretIndex</c> property, exactly
+    /// like <see cref="IsTraditionalTriggerCharacterAtCaret"/>: while a Text change notification for a genuine
+    /// keystroke is still running, <c>CaretIndex</c> can still hold the pre-keystroke value (it only catches up once
+    /// its own, separately-raised property change fires). Using the stale wrapper here would filter the list one
+    /// character behind whatever the user just typed.
+    /// </summary>
     private string CurrentCompletionPrefix()
     {
         var text = CodeEditor.Text ?? "";
-        var caret = Math.Clamp(CodeEditor.CaretIndex, 0, text.Length);
+        var caret = Math.Clamp(CodeEditor.CaretOffset, 0, text.Length);
         var start = caret;
         while (start > 0 && (char.IsLetterOrDigit(text[start - 1]) || text[start - 1] is '_' or '$')) start--;
         return text[start..caret];
@@ -152,6 +187,14 @@ public partial class WorkspaceTabView
             CodeEditor.SelectionStart = CodeEditor.SelectionEnd = CodeEditor.CaretIndex;
         }
         finally { _acceptingCompletion = false; }
+        // List > Snippet precedence (ARB-05): accepting a list item opened from inside an active placeholder must
+        // not silently end the snippet session. The edit above already ran under _acceptingCompletion, so
+        // EditorCompletionChanged never touched _snippetSession; reanchor its placeholders by this edit's delta
+        // instead, or end the session explicitly if the edit cannot be attributed safely to the active placeholder
+        // (e.g. it crosses its boundary) — never leave stale offsets that a later Tab would navigate wrongly.
+        if (placeholders is null && _snippetSession is { } activeSnippet
+            && !activeSnippet.TryReanchorAfterEdit(replacement, text.Length, CodeEditor.Text ?? ""))
+            _snippetSession = null;
         // Capturado antes de fechar a lista, que descarta o contexto: aceite e ranqueamento usam a mesma chave.
         if (DataContext is WorkspaceTabViewModel accepted)
         {

@@ -165,6 +165,44 @@ public sealed class MetadataCacheTests
     }
 
     [Test]
+    public async Task BackgroundLoadsOfDistinctKeysAreBoundedAcrossTheConnection()
+    {
+        var source = new FakeMetadataSource { Gate = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        using var cache = new MetadataCache(source, options: new() { MaximumConcurrentLoadsPerConnection = 2, MaximumConcurrentLoadsGlobal = 2 });
+        cache.Connect(Profile);
+        // A burst of six distinct keys of the same connection (six different collections' indexes) must queue past the cap
+        // instead of opening one call per key.
+        var tasks = Enumerable.Range(0, 6).Select(index => cache.RefreshAsync(new(Identity, MetadataScope.Indexes, "loja", $"c{index}"))).ToArray();
+        await WaitUntilAsync(() => source.Calls == 2);
+        await Task.Delay(50);
+        Assert.Multiple(() =>
+        {
+            Assert.That(source.Calls, Is.EqualTo(2), "Only the configured cap reaches the source while the rest of the burst is still queued.");
+            Assert.That(source.MaxConcurrent, Is.LessThanOrEqualTo(2));
+        });
+        source.Gate.SetResult();
+        await Task.WhenAll(tasks);
+        Assert.That(source.Calls, Is.EqualTo(6), "Every queued key is eventually loaded once slots free up.");
+    }
+
+    [Test]
+    public async Task DisconnectDuringAQueuedBackgroundLoadNeverFaultsTheLoad()
+    {
+        var source = new FakeMetadataSource { Gate = new(TaskCreationOptions.RunContinuationsAsynchronously), IgnoreCancellation = true };
+        using var cache = new MetadataCache(source, options: new() { MaximumConcurrentLoadsPerConnection = 1, MaximumConcurrentLoadsGlobal = 1 });
+        cache.Connect(Profile);
+        cache.GetDatabases(Identity);
+        await WaitUntilAsync(() => source.Calls == 1);
+        // A second key of the same connection queues behind the per-connection gate instead of ever reaching the source.
+        cache.GetCollections(Identity, "loja");
+        cache.Disconnect(Profile.Id);
+        source.Gate.SetResult();
+        await WaitUntilAsync(() => source.Completed >= 1);
+        await Task.Delay(50);
+        Assert.That(cache.GetDatabases(Identity, MetadataAccess.Peek).Value, Is.Null, "Disconnection discards every result of the connection, queued or in flight.");
+    }
+
+    [Test]
     public async Task DefinitionsLoadPerCollectionWithValidatorAndKind()
     {
         var source = new FakeMetadataSource

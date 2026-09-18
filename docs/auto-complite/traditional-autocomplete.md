@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Lista contextual explícita (`Ctrl+.`, com `Ctrl+Espaço` como alias), totalmente determinística e funcional sem IA, com ranking, filtro enquanto se digita, tipos, snippets com placeholders, documentação tardia e faixa de substituição exata.
+Lista contextual explícita (`Ctrl+Espaço`), totalmente determinística e funcional sem IA, com ranking, filtro enquanto se digita, tipos, snippets com placeholders, documentação tardia e faixa de substituição exata. Desde o lote W0 (18/09/2026), `Ctrl+.` saiu dos padrões de teclado — ver [política de atalhos](editor-integration.md#atalhos) e [AC-08](decisions.md#ac-08--atalhos); um override explícito já salvo por um usuário continua funcionando.
 
 ## Fluxo
 

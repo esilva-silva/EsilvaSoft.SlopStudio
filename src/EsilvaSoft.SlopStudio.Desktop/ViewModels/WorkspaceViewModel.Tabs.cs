@@ -117,9 +117,11 @@ public sealed partial class WorkspaceViewModel
         tab.KnownSyntaxNamespaces = KnownSyntaxNamespaces;
         tab.Autocomplete = AutocompleteService;
         tab.TraditionalCompletion = TraditionalCompletion;
+        tab.InlinePreemptiveCompletion = InlinePreemptiveCompletion;
         tab.PipelineInputSchema = ResolvePipelineInputSchema;
         tab.CompletionUsage = CompletionUsage;
-        tab.KeyBindings = KeyBindings;
+        tab.Commands = Commands;
+        tab.Shortcuts = KeyBindings;
         tab.AiChat = AiChatService;
         tab.KnownAutocompleteNames = () => KnownAutocompleteNames(tab);
         tab.UuidPolicy = CaptureUuidPolicy(); Tabs.Add(tab); tab.DraftChanged += OnDraftChanged;

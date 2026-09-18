@@ -22,33 +22,63 @@ public static class NamespaceTargetResolver
         EditorDialects dialect = EditorDialects.Console, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(document);
+        if (!TryShortCircuit(document, caret, tabTarget, dialect, cancellationToken, out var target)) return target;
+
+        var lexed = new List<MongoToken>();
+        MongoLexer.Tokenize(document.AsSpan(), lexed, cancellationToken: cancellationToken);
+        return ResolveCore(document, lexed, caret, tabTarget, cancellationToken);
+    }
+
+    /// <summary>
+    /// Same resolution over tokens already produced for this exact document by <see cref="MongoLexer"/> in
+    /// <see cref="MongoLexerMode.Script"/> (e.g. the tokens of a cached syntax tree), so that typing does not lex twice.
+    /// Comments are filtered here: the caller passes the complete token stream of the document.
+    /// </summary>
+    public static NamespaceTarget Resolve(string document, IReadOnlyList<MongoToken> documentTokens, int caret,
+        NamespaceTarget? tabTarget = null, EditorDialects dialect = EditorDialects.Console, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(documentTokens);
+        if (!TryShortCircuit(document, caret, tabTarget, dialect, cancellationToken, out var target)) return target;
+        return ResolveCore(document, documentTokens, caret, tabTarget, cancellationToken);
+    }
+
+    /// <summary>False when the dialect or the document size already decides the answer, without reading any token.</summary>
+    private static bool TryShortCircuit(string document, int caret, NamespaceTarget? tabTarget, EditorDialects dialect,
+        CancellationToken cancellationToken, out NamespaceTarget target)
+    {
         ArgumentOutOfRangeException.ThrowIfNegative(caret);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(caret, document.Length);
         cancellationToken.ThrowIfCancellationRequested();
         if (dialect == EditorDialects.AggregationJson)
-            return tabTarget is null ? NamespaceTarget.Unknown : tabTarget with { Confidence = NamespaceTargetConfidence.TabDefault };
-        if (dialect is not (EditorDialects.Console or EditorDialects.MongoshScript) || document.Length > MaximumDocumentLength)
-            return NamespaceTarget.Unknown;
-
-        var tokens = new List<MongoToken>();
-        var state = default(MongoLexerState);
-        for (var start = 0; start < document.Length;)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var length = MongoLexer.LineLength(document, start);
-            var lexer = new MongoLexer(document.AsSpan(start, length), state, offset: start, cancellationToken: cancellationToken);
-            while (lexer.TryRead(out var token))
-            {
-                // Do not interpret roots inside opaque lexical content, including an open comment at EOF.
-                if (token.Start < caret && (caret < token.End || caret == token.End &&
-                    (!token.IsTerminated || token.Kind == MongoTokenKind.LineComment)) &&
-                    (token.IsComment || token.Kind is MongoTokenKind.Regex or MongoTokenKind.Template))
-                    return NamespaceTarget.Unknown;
-                if (!token.IsComment) tokens.Add(token);
-                if (tokens.Count > MaximumTokens) return NamespaceTarget.Unknown;
-            }
-            state = lexer.State;
-            start += length;
+            target = tabTarget is null ? NamespaceTarget.Unknown : tabTarget with { Confidence = NamespaceTargetConfidence.TabDefault };
+            return false;
+        }
+        if (dialect is not (EditorDialects.Console or EditorDialects.MongoshScript) || document.Length > MaximumDocumentLength)
+        {
+            target = NamespaceTarget.Unknown;
+            return false;
+        }
+        target = NamespaceTarget.Unknown;
+        return true;
+    }
+
+    private static NamespaceTarget ResolveCore(string document, IReadOnlyList<MongoToken> documentTokens, int caret,
+        NamespaceTarget? tabTarget, CancellationToken cancellationToken)
+    {
+        var tokens = new List<MongoToken>(Math.Min(documentTokens.Count, MaximumTokens + 1));
+        for (var index = 0; index < documentTokens.Count; index++)
+        {
+            if ((index & 255) == 0) cancellationToken.ThrowIfCancellationRequested();
+            var token = documentTokens[index];
+            // Do not interpret roots inside opaque lexical content, including an open comment at EOF.
+            if (token.Start < caret && (caret < token.End || caret == token.End &&
+                (!token.IsTerminated || token.Kind == MongoTokenKind.LineComment)) &&
+                (token.IsComment || token.Kind is MongoTokenKind.Regex or MongoTokenKind.Template))
+                return NamespaceTarget.Unknown;
+            if (!token.IsComment) tokens.Add(token);
+            if (tokens.Count > MaximumTokens) return NamespaceTarget.Unknown;
         }
         return new NamespaceChainReader(document, tokens, tabTarget, cancellationToken).Resolve(caret);
     }

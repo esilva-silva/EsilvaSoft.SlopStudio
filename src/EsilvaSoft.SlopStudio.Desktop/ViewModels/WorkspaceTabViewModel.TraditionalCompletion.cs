@@ -18,8 +18,47 @@ public sealed partial class WorkspaceTabViewModel
     /// compares it by reference, so a freshly built instance on every call would defeat the context cache.
     /// </summary>
     public Func<CatalogScope, CollectionSchema?>? PipelineInputSchema { get; set; }
-    /// <summary>Effective persisted shortcuts, supplied by the workspace that owns this tab.</summary>
-    public IReadOnlyDictionary<string, IReadOnlyList<EditorKeyGesture>> KeyBindings { get; set; } = EditorKeyBindings.Resolve(null);
+    /// <summary>
+    /// Single, stateless dispatcher instance supplied by the workspace composition root. Immutable and shared, so
+    /// <c>EditorKeyDown</c> reuses it for every key event of this tab instead of allocating one per keystroke.
+    /// </summary>
+    public EditorCommandDispatcher Commands { get; set; } = new(EditorKeyBindings.Resolve(null));
+    /// <summary>
+    /// Effective gestures behind <see cref="Commands"/>, supplied together with it. Kept only so UI text can show the
+    /// shortcut actually bound to a command (see <see cref="GestureText"/>) instead of a fixed default that a rebind
+    /// would leave wrong; the dispatcher itself never needs to enumerate its own bindings to match a key event.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<EditorKeyGesture>> Shortcuts { get; set; } = EditorKeyBindings.Resolve(null);
+    /// <summary>
+    /// First effective gesture bound to <paramref name="commandId"/>, written the way the shortcut table of
+    /// <c>docs/17-design-system-ui-ux.md</c> writes it ("Ctrl+Espaço", "↑", "Esc"); empty when unbound. The canonical
+    /// <see cref="EditorKeyGesture.ToString"/> is the persistence format and stays untouched: only this display
+    /// projection is localized, so a rebind still shows the gesture that actually works.
+    /// </summary>
+    public string GestureText(string commandId) =>
+        Shortcuts.TryGetValue(commandId, out var gestures) && gestures.Count > 0 ? DisplayText(gestures[0]) : "";
+
+    private static string DisplayText(EditorKeyGesture gesture)
+    {
+        var text = gesture.ToString();
+        var separator = text.LastIndexOf('+');
+        // "Ctrl++" binds the plus sign: its key token is the final '+', not the separator before it.
+        if (separator == text.Length - 1 && text.Length > 1) separator = text.LastIndexOf('+', separator - 1);
+        var modifiers = separator <= 0 ? "" : text[..(separator + 1)];
+        var key = separator < 0 ? text : text[(separator + 1)..];
+        return modifiers + key switch
+        {
+            "Up" => "↑",
+            "Down" => "↓",
+            "Left" => "←",
+            "Right" => "→",
+            "Escape" => "Esc",
+            "Space" => "Espaço",
+            "PageUp" => "Page Up",
+            "PageDown" => "Page Down",
+            _ => key
+        };
+    }
     /// <summary>Raised only when a metadata cache change can affect this tab's captured completion scope.</summary>
     public event EventHandler? TraditionalCompletionRefreshRequested;
 

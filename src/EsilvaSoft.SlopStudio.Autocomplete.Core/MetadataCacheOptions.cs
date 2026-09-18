@@ -13,4 +13,11 @@ public sealed record MetadataCacheOptions
     public int CollectionScopedEntriesPerConnection { get; init; } = 64;
     public int SchemaMaximumDepth { get; init; } = 12;
     public int SchemaMaximumNodes { get; init; } = 10_000;
+    /// <summary>
+    /// Caps how many background loads of one connection may reach the source at the same time. A burst of distinct keys
+    /// (databases, several collections' definitions/indexes) queues past this bound instead of opening one call per key.
+    /// </summary>
+    public int MaximumConcurrentLoadsPerConnection { get; init; } = 2;
+    /// <summary>Caps concurrent background loads across every connected profile, regardless of per-connection headroom.</summary>
+    public int MaximumConcurrentLoadsGlobal { get; init; } = 4;
 }

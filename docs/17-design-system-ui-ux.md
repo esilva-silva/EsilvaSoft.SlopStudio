@@ -1,5 +1,9 @@
 # Design system e revisão de UI/UX
 
+## Preferências de autocomplete expostas — lote W2c, 18/09/2026
+
+`AutocompleteSettingsWindow` ganha controles para as seis opções que já existiam em `AutocompleteSettings` mas só eram editáveis pelo JSON: `InlineEnabled`, `InlineUseTraditional`, `InlineUseAi`, `CompletionAutoOpenOnTrigger`, `CompletionEnterAccepts` e o rótulo do atraso já exposto. As três primeiras são anuláveis para distinguir "ausente" de "false explícito"; cada uma vira um CheckBox de dois estados ligado a um valor efetivo mais um botão **Usar padrão** visível só quando há override — tocar o CheckBox materializa o valor explícito, e apenas o botão devolve o campo ao estado ausente. Nenhum desses controles reescreve a sessão ao abrir a janela. Com a sugestão automática desligada, as duas opções de origem ficam desabilitadas sem perder o valor salvo, com texto explicando a dependência; outro texto esclarece que a IA automática só atua com modelo já carregado (LoadedOnly). Evidência: 18 PNGs `autocomplete-settings-*` (já existentes, regenerados) e novos `autocomplete-settings-inline-overrides-<tema>.png` em `AutocompleteUiTests`; inspeção em 660×680 claro/escuro confirmou contraste e alinhamento dos botões condicionais e a preservação do valor da IA local ao desabilitar visualmente. [Detalhe e limites](21-autocomplete-local.md).
+
 ## Consultas avançadas — incremento de 14/09/2026
 
 O menu existente de Ctrl+Espaço passa a mostrar campos derivados dos stages anteriores, com dica **Campo conhecido no contexto do pipeline**; nenhuma nova região ou cor. Teste com o editor real confirmou inserção no cursor e undo de `$total` produzido por `$group`, sem execução ou leitura remota. A inferência respeita campos locais/estrangeiros de `$lookup` e ramos de `$facet`; limites estão em [27](backlog/27-consultas-avancadas.md).
@@ -106,7 +110,12 @@ Resultados permanecem em Extended JSON, separados de stdout/stderr; consultas ma
 | --- | --- |
 | F5 | Executar conteúdo completo da aba |
 | Ctrl+Enter | Console: seleção ou statement no cursor; Script/Agregação: seleção ou conteúdo completo |
-| Ctrl+. / Ctrl+Espaço | Abre a lista contextual de sugestões (principal / alias); não abre com seleção ativa nem aplica resultado de texto/destino antigo |
+| Ctrl+Espaço | Abre a lista contextual de sugestões; não abre com seleção ativa nem aplica resultado de texto/destino antigo. Desde 18/09/2026 é o único gatilho padrão — `Ctrl+.` saiu dos padrões (ver limitação de IME abaixo) |
+| ↑ / ↓ | Navega a lista aberta |
+| Tab | Aceita item da lista, avança placeholder do snippet ou aceita o ghost (conforme o estado ativo) |
+| Shift+Tab | Volta ao placeholder anterior do snippet |
+| Enter | Aceita item da lista, se `CompletionEnterAccepts` (padrão habilitado) |
+| Esc | Fecha a lista, encerra o snippet ou descarta o ghost (conforme o estado ativo) |
 | Ctrl+T / Ctrl+O / Ctrl+S | Criar aba / abrir arquivo / salvar arquivo |
 | Ctrl+Tab / Ctrl+Shift+Tab | Alternar abas |
 | Ctrl+W | Fechar aba com tratamento de alterações e execução |
@@ -115,7 +124,7 @@ Resultados permanecem em Extended JSON, separados de stdout/stderr; consultas ma
 
 Ao fechar uma aba executando: interromper e aguardar ou cancelar o fechamento. Cancelamento informa que efeitos no servidor não são revertidos e podem ser incertos. Abas alteradas oferecem salvar, descartar ou cancelar. Confirmações destrutivas, auditoria e bloqueios de somente leitura continuam nas ferramentas existentes.
 
-Os atalhos do editor usam `EditorKeyBindings` persistido: a preferência substitui os gestos padrão de cada comando. Para pontuação, o editor prioriza o símbolo produzido pelo layout; sem símbolo, usa a tecla física QWERTY como fallback. Assim, `Ctrl+.` funciona em ABNT2 e um símbolo diferente nunca dispara pelo código físico US.
+Os atalhos do editor usam `EditorKeyBindings` persistido: a preferência substitui os gestos padrão de cada comando dentro do mesmo `EditorCommandScope` (Global/List/Snippet/Inline); o mesmo gesto pode continuar sendo o padrão de comandos diferentes em escopos diferentes. Uma tecla nomeada (`Tab`, `Enter`, `Esc`, setas) casa por identidade de tecla; pontuação (`.`, `;`) casa pelo símbolo produzido pelo layout ativo e, sem símbolo, pela tecla física como fallback — assim um símbolo diferente nunca dispara pelo código físico US. **Limitação conhecida:** desde que `Ctrl+.` saiu dos padrões, `Ctrl+Espaço` é o único gatilho padrão do autocomplete básico e colide com a troca de IME em Windows e Linux; não há tela de edição de atalhos nesta entrega, então o contorno é um override manual salvo em `EditorKeyBindings` (um valor `Ctrl+.` já salvo continua funcionando e nunca é reescrito). Detalhe em [auto-complite/editor-integration.md](auto-complite/editor-integration.md#atalhos) e [AC-08](auto-complite/decisions.md#ac-08--atalhos).
 
 ### Recuperação e privacidade
 
@@ -249,4 +258,8 @@ Evidência: `ModelDownloadUiTests`, 18 PNGs `model-download-<tema>-<largura>-<es
 
 ## Revisão do plano de autocomplete — 15/09/2026
 
-Contrato futuro: lista Ctrl+. (alias Ctrl+Espaço), IA explícita Ctrl+;, ghost tradicional e IA usando um presenter com arbitragem previsível; padrão híbrido não troca ghost tradicional visível. Tab/Esc/Enter/F6, foco/IME, recursos semânticos e evidência de 18 combinações mantidos. Correção antes do cursor fica na lista até prévia representável. Schema Learning não bloqueia resultados e informa falha persistente discretamente. Nada disso altera layout/atalhos atuais nesta revisão; não gerados novos PNGs. [Plano revisado](auto-complite/README.md), [tarefas por agente](auto-complite/execution-plan.md) e [schema learning](auto-complite/schema-learning.md).
+Contrato futuro (histórico, revisto pelo lote W0 abaixo): lista Ctrl+. (alias Ctrl+Espaço), IA explícita Ctrl+;, ghost tradicional e IA usando um presenter com arbitragem previsível; padrão híbrido não troca ghost tradicional visível. Tab/Esc/Enter/F6, foco/IME, recursos semânticos e evidência de 18 combinações mantidos. Correção antes do cursor fica na lista até prévia representável. Schema Learning não bloqueia resultados e informa falha persistente discretamente. Nada disso altera layout/atalhos atuais nesta revisão; não gerados novos PNGs. [Plano revisado](auto-complite/README.md), [tarefas por agente](auto-complite/execution-plan.md) e [schema learning](auto-complite/schema-learning.md).
+
+## Política de atalhos do autocomplete (W0) — implementada em 18/09/2026
+
+O produto decidiu remover `Ctrl+.` dos padrões: `Ctrl+Espaço` passou a ser o único gatilho padrão da lista básica explícita, revisando o contrato futuro acima. `Ctrl+;` é reconhecido para IA explícita, mas sem runtime ainda — a aba só informa indisponibilidade de forma discreta. A tabela de atalhos desta seção e a arbitragem de teclado foram atualizadas para refletir os doze comandos por escopo (`EditorCommandScope { Global, List, Snippet, Inline }`); nenhum layout novo ou PNG foi gerado, pois não há mudança visual. Build 0 avisos; suíte 1170 aprovados, 0 falhas. **Limitação registrada, não resolvida:** `Ctrl+Espaço` colide com troca de IME em Windows e Linux; sem tela de edição de atalhos, o contorno é um override manual em `EditorKeyBindings`. Homologação em layouts físicos reais, IME real e leitor de tela seguem pendentes. Detalhe em [auto-complite/editor-integration.md](auto-complite/editor-integration.md#arbitragem-de-teclado), [AC-08](auto-complite/decisions.md#ac-08--atalhos) e [estado da Fase 2](auto-complite/phases/phase-2-traditional-autocomplete.md#estado-da-implementação).

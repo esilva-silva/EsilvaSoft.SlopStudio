@@ -282,8 +282,8 @@ internal sealed class ScopedMetadataSource : IMongoMetadataSource
 
     public Task<IReadOnlyList<string>> ListDatabaseNamesAsync(ConnectionProfile profile, CancellationToken cancellationToken) =>
         Call<IReadOnlyList<string>>(MetadataScope.Databases, ["origem"], cancellationToken);
-    public Task<IReadOnlyList<string>> ListCollectionNamesAsync(ConnectionProfile profile, string database, CancellationToken cancellationToken) =>
-        Call<IReadOnlyList<string>>(MetadataScope.Collections, ["origem"], cancellationToken);
+    public Task<IReadOnlyList<CollectionEntry>> ListCollectionNamesAsync(ConnectionProfile profile, string database, CancellationToken cancellationToken) =>
+        Call<IReadOnlyList<CollectionEntry>>(MetadataScope.Collections, [new("origem", CollectionKind.Unknown)], cancellationToken);
     public Task<CollectionDefinition?> GetCollectionDefinitionAsync(ConnectionProfile profile, string database, string collection, CancellationToken cancellationToken) =>
         Call<CollectionDefinition?>(MetadataScope.Definition, new(collection, CollectionKind.Collection, """{"$jsonSchema":{"properties":{"Nome":{"bsonType":"string"}}}}"""), cancellationToken);
     public Task<IReadOnlyList<IndexInfo>> ListIndexesAsync(ConnectionProfile profile, string database, string collection, CancellationToken cancellationToken) =>

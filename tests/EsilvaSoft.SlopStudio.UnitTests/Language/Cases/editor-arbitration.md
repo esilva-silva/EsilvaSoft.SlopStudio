@@ -1,6 +1,27 @@
 # Plano Headless — arbitragem de teclado e preferências (Fase 2.5)
 
-Estado: **plano de testes, não executado**, escrito em 15/09/2026 antes da implementação do `EditorCommandDispatcher`, do `CompletionWindowPresenter` e de `EditorKeyBindings`.
+Estado: escrito em 15/09/2026 como **plano de testes** antes da implementação do `EditorCommandDispatcher`, do `CompletionWindowPresenter` e de `EditorKeyBindings`. **Revisado em 18/09/2026 (lote W0)**, quando os atalhos passaram a ser resolvidos por escopo: parte dos casos já tem teste correspondente na suíte, e os que continuam sem cobertura seguem valendo como plano. Um caso listado aqui **não** é evidência de execução.
+
+## Comandos e escopos (contrato vigente)
+
+Doze comandos rebindáveis por `EditorKeyBindings`, distribuídos em quatro `EditorCommandScope`. A precedência de resolução é **lista aberta › sessão de snippet › ghost visível › global**; o dispatcher consulta um único escopo por vez e **não** tem fallback implícito para `Global`.
+
+| Comando | Escopo | Padrão |
+| --- | --- | --- |
+| `editor.completion.show` | Global | `Ctrl+Espaço` |
+| `editor.completion.ai` | Global | `Ctrl+;` |
+| `editor.completion.next` | List | `↓` |
+| `editor.completion.previous` | List | `↑` |
+| `editor.completion.accept` | List | `Tab` |
+| `editor.completion.accept.enter` | List | `Enter` |
+| `editor.completion.close` | List | `Esc` |
+| `editor.snippet.next` | Snippet | `Tab` |
+| `editor.snippet.previous` | Snippet | `Shift+Tab` |
+| `editor.snippet.cancel` | Snippet | `Esc` |
+| `editor.inline.accept` | Inline | `Tab` |
+| `editor.inline.dismiss` | Inline | `Esc` |
+
+`Ctrl+.` **deixou de ser padrão**; continua válido apenas como override já gravado pelo usuário, que nunca é removido nem reescrito. Um evento sem tecla e sem símbolo — uma modificadora pressionada sozinha — não casa com gesto nenhum.
 
 Fontes:
 
@@ -64,25 +85,25 @@ Uma linha de teste por célula relevante. Na tabela original, "—" significa qu
 | ARB-20 | S | `↓` | Snippet ativo em documento de 2 linhas | `↓` | Cursor desce uma linha (comportamento normal); texto inalterado |
 | ARB-21 | G | `↓` | Ghost visível em documento de 2 linhas | `↓` | Ghost descartado e cursor movido; nenhuma nova requisição de ghost só pelo movimento |
 | ARB-22 | N | `↓` | Nenhum | `↓` | Cursor desce uma linha |
-| ARB-23 | L | `Ctrl+.` | Lista aberta com `Nome` selecionado | `Ctrl+.` | Nova requisição (serviço falso registra 2 pedidos com stamps distintos); lista continua aberta; seleção preservada por `SymbolId` |
-| ARB-24 | S | `Ctrl+.` | Snippet ativo no placeholder 1 | `Ctrl+.` | Lista abre no placeholder; snippet continua ativo |
-| ARB-25 | G | `Ctrl+.` | Ghost visível | `Ctrl+.` | Ghost oculto e lista aberta |
-| ARB-26 | N | `Ctrl+.` | `db.Clientes.find({ | })` | `Ctrl+.` | Lista aberta com itens de `meta-find-filter-root` (critério 4) |
-| ARB-27 | L | `Ctrl+Espaço` | Igual ARB-23 | `Ctrl+Espaço` | Igual ARB-23 (alias) |
-| ARB-28 | S | `Ctrl+Espaço` | Igual ARB-24 | `Ctrl+Espaço` | Igual ARB-24 (alias) |
-| ARB-29 | G | `Ctrl+Espaço` | Igual ARB-25 | `Ctrl+Espaço` | Igual ARB-25 (alias) |
-| ARB-30 | N | `Ctrl+Espaço` | Igual ARB-26 | `Ctrl+Espaço` | Igual ARB-26 (alias, critério 4) |
+| ARB-23 | L | `Ctrl+Espaço` | Lista aberta com `Nome` selecionado | `Ctrl+Espaço` | Nova requisição (serviço falso registra 2 pedidos com stamps distintos); lista continua aberta; seleção preservada por `SymbolId` |
+| ARB-24 | S | `Ctrl+Espaço` | Snippet ativo no placeholder 1 | `Ctrl+Espaço` | Lista abre no placeholder; snippet continua ativo |
+| ARB-25 | G | `Ctrl+Espaço` | Ghost visível | `Ctrl+Espaço` | Ghost oculto e lista aberta |
+| ARB-26 | N | `Ctrl+Espaço` | `db.Clientes.find({ | })` | `Ctrl+Espaço` | Lista aberta com itens de `meta-find-filter-root` (critério 4) |
+| ARB-27 | L | `Ctrl+.` | Igual ARB-23, sessão com override `editor.completion.show: ["Ctrl+."]` | `Ctrl+.` | Igual ARB-23. Sem esse override gravado, `Ctrl+.` não faz nada |
+| ARB-28 | S | `Ctrl+.` | Igual ARB-24, com o mesmo override | `Ctrl+.` | Igual ARB-24 |
+| ARB-29 | G | `Ctrl+.` | Igual ARB-25, com o mesmo override | `Ctrl+.` | Igual ARB-25 |
+| ARB-30 | N | `Ctrl+.` | Igual ARB-26, com o mesmo override | `Ctrl+.` | Igual ARB-26 (critério 4) |
 
 ### Fora do escopo da Fase 2
 
 Listados apenas para rastreabilidade; não viram teste nesta fase:
 
-- a coluna **IA pendente** inteira (`Tab`, `Shift+Tab`, `Enter`, `Esc`, `↑/↓`, `Ctrl+.`, `Ctrl+;`);
-- a linha **`Ctrl+;`** em L, S, G e N;
+- a coluna **IA pendente** inteira (`Tab`, `Shift+Tab`, `Enter`, `Esc`, `↑/↓`): descreve um estado de geração de IA em andamento que **não existe** em nenhuma entrega atual;
+- a linha **`Ctrl+;`** em L, S, G e N: o gesto é reconhecido e consumido (PREF-09), mas o fluxo de IA explícita continua não implementado;
 - **`Alt+]` / `Alt+[`**: alternativas adiadas;
 - **`Ctrl+→`**: aceite por palavra adiado.
 
-A única verificação da Fase 2 ligada a `Ctrl+;` é negativa (PREF-09): o gesto reservado não aciona `editor.completion.show`.
+A verificação ligada a `Ctrl+;` é negativa (PREF-09): o gesto não aciona `editor.completion.show`, não insere `;` e não abre lista.
 
 ### Atalhos globais inalterados com lista aberta
 
@@ -140,15 +161,18 @@ Premissa (G00): o comportamento vale para Core + Desktop, com o padrão de valid
 
 | Id | Pré-condição (sessão v1 salva) | Ação | Resultado observável esperado |
 | --- | --- | --- | --- |
-| PREF-01 | Sem `EditorKeyBindings` | Carregar e enviar `Ctrl+.`, `Ctrl+Espaço`, `Tab` (ghost), `Esc` (ghost) | Padrões ativos: as duas combinações abrem a lista; `Tab` aceita e `Esc` descarta o ghost |
-| PREF-02 | `Bindings["editor.completion.show"] = ["Ctrl+Shift+Space"]` | Carregar; enviar `Ctrl+Shift+Espaço` e `Ctrl+.` | O novo gesto abre a lista; `Ctrl+.` não abre (a lista do comando é substituída, decisão A-04); os outros comandos mantêm o padrão |
+| PREF-01 | Sem `EditorKeyBindings` | Carregar e enviar `Ctrl+Espaço`, `Ctrl+.`, `Tab` (ghost), `Esc` (ghost) | Padrões ativos: `Ctrl+Espaço` abre a lista e `Ctrl+.` **não** abre (deixou de ser padrão); `Tab` aceita e `Esc` descarta o ghost |
+| PREF-02 | `Bindings["editor.completion.show"] = ["Ctrl+Shift+Space"]` | Carregar; enviar `Ctrl+Shift+Espaço` e `Ctrl+Espaço` | O novo gesto abre a lista; `Ctrl+Espaço` não abre (a lista do comando é substituída, decisão A-04); os outros comandos mantêm o padrão |
+| PREF-02b | `Bindings["editor.completion.show"] = ["Ctrl+."]` | Carregar; enviar `Ctrl+.` e `Ctrl+Espaço` | O override gravado continua válido e abre a lista; `Ctrl+Espaço` deixa de abrir. A sessão permanece legível e **nunca** é reescrita para remover `Ctrl+.` |
 | PREF-03 | `EditorKeyBindings.Version = 2` | Carregar e depois alterar outra preferência | Sessão ilegível e falha visível; bytes do arquivo idênticos após a tentativa de salvar |
 | PREF-04 | Gesto inválido (`"Ctrl+"`, `"Ctrl+Banana"`) | Carregar | Ilegível e não sobrescrita (como PREF-03) |
 | PREF-05 | Comando desconhecido (`"editor.completion.xyz"`) | Carregar | Ilegível e não sobrescrita (decisão A-05) |
 | PREF-06 | `Bindings = null` | Carregar | Ilegível e não sobrescrita |
-| PREF-07 | Mesmo gesto em dois comandos | Carregar | Ilegível e não sobrescrita (decisão A-06) |
+| PREF-07 | Mesmo gesto em dois comandos **do mesmo escopo** (ex.: `Tab` em `editor.completion.accept` e `editor.completion.next`, ambos `List`) | Carregar | Ilegível e não sobrescrita (decisão A-06) |
+| PREF-07b | Mesmo gesto em comandos de **escopos diferentes** (`Tab` em `editor.completion.accept` (List), `editor.snippet.next` (Snippet) e `editor.inline.accept` (Inline)) | Carregar | Válido: é o próprio padrão. A precedência lista › snippet › ghost › global decide qual comando recebe a tecla |
 | PREF-08 | Bindings válidos com gestos de pontuação (`Ctrl+.`, `Ctrl+;`) | Salvar e recarregar | Round-trip idêntico; o Core guarda texto, sem tipo Avalonia (teste de arquitetura) |
-| PREF-09 | Padrões | Enviar `Ctrl+;` | `editor.completion.show` não dispara; o comando `editor.completion.ai` é reservado e sem efeito de lista na Fase 2 |
+| PREF-09 | Padrões | Enviar `Ctrl+;` | `editor.completion.show` não dispara. `editor.completion.ai` casa, marca a tecla como tratada e informa indisponibilidade: **nenhum `;` é inserido**, a lista tradicional não abre e nenhuma consulta é executada. O fluxo de IA em si não existe nesta entrega |
+| PREF-14 | Padrões | Pressionar e soltar `Ctrl` sozinho (idem `Shift`, `Alt`) | Nenhum comando casa em nenhum escopo: a lista não abre, nenhum ghost é gerado e nenhum parsing ocorre |
 | PREF-10 | `Bindings["editor.inline.accept"] = ["Ctrl+Enter"]` | Com lista aberta, enviar `Tab` | `Tab` ainda aceita o item da lista: a arbitragem da lista não depende de `editor.inline.accept` (decisão A-07) |
 | PREF-11 | Falha de gravação simulada | Alterar atalho/configuração | Erro visível; estado em memória preservado; arquivo anterior intacto |
 | PREF-12 | `AutocompleteSettings` v1 sem `CompletionEnterAccepts`/`CompletionAutoOpenOnTrigger` | Carregar | `true`/`false` efetivos (padrões); ausência distinguida de valor explícito (configuration.md §Migração) |
@@ -163,6 +187,6 @@ Premissa (G00): o comportamento vale para Core + Desktop, com o padrão de valid
 | A-03 | `Ctrl+Enter`/`F5` com lista aberta: a lista deve fechar? | Afirmar só que o comando global executa como hoje; fechamento não verificado |
 | A-04 | Gestos de um comando em `Bindings`: substituem ou somam aos padrões? | Substituem os daquele comando; comandos ausentes usam os padrões |
 | A-05 | Comando desconhecido em `Bindings` | Sessão ilegível (mesmo padrão de enum desconhecido de `IdentifierMode`) |
-| A-06 | Mesmo gesto em dois comandos | Sessão ilegível; lista vazia de gestos é válida e deixa o comando sem atalho |
+| A-06 | Mesmo gesto em dois comandos | **Revisada no lote W0.** Ilegível apenas quando os dois comandos estão no **mesmo** `EditorCommandScope`; entre escopos diferentes é legítimo e resolvido por precedência, que é o que permite `Tab` servir lista, snippet e ghost e `Esc` servir três estados. Lista vazia de gestos continua válida e deixa o comando sem atalho |
 | A-07 | `Tab` na lista vem de `editor.inline.accept` ou da própria arbitragem? | Da arbitragem da lista; `editor.inline.accept` governa só o ghost |
 | A-08 | `↓` com snippet ativo encerra a sessão de snippet? | Não verificado; só movimento do cursor e texto inalterado |

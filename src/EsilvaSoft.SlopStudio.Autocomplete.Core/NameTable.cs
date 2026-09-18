@@ -58,8 +58,11 @@ public sealed class NameTable<T>
         return false;
     }
 
+    /// <summary>Iterations between cancellation checks in the unbounded substring scan; keeps the check cheap without letting a huge scope run unchecked.</summary>
+    private const int CancellationCheckStride = 512;
+
     /// <summary>Appends matches in the order prefix, camel humps, substring. Each item appears at most once.</summary>
-    public void Collect(string query, int maximum, Func<T, bool>? filter, Action<T, CatalogMatch> sink)
+    public void Collect(string query, int maximum, Func<T, bool>? filter, Action<T, CatalogMatch> sink, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(sink);
@@ -69,7 +72,10 @@ public sealed class NameTable<T>
         if (key.Length == 0)
         {
             for (var index = 0; index < _items.Length && count < maximum; index++)
+            {
+                if (index % CancellationCheckStride == 0) cancellationToken.ThrowIfCancellationRequested();
                 if (filter?.Invoke(_items[index]) != false) { sink(_items[index], CatalogMatch.Any); count++; }
+            }
             return;
         }
         // Dimensionado por `maximum` (nunca maior que a tabela): a fase de prefixo pode registrar mais índices que
@@ -89,8 +95,12 @@ public sealed class NameTable<T>
                 if (seen.Add(index) && filter?.Invoke(_items[index]) != false) { sink(_items[index], CatalogMatch.Humps); count++; }
             }
         }
+        // Only path with unbounded cost: a scan of the whole scope when the faster forms above did not fill `maximum`.
+        // Checked periodically, not per item, so a huge scope never runs past cancellation but the common small-scope
+        // case pays no extra overhead.
         for (var index = 0; index < _keys.Length && count < maximum; index++)
         {
+            if (index % CancellationCheckStride == 0) cancellationToken.ThrowIfCancellationRequested();
             if (seen.Contains(index) || !_keys[index].Contains(key, StringComparison.Ordinal)) continue;
             seen.Add(index);
             if (filter?.Invoke(_items[index]) != false) { sink(_items[index], CatalogMatch.Substring); count++; }

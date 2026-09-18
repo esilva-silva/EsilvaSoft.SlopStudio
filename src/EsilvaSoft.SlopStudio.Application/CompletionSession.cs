@@ -19,9 +19,17 @@ public sealed class CompletionSession : IDisposable
         lock (_gate) { _version++; _pending?.Cancel(); }
     }
 
-    public async Task<AutocompleteResult?> RequestAsync(IAutocompleteService service, AutocompleteRequest request, bool immediate = false)
+    /// <summary>
+    /// Pedido pelo caminho legado. <c>policy</c> traz as origens permitidas, já decididas por
+    /// <see cref="InlineCompletionPolicy"/>: o atalho do dicionário é parte do pedido, não um privilégio interno, e com
+    /// <see cref="CompletionSourcePolicy.Dictionary"/> falso ele não é sequer consultado — a origem determinística
+    /// desligada não reaparece por aqui.
+    /// </summary>
+    public async Task<AutocompleteResult?> RequestAsync(IAutocompleteService service, AutocompleteRequest request, bool immediate = false,
+        CompletionSourcePolicy? policy = null)
     {
         ArgumentNullException.ThrowIfNull(service);
+        var sources = policy ?? CompletionSourcePolicy.All;
         using var cancellation = new CancellationTokenSource();
         long version;
         lock (_gate)
@@ -33,9 +41,10 @@ public sealed class CompletionSession : IDisposable
         AutocompleteMetrics.CompletionRequested.Add(1, InlineModality, new KeyValuePair<string, object?>("trigger", immediate ? "invoked" : "automatic"));
         try
         {
-            if (service.GetImmediateCompletion(request) is { } dictionary) return Complete(dictionary, version, cancellation, started, "dictionary");
+            if (sources.Dictionary && service.GetImmediateCompletion(request) is { } dictionary)
+                return Complete(dictionary, version, cancellation, started, "dictionary");
             if (!immediate) await Task.Delay(service.Settings.DelayMilliseconds, cancellation.Token).ConfigureAwait(false);
-            var result = await service.GetCompletionAsync(request, cancellation.Token).ConfigureAwait(false);
+            var result = await service.GetCompletionAsync(request, sources, cancellation.Token).ConfigureAwait(false);
             return Complete(result, version, cancellation, started, result is { IsAi: true } ? "ai" : "dictionary");
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)

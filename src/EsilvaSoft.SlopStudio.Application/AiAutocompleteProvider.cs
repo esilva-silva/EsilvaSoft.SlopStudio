@@ -19,7 +19,13 @@ public sealed class AiAutocompleteProvider : IAsyncDisposable, IDisposable
     public ILocalAiModelService Models { get; }
     public LocalModelStatus Status => Models.Status;
 
-    public async Task<AutocompleteResult?> GetCompletionAsync(AutocompleteRequest request, AutocompleteSettings settings, CancellationToken cancellationToken)
+    /// <summary>
+    /// Completa pela IA local. Com <c>load</c> = <see cref="AiModelLoadPolicy.LoadedOnly"/> (caminho automático), sem o
+    /// modelo desta chave já carregado o serviço recusa, e a recusa vira abstenção silenciosa: nenhuma carga, nenhum
+    /// descarregamento, nenhuma troca.
+    /// </summary>
+    public async Task<AutocompleteResult?> GetCompletionAsync(AutocompleteRequest request, AutocompleteSettings settings,
+        AiModelLoadPolicy load = AiModelLoadPolicy.LoadIfNeeded, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(settings);
@@ -30,7 +36,7 @@ public sealed class AiAutocompleteProvider : IAsyncDisposable, IDisposable
             generation = await Models.GenerateAsync(LocalModelRole.Autocomplete, settings, model => new ModelGenerationRequest(
                 AutocompleteContextBuilder.ModelPrefix(request, LocalAiModelService.IsDeepSeek(model)), request.Suffix,
                 settings.ContextTokens, settings.MaximumCompletionTokens, request.RequireComplete) { Temperature = model.Metadata?.Autocomplete.Temperature ?? 0 },
-                AiRequestPriority.Background, cancellationToken).ConfigureAwait(false);
+                AiRequestPriority.Background, load, cancellationToken).ConfigureAwait(false);
         }
         catch (LocalModelUnavailableException) { return null; }
         if (request.RequireComplete && !generation.Result.IsComplete) return null;

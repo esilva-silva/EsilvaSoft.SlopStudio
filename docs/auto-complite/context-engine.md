@@ -80,7 +80,21 @@ Garantia: qualquer truncamento de um script válido produz árvore sem exceção
 
 - O documento é dividido em statements de topo delimitados pelo lexer (profundidade zero, `;` ou quebra de linha seguida de início de statement).
 - Após uma edição, statements inteiramente antes da alteração são reutilizados; o statement alterado é reanalisado até ressincronizar com a árvore anterior; os seguintes são reutilizados com deslocamento (nós guardam larguras relativas, estilo *green tree*).
+  - Estado em 18/09/2026: os nós guardam posições absolutas, então só é reaproveitado o statement cujo span é idêntico nas duas versões (tudo antes da edição e, em edição de mesmo tamanho, também o que vem depois). Reescrever spans exigiria clonar as subárvores — medido em até 40× e ~118 MB por tecla em 1 MiB — e por isso o reparse ainda faz análise completa antes de mesclar. As larguras relativas continuam pendentes.
 - `SyntaxTreeCache` mantém a última árvore por editor; uma requisição para versão antiga é descartada.
+
+### Cache de tokens e árvore sob demanda
+
+- O contexto lê **tokens**, não nós. Por isso o caminho por tecla usa `TokenCache`: texto e tokens da última versão
+  por documento, indexados por `DocumentId`. Uma tecla custa uma lexificação (o mesmo custo de não ter cache) e
+  qualquer análise repetida da mesma versão — refiltro com a lista aberta, segundo provedor, ghost text — custa zero,
+  inclusive a materialização do texto.
+- A **árvore** é construída sob demanda, só para quem precisar de nós (C22/C25). `SyntaxTreeCache` continua com o
+  contrato de sempre e é exercitado por testes, mas **não é chamado por tecla**: construir um nó por token custa mais
+  que os tokens que o contexto de fato consome.
+- Reutilizar exige a mesma versão **e** a mesma linhagem (`GetChangesSince` vazio); número de versão igual em abas
+  diferentes nunca compartilha nada. Versão superada é lexificada só para o consumidor atrasado, sem repovoar o cache.
+  `CompletionContextCache.ClearDocument` libera contexto, texto e tokens da aba fechada.
 
 ### Limites
 

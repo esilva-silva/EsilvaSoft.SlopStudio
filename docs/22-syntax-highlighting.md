@@ -4,7 +4,7 @@ Registro da implementação de 12/09/2026, com atualização documental em 13/09
 
 ## Relação com o autocomplete tradicional
 
-O `MongoLexer` é compartilhado pelo highlighting e pelo autocomplete tradicional; a lista usa `Ctrl+.` com `Ctrl+Espaço` como alias e não reinterpreta o texto com um segundo lexer. A captura de documento do editor usa `AvaloniaTextSnapshot`; a medição completa de UI por tecla permanece pendente.
+O `MongoLexer` é compartilhado pelo highlighting e pelo autocomplete tradicional; a lista usa `Ctrl+Espaço` como padrão de teclado (um override explícito salvo em `Ctrl+.` continua funcionando, sem ser mais o padrão) e não reinterpreta o texto com um segundo lexer. A captura de documento do editor usa `AvaloniaTextSnapshot`; a medição completa de UI por tecla permanece pendente.
 
 ## Arquitetura
 

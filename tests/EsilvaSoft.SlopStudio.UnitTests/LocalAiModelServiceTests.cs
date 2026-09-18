@@ -87,7 +87,7 @@ public sealed class LocalAiModelServiceTests
         var runtime = new CompletionRuntimeFake { OnInitialize = _ => { started.TrySetResult(); return release.Task; } };
         await using var service = new LocalAiModelService(new CompletionCatalogFake(), () => runtime);
         using var typing = new CancellationTokenSource();
-        var first = service.GenerateAsync(LocalModelRole.Autocomplete, new(), Request, AiRequestPriority.Background, typing.Token);
+        var first = service.GenerateAsync(LocalModelRole.Autocomplete, new(), Request, AiRequestPriority.Background, cancellationToken: typing.Token);
         await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         typing.Cancel();
         Assert.That(async () => await first, Throws.InstanceOf<OperationCanceledException>());
@@ -180,6 +180,48 @@ public sealed class LocalAiModelServiceTests
         Assert.That(report.Succeeded, Is.True, report.Message);
         if (hardware != AiAccelerationMode.Auto) Assert.That(report.Backend, Is.EqualTo(hardware));
     }
+
+    [Test]
+    public async Task AnAutomaticRequestNeverLoadsUnloadsOrSwapsTheModelOfAnotherKey()
+    {
+        var log = new List<string>();
+        await using var service = new LocalAiModelService(new FolderCatalogFake(), () => new RecordingRuntime(log));
+        var settings = new AutocompleteSettings { SelectedModel = "Coder-Autocomplete", ChatModel = "Coder-Chat" };
+
+        // Nada carregado: LoadedOnly recusa em vez de carregar, e o motivo é tipado.
+        var idle = Assert.ThrowsAsync<LocalModelUnavailableException>(() => service.GenerateAsync(
+            LocalModelRole.Autocomplete, settings, Request, AiRequestPriority.Background, AiModelLoadPolicy.LoadedOnly))!;
+        Assert.That(idle.UnavailableReason, Is.EqualTo(LocalModelUnavailableReason.NotLoaded));
+        Assert.That(log, Is.Empty, "Um pedido automático não inicia carga de modelo.");
+
+        // O usuário usa o chat: o modelo de chat fica carregado e Status passa a Ready — para qualquer consumidor.
+        await service.GenerateAsync(LocalModelRole.Chat, settings, Request, AiRequestPriority.Interactive);
+        Assert.That(service.Status.State, Is.EqualTo(LocalModelState.Ready));
+        Assert.That(service.LoadedModel!.Name, Is.EqualTo("Coder-Chat"));
+
+        // Uma tecla, com InlineUseAi ligado: papel Autocomplete, pasta diferente. Sem LoadedOnly isto descarregaria o
+        // modelo do chat e iniciaria a carga do outro; com ela, o pedido simplesmente não gera.
+        var other = Assert.ThrowsAsync<LocalModelUnavailableException>(() => service.GenerateAsync(
+            LocalModelRole.Autocomplete, settings, Request, AiRequestPriority.Background, AiModelLoadPolicy.LoadedOnly))!;
+        Assert.That(other.UnavailableReason, Is.EqualTo(LocalModelUnavailableReason.DifferentConfiguration));
+
+        // Mesma pasta, aceleração divergente: a chave inclui hardware e provider, então também é recusa.
+        var hardware = Assert.ThrowsAsync<LocalModelUnavailableException>(() => service.GenerateAsync(
+            LocalModelRole.Chat, settings with { Acceleration = AiAccelerationMode.Gpu }, Request,
+            AiRequestPriority.Background, AiModelLoadPolicy.LoadedOnly))!;
+        Assert.That(hardware.UnavailableReason, Is.EqualTo(LocalModelUnavailableReason.DifferentConfiguration));
+
+        Assert.That(log, Is.EqualTo(LoadedOnlyLog), "Nenhuma carga, nenhum descarregamento e nenhuma geração extra.");
+        Assert.That(service.LoadedModel!.Name, Is.EqualTo("Coder-Chat"), "O modelo do usuário continua o mesmo.");
+        Assert.That(service.Status.State, Is.EqualTo(LocalModelState.Ready));
+
+        // Com a chave exata já carregada, o mesmo pedido automático é atendido sem carregar nada.
+        await service.GenerateAsync(LocalModelRole.Chat, settings, Request, AiRequestPriority.Background, AiModelLoadPolicy.LoadedOnly);
+        Assert.That(log, Is.EqualTo(LoadedOnlyServedLog));
+    }
+
+    private static readonly string[] LoadedOnlyLog = ["load Coder-Chat", "generate Coder-Chat"];
+    private static readonly string[] LoadedOnlyServedLog = ["load Coder-Chat", "generate Coder-Chat", "generate Coder-Chat"];
 
     private static ModelGenerationRequest Request(LocalModelDefinition model) => new("db.", "", 512, 8);
 

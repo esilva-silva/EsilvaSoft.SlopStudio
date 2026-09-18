@@ -1,8 +1,60 @@
 ﻿# Matriz de validação
 
+## Fase 1 (K11–K16, K16-b) e Fase 5.1 (Traditional Preemptive) — 18/09/2026
+
+Build `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore`: **0 avisos, 0 erros**. Suíte
+`dotnet test EsilvaSoft.SlopStudio.slnx --no-build --no-restore`: **1273 aprovados, 0 falhas** (baseline de entrada:
+1154). Esta seção separa o que tem **validação automatizada** (build + teste + benchmark local) do que exige
+**homologação manual** (hardware/SO/entrada reais), como exigido pelo `AGENTS.md`.
+
+### Validação automatizada (evidência local, esta máquina)
+
+| Item | Evidência |
+| --- | --- |
+| K12 — cancelamento no scan de substring | Teste dedicado de `NameTable.Collect` com cancelamento |
+| K13 — limite de cargas simultâneas do `MetadataCache` | Teste de concorrência com 2/conexão e 4 globais |
+| K14 — LRU de 8 entradas na memoização de mescla | Teste de `MetadataCatalogSource` com estouro do LRU |
+| K15 — teto de profundidade/nós em `CollectionSchema.Merge` | Teste com schema que excede `SchemaMaximumDepth`/`SchemaMaximumNodes` |
+| K16-b — cota por fonte em `KnowledgeCatalog.Query` | Teste com duas fontes do mesmo `kind` disputando `MaximumCandidates` |
+| K11 — travas de regressão | Cache esvaziado após `InvalidateEnvironment`; hosts distintos com mesmo nome de namespace sem reuso cruzado |
+| P51 — coordinator, debounce, cancelamento | 20 teclas abaixo do debounce → zero computação; pausa gera exatamente uma; sete gatilhos de cancelamento cobertos |
+| P52 — provider determinístico e confiança | Abstenção por ambiguidade/truncamento/palavra completa/snippet; funcionamento sem modelo/MongoDB |
+| P53 — presenter, typeahead, undo | Aceite como operação única de undo sem executar consulta; isolamento entre abas |
+| Flags inline e migração | Quatro combinações de `InlineUseTraditional`/`InlineUseAi`; ausente ≠ `false` explícito; migração v1 com `InlineUseAi = false` |
+| Camada 0 do inline (computação) | p95 0,009 ms (catálogo de linguagem) e p95 0,068 ms (200 campos de schema); orçamento de 5 ms atendido |
+| Cache de tokens da Fase 2 | Refiltro com lista aberta: 64 KiB/fim 0,37×, 1 MiB/meio 0,14×, 1 MiB/início 71 ns; análise por tecla de volta a 7,38 ms (baseline 7,78 ms) |
+
+### Homologação manual — NÃO executada, não declarar cumprida
+
+| Item | Situação |
+| --- | --- |
+| Edição → ghost, p95 ≤ 20 ms | Medida em Headless (não é homologação nativa): 17,6–27,1 ms de excedente sobre o debounce, dominado pela resolução do temporizador do Windows. **Meta não atendida** |
+| IME real | `ImeComposing` nunca é publicado pelo editor real; a inibição por composição de IME só existe em teste |
+| Layouts físicos (ABNT2/US Windows; X11/Wayland Linux) | Não executado |
+| Leitor de tela | Não executado |
+| MongoDB real | Não exercitado neste lote |
+| Modelos ONNX reais no caminho inline com IA | Não exercitado neste lote |
+| Matriz de 18 PNGs (claro/escuro) do ghost 5.1 | Não produzida |
+
+### Pendências de escopo, não de evidência
+
+- K17 (relatório de performance do catálogo) e toda a fase L (L11–L16, schema learning em LiteDB) não iniciados.
+- `InlineEnabled`/`InlineUseTraditional`/`InlineUseAi` não têm controle em `AutocompleteSettingsWindow`; só editáveis
+  via JSON persistido.
+- Arquivos `.case` em `tests/.../Language/Cases/` continuam sem runner: são especificação, não teste executado.
+- Fases 3, 4, 5.2 e 5.3 não iniciadas; `Ctrl+;` continua apenas informando indisponibilidade.
+
+Detalhe: [acompanhamento](12-acompanhamento-da-implementacao.md#fase-1-k11k16-k16-b-e-fase-51-traditional-preemptive--18092026),
+[phase-1-data-traditional](auto-complite/phases/phase-1-data-traditional.md),
+[phase-5-preemptive](auto-complite/phases/phase-5-preemptive.md) e [performance](auto-complite/performance.md).
+
 ## Fase 2 — autocomplete tradicional (estado em 16/09/2026)
 
 Build focalizado e suíte UnitTests foram executados em Windows x64: **1126 aprovados, 0 falhas**. Esta evidência cobre testes automatizados; não substitui MongoDB real, leitor de tela, layouts nativos ou métricas p95. `AvaloniaTextSnapshot` e o caminho contextual estão cobertos por testes focados. Permanecem pendentes o corpus MRR/top-K, a matriz de 18 PNGs e os gates de desempenho da UI.
+
+### W0 — Política de atalhos do autocomplete (18/09/2026)
+
+Build Windows x64: **0 avisos, 0 erros**. Suíte completa: **1170 aprovados, 0 falhas**. Evidência cobre `EditorCommandScope`/`EditorCommandDispatcher`/`EditorKeyBindings` (Core), o roteamento por escopo em `WorkspaceTabView.Autocomplete.cs` e a projeção de exibição pt-BR em `WorkspaceTabViewModel.GestureText` (Desktop), incluindo os três defeitos de casamento de tecla corrigidos (modificador solitário, `Enter` físico, no-op de `↑`/`↓`). Não homologado por esta evidência: layouts físicos reais (ABNT2/US em Windows; X11/Wayland em Linux), IME real e leitor de tela — teste Headless não os substitui. Detalhe em [política de atalhos](auto-complite/editor-integration.md#arbitragem-de-teclado), [AC-08](auto-complite/decisions.md#ac-08--atalhos) e [acompanhamento](12-acompanhamento-da-implementacao.md#w0--política-de-atalhos-do-autocomplete-18092026--concluído).
 
 ## Autocomplete — Fase 1: catálogo de conhecimento — 14/09/2026
 

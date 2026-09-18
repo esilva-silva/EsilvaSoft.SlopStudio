@@ -79,8 +79,8 @@ public sealed class DeepSeekIntegrationTests
     {
         var runtime = new CompletionRuntimeFake { Handler = (_, _) => Task.FromResult(new ModelGenerationResult(marker, 1, TimeSpan.Zero, "cpu")) };
         await using var provider = new AiAutocompleteProvider(new CompletionCatalogFake(), () => runtime);
-        Assert.That(await provider.GetCompletionAsync(new("db.", ""), new(), CancellationToken.None), Is.Null);
-        Assert.That(await provider.GetCompletionAsync(new(marker, ""), new(), CancellationToken.None), Is.Null);
+        Assert.That(await provider.GetCompletionAsync(new("db.", ""), new(), cancellationToken: CancellationToken.None), Is.Null);
+        Assert.That(await provider.GetCompletionAsync(new(marker, ""), new(), cancellationToken: CancellationToken.None), Is.Null);
         Assert.That(runtime.Generations, Is.EqualTo(1));
     }
 

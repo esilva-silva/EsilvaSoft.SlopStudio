@@ -26,7 +26,7 @@ public sealed class LanguageCatalogSource : ICatalogSource
         {
             if ((query.Kinds & kind.ToFlag()) == 0) continue;
             cancellationToken.ThrowIfCancellationRequested();
-            table.Collect(prefix, query.MaximumCandidates - sink.Count, symbol => (symbol.Dialects & dialects) != 0, (symbol, match) => sink.Add(new(symbol, match)));
+            table.Collect(prefix, query.MaximumCandidates - sink.Count, symbol => (symbol.Dialects & dialects) != 0, (symbol, match) => sink.Add(new(symbol, match)), cancellationToken);
         }
         return CatalogCompleteness.Complete;
     }

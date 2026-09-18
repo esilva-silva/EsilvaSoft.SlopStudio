@@ -21,6 +21,10 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
     private readonly IMetadataInvalidationBus? _invalidations;
     private readonly MetadataCacheOptions _options;
     private readonly TimeProvider _clock;
+    // Caps how many background loads (automatic or explicit RefreshAsync) reach the source at once across every
+    // connection, on top of the per-connection cap in ConnectionState: a burst of distinct keys queues instead of
+    // opening one call per key.
+    private readonly SemaphoreSlim _globalLoadGate;
     private long _accessCounter;
     private long _revision;
     private bool _disposed;
@@ -33,6 +37,7 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
         _invalidations = invalidations;
         _options = options ?? new MetadataCacheOptions();
         _clock = timeProvider ?? TimeProvider.System;
+        _globalLoadGate = new SemaphoreSlim(Math.Max(1, _options.MaximumConcurrentLoadsGlobal));
         if (_invalidations is not null) _invalidations.Published += OnInvalidationPublished;
     }
 
@@ -56,7 +61,7 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             if (_connections.ContainsKey(identity)) return;
-            _connections[identity] = new ConnectionState(profile);
+            _connections[identity] = new ConnectionState(profile, Math.Max(1, _options.MaximumConcurrentLoadsPerConnection));
         }
     }
 
@@ -277,6 +282,7 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
         }
         if (_invalidations is not null) _invalidations.Published -= OnInvalidationPublished;
         foreach (var state in states) state.Dispose();
+        _globalLoadGate.Dispose();
     }
 
     private void OnInvalidationPublished(object? sender, MetadataInvalidationEventArgs e) => Invalidate(e.Invalidation);
@@ -330,10 +336,32 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
         {
             using var operation = _operations?.Begin($"Atualizando metadados — {state.Profile.Name}", ApplicationOperationPriority.Low, canCancel: true, state.Token);
             var token = operation?.Token ?? state.Token;
+            var acquired = false;
             try
             {
-                value = await FetchAsync(key, state.Profile, token).ConfigureAwait(false);
-                operation?.Complete(ApplicationOperationStatus.Success, $"Metadados atualizados — {state.Profile.Name}");
+                try
+                {
+                    // A burst of distinct keys queues here instead of opening one call per key: per-connection first, then
+                    // the global cap, both released together once the fetch settles.
+                    await state.LoadGate.WaitAsync(token).ConfigureAwait(false);
+                    try { await _globalLoadGate.WaitAsync(token).ConfigureAwait(false); }
+                    catch { try { state.LoadGate.Release(); } catch (ObjectDisposedException) { } throw; }
+                    acquired = true;
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Only slot acquisition is classified as cancellation: a load slot disposed by Disconnect while
+                    // queued races with the token cancelling, and either way the load never ran. The fetch below is
+                    // deliberately outside this catch — an ObjectDisposedException coming from the driver is a
+                    // failure, must reach the catch-all, and must stay visible in the operation instead of
+                    // disappearing as a cancellation.
+                    outcome = "cancelled";
+                }
+                if (acquired)
+                {
+                    value = await FetchAsync(key, state.Profile, token).ConfigureAwait(false);
+                    operation?.Complete(ApplicationOperationStatus.Success, $"Metadados atualizados — {state.Profile.Name}");
+                }
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
@@ -346,9 +374,20 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
                 outcome = "failed";
                 operation?.Complete(ApplicationOperationStatus.Warning, $"Metadados indisponíveis — {state.Profile.Name}");
             }
+            finally
+            {
+                // Disconnect may have disposed the connection's gate while this load held its slot; the release is then
+                // moot (nothing still waits on that gate) rather than a fault of the load that just finished.
+                if (acquired)
+                {
+                    try { _globalLoadGate.Release(); } catch (ObjectDisposedException) { }
+                    try { state.LoadGate.Release(); } catch (ObjectDisposedException) { }
+                }
+            }
         }
         catch (ObjectDisposedException)
         {
+            // Only the operation scope itself (Begin/Token/Dispose) reaches here: the fetch is classified inside.
             outcome = "cancelled";
         }
         bool present, accepted;
@@ -391,8 +430,9 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
             case MetadataScope.Databases:
                 return (await _source.ListDatabaseNamesAsync(profile, token).ConfigureAwait(false)).ToArray();
             case MetadataScope.Collections:
-                return (await _source.ListCollectionNamesAsync(profile, key.Database, token).ConfigureAwait(false))
-                    .Select(name => new CollectionEntry(name, CollectionKind.Unknown)).ToArray();
+                // The source lists names only (kind Unknown); WithKnownKinds below fills the type from a definition
+                // already known locally instead of loading every collection's options/validator just for the listing.
+                return (await _source.ListCollectionNamesAsync(profile, key.Database, token).ConfigureAwait(false)).ToArray();
             case MetadataScope.Definition:
                 var definition = await _source.GetCollectionDefinitionAsync(profile, key.Database, key.Collection, token).ConfigureAwait(false);
                 var validator = definition?.ValidatorJson is { } json
@@ -526,16 +566,19 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
         public long Generation { get; set; }
     }
 
-    private sealed class ConnectionState(ConnectionProfile profile) : IDisposable
+    private sealed class ConnectionState(ConnectionProfile profile, int maximumConcurrentLoads) : IDisposable
     {
         private readonly CancellationTokenSource _cancellation = new();
         public ConnectionProfile Profile { get; } = profile;
         public CancellationToken Token => _cancellation.Token;
+        /// <summary>Caps concurrent background loads of this connection; a burst of distinct keys queues past this bound.</summary>
+        public SemaphoreSlim LoadGate { get; } = new(maximumConcurrentLoads);
 
         public void Dispose()
         {
             _cancellation.Cancel();
             _cancellation.Dispose();
+            LoadGate.Dispose();
         }
     }
 }

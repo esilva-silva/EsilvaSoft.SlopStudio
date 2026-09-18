@@ -64,7 +64,7 @@ Riscos detalhados e evidências de código em [current-state.md](current-state.m
 | [2 — Tradicional explícito](phases/phase-2-traditional-autocomplete.md) | Parser/contexto, ranking, lista, snippets, atalhos e presenter comum | 1 consolidada |
 | [3 — Dados IA](phases/phase-3-data-ai.md) | Contrato v1 preservado, seleção e orçamento | Contexto estável de 2 |
 | [4 — IA explícita](phases/phase-4-ai-autocomplete.md) | Pipeline compartilhado, Ctrl+;, streaming, LoadedOnly no runtime para consumidor futuro | 3 + presenter de 2 |
-| [5.1 — Tradicional preemptivo](phases/phase-5-preemptive.md#51-traditional-preemptive-completion) | Provider determinístico, confiança, coordinator, ghost | 2; não espera 3/4 |
+| [5.1 — Tradicional preemptivo](phases/phase-5-preemptive.md#51-traditional-preemptive-completion--concluído-em-18092026-com-pendências-abertas) | **Concluído em 18/09/2026, com pendências abertas.** Provider determinístico, confiança, coordinator, ghost | 2; não espera 3/4 |
 | [5.2 — IA preemptiva](phases/phase-5-preemptive.md#52-ai-preemptive-completion) | Provider Background, gating, deadline | 4 + coordinator de 5.1 |
 | [5.3 — Híbrido](phases/phase-5-preemptive.md#53-hybrid-preemptive-strategy) | Arbitragem, configurações e evidências de ambos | 5.1 + 5.2 |
 
@@ -105,6 +105,8 @@ Dez perfis reutilizáveis criados em [agents/README.md](agents/README.md), com o
 ## Fluxo principal Ctrl+.
 
 Capturar snapshot/alvo/revisões antes de await → obter contexto no worker → consultar catálogo em memória → ranking → lista → conferir stamp ao publicar e aceitar. Refresh explícito de escopo pode enriquecer lista ainda válida; digitar/refiltrar não dispara novas leituras MongoDB. Um resultado nunca muda outra aba ou executa consulta.
+
+O título é histórico: desde o lote W0 (18/09/2026), `Ctrl+Espaço` é o gatilho padrão da lista e `Ctrl+.` saiu dos padrões de teclado (um override salvo continua funcionando) — [detalhe da política de atalhos](editor-integration.md#atalhos).
 
 ## Manutenção e validação
 

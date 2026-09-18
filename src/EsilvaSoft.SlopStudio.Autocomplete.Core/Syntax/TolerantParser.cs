@@ -26,6 +26,12 @@ public sealed class TolerantParser
     /// Reparses only the statements touched by the edit from the parser's point of view. The lexer still runs once over
     /// the new snapshot to establish safe statement boundaries; unaffected statements retain their immutable syntax nodes.
     /// </summary>
+    /// <remarks>
+    /// A statement is only retained when its span is identical in both versions: rewriting the spans of everything after
+    /// an insertion would mean cloning those subtrees, which costs more than the nodes the full parse already produced
+    /// (measured: up to 40x and ~100 MB per keystroke on a 1 MiB document). Reuse by relative widths, which makes
+    /// shifting free, belongs to the green-tree step that is still pending.
+    /// </remarks>
     public MongoSyntaxTree ParseIncremental(ITextSnapshot previousSnapshot, MongoSyntaxTree previousTree, ITextSnapshot snapshot,
         IReadOnlyList<TextChange> changes, MongoLexerMode mode = MongoLexerMode.Script, CancellationToken cancellationToken = default)
     {
@@ -48,26 +54,28 @@ public sealed class TolerantParser
             lastOldEnd = Math.Max(lastOldEnd, oldStart + change.OldLength);
             cumulativeDelta += change.Delta;
         }
-        var oldStatements = previousTree.Root.Children.Where(node => node.Kind is MongoSyntaxNodeKind.Statement or MongoSyntaxNodeKind.OpaqueStatement).ToArray();
-        var newStatements = full.Root.Children.ToArray();
-        var merged = new MongoSyntaxNode[newStatements.Length];
+        // Um índice por span mantém a mesclagem linear no número de statements; a varredura por statement era quadrática.
+        var oldStatements = new Dictionary<TextSpan, MongoSyntaxNode>(previousTree.Root.Children.Count);
+        foreach (var node in previousTree.Root.Children)
+            if (node.Kind is MongoSyntaxNodeKind.Statement or MongoSyntaxNodeKind.OpaqueStatement)
+                oldStatements.TryAdd(node.Span, node);
+        var newStatements = full.Root.Children;
+        var merged = new MongoSyntaxNode[newStatements.Count];
         var reused = 0;
-        for (var index = 0; index < newStatements.Length; index++)
+        for (var index = 0; index < newStatements.Count; index++)
         {
+            if ((index & 255) == 0) cancellationToken.ThrowIfCancellationRequested();
             var candidate = newStatements[index];
-            if (candidate.Span.End <= firstOldStart)
+            var isBeforeTheEdit = candidate.Span.End <= firstOldStart;
+            var isAfterTheEdit = cumulativeDelta == 0 && candidate.Span.Start >= lastOldEnd;
+            if ((isBeforeTheEdit || isAfterTheEdit) && oldStatements.TryGetValue(candidate.Span, out var old))
             {
-                var old = oldStatements.FirstOrDefault(node => node.Span == candidate.Span);
-                if (old is not null) { merged[index] = old; reused++; continue; }
+                merged[index] = old;
+                reused++;
             }
-            else if (candidate.Span.Start >= lastOldEnd + cumulativeDelta)
-            {
-                var oldSpan = new TextSpan(candidate.Span.Start - cumulativeDelta, candidate.Span.Length);
-                var old = oldStatements.FirstOrDefault(node => node.Span == oldSpan);
-                if (old is not null) { merged[index] = Shift(old, cumulativeDelta); reused++; continue; }
-            }
-            merged[index] = candidate;
+            else merged[index] = candidate;
         }
+        if (reused == 0) return full;
         var root = new MongoSyntaxNode(MongoSyntaxNodeKind.Document, new(0, snapshot.Length), merged);
         return new(snapshot.Version, root, full.Tokens, full.Diagnostics, reused);
     }
@@ -175,9 +183,5 @@ public sealed class TolerantParser
         new(children.Count > 0 && children.Any(x => x.Kind is MongoSyntaxNodeKind.Object or MongoSyntaxNodeKind.Array or MongoSyntaxNodeKind.Group)
             ? MongoSyntaxNodeKind.Statement : MongoSyntaxNodeKind.OpaqueStatement,
             TextSpan.FromBounds(Math.Max(0, start), Math.Max(start, end)), [.. children]);
-
-    private static MongoSyntaxNode Shift(MongoSyntaxNode node, int delta) =>
-        delta == 0 ? node : new(node.Kind, new(node.Span.Start + delta, node.Span.Length), node.Children.Select(child => Shift(child, delta)).ToArray(),
-            node.Token is { } token ? token with { Start = token.Start + delta } : null);
 
 }

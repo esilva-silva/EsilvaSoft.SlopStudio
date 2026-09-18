@@ -221,10 +221,29 @@ public sealed class LocalAutocompleteTests
 internal sealed class CompletionServiceFake : IAutocompleteService
 {
     public AutocompleteSettings Settings { get; private set; } = new() { DelayMilliseconds = 50 };
-    public LocalModelStatus Status => new(LocalModelState.Ready, "Pronto · cpu");
+    // Ajustável: a política LoadedOnly da sugestão automática decide pelo estado do modelo, e o teste precisa poder
+    // representar "modelo ausente" sem trocar de duplo.
+    public LocalModelStatus Status { get; set; } = new(LocalModelState.Ready, "Pronto · cpu");
     public event EventHandler? SettingsChanged;
     public Func<AutocompleteRequest, Task<AutocompleteResult?>> Handler { get; set; } = _ => Task.FromResult<AutocompleteResult?>(new("find({})\n.limit(100)", true, "IA local"));
     public Task ConfigureAsync(AutocompleteSettings settings, CancellationToken cancellationToken = default) { Settings = settings; SettingsChanged?.Invoke(this, EventArgs.Empty); return Task.CompletedTask; }
     public Task<AutocompleteResult?> GetCompletionAsync(AutocompleteRequest request, CancellationToken cancellationToken = default) => Handler(request);
+
+    /// <summary>
+    /// Representa o serviço real, não só o transporte: a origem de IA só responde quando a política a permite, e com
+    /// <see cref="CompletionSourcePolicy.MayLoadModel"/> falso (LoadedOnly) ela exige o modelo já pronto — sem isso o
+    /// duplo geraria onde o produto se abstém. Este duplo não tem dicionário lexical, então só a IA responde.
+    /// </summary>
+    public Task<AutocompleteResult?> GetCompletionAsync(AutocompleteRequest request, CompletionSourcePolicy policy,
+        CancellationToken cancellationToken = default)
+    {
+        LastPolicy = policy;
+        return policy.Ai && (policy.MayLoadModel || Status.State == LocalModelState.Ready)
+            ? Handler(request)
+            : Task.FromResult<AutocompleteResult?>(null);
+    }
+
+    /// <summary>Política do último pedido recebido; o teste confere que o caminho automático pede sob LoadedOnly.</summary>
+    public CompletionSourcePolicy? LastPolicy { get; private set; }
     public Task<LocalModelStatus> TestModelAsync(CancellationToken cancellationToken = default) => Task.FromResult(Status);
 }

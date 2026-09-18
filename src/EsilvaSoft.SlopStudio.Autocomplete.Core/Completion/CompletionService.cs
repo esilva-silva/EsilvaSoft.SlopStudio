@@ -39,7 +39,16 @@ public sealed class CompletionService
         // Passa o contexto, e não só o prefixo: é ele que identifica conexão, banco, coleção e forma para o termo
         // de uso recente. Sem rastreador de uso configurado o resultado é idêntico ao do ranking por texto.
         var ranked = _ranker.Rank(items, context, context.MaximumItems, cancellationToken);
-        return ValueTask.FromResult(new CompletionList(context.Version, ranked, result.Completeness != CatalogCompleteness.Complete));
+        // Truncamento tem três origens e todas precisam aparecer em IsIncomplete, senão um consumidor que exige
+        // "o conjunto inteiro foi visto" (o portão de confiança do ghost) concluiria unicidade a partir de uma
+        // amostra. (1) Completeness da fonte, para metadados parciais/carregando. (2) Corte por MaximumCandidates:
+        // o catálogo para de percorrer grupos quando a cota enche e, com fonte única, isso não vira Partial — o
+        // sinal aqui é a cota ter sido atingida. (3) Corte por MaximumItems: a página voltou cheia e ainda havia
+        // candidatos não devolvidos, então o que ficou de fora pode conter justamente o desempate.
+        var truncatedByCandidates = result.Candidates.Count >= query.MaximumCandidates;
+        var truncatedByItems = ranked.Count >= context.MaximumItems && ranked.Count < items.Length;
+        return ValueTask.FromResult(new CompletionList(context.Version, ranked,
+            result.Completeness != CatalogCompleteness.Complete || truncatedByCandidates || truncatedByItems));
     }
 
     private static CompletionItem ToItem(CatalogCandidate candidate, CompletionContext context)

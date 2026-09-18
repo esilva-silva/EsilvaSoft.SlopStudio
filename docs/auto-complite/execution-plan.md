@@ -28,13 +28,18 @@ Performance e Testing atuam em **todos** os lotes. Lotes sem dependência podem 
 | ID / responsável | Arquivos/componentes | Depende | Resultado esperado | Testes obrigatórios | Critério de aceite |
 | --- | --- | --- | --- | --- | --- |
 | G00 Architecture | A/Language/CatalogModel.cs; architecture/decisions | — | Contratos de stamp/cobertura/acesso/lifetime e mapa de ownership aprovados | Revisão de dependências e teste de arquitetura existente | Sem abstrações duplicadas ou dependências IA no contexto/catálogo |
-| K11 MongoDB Knowledge | A/Language/MetadataModel.cs, MetadataCache.cs; I/OperationEnvironment.cs | G00 | Geração opaca por origem, invalidação de perfil/ENV/credencial | Mesmo nome em hosts/bancos distintos; troca de ambiente | Não reutiliza schema de origem anterior; nenhuma URI em chave persistida |
+| K11 MongoDB Knowledge | A/Language/MetadataModel.cs, MetadataCache.cs; I/OperationEnvironment.cs | G00 | **Escopo reduzido (18/09/2026):** mudança de contrato de `ConnectionIdentity` rejeitada; resta cobertura de regressão + comentário de decisão | Cache esvaziado após `InvalidateEnvironment`; mesmo nome em hosts distintos sem reuso cruzado | Nenhum arquivo do Desktop reservado; nenhuma URI em chave persistida |
 | K12 MongoDB Knowledge | A/Language/MetadataCache.cs | K11 | Geração por chave para carga/write-through/amostra e opt-out | Fonte lenta após Put; disconnect/invalidate durante sample | Publicação tardia descartada; novo valor preservado |
 | K13 MongoDB Knowledge | CatalogModel/KnowledgeCatalog/MetadataCache | K12 | Peek propagado, fila limitada e single-flight | Rajada de chaves, 50 consumidores mesma chave, cancelamento individual | Zero chamadas no automático/refiltro; limites de concorrência respeitados |
-| K14 MongoDB Knowledge | I/MongoMetadataSource.cs; A/Language/MetadataModel.cs | K11 | Preservar kinds na listagem e estados de permissão | Fake e Mongo real restrito/view/timeseries | Tipo quando disponível sem carregar validators do banco |
+| K14 MongoDB Knowledge | I/MongoMetadataSource.cs; A/Language/MetadataModel.cs | K11 | **Parcial, com desvio registrado:** estados de permissão atendidos (erro de autorização → `Unknown` sem quebrar a listagem); tipo antes da definição **não** está disponível no custo do driver escolhido | Fake e Mongo real restrito/view/timeseries | Não declarar K14 integralmente cumprido; ver [PEND-K14-KIND](decisions.md#pend-k14-kind) |
 | K15 MongoDB Knowledge | A/Language/CollectionSchema.cs, KnowledgeCatalog.cs, NameTable.cs | K12 | Mescla limitada por escopo/revisão e tabelas reaproveitadas | Abas alternadas, fontes disjuntas, cancelamento e bytes | Não reconstrói schema quente; limite conjunto/truncamento visível |
 | K16 MongoDB Knowledge | CatalogModel/KnowledgeCatalog/MetadataModel | K13,K15 | Cobertura, truncamento e Changed terminal por chave/revisão | Falha sem valor, top-2 truncado, fontes concorrentes | Não confunde fresh com exaustivo; callback terminal chega |
+| K16-b MongoDB Knowledge | Autocomplete.Core/KnowledgeCatalog.cs, CatalogQuery.cs, CatalogResult.cs | K16 | Cota por tipo/fonte em `KnowledgeCatalog.Query` | Duas fontes produzindo o mesmo kind para o mesmo alvo; truncamento reportado por fonte | **Obrigatório antes de L15** ([PEND-K16-QUOTA](decisions.md#pend-k16-quota)); nenhuma fonte oculta outra |
 | K17 Performance | B/CatalogBenchmarks.cs, MemoryScenario.cs; U/KnowledgeCatalogTests.cs | K14,K16 | Relatório multiaba/conexão, contenção, memória e fonte real | Protocolo performance.md; revisão Testing | Separar média/p95 e integrar só com limites demonstrados |
+
+K11: escopo reduzido nesta revisão — a mudança de contrato de `ConnectionIdentity` foi rejeitada; ver [PEND-K11-SECRET](decisions.md#pend-k11-secret) e [PEND-K11-L](decisions.md#pend-k11-l) para os gatilhos de reabertura.
+
+K16-b é um sub-lote novo de K16, obrigatório antes de L15: a ordem geral do plano não muda — `L15` já declara `Depende: L13,L14,K16` e continua correta, mas K16-b deve estar concluído antes de L15 iniciar, por ser pré-requisito de entrada da segunda fonte de `Field`/`Collection`.
 
 ## Fase 1 — Schema Discovery / Schema Learning
 

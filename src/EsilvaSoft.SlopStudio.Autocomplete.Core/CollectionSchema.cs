@@ -33,10 +33,15 @@ public sealed class CollectionSchema
 
     public IEnumerable<string> Paths() => Descendants().Select(node => node.Path);
 
-    public static CollectionSchema Merge(IEnumerable<CollectionSchema?> schemas)
+    /// <summary>
+    /// Unions every field of the given schemas. Bounded by <paramref name="maximumDepth"/>/<paramref name="maximumNodes"/>
+    /// after the union (not just within each source), so merging many local schemas or evidence sets never grows past
+    /// the same ceiling a single source already respects; the excess is marked <see cref="IsTruncated"/>.
+    /// </summary>
+    public static CollectionSchema Merge(IEnumerable<CollectionSchema?> schemas, int maximumDepth = 12, int maximumNodes = 10_000)
     {
         ArgumentNullException.ThrowIfNull(schemas);
-        var builder = new SchemaBuilder(int.MaxValue, int.MaxValue);
+        var builder = new SchemaBuilder(maximumDepth, maximumNodes);
         foreach (var schema in schemas) if (schema is not null) builder.AddSchema(schema);
         return builder.Build();
     }

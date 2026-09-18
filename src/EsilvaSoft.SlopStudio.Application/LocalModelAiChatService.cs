@@ -38,7 +38,7 @@ public sealed class LocalModelAiChatService(AiAutocompleteProvider provider, IAu
         var generation = await provider.Models.GenerateAsync(LocalModelRole.Chat, settings, model => new ModelGenerationRequest(
             AutocompleteContextBuilder.ModelPrefix(prompt, LocalAiModelService.IsDeepSeek(model)), "", settings.ContextTokens,
             Math.Clamp(model.Metadata?.Chat.MaximumTokens ?? DefaultChatTokens, 1, 1024), RequireFullContext: true) { Temperature = model.Metadata?.Chat.Temperature ?? 0 },
-            AiRequestPriority.Interactive, cancellationToken).ConfigureAwait(false);
+            AiRequestPriority.Interactive, AiModelLoadPolicy.LoadIfNeeded, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         if (autocomplete.Settings != settings) throw new OperationCanceledException("As preferências de IA mudaram.");
         var text = generation.Result.IsComplete ? AiAutocompleteProvider.CleanGeneratedText(generation.Result.Text, "") : null;

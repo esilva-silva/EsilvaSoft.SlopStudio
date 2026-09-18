@@ -13,6 +13,26 @@
         <CheckBox Content="Usar contexto ampliado do editor e histórico" IsChecked="{Binding UseEditorContext}"/>
         <CheckBox Content="Aceitar sugestão em partes com Tab" IsChecked="{Binding IncrementalTab}"/>
         <CheckBox Content="Usar o modelo local no Assistente IA" IsChecked="{Binding ChatEnabled}"/>
+
+        <TextBlock Text="Sugestão automática (inline)" Classes="section-title"/>
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+          <CheckBox Content="Sugerir automaticamente após uma pausa na digitação" IsChecked="{Binding InlineEnabledEffective}" AutomationProperties.Name="Sugerir automaticamente após uma pausa na digitação"/>
+          <Button Grid.Column="1" Content="Usar padrão" Command="{Binding ResetInlineEnabledCommand}" IsVisible="{Binding InlineEnabledIsOverridden}" ToolTip.Tip="Volta a acompanhar o padrão do produto (ligado) em vez do valor salvo nesta sessão." AutomationProperties.Name="Usar padrão para sugerir automaticamente"/>
+        </Grid>
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsEnabled="{Binding InlineEnabledEffective}">
+          <CheckBox Content="Usar sugestões determinísticas (catálogo e schema)" IsChecked="{Binding InlineUseTraditionalEffective}" AutomationProperties.Name="Usar sugestões determinísticas na sugestão automática"/>
+          <Button Grid.Column="1" Content="Usar padrão" Command="{Binding ResetInlineUseTraditionalCommand}" IsVisible="{Binding InlineUseTraditionalIsOverridden}" ToolTip.Tip="Volta a seguir Usar dicionário local em vez do valor salvo nesta sessão." AutomationProperties.Name="Usar padrão para sugestões determinísticas na sugestão automática"/>
+        </Grid>
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsEnabled="{Binding InlineEnabledEffective}">
+          <CheckBox Content="Usar IA local nas sugestões automáticas" IsChecked="{Binding InlineUseAiEffective}" AutomationProperties.Name="Usar IA local nas sugestões automáticas"/>
+          <Button Grid.Column="1" Content="Usar padrão" Command="{Binding ResetInlineUseAiCommand}" IsVisible="{Binding InlineUseAiIsOverridden}" ToolTip.Tip="Volta a acompanhar o padrão do produto (desligado) em vez do valor salvo nesta sessão." AutomationProperties.Name="Usar padrão para IA local na sugestão automática"/>
+        </Grid>
+        <TextBlock Text="As duas opções acima não têm efeito enquanto a sugestão automática estiver desligada." Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding !InlineEnabledEffective}"/>
+        <TextBlock Text="A IA local só entra na sugestão automática quando um modelo já estiver carregado; digitar nunca carrega o modelo sozinho." Classes="metadata" TextWrapping="Wrap"/>
+
+        <TextBlock Text="Lista de sugestões (Ctrl+Espaço)" Classes="section-title"/>
+        <CheckBox Content="Abrir a lista ao digitar . ou $" IsChecked="{Binding CompletionAutoOpenOnTrigger}" AutomationProperties.Name="Abrir a lista ao digitar ponto ou cifrão"/>
+        <CheckBox Content="Enter também confirma a sugestão da lista" IsChecked="{Binding CompletionEnterAccepts}" AutomationProperties.Name="Enter também confirma a sugestão da lista"/>
         <TextBlock Text="Modo"/>
         <ComboBox ItemsSource="{Binding Modes}" SelectedIndex="{Binding ModeIndex}" HorizontalAlignment="Stretch" AutomationProperties.Name="Modo de autocomplete"/>
         <TextBlock Text="Diretório de modelos"/>
@@ -95,8 +115,8 @@
           <TextBlock Grid.Column="1" Text="Máximo de tokens gerados"/>
           <NumericUpDown Grid.Row="1" Minimum="64" Maximum="8192" Value="{Binding ContextTokens}" AutomationProperties.Name="Tokens de contexto"/>
           <NumericUpDown Grid.Row="1" Grid.Column="1" Minimum="1" Maximum="256" Value="{Binding MaximumTokens}" AutomationProperties.Name="Máximo de tokens gerados"/>
-          <TextBlock Grid.Row="2" Text="Atraso (ms)"/>
-          <NumericUpDown Grid.Row="3" Minimum="50" Maximum="2000" Value="{Binding DelayMilliseconds}" AutomationProperties.Name="Atraso do autocomplete"/>
+          <TextBlock Grid.Row="2" Text="Pausa até a sugestão automática (ms)" TextWrapping="Wrap"/>
+          <NumericUpDown Grid.Row="3" Minimum="50" Maximum="2000" Value="{Binding DelayMilliseconds}" ToolTip.Tip="Tempo sem digitar até a sugestão automática (inline) aparecer no cursor." AutomationProperties.Name="Pausa até a sugestão automática"/>
         </Grid>
         <TextBlock Text="A sugestão aparece no cursor. Tab avança; Esc descarta. Ctrl+Espaço mantém as sugestões de Console/MQL. Baixe um modelo acima ou copie uma exportação ONNX GenAI para o diretório de modelos." Classes="metadata" TextWrapping="Wrap"/>
         <TextBlock Text="Estado do modelo" Classes="section-title"/>
