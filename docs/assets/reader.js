@@ -8,12 +8,17 @@
   const root = new URL('../', document.currentScript.src);
   let selected = '', category = 'Todos', request = null;
   function group(file) {
-    const number = Number(file.slice(0, 2));
+    // A pasta decide primeiro; o prefixo numérico só vale para os documentos transversais da raiz.
+    if (file.startsWith('phases/')) return 'Fases';
+    if (file.startsWith('backlog/')) return 'Backlog';
+    if (file.startsWith('done/')) return 'Releases concluídas';
     if (file.startsWith('ui/')) return 'Produto';
     if (file.startsWith('auto-complite/')) return 'Editor e IA';
+    const number = Number(file.slice(0, 2));
     if ([6,20,21,22,23,26].includes(number)) return 'Editor e IA';
-    if ([5,7,8,10].includes(number)) return 'Arquitetura';
-    if ([3,12,13,14,15,16,19,24,25].includes(number)) return 'MVP';
+    if ([5,7,10].includes(number)) return 'Arquitetura';
+    if ([8,11,15,16].includes(number)) return 'Qualidade e validação';
+    if ([9,12,24].includes(number)) return 'Fases';
     return 'Produto';
   }
   function renderIndex() {

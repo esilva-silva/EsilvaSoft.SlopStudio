@@ -133,4 +133,4 @@ Este checklist é de homologação, não declaração de inexistência do códig
 - [x] Medir uma amostra de startup e CPU/RAM nativos sem inspeção visual (1.396 ms; 220,3 MiB; 3.734,4 ms CPU após 2 s).
 - [ ] Repetir a medição em série e durante I/O demorado para obter perfil estatístico.
 
-Evidência e limites em [25 — Auditoria](25-auditoria-mvp-performance.md).
+Evidência e limites em [25 — Auditoria](done/release_v0.5.0/25-auditoria-mvp-performance.md). Os gates da v0.5.0 que continuam abertos estão consolidados em [pendências de homologação](done/release_v0.5.0/pendencias-de-homologacao.md); arquivar a release não fechou nenhum deles. Os itens de ambiente deste checklist referem-se ao armazenamento local não criptografado, não a um cofre: ver [bkl-01](backlog/bkl-01-key-vault-criptografico.md).

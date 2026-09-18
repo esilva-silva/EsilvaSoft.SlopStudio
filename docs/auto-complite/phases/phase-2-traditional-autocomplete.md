@@ -35,7 +35,7 @@ O estado verificado desta implementação está na tabela **Estado da implementa
 | Application | `SyntaxHighlighting/SyntaxHighlightingService.cs` | Consome tokens do `MongoLexer` |
 | Application | `MongoCompletionTarget.cs` | Substituído por `NamespaceTargetResolver`; casos de teste migrados |
 | Application | `AggregationCompletionContext.cs`, `ConsoleAutocompleteService.cs` | Removidos após migração |
-| Application | `MqlAutocompleteService.cs` | Sugestões marcadas obsoletas e sem chamadores; inferência de schema preservada |
+| Application | `MqlAutocompleteService.cs` | Sugestões removidas junto da lista de operadores duplicada; inferência de schema preservada |
 | Application | `CompletionSession.cs` | Generalizado em `EditorRequestScope` |
 | Desktop | `SyntaxHighlighting/MongoTextEditor.cs` | Snapshot, hooks para janela de completion |
 | Desktop | `WorkspaceTabView.axaml.cs` | `EditorKeyDown` → dispatcher; `ShowSuggestions` removido |
@@ -88,7 +88,7 @@ O estado verificado desta implementação está na tabela **Estado da implementa
 8. Digitação não gera chamada remota; cargas de metadados seguem exclusivamente as regras do cache.
 9. Orçamentos de UI por tecla, construção de contexto e tecla → lista (revisados após a Fase 1) atendidos na máquina de referência para documentos até 64 KiB, ou desvio justificado e aprovado.
 10. PNGs dos 18 cenários inspecionados para lista aberta, detalhe e snippet ativo nos dois temas.
-11. `MenuFlyout` removido; `ConsoleAutocompleteService` e `AggregationCompletionContext` removidos somente se não houver consumidores legados; sugestões de `MqlAutocompleteService` sem chamadores de produção.
+11. `MenuFlyout` removido; `ConsoleAutocompleteService` e `AggregationCompletionContext` removidos somente se não houver consumidores legados; sugestões de `MqlAutocompleteService` removidas por não terem chamadores de produção.
 12. Atalhos lidos de `EditorKeyBindings`; preferência inválida não sobrescreve a sessão.
 13. Testes existentes aprovados; adaptações de asserção justificadas na PR sem enfraquecer o comportamento verificado.
 14. Documentação 06, 17, 21, 22, 24 e matriz atualizadas; decisões AC-01, AC-02, AC-07, AC-08, AC-09 e AC-17 promovidas ou revisadas.

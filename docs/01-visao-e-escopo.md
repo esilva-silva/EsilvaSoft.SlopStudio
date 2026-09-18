@@ -18,7 +18,7 @@ Requisitos fixos: nome `EsilvaSoft.SlopStudio`, C#/.NET 10, Avalonia, persistên
 
 ## Produto mínimo utilizável
 
-O MVP é a **Fase 1 / v0.5.0**: conectar → navegar → consultar → visualizar → editar → exportar. Inclui Explorer, find/findOne/filtro/sort/limit/skip, CRUD BSON protegido, autocomplete simples, formatação JSON/query/script e exportação JSON/CSV. 🚧 Aceite em andamento: CSV da página, formatação explícita e status global concorrente têm implementação e evidências na [auditoria de polimento](25-auditoria-mvp-performance.md). A homologação Windows/Linux continua exigida para os fluxos anunciados.
+O MVP é a **Fase 1 / v0.5.0**: conectar → navegar → consultar → visualizar → editar → exportar. Inclui Explorer, find/findOne/filtro/sort/limit/skip, CRUD BSON protegido, autocomplete simples, formatação JSON/query/script e exportação JSON/CSV. 🚧 Aceite em andamento: CSV da página, formatação explícita e status global concorrente têm implementação e evidências na [auditoria de polimento](done/release_v0.5.0/25-auditoria-mvp-performance.md). A homologação Windows/Linux continua exigida para os fluxos anunciados.
 
 A **v0.6.0** consolida aggregation, ferramentas de query, autocomplete contextual e UX; a **v0.7.0**, administração e índices; a **v0.8.0**, automação JavaScript entre conexões; a **v0.9.0**, IA local; a **v1.0.0**, estabilidade, instalação, atualização e compatibilidade. Scripts, administração e IA já têm antecipações no checkout, com status e limites próprios, sem aumentar o aceite obrigatório do MVP. Nenhuma fase está concluída.
 

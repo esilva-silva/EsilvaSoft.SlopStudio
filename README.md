@@ -13,9 +13,9 @@ A desktop IDE for MongoDB built with **.NET 10 and Avalonia**, for **Windows and
 >
 > **Version 1.0.0 will be fully reviewed** — code, architecture, security, tests and documentation — before it is declared stable. Until then, every release is a pre-release.
 
-## MVP goal (v0.5.0)
+## MVP (v0.5.0, archived)
 
-Deliver the basic daily MongoDB cycle **without requiring AI or cross-server automation**:
+The MVP delivers the basic daily MongoDB cycle **without requiring AI or cross-server automation**:
 
 ```text
 connect → navigate → query → view → edit → export
@@ -25,23 +25,31 @@ Concretely: save and test connection profiles, browse databases and collections,
 
 ## Project phases
 
-| Phase | Version | Goal | Progress |
+| Phase | Version | Goal | Status |
 | --- | --- | --- | --- |
-| 1 | v0.5.0 | **MVP**: connect → navigate → query → view → edit → export | ✅ Feature scope implemented (Explorer, queries, protected CRUD, JSON/tree results, autocomplete, formatting, JSON/CSV export). 🚧 Windows/Linux acceptance testing still open |
-| 2 | v0.6.0 | Advanced queries and aggregation pipelines | 🚧 In development — pipelines, syntax highlighting, statement execution and contextual autocomplete already exist |
-| 3 | v0.7.0 | Administration and maintenance | 🚧 In development — collections, views, validation, indexes, stats, users/roles and logical export/import already exist |
-| 4 | v0.8.0 | JavaScript script engine across connections | 🚧 In development — JavaScript Console with `getConnection()`/`ConnectionPool` and a separate `mongosh` Script mode |
-| 5 | v0.9.0 | Local AI and contextual productivity | 🧪 Experimental — ONNX models, ghost-text completion, reviewable chat proposals, multi-model catalog with CPU/GPU/NPU selection |
-| 6 | v1.0.0 | Stability, full review, installation and updates | 📋 Planned — the **fully reviewed** stable release |
+| 1 | v0.5.0 | **MVP**: connect → navigate → query → view → edit → export | Feature scope implemented and [archived](docs/done/release_v0.5.0/README.md). Windows/Linux acceptance validation still [pending](docs/done/release_v0.5.0/pendencias-de-homologacao.md) |
+| 2 | v0.6.0 | Project organisation and basic autocomplete | **Active phase** — core separation, business rules and simple deterministic autocomplete |
+| 3 | v0.7.0 | AI-assisted autocomplete | Planned — local-model suggestions, always reviewable, never applied automatically |
+| 4 | v0.8.0 | Opening and saving text files | Planned — open files in the editor as plain text, save the current content, and "Save as" |
+| 5 | v0.9.0 | Local AI and contextual productivity | Experimental — ONNX models, ghost text, reviewable chat proposals, multi-model catalog, CPU/GPU/NPU selection |
+| 6 | v0.10.0 | Administration and maintenance | In development — collections, views, validation, indexes, stats, users, roles and logical export/import |
+| 7 | v0.11.0 | Simple workflow-based AI chat | Planned — a predefined flow, limited scope and controlled actions |
+| 8 | v1.0.0 | Stability, full review, installation and updates | Planned — stable release only after code, architecture, security, test, installation and update review |
 
-No phase has passed its formal acceptance gate yet: automated tests (including headless UI rendering) do not replace validation against real MongoDB servers, both operating systems, screen readers and native dialogs. Features from later phases that already exist are early previews. Details: [roadmap](docs/09-plano-de-implementacao.md) and [implementation inventory](docs/24-inventario-roadmap.md) (Portuguese).
+### How to read this table
+
+- **Active phase** — the only phase being worked on. It is the only scope that justifies new entries in the user interface.
+- **Early implementation** — code that already exists for a later phase. It is kept and tested, but it does **not** close that phase, does not count as completed scope of the active phase, and is **not** exposed in the interface. Features outside the active phase may remain in the code while disabled or experimental.
+- **Backlog** — requirements with no assigned phase, postponed, or removed from the current scope. Nothing is deleted: the implementation is preserved and isolated, only its entry points are removed. See [backlog](docs/backlog/README.md).
+- **Archived release** — a version whose feature scope is closed, in [`docs/done`](docs/done/README.md). Archiving does **not** mean it passed homologation; open acceptance gates stay recorded next to the release.
+
+No phase has passed its formal acceptance gate yet: automated tests (including headless UI rendering) do not replace validation against real MongoDB servers, both operating systems, screen readers and native dialogs. Details: [phases](docs/phases/README.md), [roadmap](docs/09-plano-de-implementacao.md) and [implementation inventory](docs/24-inventario-roadmap.md) (Portuguese).
 
 ## Requirements
 
 - **.NET SDK 10.0.400** or a later feature band (pinned in [global.json](global.json)).
 - **Windows** (x64/ARM64) or **Linux** (x64/ARM64).
 - A reachable **MongoDB** server.
-- Optional: **mongosh** on `PATH` for the Script mode.
 - Optional: an **ONNX Runtime GenAI** model export for local AI. Weights are never bundled; **Preferences → Autocomplete** can download the SlopCoder-Mongo 0.5B variants from Hugging Face on request, verified by hash.
 
 ## Getting started
@@ -61,7 +69,7 @@ dotnet run --project src/EsilvaSoft.SlopStudio.Desktop
 2. **Testar conexão** checks the profile; **Abrir conexão** loads its databases into the Explorer.
 3. Expand a database to load its collections. Double-click (or press Enter on) a collection to open a Console tab with a prepared query. **Nothing runs until you execute it.**
 
-Credentials can be written directly in the URI or referenced from a local environment with `${ENV.get("MONGO_PASSWORD")}`. Manage environments under **Ambientes** (Development, Staging, Production or custom).
+Credentials can be written directly in the URI or referenced from a local environment with `${ENV.get("MONGO_PASSWORD")}`. Environments still resolve at runtime, but the **Ambientes** button was removed from the top bar: an encrypted vault is not implemented, so the requirement moved to the [backlog](docs/backlog/bkl-01-key-vault-criptografico.md). Environment values are stored **unencrypted** in the local LiteDB file.
 
 ### Query and edit
 
@@ -70,13 +78,26 @@ Queries are written as text in the editor (there is no form-based query builder)
 ```javascript
 db.getCollection("customers").find({ status: "active" }).sort({ name: 1 }).limit(100)
 db.Customers.find({ CustomerId: UUID("00112233-4455-6677-8899-aabbccddeeff") })
-getConnection("Development").getDatabase("CRM").getCollection("Customers").findOne({})
+db.Customers.countDocuments({ Active: true })
 ```
 
 - Results appear as JSON or a tree. Right-click a document to view, copy or edit it; saving re-reads the document and detects conflicts before writing.
 - Writes and destructive operations require confirmation; read-only profiles block them.
 - Use **Formatar JSON/query/script** in the editor options to format the selection or the whole tab (undoable).
 - **Exportar página…** writes the loaded result page to Extended JSON or CSV.
+
+### Features outside the active phase
+
+Some capabilities exist in the code but have no entry point in the interface while their phase is not active. They are disabled, not removed:
+
+| Capability | Where it went |
+| --- | --- |
+| **Ferramentas** window — collections, indexes, administration, transfer, bulk CRUD | [Phase 6 / v0.10.0](docs/phases/phase-06-v0.10.0/README.md) and [backlog](docs/backlog/bkl-02-ferramentas-fora-de-fase.md) |
+| **Ambientes / Key Vault** button | [Backlog](docs/backlog/bkl-01-key-vault-criptografico.md) — environments still resolve at runtime |
+| **Script** editor mode (external `mongosh`) | [Backlog](docs/backlog/bkl-03-script-engine-entre-conexoes.md) |
+| **Agregação** editor mode | [Backlog](docs/backlog/bkl-04-modo-aggregation.md) |
+
+The editor mode selector is therefore no longer shown: **Console** is the only available mode.
 
 ### Keyboard shortcuts
 

@@ -11,7 +11,7 @@ completo `agents/performance-agent.md` e `AGENTS.md`.
 ## Contexto do repositório
 
 - Benchmarks em `tests/EsilvaSoft.SlopStudio.Benchmarks` (BenchmarkDotNet).
-- Meta de acompanhamento: `docs/25-auditoria-mvp-performance.md`.
+- Meta de acompanhamento: `docs/done/release_v0.5.0/25-auditoria-mvp-performance.md`.
 
 ## Responsabilidades centrais
 

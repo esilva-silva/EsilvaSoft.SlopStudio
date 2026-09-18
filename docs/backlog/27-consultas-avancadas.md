@@ -1,4 +1,6 @@
-# Consultas avançadas — incremento da v0.6.0
+# Consultas avançadas — antecipação técnica (histórico)
+
+> **Reclassificado em 18/09/2026.** Este documento foi escrito quando a v0.6.0 era "consultas avançadas". No [roadmap oficial](../09-plano-de-implementacao.md) atual, a v0.6.0 é [organização dos projetos e autocomplete básico](../phases/phase-02-v0.6.0/README.md), e a agregação passou a ser **antecipação técnica sem fase atribuída** — ver [bkl-04](bkl-04-modo-aggregation.md). O conteúdo abaixo é preservado como evidência histórica da meta textual validada em 14/09/2026; ele **não** declara requisito de fase concluído, e o modo Agregação está desativado na interface.
 
 **Meta de consultas avançadas implementada e validada no checkout em 14/09/2026.** A validação cobre o fluxo textual descrito abaixo; não é publicação de release nem certificação de todos os itens futuros do catálogo.
 

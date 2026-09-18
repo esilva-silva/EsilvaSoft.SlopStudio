@@ -15,6 +15,9 @@ namespace EsilvaSoft.SlopStudio.UnitTests;
 [TestFixture, NonParallelizable]
 public sealed class DatabaseExplorerUiTests
 {
+    private static readonly string[] RemovedToolEntries =
+        ["Criar coleção…", "Documentos: inserir / atualizar / excluir…", "Criar / remover índices…", "Administração do banco / coleção…"];
+
     [Test]
     public async Task ContextMenusGenerateScriptsWithoutExecutingAndRenderDocumentTree()
     {
@@ -56,18 +59,22 @@ public sealed class DatabaseExplorerUiTests
             find.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             Assert.That(workspace.ActiveTab!.Text, Does.Contain("getCollection(\"clientes\")"));
             Assert.That(context.Scripts.Calls, Is.Empty);
-            var toolsAction = cell.ContextMenu.Items.OfType<MenuItem>().Single(m => m.Header as string == "Criar / remover índices…");
-            toolsAction.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-            Dispatcher.UIThread.RunJobs();
-            var toolsWindow = window.OwnedWindows.OfType<WorkspaceToolsWindow>().Single();
-            var toolsModel = (MainWindowViewModel)toolsWindow.DataContext!;
+            // A janela de Ferramentas saiu do menu do Explorer (docs/backlog/bkl-02-ferramentas-fora-de-fase.md);
+            // o código permanece íntegro e é exercitado aqui sem ponto de entrada visual.
+            foreach (var removed in RemovedToolEntries)
+                Assert.That(cell.ContextMenu.Items.OfType<MenuItem>().Any(m => m.Header as string == removed), Is.False, removed);
+            cell.ContextMenu.Close();
+            var toolsModel = new MainWindowViewModel(workspace.Workspace, autoLoadCollections: false)
+            { SelectedProfile = collection.Profile, SelectedDatabase = collection.Database, SelectedCollection = collection.Collection ?? "" };
+            var toolsWindow = new WorkspaceToolsWindow { DataContext = toolsModel };
+            toolsWindow.Show();
+            toolsWindow.SelectSection("Índices");
             if (toolsModel.LoadProfilesCommand.ExecutionTask is { } profileLoading) await profileLoading;
             Dispatcher.UIThread.RunJobs();
             Assert.That(toolsWindow.GetLogicalDescendants().OfType<TabControl>().Any(t => (t.SelectedItem as TabItem)?.Header as string == "Índices"), Is.True);
             Assert.That(toolsModel.SelectedDatabase, Is.EqualTo("loja"));
             Assert.That(toolsModel.SelectedCollection, Is.EqualTo("clientes"));
             toolsWindow.Close();
-            cell.ContextMenu.Close();
             workspace.OpenCollection(collection);
             await workspace.ActiveTab!.ExecuteCommand.ExecuteAsync(null); workspace.ActiveTab.ResultTabIndex = 3;
             var directory = Path.Combine(TestContext.CurrentContext.WorkDirectory, "ui-evidence"); Directory.CreateDirectory(directory);

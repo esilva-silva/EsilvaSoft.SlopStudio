@@ -21,8 +21,7 @@
       </Grid.RowDefinitions>
       <Grid RowDefinitions="Auto,*,Auto" Margin="8,4,8,0">
         <WrapPanel Orientation="Horizontal" Margin="0,0,0,4">
-          <ComboBox Margin="0,0,6,4" Width="140" ItemsSource="{Binding Modes}" SelectedItem="{Binding Mode}" IsEnabled="{Binding CanEditContext}" AutomationProperties.Name="Modo do editor" />
-          <Button Margin="0,0,6,4" Classes="primary" Command="{Binding ExecuteCommand}" ToolTip.Tip="Executar conteúdo completo (F5)" AutomationProperties.Name="Executar">
+            <Button Margin="0,0,6,4" Classes="primary" Command="{Binding ExecuteCommand}" ToolTip.Tip="Executar conteúdo completo (F5)" AutomationProperties.Name="Executar">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <Path Classes="command-icon" Data="{StaticResource PlayIcon}" />
               <TextBlock Text="Executar" VerticalAlignment="Center" />

@@ -1,6 +1,6 @@
 # Console JavaScript
 
-O **Console** substitui **Consulta JSON** como modo principal do editor. Usa um runtime próprio com Jint e o driver .NET; não requer mongosh. O modo **Script** continua disponível para arquivos e APIs do mongosh, com as proteções e limites próprios desse executor.
+O **Console** substitui **Consulta JSON** como modo principal do editor. Usa um runtime próprio com Jint e o driver .NET; não requer mongosh. O modo **Script**, que delega ao executável `mongosh`, **está desativado no seletor de modos** desde 18/09/2026: o requisito foi para o [backlog](backlog/bkl-03-script-engine-entre-conexoes.md). Sua implementação, proteções e limites permanecem íntegros em `MongoshScriptExecutionService` e continuam cobertos por testes; apenas não há como selecioná-lo na interface. **Console é o único modo oferecido.** Este documento descreve os dois executores: o Console, ativo, e o modo Script, preservado e desativado.
 
 ## Destino e execução
 

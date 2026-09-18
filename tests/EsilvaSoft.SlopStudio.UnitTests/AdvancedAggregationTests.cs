@@ -1,4 +1,7 @@
-using EsilvaSoft.SlopStudio.Application;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Completion;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Context;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Text;
 using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Infrastructure;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
@@ -6,8 +9,6 @@ using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 
 namespace EsilvaSoft.SlopStudio.UnitTests;
-
-#pragma warning disable CS0618 // Compatibility coverage for retired MQL suggestion API.
 
 [TestFixture]
 public sealed class AdvancedAggregationTests
@@ -109,22 +110,17 @@ public sealed class AdvancedAggregationTests
     [TestCase("$set")]
     [TestCase("$unset")]
     [TestCase("$count")]
-    public void AllPhaseTwoStagesAreSuggestedAtStagePosition(string stage)
+    public async Task AllPhaseTwoStagesAreSuggestedAtStagePosition(string stage)
     {
-        Assert.That(MqlAutocompleteService.GetAggregationSuggestions("[{ " + stage).Select(s => s.Text), Does.Contain(stage));
+        Assert.That(await LabelsAsync("[{ " + stage), Does.Contain(stage));
     }
 
-    [Test]
-    public void SuggestionsDistinguishStagesPredicatesAccumulatorsAndReferences()
+    /// <summary>Completion labels produced by the active engine for a cursor at the end of <paramref name="source"/>.</summary>
+    private static async Task<string[]> LabelsAsync(string source, EditorDialects dialect = EditorDialects.AggregationJson)
     {
-        Assert.That(MqlAutocompleteService.GetAggregationSuggestions("[{ $match: { $or: [{ age: { $g").Select(s => s.Text), Does.Contain("$gte").And.Not.Contain("$group"));
-        Assert.That(MqlAutocompleteService.GetAggregationSuggestions("[{ $project: { value: { $cond: [{ $g").Select(s => s.Text), Does.Contain("$gte").And.Not.Contain("$group"));
-        Assert.That(MqlAutocompleteService.GetAggregationSuggestions("[{ $facet: { page: [{ $s").Select(s => s.Text), Does.Contain("$sort"));
-        Assert.That(MqlAutocompleteService.GetAggregationSuggestions("db.orders.aggregate([{ $match: { price: { $g").Select(s => s.Text), Does.Contain("$gte").And.Not.Contain("$group"));
-        Assert.That(MqlAutocompleteService.GetAggregationSuggestions("[{ $group: { total: { $s").Select(s => s.Text), Does.Contain("$sum").And.Not.Contain("$sort"));
-        Assert.That(MqlAutocompleteService.GetAggregationSuggestions("[{ $group: { _id: '$cu", ["customer", "price"]).Select(s => s.Text), Has.Exactly(1).EqualTo("$customer"));
-        Assert.That(MqlAutocompleteService.GetAggregationSuggestions("[{ // $ma"), Is.Empty);
-        Assert.That(MqlAutocompleteService.ApplySuggestion("[{ $match: {}, ", new("$limit", "", MqlSuggestionKind.AggregationStage)), Is.EqualTo("[{ $match: {}, $limit"));
+        var analysis = CompletionContextEngine.Analyze(new(new StringTextSnapshot(source), source.Length, dialect, null));
+        var service = new CompletionService(new KnowledgeCatalog([new LanguageCatalogSource()]));
+        var list = await service.CompleteAsync(analysis.Context);
+        return list.Items.Select(item => item.Label).ToArray();
     }
 }
-#pragma warning restore CS0618

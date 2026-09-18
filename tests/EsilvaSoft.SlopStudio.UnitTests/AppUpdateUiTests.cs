@@ -107,9 +107,11 @@ public sealed class AppUpdateUiTests
         var directory = Path.Combine(TestContext.CurrentContext.WorkDirectory, "ui-evidence");
         Directory.CreateDirectory(directory);
         var buttons = window.GetVisualDescendants().OfType<Button>().ToArray();
-        var tools = buttons.Single(b => AutomationProperties.GetName(b) == "Ferramentas");
-        var environments = buttons.Single(b => Equals(b.Content, "Ambientes"));
+        var save = buttons.Single(b => AutomationProperties.GetName(b) == "Salvar");
         var more = buttons.Single(b => AutomationProperties.GetName(b) == "Mais ações");
+        // Ferramentas e Ambientes saíram da barra: docs/backlog/bkl-01 e bkl-02.
+        Assert.That(buttons.Any(b => AutomationProperties.GetName(b) == "Ferramentas"), Is.False);
+        Assert.That(buttons.Any(b => Equals(b.Content, "Ambientes")), Is.False);
         foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
             foreach (var size in new[] { new Size(960, 620), new Size(1366, 768), new Size(1920, 1080) })
                 foreach (var scale in new[] { 1d, 1.5, 2 })
@@ -117,13 +119,10 @@ public sealed class AppUpdateUiTests
                     Avalonia.Application.Current!.RequestedThemeVariant = theme;
                     window.Width = size.Width; window.Height = size.Height; window.SetRenderScaling(scale);
                     window.UpdateLayout(); Dispatcher.UIThread.RunJobs();
-                    var toolsRight = tools.TranslatePoint(new Point(tools.Bounds.Width, 0), window)!.Value.X;
-                    var environmentsLeft = environments.TranslatePoint(new Point(), window)!.Value.X;
-                    var environmentsRight = environments.TranslatePoint(new Point(environments.Bounds.Width, 0), window)!.Value.X;
+                    var saveRight = save.TranslatePoint(new Point(save.Bounds.Width, 0), window)!.Value.X;
                     var updateLeft = update.TranslatePoint(new Point(), window)!.Value.X;
                     var moreRight = more.TranslatePoint(new Point(more.Bounds.Width, 0), window)!.Value.X;
-                    Assert.That(environmentsLeft, Is.GreaterThanOrEqualTo(toolsRight - 0.5), $"{size} {scale}: Ambientes overlaps Ferramentas");
-                    Assert.That(updateLeft, Is.GreaterThanOrEqualTo(environmentsRight - 0.5), $"{size} {scale}: update overlaps Ambientes");
+                    Assert.That(updateLeft, Is.GreaterThanOrEqualTo(saveRight - 0.5), $"{size} {scale}: update overlaps Salvar");
                     Assert.That(moreRight, Is.LessThanOrEqualTo(window.ClientSize.Width + 0.5), $"{size} {scale}: top bar overflows");
                     Assert.That(update.Bounds.Height, Is.GreaterThanOrEqualTo(28));
                     var label = update.GetVisualDescendants().OfType<TextBlock>().Single();

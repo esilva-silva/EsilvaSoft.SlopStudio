@@ -1,18 +1,31 @@
 # Guia rápido de uso
 
+## O que está disponível na interface — 18/09/2026
+
+A fase em execução é a [v0.6.0](phases/phase-02-v0.6.0/README.md). Alguns fluxos descritos adiante **continuam implementados no código, mas não têm entrada na interface** e por isso não podem ser executados pelos passos indicados:
+
+| Fluxo | Estado | Onde está o requisito |
+| --- | --- | --- |
+| Botão **Ferramentas** (coleções, documentos, índices, administração, transferir, CRUD em lote, análise) | Sem entrada na interface | [Fase 6 / v0.10.0](phases/phase-06-v0.10.0/README.md) e [bkl-02](backlog/bkl-02-ferramentas-fora-de-fase.md) |
+| Botão **Ambientes / Key Vault** | Sem entrada na interface. Os valores de ambiente continuam sendo resolvidos em tempo de execução | [bkl-01](backlog/bkl-01-key-vault-criptografico.md) |
+| Modo **Script** (mongosh externo) | Desativado no seletor de modos | [bkl-03](backlog/bkl-03-script-engine-entre-conexoes.md) |
+| Modo **Agregação** | Desativado no seletor de modos | [bkl-04](backlog/bkl-04-modo-aggregation.md) |
+
+O seletor de modos deixou de ser exibido: **Console** é o único modo do editor. As seções abaixo que descrevem esses fluxos são mantidas como documentação do comportamento implementado, não como passos executáveis hoje.
+
 ## Consultas avançadas — incremento de 14/09/2026
 
-Depois de um `$group` que cria `total`, Ctrl+Espaço oferece `$total` nas expressões seguintes. Projeções e `$unset` retiram campos das sugestões; `$lookup` distingue `localField` e `foreignField` quando existem resultados conhecidos da coleção relacionada. As sugestões acompanham os ramos de `$facet` e podem ser inseridas/desfeitas no editor sem execução. [Escopo validado e limites](27-consultas-avancadas.md).
+Depois de um `$group` que cria `total`, Ctrl+Espaço oferece `$total` nas expressões seguintes. Projeções e `$unset` retiram campos das sugestões; `$lookup` distingue `localField` e `foreignField` quando existem resultados conhecidos da coleção relacionada. As sugestões acompanham os ramos de `$facet` e podem ser inseridas/desfeitas no editor sem execução. [Escopo validado e limites](backlog/27-consultas-avancadas.md).
 
 O histórico agora inclui Agregação: reabra o pipeline em nova aba com destino e limite originais, sem executar. Falhas e cancelamentos também são registrados quando o histórico está habilitado. As sugestões de campos respeitam a coleção escrita no Console; expressões com destino dinâmico não reutilizam campos de outra coleção. Erros de comando mostram código MongoDB e orientação sem ecoar dados da resposta bruta.
 
-Em **Opções → Validar sintaxe**, valide a seleção ou o editor inteiro sem conexão. Erros informam linha/coluna e selecionam o trecho. No modo **Agregação**, **Analisar pipeline (explain)** mostra o plano bruto estimado em Mensagens, no destino fixo da aba. `$out` e `$merge` são bloqueados no cursor de leitura. Ctrl+Espaço cobre os 12 stages da fase e predicados/acumuladores comuns. [Exemplos de uso, evidência e limites](27-consultas-avancadas.md).
+Em **Opções → Validar sintaxe**, valide a seleção ou o editor inteiro sem conexão. Erros informam linha/coluna e selecionam o trecho. No modo **Agregação**, **Analisar pipeline (explain)** mostra o plano bruto estimado em Mensagens, no destino fixo da aba. `$out` e `$merge` são bloqueados no cursor de leitura. Ctrl+Espaço cobre os 12 stages da fase e predicados/acumuladores comuns. [Exemplos de uso, evidência e limites](backlog/27-consultas-avancadas.md).
 
 ## Disponibilidade e versões — 13/09/2026
 
 A base atual é alpha (última tag local v0.1.1-alpha, com desenvolvimento posterior). Próximo alvo: **v0.5.0**, ainda 🚧 Em desenvolvimento. ✅ Explorer/consultas/CRUD/JSON já têm caminhos integrados. Abrir coleção prepara o texto; use Executar para carregar documentos. Exportar resultados oferece **Extended JSON da página carregada**, não CSV. 🚧 Formatação de apresentação JSON existe; comando geral de formatar query/script e CSV continuam pendentes do MVP.
 
-Pipelines e ferramentas administrativas já disponíveis são antecipações das v0.6.0/v0.7.0; Console com múltiplas conexões e Script/mongosh serão consolidados na v0.8.0. 🧪 Modelos locais/chat pertencem à v0.9.0, com limites de qualidade/hardware. A v1.0.0 é um marco futuro de estabilidade. Consulte [roadmap](09-plano-de-implementacao.md) e [inventário de código](24-inventario-roadmap.md) para limites e evidências; o restante deste guia descreve operações específicas, não aceite de release.
+Pipelines e ferramentas administrativas já disponíveis são antecipações técnicas: administração pertence à [v0.10.0](phases/phase-06-v0.10.0/README.md) e agregação está no [backlog](backlog/bkl-04-modo-aggregation.md). Console com múltiplas conexões e Script/mongosh estão no [backlog](backlog/bkl-03-script-engine-entre-conexoes.md). 🧪 Modelos locais/chat pertencem à v0.9.0, com limites de qualidade/hardware. A v1.0.0 é um marco futuro de estabilidade. Consulte [roadmap](09-plano-de-implementacao.md) e [inventário de código](24-inventario-roadmap.md) para limites e evidências; o restante deste guia descreve operações específicas, não aceite de release.
 
 ## Iniciar
 
@@ -39,7 +52,7 @@ mongodb://user:${ENV.get("MONGO_PASSWORD")}@server/database
 
 Uma URI direta é salva como foi configurada no perfil local. Os campos opcionais **Usuário** e **Senha na conexão** também permitem montar a URI, codificando os caracteres reservados. Deixe os dois campos vazios para preservar uma URI já preenchida, inclusive seus marcadores. Informar somente o usuário mantém o marcador legado `${MONGODB_PASSWORD}`; nenhum segredo existente é convertido automaticamente para senha direta.
 
-Abra **Ambientes** na barra superior para gerenciar **Ambientes / Key Vault**. Development, Staging e Production estão disponíveis inicialmente; **Criar ambiente** adiciona nomes customizados. Selecione um ambiente, preencha chave/valor e use **Adicionar / atualizar variável**. A lista permite selecionar uma chave para editar ou remover. **Salvar e ativar ambiente** persiste todos os ambientes e ativa o selecionado. Fechar descarta mudanças ainda não salvas; selecionar na lista, por si só, não ativa o ambiente.
+O botão **Ambientes** foi removido da barra superior ([bkl-01](backlog/bkl-01-key-vault-criptografico.md)); a tela de gerenciamento descrita a seguir permanece implementada, sem ponto de entrada. Ela gerencia ambientes locais, **não** um cofre criptográfico: os valores são gravados sem criptografia. Development, Staging e Production estão disponíveis inicialmente; **Criar ambiente** adiciona nomes customizados. Selecione um ambiente, preencha chave/valor e use **Adicionar / atualizar variável**. A lista permite selecionar uma chave para editar ou remover. **Salvar e ativar ambiente** persiste todos os ambientes e ativa o selecionado. Fechar descarta mudanças ainda não salvas; selecionar na lista, por si só, não ativa o ambiente.
 
 Cada ambiente possui seu próprio conjunto de textos. `ENV.get("chave")` consulta primeiro o ambiente ativo e, para compatibilidade, usa a variável do processo se a chave estiver ausente no ambiente. Uma chave ausente em ambas as origens gera erro; valores vazios cadastrados são válidos. Nomes de chave diferenciam maiúsculas/minúsculas no módulo.
 
@@ -58,18 +71,18 @@ O runner aceita ambas as URIs e transmite os valores pelo ambiente do processo f
 ## Consulta e edição
 
 1. Abra a conexão pela modal, expanda banco e abra coleção no explorer.
-2. Para gerenciar a coleção da aba, abra **Ferramentas → Coleções**. Para criar uma coleção capped, marque **Capped** e informe o máximo de bytes; o máximo de documentos é opcional. Para uma coleção clustered, marque **Clustered** e informe uma chave BSON de exatamente um campo, como `{ "_id": 1 }`; ela não pode ser combinada com view nem capped e depende da versão do servidor. O campo **Collation BSON opcional** aceita, por exemplo, `{ "locale": "pt", "strength": 1 }`. Para criar uma view, marque **View**, informe a coleção de origem e um pipeline JSON; views não aceitam opções capped. Para editar o pipeline da view selecionada, informe o novo array JSON, digite o nome exato da view e escolha **Atualizar view**. Para renomear a coleção selecionada, informe o novo nome e use **Renomear coleção**. A opção **Substituir destino** só deve ser marcada quando você deseja permitir que o servidor substitua uma coleção existente.
+2. Para gerenciar a coleção da aba, a janela **Ferramentas → Coleções** (hoje sem entrada na interface) oferece: Para criar uma coleção capped, marque **Capped** e informe o máximo de bytes; o máximo de documentos é opcional. Para uma coleção clustered, marque **Clustered** e informe uma chave BSON de exatamente um campo, como `{ "_id": 1 }`; ela não pode ser combinada com view nem capped e depende da versão do servidor. O campo **Collation BSON opcional** aceita, por exemplo, `{ "locale": "pt", "strength": 1 }`. Para criar uma view, marque **View**, informe a coleção de origem e um pipeline JSON; views não aceitam opções capped. Para editar o pipeline da view selecionada, informe o novo array JSON, digite o nome exato da view e escolha **Atualizar view**. Para renomear a coleção selecionada, informe o novo nome e use **Renomear coleção**. A opção **Substituir destino** só deve ser marcada quando você deseja permitir que o servidor substitua uma coleção existente.
 3. Para revisar ou atualizar um validador da coleção, comece por **Carregar validação**. A tela traz o documento, nível e ação existentes da coleção selecionada. Edite o documento JSON, como `{ "$jsonSchema": { "required": ["nome"] } }`; escolha nível e ação, digite exatamente o nome da coleção selecionada e use **Aplicar validação**. `Strict`/`Moderate` e `Error`/`Warn` são enviados ao MongoDB por `collMod`; use `Off` somente quando deseja desativar a aplicação da validação.
 4. Para remover uma coleção, digite exatamente o nome da coleção selecionada no campo **Digite a coleção** e use **Remover coleção**. A ação não aceita nomes de sistema e não pode ser desfeita.
 5. Use o modo **Console**: `db.getCollection("clientes").find({ status: "ativo" }).sort({ nome: 1 }).limit(100)`. Filtro e opções ficam no script; Ctrl+Espaço sugere APIs, conexões, bancos e coleções conforme o contexto. Veja a [API do Console](20-console.md).
 6. O cabeçalho mostra conexão e banco; **Destino…** altera esse contexto explicitamente. A coleção é referenciada no próprio script. `getConnection()` e `ConnectionPool` permitem acessar outras conexões cadastradas durante a execução.
 7. F5 executa o script completo; Ctrl+Enter executa a seleção ou o statement no cursor. Para explain, use a ferramenta existente **Consulta e schema** com seu filtro BSON; `explain()` não integra a API inicial do Console.
-8. Para alimentar o autocomplete, use **Amostrar campos** em Ferramentas → Consulta e schema. A IDE lê no máximo 200 documentos iniciais, infere apenas os caminhos BSON e mantém essa informação somente na memória da coleção selecionada. **Inferir validador** continua sendo uma ferramenta administrativa separada e preenche um `$jsonSchema` no editor de validação; não altera a consulta nem o servidor.
+8. Para alimentar o autocomplete, **Amostrar campos** em Ferramentas → Consulta e schema (hoje sem entrada na interface). A IDE lê no máximo 200 documentos iniciais, infere apenas os caminhos BSON e mantém essa informação somente na memória da coleção selecionada. **Inferir validador** continua sendo uma ferramenta administrativa separada e preenche um `$jsonSchema` no editor de validação; não altera a consulta nem o servidor.
 9. Contagens, valores distintos e paginação usam o texto e o contexto da consulta atual. Ações auxiliares podem aparecer nos resultados ou em ferramentas contextuais, mas não acrescentam campos obrigatórios ao editor.
 10. Na aba Documentos, use **Carregar prévia** para revisar o primeiro documento correspondente em modo somente leitura antes de inserir, substituir ou fazer update parcial. **Duplicar prévia** prepara o conteúdo no editor de inserção e remove apenas o `_id` no nível superior; revise-o e escolha **Inserir** para criar a cópia. Updates exigem filtro não vazio; marque `Upsert` somente quando essa semântica for desejada. A atualização aceita um documento de operadores ou um pipeline JSON, por exemplo `[{ "$set": { "ativo": true } }]`. Para caminhos como `itens.$[item].ativo`, informe **arrayFilters JSON** como `[{ "item.status": "pendente" }]`. Use **Find-and-modify** quando precisar receber, na própria operação atômica, o documento depois da alteração; o resultado aparece no painel abaixo da prévia.
 11. Para remover mais de um documento, marque **Excluir todos os correspondentes**. O filtro continua obrigatório e nunca é aceito vazio.
 
-Use **Gerar identificador** na aba Documentos das Ferramentas para obter um valor no modo de identificador e na representação UUID da conexão da aba: ObjectId gera `ObjectId("…")`, UUID v4 gera um UUID v4 no construtor configurado (por exemplo `JUUID("…")`) e Standard gera um de cada. A primeira caixa traz os construtores e a segunda o Extended JSON canônico com os mesmos valores. Em **Interpretar**, cole `ObjectId("…")`, 24 dígitos hexadecimais, `UUID("…")`/`CGUUID`/`JUUID`/`GUUID` ou um UUID com 32 dígitos para ver o tipo detectado, o Extended JSON canônico, o UUID equivalente de um ObjectId e o filtro por `_id`.
+**Gerar identificador**, na aba Documentos das Ferramentas (hoje sem entrada na interface), obtém para obter um valor no modo de identificador e na representação UUID da conexão da aba: ObjectId gera `ObjectId("…")`, UUID v4 gera um UUID v4 no construtor configurado (por exemplo `JUUID("…")`) e Standard gera um de cada. A primeira caixa traz os construtores e a segunda o Extended JSON canônico com os mesmos valores. Em **Interpretar**, cole `ObjectId("…")`, 24 dígitos hexadecimais, `UUID("…")`/`CGUUID`/`JUUID`/`GUUID` ou um UUID com 32 dígitos para ver o tipo detectado, o Extended JSON canônico, o UUID equivalente de um ObjectId e o filtro por `_id`.
 
 ### UUID/GUID
 
@@ -133,7 +146,7 @@ Atalhos adicionais: Ctrl+Tab/Ctrl+Shift+Tab alternam abas; Ctrl+W fecha; F6 alte
 
 ## Transferência lógica
 
-Em **Ferramentas → Operações e dados → Transferir**, **Exportar banco selecionado** cria uma pasta no diretório de dados do usuário com `manifest.json` e um arquivo Extended JSON por coleção. O limite é configurável por coleção. Para reimportar, informe a pasta do manifesto ou use **Escolher pasta**, selecione o banco de destino; a IDE faz upsert por `_id`, sem apagar dados ausentes ou executar `drop`.
+Em **Ferramentas → Operações e dados → Transferir** (hoje sem entrada na interface), **Exportar banco selecionado** cria uma pasta no diretório de dados do usuário com `manifest.json` e um arquivo Extended JSON por coleção. O limite é configurável por coleção. Para reimportar, informe a pasta do manifesto ou use **Escolher pasta**, selecione o banco de destino; a IDE faz upsert por `_id`, sem apagar dados ausentes ou executar `drop`.
 
 Esse formato é intercâmbio de dados, não substitui `mongodump`/`mongorestore` em backup operacional.
 
@@ -219,7 +232,7 @@ Use `{ "CreatedAt": ISODate("2024-12-30T20:56:44.999Z") }` em documentos e `db.C
 - A barra inferior mostra trabalho, percentual real quando conhecido, modo indeterminado nos demais casos e `+N operações`. Cancelar atua na operação em destaque; outras abas continuam. Cancelamento não reverte escritas já enviadas. Timeout aparece como tempo limite excedido, separado de cancelamento do usuário.
 - A árvore mostra até 256 campos por grupo; expanda **Próximos campos…** para continuar. JSON e exportação continuam completos. Consultas permanecem limitadas no servidor; em páginas acima de 8 milhões de caracteres, reduza `limit` ou use projeção. Arquivos acima de 16 milhões de caracteres exigem um trecho menor.
 
-Limites de homologação e medições: [auditoria do MVP](25-auditoria-mvp-performance.md).
+Limites de homologação e medições: [auditoria do MVP](done/release_v0.5.0/25-auditoria-mvp-performance.md).
 
 ## Homologação nativa do MVP no Windows — 14/09/2026
 

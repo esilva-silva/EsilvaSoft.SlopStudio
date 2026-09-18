@@ -1,7 +1,7 @@
-<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" xmlns:core="using:EsilvaSoft.SlopStudio.Core" x:Class="EsilvaSoft.SlopStudio.Desktop.EnvironmentsWindow" x:DataType="vm:EnvironmentsViewModel" Title="Ambientes / Key Vault" Width="760" Height="540" MinWidth="600" MinHeight="420" WindowStartupLocation="CenterOwner">
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" xmlns:core="using:EsilvaSoft.SlopStudio.Core" x:Class="EsilvaSoft.SlopStudio.Desktop.EnvironmentsWindow" x:DataType="vm:EnvironmentsViewModel" Title="Ambientes locais" Width="760" Height="540" MinWidth="600" MinHeight="420" WindowStartupLocation="CenterOwner">
   <Grid Margin="20" RowDefinitions="Auto,*,Auto" RowSpacing="12">
     <StackPanel Spacing="4">
-      <TextBlock Text="Ambientes / Key Vault" Classes="section-title"/>
+      <TextBlock Text="Ambientes locais" Classes="section-title"/>
       <TextBlock Text="Credenciais na URI são opcionais. Reutilize valores com ENV.get(&quot;chave&quot;)." Classes="muted" TextWrapping="Wrap"/>
     </StackPanel>
     <ScrollViewer Grid.Row="1">
@@ -27,7 +27,7 @@
             <TextBlock Text="Sem chaves? Adicione a primeira variável. Cada ambiente mantém seus próprios valores." Classes="metadata" TextWrapping="Wrap"/>
           </StackPanel>
         </Grid>
-        <TextBlock Text="Armazenamento local no workspace, sem criptografia por cofre nativo. Valores não entram nos snapshots de rascunhos. Fechar descarta alterações não salvas." Classes="metadata" TextWrapping="Wrap"/>
+        <TextBlock Text="Armazenamento local no workspace, sem criptografia: não é um cofre. Valores não entram nos snapshots de rascunhos. Fechar descarta alterações não salvas." Classes="metadata" TextWrapping="Wrap"/>
       </StackPanel>
     </ScrollViewer>
     <StackPanel Grid.Row="2" Spacing="8">

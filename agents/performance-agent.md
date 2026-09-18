@@ -19,7 +19,7 @@ Especialista em diagnósticos de performance, benchmarks de código, profiling d
   - Medir custo computacional do reparse incremental de AST no editor.
 - Avaliar métricas de inferência de IA local com ONNX Runtime GenAI:
   - Monitorar tempo de carregamento de pesos, consumo de VRAM/RAM, latência para primeiro token (TTFT) e taxa de tokens gerados por segundo.
-- Atualizar e acompanhar as metas do documento `docs/25-auditoria-mvp-performance.md`.
+- Atualizar e acompanhar as metas do documento `docs/done/release_v0.5.0/25-auditoria-mvp-performance.md`.
 
 ## Inputs
 - Métricas de execução, relatórios de profiling e código de pontos críticos.
