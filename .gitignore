@@ -15,3 +15,4 @@ workspace.db-*
 artifacts/
 /tests/EsilvaSoft.SlopStudio.Benchmarks/BenchmarkDotNet.Artifacts
 /BenchmarkDotNet.Artifacts
+/BenchmarkDotNet.Artifacts.*

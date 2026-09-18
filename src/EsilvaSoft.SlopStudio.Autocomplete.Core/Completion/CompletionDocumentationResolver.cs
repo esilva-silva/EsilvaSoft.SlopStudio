@@ -31,6 +31,7 @@ public static class CompletionDocumentationResolver
         if (evidence.HasFlag(EvidenceSources.Results)) labels.Add("resultados locais");
         if (evidence.HasFlag(EvidenceSources.Sample)) labels.Add("amostra de schema");
         if (evidence.HasFlag(EvidenceSources.History)) labels.Add("histórico local");
+        if (evidence.HasFlag(EvidenceSources.Pipeline)) labels.Add("estágios do pipeline");
         return string.Join(", ", labels);
     }
 }

@@ -1,12 +1,38 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 public sealed partial class WorkspaceViewModel
 {
+    // Merged pipeline input schema per scope, memoized so PipelineInputSchema always returns a stable reference
+    // while the sampled schema and the declared validator underneath it stay the same (CompletionContextCache
+    // compares CollectionSchema by reference; a fresh instance on every call would defeat that cache).
+    private readonly Dictionary<(ConnectionIdentity Connection, string Database, string Collection), (CollectionSchema? Sampled, CollectionSchema? Validator, CollectionSchema? Merged)> _pipelineInputSchemas = [];
+    private readonly object _pipelineInputSchemaGate = new();
+
+    /// <summary>Reads the pipeline input shape without I/O; used only while typing (<see cref="MetadataAccess.Peek"/>).</summary>
+    private CollectionSchema? ResolvePipelineInputSchema(CatalogScope scope)
+    {
+        if (scope.Database.Length == 0 || scope.Collection.Length == 0) return null;
+        var sampled = Metadata.GetSampledSchema(scope.Connection, scope.Database, scope.Collection, MetadataAccess.Peek).Value;
+        var validator = Metadata.GetDefinition(scope.Connection, scope.Database, scope.Collection, MetadataAccess.Peek).Value?.Validator;
+        if (sampled is null) return validator;
+        if (validator is null) return sampled;
+        var key = (scope.Connection, scope.Database, scope.Collection);
+        lock (_pipelineInputSchemaGate)
+        {
+            if (_pipelineInputSchemas.TryGetValue(key, out var cached) && ReferenceEquals(cached.Sampled, sampled) && ReferenceEquals(cached.Validator, validator))
+                return cached.Merged;
+            var merged = CollectionSchema.Merge([sampled, validator]);
+            _pipelineInputSchemas[key] = (sampled, validator, merged);
+            return merged;
+        }
+    }
+
     public ObservableCollection<WorkspaceTabViewModel> Tabs { get; } = [];
     [ObservableProperty] private WorkspaceTabViewModel? _activeTab;
     public bool HasActiveTab => ActiveTab is not null;
@@ -82,6 +108,7 @@ public sealed partial class WorkspaceViewModel
         tab.DraftChanged -= OnDraftChanged;
         Tabs.Remove(tab);
         if (ActiveTab == tab) ActiveTab = Tabs.LastOrDefault();
+        tab.Dispose();
         ScheduleSave();
     }
 
@@ -90,6 +117,8 @@ public sealed partial class WorkspaceViewModel
         tab.KnownSyntaxNamespaces = KnownSyntaxNamespaces;
         tab.Autocomplete = AutocompleteService;
         tab.TraditionalCompletion = TraditionalCompletion;
+        tab.PipelineInputSchema = ResolvePipelineInputSchema;
+        tab.CompletionUsage = CompletionUsage;
         tab.KeyBindings = KeyBindings;
         tab.AiChat = AiChatService;
         tab.KnownAutocompleteNames = () => KnownAutocompleteNames(tab);

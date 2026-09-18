@@ -20,4 +20,9 @@ public sealed record CompletionContext(
     public int MaximumItems { get; init; } = 100;
     public int MaximumCandidates { get; init; } = 200;
     public MetadataAccess CatalogAccess { get; init; } = MetadataAccess.Peek;
+    /// <summary>
+    /// Quando verdadeiro, os campos oferecidos vêm apenas de <see cref="LocalSchemas"/>: é a forma já inferida para a
+    /// posição atual do pipeline, e os campos da coleção deixariam de valer ali.
+    /// </summary>
+    public bool RestrictFieldsToLocalSchemas { get; init; }
 }

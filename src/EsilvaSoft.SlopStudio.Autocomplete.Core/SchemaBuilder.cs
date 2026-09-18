@@ -216,6 +216,24 @@ public sealed class SchemaBuilder
         }
     }
 
+    /// <summary>
+    /// Registra um campo inferido de um estágio de agregação: caminho pontilhado, tipos observados, traços e evidência.
+    /// Nenhum valor de documento é lido; a chamada apenas declara a existência do campo naquela posição do pipeline.
+    /// </summary>
+    internal SchemaBuilder AddPipelineField(string path, IEnumerable<string>? types = null, FieldTraits traits = FieldTraits.None,
+        EvidenceSources evidence = EvidenceSources.Pipeline)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        if (!AddPath(path, evidence, traits)) return this;
+        _evidence |= evidence;
+        if (types is null) return this;
+        var node = _root;
+        foreach (var segment in path.Split('.'))
+            if (Child(node, segment) is { } child) node = child; else return this;
+        foreach (var type in types) node.AddType(type);
+        return this;
+    }
+
     private bool AddPath(string path, EvidenceSources evidence, FieldTraits flags)
     {
         var segments = path.Split('.');

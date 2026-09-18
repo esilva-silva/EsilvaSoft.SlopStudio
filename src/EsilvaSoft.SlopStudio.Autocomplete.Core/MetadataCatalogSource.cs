@@ -27,7 +27,10 @@ public sealed class MetadataCatalogSource(IMetadataCache cache) : ICatalogSource
                 (profile, match) => sink.Add(new(new CatalogSymbol($"meta:{profile.Id:N}", SymbolKind.Connection, profile.Name, "Conexão") { Dialects = EditorDialects.Scripts }, match)));
         }
         if ((query.Kinds & MetadataKinds) == 0) return completeness;
-        if (query.Connection is null) return CatalogCompleteness.Unavailable;
+        // Campos restritos vêm apenas da forma local: não dependem de conexão resolvida, então a guarda cede para eles.
+        var restricted = Wants(query, SymbolKinds.Field) && query.RestrictFieldsToLocalSchemas;
+        if (restricted) CollectLocalFields(query, sink);
+        if (query.Connection is null) return restricted ? completeness : CatalogCompleteness.Unavailable;
         var identity = ConnectionIdentity.From(query.Connection);
         var access = query.Access;
         cancellationToken.ThrowIfCancellationRequested();
@@ -64,7 +67,7 @@ public sealed class MetadataCatalogSource(IMetadataCache cache) : ICatalogSource
                     { Dialects = EditorDialects.All, Scope = new(identity, query.Database, query.Collection), Flags = Flags(view) }, match)));
         }
 
-        if (Wants(query, SymbolKinds.Field))
+        if (Wants(query, SymbolKinds.Field) && !query.RestrictFieldsToLocalSchemas)
         {
             var definition = _cache.GetDefinition(identity, query.Database, query.Collection, access);
             var indexes = _cache.GetIndexes(identity, query.Database, query.Collection, access);
@@ -77,6 +80,20 @@ public sealed class MetadataCatalogSource(IMetadataCache cache) : ICatalogSource
                     { Dialects = EditorDialects.All, Scope = new(identity, query.Database, query.Collection), Evidence = field.Evidence, Field = field }, match)));
         }
         return completeness;
+    }
+
+    // Nenhuma leitura de metadados e nenhuma queda de completude: a forma local já descreve a posição, mesmo sem
+    // coleção capturada — a saída de $group ou $count continua completando.
+    private static void CollectLocalFields(CatalogQuery query, ICollection<CatalogCandidate> sink)
+    {
+        var local = query.LocalSchemas.Count == 1 ? query.LocalSchemas[0] : CollectionSchema.Merge(query.LocalSchemas);
+        if (local.Find(query.ParentPath) is not { } root) return;
+        var identity = query.Connection is { } profile ? ConnectionIdentity.From(profile) : null;
+        var prefix = identity is null ? "pipeline:" : $"meta:{identity.ProfileId:N}/{query.Database}/{query.Collection}";
+        var scope = identity is null ? null : new CatalogScope(identity, query.Database, query.Collection);
+        root.Children.Collect(query.Prefix, Remaining(query, sink), null, (field, match) => sink.Add(new(new CatalogSymbol(
+            $"{prefix}/field/{field.Path}", SymbolKind.Field, field.Name, Describe(field))
+            { Dialects = EditorDialects.All, Scope = scope, Evidence = field.Evidence, Field = field }, match)));
     }
 
     internal static string Describe(FieldNode field)
@@ -97,12 +114,13 @@ public sealed class MetadataCatalogSource(IMetadataCache cache) : ICatalogSource
         {
             if (_lastMerge is { } memo && memo.Connection == identity && memo.Database == query.Database && memo.Collection == query.Collection
                 && ReferenceEquals(memo.Validator, validator) && ReferenceEquals(memo.Indexes, indexes) && ReferenceEquals(memo.Sampled, sampled)
-                && ReferenceEquals(memo.Local, query.LocalSchemas))
+                && ReferenceEquals(memo.Local, query.LocalSchemas) && memo.Restricted == query.RestrictFieldsToLocalSchemas)
                 return memo.Schema;
         }
         var indexSchema = indexes is null ? null : new SchemaBuilder().AddIndexes(indexes).Build();
         var schema = CollectionSchema.Merge(new[] { validator, indexSchema, sampled }.Concat(query.LocalSchemas));
-        lock (_mergeGate) _lastMerge = new(identity, query.Database, query.Collection, validator, indexes, sampled, query.LocalSchemas, schema);
+        lock (_mergeGate) _lastMerge = new(identity, query.Database, query.Collection, validator, indexes, sampled, query.LocalSchemas,
+            query.RestrictFieldsToLocalSchemas, schema);
         return schema;
     }
 
@@ -143,5 +161,6 @@ public sealed class MetadataCatalogSource(IMetadataCache cache) : ICatalogSource
     };
 
     private sealed record SchemaMemo(ConnectionIdentity Connection, string Database, string Collection, CollectionSchema? Validator,
-        IReadOnlyList<IndexInfo>? Indexes, CollectionSchema? Sampled, IReadOnlyList<CollectionSchema> Local, CollectionSchema Schema);
+        IReadOnlyList<IndexInfo>? Indexes, CollectionSchema? Sampled, IReadOnlyList<CollectionSchema> Local, bool Restricted,
+        CollectionSchema Schema);
 }

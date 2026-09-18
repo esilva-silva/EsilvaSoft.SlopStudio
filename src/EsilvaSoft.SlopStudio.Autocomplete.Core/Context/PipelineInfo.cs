@@ -37,6 +37,20 @@ public sealed class PipelineInfo
 
     public static PipelineInfo Unknown { get; } = new(PipelineFieldState.Unknown, null, 0);
 
+    /// <summary>
+    /// Projeta os campos desta posição do pipeline em um <see cref="CollectionSchema"/> aninhado, pronto para a
+    /// resolução de campos por caminho pai e prefixo. Um estado desconhecido devolve um schema vazio.
+    /// </summary>
+    public CollectionSchema ToSchema()
+    {
+        if (!IsKnown) return CollectionSchema.Empty;
+        var builder = new SchemaBuilder();
+        foreach (var field in _fields.Values.OrderBy(field => field.Path, StringComparer.Ordinal))
+            builder.AddPipelineField(field.Path, field.Types, field.Traits,
+                field.Source is { } source ? source.Evidence | EvidenceSources.Pipeline : EvidenceSources.Pipeline);
+        return builder.Build();
+    }
+
     public PipelineInfo Apply(PipelineStage stage, CollectionSchema? lookupSchema = null)
     {
         ArgumentNullException.ThrowIfNull(stage);

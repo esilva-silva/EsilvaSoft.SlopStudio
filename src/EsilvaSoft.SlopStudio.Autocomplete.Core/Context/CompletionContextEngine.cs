@@ -40,10 +40,11 @@ public sealed class CompletionContextEngine
 
         var role = Classify(text, tokens, tokenIndex, caret, request.Dialect, out var expected, out var quote);
         if (role is CompletionCursorRole.NonCompletable) return Empty(request, role, caret);
-        var shape = ShapeWalker.Walk(text, caret, role, cancellationToken: cancellationToken);
+        var shape = ShapeWalker.Walk(text, tokens, caret, role, rootShape: RootShape(request, role), cancellationToken: cancellationToken);
         if (shape.ExpectedKinds != SymbolKinds.None)
             expected = role == CompletionCursorRole.PropertyValue ? expected | shape.ExpectedKinds : shape.ExpectedKinds;
 
+        var pipeline = Pipeline(request, tokens, text, caret, expected, cancellationToken);
         var context = new CompletionContext(request.Snapshot.Version, request.Dialect, expected, prefix, replace)
         {
             Scope = target.Confidence == NamespaceTargetConfidence.TabDefault
@@ -53,9 +54,41 @@ public sealed class CompletionContextEngine
                     : null,
             ShapeId = shape.ShapeId,
             ParentPath = shape.ParentPath,
-            CatalogAccess = MetadataAccess.Peek
+            // O tipo de valor só descreve uma posição de valor; em posição de chave não há valor algum a tipar.
+            ValueType = role == CompletionCursorRole.PropertyValue ? shape.ValueShape : null,
+            CatalogAccess = Access(request.Trigger),
+            LocalSchemas = pipeline is { IsKnown: true } known ? [known.ToSchema()] : [],
+            RestrictFieldsToLocalSchemas = pipeline is { IsKnown: true }
         };
         return new(context, role, insert, quote, false, target);
+    }
+
+    // Ctrl+Espaço não é digitação: uma invocação explícita pode agendar carga; digitar nunca agenda.
+    private static MetadataAccess Access(CompletionTrigger trigger) =>
+        trigger == CompletionTrigger.Invoked ? MetadataAccess.LoadIfNeeded : MetadataAccess.Peek;
+
+    // Documento de agregação é o próprio pipeline: sem chamada envolvente, a raiz é o array de estágios.
+    private static string? RootShape(ContextRequest request, CompletionCursorRole role) =>
+        request.Dialect == EditorDialects.AggregationJson && role is CompletionCursorRole.PropertyKey
+            or CompletionCursorRole.PropertyKeyString or CompletionCursorRole.ArrayElement
+            or CompletionCursorRole.PropertyValue or CompletionCursorRole.FieldReferenceString
+            ? "Pipeline" : null;
+
+    /// <summary>
+    /// Infere a forma dos documentos no ponto do pipeline em que o caret está, sem qualquer I/O. Só é calculada quando
+    /// campos são esperados e o schema de entrada foi capturado; um resultado desconhecido prefere a lista ampla e
+    /// segura da coleção a uma lista estreita e enganosa.
+    /// </summary>
+    private static PipelineInfo? Pipeline(ContextRequest request, IReadOnlyList<MongoToken> tokens, string text, int caret,
+        SymbolKinds expected, CancellationToken cancellationToken)
+    {
+        if ((expected & SymbolKinds.Field) == 0 || request.InputSchema is null) return null;
+        var open = PipelineStageReader.FindPipelineRoot(tokens, text, caret, request.Dialect);
+        if (open < 0) return null;
+        var stages = PipelineStageReader.ReadStagesBefore(tokens, text, open, caret, cancellationToken: cancellationToken);
+        // No primeiro estágio os campos da própria coleção são a resposta certa: nada a estreitar.
+        if (stages.Count == 0) return null;
+        return PipelineInfo.From(request.InputSchema).Apply(stages);
     }
 
     private static CompletionContextAnalysis Empty(ContextRequest request, CompletionCursorRole role, int caret) =>

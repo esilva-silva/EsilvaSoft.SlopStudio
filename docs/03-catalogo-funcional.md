@@ -1,4 +1,4 @@
-# Catálogo funcional
+﻿# Catálogo funcional
 
 Revisado em **13/09/2026** conforme o [roadmap v0.5.0–v1.0.0](09-plano-de-implementacao.md). Status avalia a abrangência completa de cada linha; recortes implementados, evidência de código/testes e lacunas estão no [inventário](24-inventario-roadmap.md). ✅ Implementado não significa homologado em toda topologia; 🚧 Em desenvolvimento indica parcial; 📋 Planejado indica ausência de caminho integrado; 🧪 Experimental indica qualidade/ambiente ainda limitado. A versão indica consolidação do recorte prioritário: extensões de uma linha ampla não entram automaticamente no MVP. Critérios abaixo permanecem alvos de aceite, sujeitos ao [registro de capacidades](04-compatibilidade-e-capacidades.md).
 
@@ -40,7 +40,7 @@ Base: [driver](https://www.mongodb.com/pt-br/docs/drivers/csharp/current/), [val
 | ID | Recurso e abrangência | Versão de consolidação | Status | Aceite observável |
 | --- | --- | --- | --- | --- |
 | EDT-01 | Editor textual de consultas em Extended JSON/MQL, destaque, indentação, folding, seleção, busca e diagnóstico | v0.5.0 | 🚧 Em desenvolvimento | Documento inválido não executado; linha/coluna e correção localizáveis; não existe formulário paralelo para montar a consulta |
-| EDT-02 | Autocomplete de operadores, campos, caminhos, coleções e tipos | v0.6.0 | 🚧 Em desenvolvimento | Sugestões corretas por contexto, conexão e versão; funciona offline com catálogo |
+| EDT-02 | Autocomplete de operadores, campos, caminhos, coleções e tipos | v0.6.0 | 🚧 Em desenvolvimento (entrega determinística encerrada em 17/09/2026 com pendências aceitas em aberto) | Sugestões corretas por contexto, conexão e versão; funciona offline com catálogo. Gates de latência p95/p99 sem evidência |
 | EDT-03 | BSON completo, UUID standard/legacy, ObjectId, datas e números exatos | v0.5.0 | 🚧 Em desenvolvimento | Ida e volta sem conversões implícitas, usando fixtures independentes |
 | EDT-04 | Snippets, parâmetros tipados, favoritos, histórico e scripts em arquivo | v0.5.0 | 🚧 Em desenvolvimento | Parâmetros são nós BSON, nunca substituição textual vulnerável |
 | EDT-05 | Console de comandos BSON com metadados e políticas de execução | Backlog sem versão | 📋 Planejado | Comando permitido sem formulário pode ser executado e resultado preservado |

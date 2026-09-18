@@ -8,24 +8,52 @@ namespace EsilvaSoft.SlopStudio.Autocomplete.Core.Context;
 /// </summary>
 public static class ShapeWalker
 {
+    /// <summary>
+    /// Analisa a forma no caret reaproveitando os tokens já produzidos pelo chamador. Não existe parâmetro de modo
+    /// léxico: o modo do dialeto já está embutido na lista de tokens, o que evita uma segunda lexagem divergente.
+    /// </summary>
+    /// <param name="text">Texto completo do documento correspondente aos tokens.</param>
+    /// <param name="tokens">Tokens do documento, em ordem de origem.</param>
+    /// <param name="caret">Posição do cursor em UTF-16.</param>
+    /// <param name="role">Papel estrutural já classificado para o caret.</param>
+    /// <param name="definition">Definição de linguagem; a padrão é usada quando nula.</param>
+    /// <param name="rootShape">Forma raiz usada apenas como fallback quando não há chamada catalogada envolvente.</param>
+    /// <param name="cancellationToken">Cancelamento cooperativo.</param>
+    public static ShapeWalkResult Walk(string text, IReadOnlyList<MongoToken> tokens, int caret, CompletionCursorRole role,
+        LanguageDefinition? definition = null, string? rootShape = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(tokens);
+        ArgumentOutOfRangeException.ThrowIfNegative(caret);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(caret, text.Length);
+        cancellationToken.ThrowIfCancellationRequested();
+        definition ??= LanguageDefinition.Default;
+        var call = FindCall(tokens, text, caret);
+        if (call.Method is null) return Fallback();
+        var method = definition.Symbols.FirstOrDefault(symbol => symbol.Name == call.Method && symbol.Parameters.Count > call.Argument);
+        if (method is null) return Fallback();
+        var shape = method.Parameters[call.Argument];
+        return Descend(shape, tokens, text, call.Open, caret, role, definition);
+
+        // A semente da raiz só vale depois de a busca pela chamada falhar: nunca antes, para não roubar o contexto de uma chamada real.
+        ShapeWalkResult Fallback() => rootShape is null
+            ? ShapeWalkResult.Unknown
+            : Descend(rootShape, tokens, text, callOpen: -1, caret, role, definition);
+    }
+
+    /// <summary>Sobrecarga de conveniência que lexa o texto em modo <c>Script</c> por conta própria.</summary>
     public static ShapeWalkResult Walk(string text, int caret, CompletionCursorRole role, LanguageDefinition? definition = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentOutOfRangeException.ThrowIfNegative(caret);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(caret, text.Length);
-        definition ??= LanguageDefinition.Default;
         var tokens = new List<MongoToken>();
         MongoLexer.Tokenize(text.AsSpan(), tokens, cancellationToken: cancellationToken);
-        var call = FindCall(tokens, text, caret);
-        if (call.Method is null) return ShapeWalkResult.Unknown;
-        var method = definition.Symbols.FirstOrDefault(symbol => symbol.Name == call.Method && symbol.Parameters.Count > call.Argument);
-        if (method is null) return ShapeWalkResult.Unknown;
-        var shape = method.Parameters[call.Argument];
-        return Descend(shape, tokens, text, call.Open, caret, role, definition);
+        return Walk(text, tokens, caret, role, definition, rootShape: null, cancellationToken);
     }
 
-    private static (string? Method, int Open, int Argument) FindCall(List<MongoToken> tokens, string text, int caret)
+    internal static (string? Method, int Open, int Argument) FindCall(IReadOnlyList<MongoToken> tokens, string text, int caret)
     {
         var stack = new Stack<int>();
         var best = -1;
@@ -49,7 +77,7 @@ public static class ShapeWalker
         return (Value(tokens, text, best - 1), best, argument);
     }
 
-    private static ShapeWalkResult Descend(string initial, List<MongoToken> tokens, string text, int callOpen, int caret,
+    private static ShapeWalkResult Descend(string initial, IReadOnlyList<MongoToken> tokens, string text, int callOpen, int caret,
         CompletionCursorRole role, LanguageDefinition definition)
     {
         var shape = initial;
@@ -71,6 +99,9 @@ public static class ShapeWalker
                 continue;
             }
             if (value is "}" or "]") { if (stack.Count > 1) { stack.Pop(); shape = stack.Peek().Shape; } continue; }
+            // A vírgula encerra o valor da propriedade corrente: sem devolver o quadro da chave, a próxima chave seria
+            // resolvida contra a forma do valor anterior, e uma forma sem chaves descartaria todo o estreitamento.
+            if (value == "," && stack.Count > 1 && stack.Peek().Key is not null) { stack.Pop(); shape = stack.Peek().Shape; continue; }
             if ((tokens[i].Kind is MongoTokenKind.Identifier or MongoTokenKind.String) && i + 1 < tokens.Count && Value(tokens, text, i + 1) == ":")
             {
                 var key = Unquote(value);
@@ -81,7 +112,8 @@ public static class ShapeWalker
                 }
             }
         }
-        if (!definition.Shapes.TryGetValue(shape, out var current)) return new(shape, ExpectedForPrimitive(shape));
+        // Uma forma que não é objeto é ela mesma o tipo de valor aceito na posição.
+        if (!definition.Shapes.TryGetValue(shape, out var current)) return new(shape, ExpectedForPrimitive(shape)) { ValueShape = shape };
         var expected = role switch
         {
             CompletionCursorRole.PropertyKey or CompletionCursorRole.PropertyKeyString => KeyKinds(current),
@@ -90,8 +122,12 @@ public static class ShapeWalker
             _ => ExpectedForShape(shape, definition)
         };
         var parent = stack.Reverse().Select(frame => frame.Key).LastOrDefault(key => !string.IsNullOrEmpty(key)) ?? "";
-        return new(shape, expected, parent);
+        return new(shape, expected, parent) { ValueShape = ValueShapeOf(current) };
     }
+
+    // Entre os valores declarados, o primeiro tipo primitivo descreve o valor esperado; formas de objeto não são um tipo.
+    private static string? ValueShapeOf(ShapeDefinition shape) =>
+        shape.Values.FirstOrDefault(LanguageDefinition.PrimitiveValues.Contains) ?? (shape.Values.Count > 0 ? shape.Values[0] : null);
 
     private static ShapeKeyRule? Match(ShapeDefinition shape, string key) => shape.Keys.FirstOrDefault(rule =>
         rule.Rule == "Fixed" && rule.Names.Contains(key, StringComparer.Ordinal)) ??
@@ -108,6 +144,6 @@ public static class ShapeWalker
         "DatabaseNameString" => SymbolKinds.Database,
         _ => SymbolKinds.BsonConstructor | SymbolKinds.Snippet
     };
-    private static string Value(List<MongoToken> tokens, string text, int index) => index is >= 0 and < int.MaxValue && index < tokens.Count ? text.Substring(tokens[index].Start, tokens[index].Length) : "";
+    private static string Value(IReadOnlyList<MongoToken> tokens, string text, int index) => index is >= 0 and < int.MaxValue && index < tokens.Count ? text.Substring(tokens[index].Start, tokens[index].Length) : "";
     private static string Unquote(string value) => value.Length >= 2 && value[0] is '\'' or '"' ? value[1..^1] : value;
 }

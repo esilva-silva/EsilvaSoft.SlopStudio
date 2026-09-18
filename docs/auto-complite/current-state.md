@@ -1,4 +1,24 @@
-# Análise do repositório — situação atual
+﻿# Análise do repositório — situação atual
+
+> **Correção de estado — 17/09/2026.** Este documento é um retrato de 15/09/2026 e **está desatualizado em pontos
+> importantes**. O que mudou desde então, e que o texto abaixo ainda nega:
+>
+> - `CompletionContextEngine` e `ShapeWalker` **existem e estão no caminho ativo** (`Autocomplete.Core/Context/`);
+>   não são mais propostas.
+> - O **presenter nativo e os snippets existem** (`CompletionWindowPresenter`, `SnippetTemplate`), assim como o
+>   parser tolerante (`Autocomplete.Core/Syntax/TolerantParser`).
+> - **`Ctrl+.` e `Ctrl+Espaço` estão implementados** e são o padrão em `EditorKeyBindings` (`editor.completion.show`),
+>   com atalhos persistidos e rebindáveis; não são planejados. `Ctrl+;` (IA explícita) segue sem handler.
+> - `PipelineStageReader` liga o fluxo de campos do pipeline ao contexto (ADR-041), então campos posteriores a um
+>   `$group`/`$project` deixam de vir da coleção de origem.
+> - O link para `src/EsilvaSoft.SlopStudio.Core/Autocomplete.cs` **aponta para um arquivo que não existe mais**; as
+>   configurações vivem em `Core/AutocompleteSettings.cs` e o núcleo determinístico em `Autocomplete.Core` (ADR-040
+>   de 17/09/2026).
+> - A afirmação "Fases 2–5: propostas" não vale para a Fase 2, cujo caminho tradicional está entregue com as
+>   pendências listadas em [acompanhamento](../12-acompanhamento-da-implementacao.md).
+>
+> Para o estado corrente, use o [acompanhamento](../12-acompanhamento-da-implementacao.md) e a
+> [matriz de validação](../15-matriz-de-validacao.md), não este retrato.
 
 Revisão estática de **15/09/2026**, checkout **`b082d4a`**. Substitui a análise de `d23787e`, anterior à Fase 1 e às consultas avançadas. Medições de 14/09 são históricas, não foram repetidas nesta revisão. Não se iniciou refatoração do produto.
 

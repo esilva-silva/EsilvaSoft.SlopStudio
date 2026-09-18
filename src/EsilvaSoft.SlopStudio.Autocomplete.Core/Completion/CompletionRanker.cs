@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using EsilvaSoft.SlopStudio.Autocomplete.Core.Text;
 
 namespace EsilvaSoft.SlopStudio.Autocomplete.Core.Completion;
@@ -5,11 +7,37 @@ namespace EsilvaSoft.SlopStudio.Autocomplete.Core.Completion;
 public sealed class CompletionRanker
 {
     private readonly RankingProfile _profile;
+    private readonly CompletionUsageTracker? _usage;
 
-    public CompletionRanker(RankingProfile? profile = null) => _profile = profile ?? new();
+    /// <summary>
+    /// O rastreador de uso é opcional: sem ele o ranking permanece puramente determinístico pelo texto, que é a base
+    /// exigida do produto. Quando informado, o termo de uso entra apenas nas consultas que trazem contexto.
+    /// </summary>
+    public CompletionRanker(RankingProfile? profile = null, CompletionUsageTracker? usage = null)
+    {
+        _profile = profile ?? new();
+        _usage = usage;
+    }
 
+    /// <summary>
+    /// Ordena sem nenhum sinal de sessão: esta sobrecarga não tem contexto, então não aplica uso nem tipo.
+    /// </summary>
     public IReadOnlyList<CompletionItem> Rank(IEnumerable<CompletionItem> items, string prefix, int maximum,
+        CancellationToken cancellationToken = default) => Rank(items, prefix, maximum, usage: null, cancellationToken);
+
+    /// <summary>
+    /// Ordena aplicando também o sinal de uso recente da sessão, quando o contexto identifica conexão, banco, coleção
+    /// e forma. Se qualquer componente dessa identidade faltar, o termo de uso é simplesmente omitido.
+    /// </summary>
+    public IReadOnlyList<CompletionItem> Rank(IEnumerable<CompletionItem> items, CompletionContext context, int maximum,
         CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return Rank(items, context.Prefix, maximum, UsageScope.TryCreate(_usage, context), cancellationToken);
+    }
+
+    private CompletionItem[] Rank(IEnumerable<CompletionItem> items, string prefix, int maximum,
+        UsageScope? usage, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(items);
         ArgumentNullException.ThrowIfNull(prefix);
@@ -22,7 +50,7 @@ public sealed class CompletionRanker
         foreach (var item in items)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!TryMatch(item.FilterText, prefix, out var match, out var matchScore, out var highlights))
+            if (!TryMatch(item.FilterText, prefix, out var match, out var matchScore))
             {
                 ordinal++;
                 continue;
@@ -32,9 +60,17 @@ public sealed class CompletionRanker
             if (item.Tags.HasFlag(CompletionItemTags.Deprecated)) score -= _profile.DeprecatedPenalty;
             if (item.Tags.HasFlag(CompletionItemTags.Stale)) score -= _profile.StalePenalty;
 
-            // CompletionItem has no structured compatibility signal. LabelDetail is localized
-            // presentation text and must not change rank.
-            var candidate = new Candidate(item with { Score = score, Highlights = highlights }, match, score, ordinal++);
+            // O termo de uso soma depois das penalidades e antes do heap: ele muda a posição, nunca a sobrevivência
+            // do candidato, e o desempate continua sendo (match, rótulo, símbolo, ordem de entrada).
+            if (usage is { } scope) score += _profile.UsageWeight * scope.UsageOf(item.SymbolId);
+
+            // CompletionItem não carrega hoje nenhum sinal estruturado de compatibilidade de tipo
+            // (CatalogSymbol.ApplicableTypes não é propagado para o item), e Detail/LabelDetail são texto
+            // localizado de apresentação que não pode alterar o rank. Por isso TypeMismatchPenalty segue
+            // sem aplicação: inferi-la por texto seria incorreto.
+            // Highlights are not materialized here: only (score, match, label, symbolId, ordinal) drive the
+            // heap, so the array allocation is deferred until the final top-K survivors are known below.
+            var candidate = new Candidate(item, match, score, ordinal++);
             if (heap.Count < maximum)
             {
                 heap.Add(candidate);
@@ -49,7 +85,12 @@ public sealed class CompletionRanker
 
         heap.Sort(CompareForOutput);
         var result = new CompletionItem[heap.Count];
-        for (var index = 0; index < heap.Count; index++) result[index] = heap[index].Item;
+        for (var index = 0; index < heap.Count; index++)
+        {
+            var candidate = heap[index];
+            var highlights = BuildHighlights(candidate.Item.FilterText, prefix, candidate.Match);
+            result[index] = candidate.Item with { Score = candidate.Score, Highlights = highlights };
+        }
         return result;
     }
 
@@ -115,70 +156,129 @@ public sealed class CompletionRanker
         _ => 3
     };
 
-    private bool TryMatch(string value, string prefix, out CatalogMatch match, out double score, out IReadOnlyList<TextSpan> highlights)
+    /// <summary>
+    /// Só classifica o tipo de match e a pontuação. Não constrói realces: eles são caros (uma alocação por
+    /// candidato que casa) e a maioria dos candidatos analisados nunca chega ao top-K exibido.
+    /// </summary>
+    private bool TryMatch(string value, string prefix, out CatalogMatch match, out double score)
     {
         match = CatalogMatch.Any;
         score = _profile.ExactMatch;
-        highlights = [];
         if (prefix.Length == 0) return true;
-        if (value.Equals(prefix, StringComparison.OrdinalIgnoreCase))
-        {
-            highlights = OneHighlight(0, value.Length);
-            return true;
-        }
+        if (value.Equals(prefix, StringComparison.OrdinalIgnoreCase)) return true;
         if (value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
         {
             match = CatalogMatch.Prefix; score = _profile.PrefixMatch + prefix.Length;
-            highlights = OneHighlight(0, prefix.Length);
             return true;
         }
-        if (HasCamelHumps(value, prefix))
+        if (TryCamelHumps(value, prefix, highlights: null))
         {
             match = CatalogMatch.Humps; score = _profile.CamelHumpMatch + prefix.Length;
-            highlights = CamelHighlights(value, prefix);
             return true;
         }
-        var index = value.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
-        if (index >= 0)
+        if (value.Contains(prefix, StringComparison.OrdinalIgnoreCase))
         {
             match = CatalogMatch.Substring; score = _profile.SubstringMatch + prefix.Length;
-            highlights = OneHighlight(index, prefix.Length);
             return true;
         }
         return false;
     }
 
+    /// <summary>
+    /// Reconstrói os realces de um candidato sobrevivente a partir de (valor, prefixo, tipo de match), sem
+    /// depender de estado guardado durante a fase de match: o resultado é determinístico para os mesmos
+    /// argumentos, então recalcular é mais barato do que carregar arrays não usados pelos descartados do heap.
+    /// </summary>
+    private static TextSpan[] BuildHighlights(string value, string prefix, CatalogMatch match) => match switch
+    {
+        // CatalogMatch.Any cobre tanto "prefixo vazio" (sem realce) quanto "igualdade exata" (realce total);
+        // TryMatch só chega em Any com prefixo não vazio quando value == prefix.
+        CatalogMatch.Any => prefix.Length == 0 ? [] : OneHighlight(0, value.Length),
+        CatalogMatch.Prefix => OneHighlight(0, prefix.Length),
+        CatalogMatch.Humps => CamelHighlights(value, prefix),
+        CatalogMatch.Substring => OneHighlight(value.IndexOf(prefix, StringComparison.OrdinalIgnoreCase), prefix.Length),
+        _ => []
+    };
+
     private static TextSpan[] OneHighlight(int start, int length) => [new(start, length)];
 
-    private static bool HasCamelHumps(string value, string prefix)
+    private static TextSpan[] CamelHighlights(string value, string prefix)
+    {
+        var highlights = new TextSpan[prefix.Length];
+        TryCamelHumps(value, prefix, highlights);
+        return highlights;
+    }
+
+    /// <summary>
+    /// Varredura única de camel humps: quando <paramref name="highlights"/> é nulo, só confirma o match (sem
+    /// alocar); quando informado, preenche as posições casadas no mesmo laço. Antes havia duas varreduras
+    /// separadas (uma para detectar, outra para extrair os realces) sempre que o candidato casava.
+    /// </summary>
+    private static bool TryCamelHumps(string value, string prefix, TextSpan[]? highlights)
     {
         var next = 0;
         for (var index = 0; index < value.Length && next < prefix.Length; index++)
         {
             if (IsCamelBoundary(value, index) && char.ToUpperInvariant(value[index]) == char.ToUpperInvariant(prefix[next]))
             {
+                if (highlights is not null) highlights[next] = new TextSpan(index, 1);
                 next++;
             }
         }
         return next == prefix.Length;
     }
 
-    private static TextSpan[] CamelHighlights(string value, string prefix)
-    {
-        var highlights = new TextSpan[prefix.Length];
-        var next = 0;
-        for (var index = 0; index < value.Length && next < prefix.Length; index++)
-        {
-            if (IsCamelBoundary(value, index) && char.ToUpperInvariant(value[index]) == char.ToUpperInvariant(prefix[next]))
-            {
-                highlights[next++] = new TextSpan(index, 1);
-            }
-        }
-        return highlights;
-    }
-
     private static bool IsCamelBoundary(string value, int index) =>
         index == 0 || value[index - 1] is '_' or '-' or '.' || char.IsUpper(value[index]);
 
     private readonly record struct Candidate(CompletionItem Item, CatalogMatch Match, double Score, long Ordinal);
+
+    /// <summary>
+    /// Identidade de uso de um símbolo neste contexto, ou nulo quando o contexto não a define por completo. O
+    /// registro de aceite deve usar esta mesma construção: uma chave divergente nunca seria lida de volta no ranking.
+    /// </summary>
+    public static bool TryCreateUsageKey(CompletionContext context, string symbolId,
+        [NotNullWhen(true)] out CompletionUsageKey? key)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        key = !string.IsNullOrWhiteSpace(symbolId) && UsageIdentity.TryCreate(context) is { } identity
+            ? identity.KeyFor(symbolId)
+            : null;
+        return key is not null;
+    }
+
+    /// <summary>
+    /// Identidade validada uma única vez por consulta. Construir <see cref="CompletionUsageKey"/> com qualquer
+    /// componente vazio ou em branco lança, então a validação acontece fora do laço de candidatos: uma aba sem coleção
+    /// capturada ou sem forma conhecida simplesmente não recebe o termo de uso, sem chave sintética e sem exceção.
+    /// </summary>
+    private readonly record struct UsageIdentity(string ConnectionId, string Database, string Collection, string Shape)
+    {
+        public static UsageIdentity? TryCreate(CompletionContext context)
+        {
+            if (context.Scope is not { } scope || scope.Connection.ProfileId == Guid.Empty) return null;
+            if (string.IsNullOrWhiteSpace(scope.Database) || string.IsNullOrWhiteSpace(scope.Collection)) return null;
+            if (string.IsNullOrWhiteSpace(context.ShapeId)) return null;
+            // A digital da conexão entra quando existe: editar o perfil ou apontar para outra instância não deve
+            // reaproveitar o uso acumulado da configuração anterior.
+            var profile = scope.Connection.ProfileId.ToString("N", CultureInfo.InvariantCulture);
+            var connectionId = string.IsNullOrWhiteSpace(scope.Connection.Fingerprint)
+                ? profile
+                : profile + ":" + scope.Connection.Fingerprint;
+            return new(connectionId, scope.Database, scope.Collection, context.ShapeId);
+        }
+
+        public CompletionUsageKey KeyFor(string symbolId) => new(ConnectionId, Database, Collection, Shape, symbolId);
+    }
+
+    /// <summary>Rastreador mais identidade já validada: o laço de candidatos só precisa do símbolo.</summary>
+    private readonly record struct UsageScope(CompletionUsageTracker Tracker, UsageIdentity Identity)
+    {
+        public static UsageScope? TryCreate(CompletionUsageTracker? tracker, CompletionContext context) =>
+            tracker is not null && UsageIdentity.TryCreate(context) is { } identity ? new(tracker, identity) : null;
+
+        public double UsageOf(string symbolId) => string.IsNullOrWhiteSpace(symbolId)
+            ? 0
+            : Tracker.GetUsage(Identity.KeyFor(symbolId));
+    }
 }

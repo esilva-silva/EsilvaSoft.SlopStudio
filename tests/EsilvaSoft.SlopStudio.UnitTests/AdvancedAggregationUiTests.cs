@@ -38,7 +38,8 @@ public sealed class AdvancedAggregationUiTests
             window.KeyPress(Avalonia.Input.Key.Space, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.Space, null);
             var panel = view.FindControl<Border>("TraditionalCompletionPanel")!;
             var list = view.FindControl<ListBox>("TraditionalCompletionList")!;
-            for (var i = 0; i < 100 && !panel.IsVisible; i++) { await Task.Delay(10); Dispatcher.UIThread.RunJobs(); }
+            var status = view.FindControl<TextBlock>("TraditionalCompletionStatus")!;
+            for (var i = 0; i < 100 && (!panel.IsVisible || status.Text == "Carregando sugestões…"); i++) { await Task.Delay(10); Dispatcher.UIThread.RunJobs(); }
             Assert.That(panel.IsVisible, Is.True);
             TestContext.Out.WriteLine($"Sugestões de campo derivado via Ctrl+Espaço: {System.Diagnostics.Stopwatch.GetElapsedTime(suggestionStarted).TotalMilliseconds:F1} ms em Headless, sem rede; inserção e undo verificados.");
             list.SelectedItem = ((IEnumerable<CompletionItem>)list.ItemsSource!).Single(item => item.Label == "$total");

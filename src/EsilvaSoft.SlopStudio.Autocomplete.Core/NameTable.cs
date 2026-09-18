@@ -72,7 +72,10 @@ public sealed class NameTable<T>
                 if (filter?.Invoke(_items[index]) != false) { sink(_items[index], CatalogMatch.Any); count++; }
             return;
         }
-        var seen = new HashSet<int>();
+        // Dimensionado por `maximum` (nunca maior que a tabela): a fase de prefixo pode registrar mais índices que
+        // `count` quando o filtro rejeita itens, mas nunca mais que o alcance real da tabela. Um HashSet sem capacidade
+        // inicial faz vários realocamentos (~13 KB para 200 itens); pré-dimensionar evita a maior parte dessas trocas.
+        var seen = new HashSet<int>(Math.Min(maximum, _keys.Length));
         for (var index = LowerBound(_keys, key); index < _keys.Length && count < maximum && _keys[index].StartsWith(key, StringComparison.Ordinal); index++)
         {
             seen.Add(index);

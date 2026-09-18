@@ -1,4 +1,4 @@
-# Desempenho, instrumentação e benchmarks
+﻿# Desempenho, instrumentação e benchmarks
 
 ## Princípio
 
@@ -205,6 +205,20 @@ dotnet run -c Release --project tests/EsilvaSoft.SlopStudio.Benchmarks -- --filt
 
 Leitura: é a primeira baseline numérica de ranking desde a reorganização física do ADR-040; não é o job completo sem `--job short`/`--inProcess` exigido pelo protocolo da Fase 2 (seção "Fase 2 — protocolo e estado" abaixo), portanto ainda não aprova o gate de orçamento de ranking (p95 ≤ 2 ms para 200 candidatos) — a média de 26,889 µs para 200 candidatos está bem abaixo do orçamento, mas p95/p99 seguem pendentes. `MongoLexer.Tokenize` e `SyntaxHighlightingService` não tinham baseline registrada em 1 MB antes desta medição.
 
+### Correção de alocação em `CompletionRanker` (lote 5A) — 17/09/2026
+
+`CompletionRanker.TryMatch` varria a string duas vezes para candidatos que casavam por camel humps (`HasCamelHumps` seguido de `CamelHighlights`) e alocava um `TextSpan[]` de realce por candidato analisado, inclusive para os que nunca sobreviviam ao heap de top-K. As duas varreduras foram fundidas em `TryCamelHumps(value, prefix, highlights: TextSpan[]?)`: com `highlights` nulo (fase de match) faz uma única varredura sem alocar; com o array informado (materialização final), preenche os realces no mesmo laço. A construção de `Highlights` foi adiada para depois de `heap.Sort`, via `BuildHighlights`, que recalcula o realce determinístico (valor, prefixo, tipo de match) só para os itens que efetivamente saem — os descartados do heap nunca pagam esse custo. `Candidate` deixou de carregar `Highlights`/`Score` no `CompletionItem` clonado; o heap compara por `(Score, Match, Label, SymbolId, Ordinal)` e só o `record` final ganha `with { Score, Highlights }`.
+
+Medição com `dotnet run -c Release --project tests/EsilvaSoft.SlopStudio.Benchmarks -- --filter "*CompletionRanker*" --inProcess` (mesma máquina/config da tabela acima; `--inProcess` continua necessário por causa dos worktrees `.claude` descritos no estado de 15/09/2026, ainda não removidos):
+
+| Candidatos | Alocação antes (baseline 17/09) | Alocação depois (lote 5A) |
+| --- | ---: | ---: |
+| 20 | 2,8 KB | 2,8 KB |
+| 200 | 29,16 KB | 22,13 KB |
+| 2 000 | 215,49 KB | 21,74 KB |
+
+Leitura: já estava dentro do orçamento de 64 KB/tecla nesta baseline específica (a cifra de 175 KB citada nas seções de catálogo acima é de `CatalogQuery`/`NameTable`, um componente diferente, fora do escopo deste lote), mas a alocação crescia linearmente com o número de candidatos analisados porque cada um pagava o realce mesmo quando descartado; agora fica efetivamente constante em relação a `CandidateCount` (só o top-K materializa `Highlights`), o que é a correção estrutural pedida. São médias de `MemoryDiagnoser` (alocação gerenciada por operação), não p95; o job completo de p95 por lote segue pendente pelo mesmo motivo dos worktrees `.claude` não removidos. Testes funcionais (`CompletionRankerTests`, incluindo ordem, realces, desempate por `SymbolId` e invariância a `LabelDetail`) continuam verdes sem alteração de asserção.
+
 ### Projeto
 
 ```text
@@ -315,3 +329,61 @@ Estado atual: lexer/highlighting e ranking possuem benchmarks no projeto; parser
 ## Benchmark do Schema Discovery / Schema Learning
 
 Estender B com SchemaLearningBenchmarks: resultado→TryEnqueue (meta p95 <1 ms), extração/bytes por lote, drop/backlog, CPU/GC, memória retida, delta/commit e tempo sob lock LiteDB com autosave concorrente. Comparar find→resultado com aprendizado ligado/desligado em mesma carga; investigar regressão p95 >5%. Dataset sintético com BSON polimórfico, projeção, campos com ponto e arrays extensos; reinício/hidratação fria e prefixo quente. Sem novos acessos Mongo e sem leitura LiteDB por tecla. [Limites e protocolo](schema-learning.md); nenhum número é medição desta revisão.
+
+## Remedição da alocação por tecla — 17/09/2026
+
+A cifra de **175 KB por consulta de camel humps**, registrada nas seções de catálogo acima e repetida na matriz de
+orçamentos, **não se reproduz** na medição direta feita nesta data. Ela foi reaferida componente a componente, com
+`GC.GetAllocatedBytesForCurrentThread()` sobre 100–200 repetições após aquecimento, em vez de por benchmark agregado:
+
+| Componente medido | Cenário | Alocação por operação |
+| --- | --- | --- |
+| `NameTable<T>.Collect` por prefixo | 10 000 nomes, `maximum` 100 | **1 888 B** |
+| `NameTable<T>.Collect` por camel humps | 10 000 nomes, `maximum` 100 | **1 864 B** |
+| `NameTable<T>.Collect` sem casamento | 10 000 nomes, varre o escopo inteiro | **1 880 B** |
+| `KnowledgeCatalog.Query` sobre a linguagem embarcada | `MaximumCandidates` 200 | **10 396 B** |
+| `CompletionRanker.Rank` | 200 candidatos → top 100 | 22,13 KB |
+| `CompletionRanker.Rank` | 2 000 candidatos → top 100 | 21,74 KB |
+
+> **Correção desta própria seção — 18/09/2026.** O parágrafo abaixo estava ERRADO por escolha de cenário. As
+> medições acima usam o **catálogo de linguagem embarcado** (462 símbolos) e a busca de nomes isolada, e nesse
+> recorte o orçamento realmente sobra. Mas o cenário que o número original de 175 KB descreve é outro: **campos
+> vindos da fonte de metadados em coleção grande**. Remedido nesse cenário, com 200 candidatos:
+>
+> | Campos na coleção | Alocação por consulta |
+> | --- | --- |
+> | 100 | **43,39 KB** |
+> | 1 000 | **174,72 KB** |
+> | 10 000 | **174,72 KB** |
+>
+> Portanto **o orçamento de 64 KB por tecla CONTINUA ESTOURADO** a partir de ~1 000 campos, e a cifra de ~175 KB do
+> documento original está correta — não era stale nem mal atribuída à toa.
+>
+> **Causa identificada:** `MetadataCatalogSource.Describe(FieldNode)` monta o texto de apresentação de cada campo
+> (`List<string>`, interpolação e `string.Join`) **por candidato**, inclusive para os ~100 que o ranqueamento vai
+> descartar. É a mesma classe de defeito já corrigida no `CompletionRanker` com os realces, no componente vizinho.
+> A correção natural é diferir `Detail` para os sobreviventes do top-K, já que `CatalogSymbol` guarda o `FieldNode`
+> em `Field` e pode compor o texto sob demanda. **Não aplicada nesta entrega.**
+
+Ou seja, o orçamento de **≤ 64 KB por tecla no caminho sem IA está cumprido** em todos os componentes determinísticos
+medidos, com folga de pelo menos 3×. A busca de nomes, que a redação anterior apontava como culpada, aloca menos de
+2 KB; o que de fato escala é a materialização de um `CatalogCandidate` por candidato na consulta, e ainda assim dentro
+do orçamento. **Nenhuma otimização foi aplicada ao `NameTable` porque a medição não sustentou a premissa de que havia
+o que otimizar** — mudar código que já mede bem só acrescentaria risco.
+
+As três primeiras linhas viraram teste permanente em
+`tests/EsilvaSoft.SlopStudio.UnitTests/NameTableAllocationTests.cs`, que falha se a alocação por consulta ultrapassar
+64 KB. A guarda é de alocação, não de latência: uma regressão de alocação não aparece como erro, só como digitação
+engasgada, e por isso é afirmada em teste e não apenas observada em benchmark.
+
+### Pendências honestas desta remedição
+
+- **p95/p99 continuam não medidos.** Os números acima são alocação por operação, e média de alocação não é p95 de
+  latência. O job completo do BenchmarkDotNet foi iniciado após a remoção dos worktrees de `.claude/worktrees`, mas não
+  concluiu dentro desta sessão e foi interrompido; os gates de latência da Fase 2 (UI por tecla p95 ≤ 2 ms, contexto
+  p95 ≤ 5 ms, catálogo p95 ≤ 1 ms, ranking p95 ≤ 2 ms, tecla→lista p95 ≤ 50 ms, refiltro p95 ≤ 8 ms) **seguem sem
+  evidência de aprovação**. Nenhum deles pode ser declarado cumprido com o que existe hoje.
+- A linha da tabela de orçamentos que cita "3 MB em 16 KiB no caminho atual" não foi reaferida nesta data e permanece
+  como estava.
+- O estouro do highlighting (3,5 ms em 64 KiB contra orçamento de 2 ms por tecla) **não foi corrigido** e permanece
+  pendente, fora do escopo desta entrega.

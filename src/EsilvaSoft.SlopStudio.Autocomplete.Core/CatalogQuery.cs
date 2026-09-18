@@ -23,4 +23,9 @@ public sealed record CatalogQuery(SymbolKinds Kinds, EditorDialects Dialect, str
     /// automatic requests and refiltering use <see cref="MetadataAccess.Peek"/> and never schedule remote work.
     /// </summary>
     public MetadataAccess Access { get; init; } = MetadataAccess.LoadIfNeeded;
+    /// <summary>
+    /// Quando verdadeiro, <see cref="SymbolKinds.Field"/> é resolvido somente por <see cref="LocalSchemas"/>, sem
+    /// nenhuma leitura de metadados: a forma local já descreve a posição e os campos da coleção não valem mais ali.
+    /// </summary>
+    public bool RestrictFieldsToLocalSchemas { get; init; }
 }

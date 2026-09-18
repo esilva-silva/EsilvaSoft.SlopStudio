@@ -1,4 +1,77 @@
-# Acompanhamento da implementação
+﻿# Acompanhamento da implementação
+
+## Autocomplete tradicional — fechamento de lacunas (17/09/2026) — CONCLUÍDO
+
+Entrega focada em fechar defeitos que violavam critérios de aceite do autocomplete determinístico, mais o backlog já
+especificado na documentação. **Nenhuma funcionalidade de IA foi usada ou adicionada**: o caminho continua offline,
+sem ONNX, sem rede e sem consulta MongoDB durante a digitação.
+
+### O que foi corrigido
+
+1. **Lex único por requisição.** `CompletionContextEngine` tokenizava o documento no modo do dialeto e o `ShapeWalker`
+   tokenizava tudo de novo no modo padrão `Script`, ignorando o dialeto. Agora há sobrecarga
+   `ShapeWalker.Walk(text, tokens, caret, role, definition, rootShape, ct)` que recebe os tokens já produzidos; a
+   sobrecarga antiga preserva assinatura e delega.
+2. **Agregação passou a estreitar.** Em `EditorDialects.AggregationJson` o documento é um pipeline nu, sem chamada
+   envolvente, então `FindCall` falhava e nada estreitava: a posição de nome de estágio oferecia
+   `Field | QueryOperator | AggregationStage` indiscriminadamente. O motor agora semeia o shape raiz `Pipeline`
+   — **apenas como fallback**, quando não há chamada catalogada.
+3. **Vírgula devolve o quadro da chave.** Defeito encontrado durante a entrega: `ShapeWalker.Descend` empilhava um
+   quadro ao casar `chave:` e nunca o desempilhava na vírgula que encerra aquele valor. Consequência real: depois de
+   `find({ status: 1, ` a forma ficava presa em `FieldCondition`, cujo conjunto de chaves é vazio, o estreitamento era
+   descartado e **estágios de agregação eram oferecidos dentro de um filtro `find`** — exatamente o que o critério de
+   aceite proíbe.
+4. **Acesso a metadados guiado pelo gatilho.** `MetadataAccess.Peek` era fixo no código. Agora
+   `CompletionTrigger.Invoked` mapeia para `LoadIfNeeded` e digitação (`TriggerCharacter`/`Automatic`) continua em
+   `Peek`, nunca agendando trabalho remoto. `CompletionAutoOpenOnTrigger`, que era inerte, passou a valer.
+5. **Fluxo de campos do pipeline.** `PipelineInfo` existia e era testado, mas `PipelineStage` não tinha produtor algum.
+   Foi escrito `Context/PipelineStageReader`, e os campos inferidos entram por `LocalSchemas` com o sinalizador
+   `RestrictFieldsToLocalSchemas` — não por `LocalSymbols`, que o `CompletionService` emite incondicionalmente e
+   vazaria campos para posições de operador e de nome de estágio (ver ADR-041).
+6. **Descarte de resposta obsoleta e cancelamento.** `CompletionResponse.IsFor` existia e nunca era chamado. A aba
+   passou a usar `EditorRequestScope` próprio, com `IsFor` como guarda explícita; **um CTS por aba, nunca compartilhado**.
+7. **Sinal de uso ligado ponta a ponta.** `RankingProfile.UsageWeight` foi aplicado no ranqueamento e, como o
+   `CompletionUsageTracker` não tinha **nenhum produtor em produção**, o aceite e o desfazer do editor passaram a
+   alimentá-lo. É memória de sessão, só nomes, nunca persistida em LiteDB nem na sessão de workspace.
+8. **Alocação do ranqueamento.** Os realces deixaram de ser materializados para todo candidato analisado e passaram a
+   ser construídos só para os sobreviventes do top-K.
+
+### Evidência
+
+- `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore` → **0 avisos, 0 erros**.
+- `dotnet test EsilvaSoft.SlopStudio.slnx --no-build --no-restore` → **1 156 aprovados, 0 falhas** (baseline de entrada: 1 127).
+- Alocação remedida por componente em [performance](auto-complite/performance.md); orçamento de 64 KB por tecla
+  cumprido com folga em todos os componentes determinísticos medidos.
+
+### Decisão de encerramento — 17/09/2026
+
+A meta foi **marcada como concluída por decisão do responsável**, com as pendências abaixo aceitas em aberto. Registro
+explícito para quem ler depois: o critério de aceite original exigia que a latência atendesse ao limite documentado, e
+**essa evidência não foi produzida**. O job completo do BenchmarkDotNet foi desbloqueado (os worktrees de
+`.claude/worktrees` foram removidos) mas não foi executado, por decisão de não gastar mais tempo nesta sessão.
+Portanto os gates de p95/p99 estão **aceitos como pendentes, não cumpridos**. Nenhuma medição foi estimada,
+extrapolada ou inferida para preencher essa lacuna.
+
+### Pendências aceitas em aberto — NÃO declarar cumpridas
+
+- **Orçamento de alocação por tecla ESTOURADO em coleção grande.** Remedido em 18/09/2026: 43,39 KB com 100 campos,
+  **174,72 KB com 1 000 e com 10 000 campos**, contra o limite de 64 KB. A causa é `MetadataCatalogSource.Describe`,
+  que monta o texto de apresentação de cada campo por candidato, inclusive para os descartados pelo top-K. Não
+  corrigido nesta entrega. A afirmação anterior de que o orçamento estava cumprido valia só para o catálogo de
+  linguagem embarcado, não para campos vindos de metadados.
+- **Gates de latência p95/p99 sem evidência.** As medições desta entrega são de alocação, não de latência. O job
+  completo do BenchmarkDotNet não concluiu nesta sessão. Nenhum gate de p95 da Fase 2 pode ser declarado cumprido.
+- **`TypeMismatchPenalty` continua dado morto.** `CompletionContext.ValueType` passou a ser populado, mas descobriu-se
+  descasamento semântico: `ValueType` é a forma primitiva da posição de **valor**, enquanto `CatalogSymbol.ApplicableTypes`
+  descreve o tipo BSON do **campo** a que o operador se aplica, lido em posição de **chave** — onde `ValueType` é nulo.
+  Aplicar a penalidade exige propagar `ApplicableTypes` até o `CompletionItem` e resolver o tipo do campo em
+  `ParentPath`. Não foi feito, e nenhum atalho por texto de apresentação foi usado.
+- **Elo `Stage → GroupBody` não resolvido.** `ShapeWalker.Match` trata `Fixed`/`Operator`/`FieldPath`/`Dynamic` e ignora
+  `Exclusive` e `rule.Names`; o elo vive em `CatalogSymbol.ValueShape`. Logo `[{ $group: {` reporta `Stage`, não `GroupBody`.
+- **Matriz de 18 PNGs de homologação visual** não produzida; fora do escopo acordado desta entrega.
+- **Estouro do highlighting** (3,5 ms em 64 KiB contra 2 ms por tecla) não corrigido.
+- **Homologação real pendente**: nada aqui foi verificado contra MongoDB real, leitor de tela ou diálogos nativos.
+  Toda a evidência é de teste headless e de medição local.
 
 ## Consultas avançadas — incremento de 14/09/2026
 

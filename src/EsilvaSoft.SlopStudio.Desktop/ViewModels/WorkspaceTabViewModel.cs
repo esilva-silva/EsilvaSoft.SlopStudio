@@ -5,7 +5,7 @@ using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
-public sealed partial class WorkspaceTabViewModel : ObservableObject
+public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposable
 {
     private const string NotExecutedText = "Execute para visualizar os resultados em Extended JSON.";
     private readonly WorkspaceService _workspace;

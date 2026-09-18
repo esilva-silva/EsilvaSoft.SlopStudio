@@ -32,9 +32,11 @@ public sealed class CompletionContextCache
 
     private sealed record Entry(ContextKey Key, CompletionContextAnalysis Analysis);
 
+    // O schema de entrada entra na chave por referência: uma análise feita antes de o schema carregar não pode ser servida depois.
     private readonly record struct ContextKey(TextSnapshotVersion Version, int Caret, EditorDialects Dialect,
-        CatalogScope? Scope, CompletionTrigger Trigger)
+        CatalogScope? Scope, CompletionTrigger Trigger, CollectionSchema? InputSchema)
     {
-        public static ContextKey From(ContextRequest request) => new(request.Snapshot.Version, request.ValidCaret, request.Dialect, request.TabScope, request.Trigger);
+        public static ContextKey From(ContextRequest request) =>
+            new(request.Snapshot.Version, request.ValidCaret, request.Dialect, request.TabScope, request.Trigger, request.InputSchema);
     }
 }

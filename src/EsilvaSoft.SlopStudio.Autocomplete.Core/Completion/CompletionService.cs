@@ -29,13 +29,16 @@ public sealed class CompletionService
             LocalSchemas = context.LocalSchemas,
             LocalSymbols = context.LocalSymbols,
             MaximumCandidates = context.MaximumCandidates,
-            Access = context.CatalogAccess
+            Access = context.CatalogAccess,
+            RestrictFieldsToLocalSchemas = context.RestrictFieldsToLocalSchemas
         };
         var result = _catalog.Query(query, cancellationToken);
         var items = result.Candidates.Select(candidate => ToItem(candidate, context))
             .Concat(context.LocalSymbols.Select(symbol => ToLocalItem(symbol, context)))
             .ToArray();
-        var ranked = _ranker.Rank(items, context.Prefix, context.MaximumItems, cancellationToken);
+        // Passa o contexto, e não só o prefixo: é ele que identifica conexão, banco, coleção e forma para o termo
+        // de uso recente. Sem rastreador de uso configurado o resultado é idêntico ao do ranking por texto.
+        var ranked = _ranker.Rank(items, context, context.MaximumItems, cancellationToken);
         return ValueTask.FromResult(new CompletionList(context.Version, ranked, result.Completeness != CatalogCompleteness.Complete));
     }
 
