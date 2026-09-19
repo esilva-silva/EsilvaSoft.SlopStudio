@@ -37,6 +37,8 @@ internal static class LocalModelMetadataReader
             Capabilities = Texts(json, "capabilities")?.Aggregate(LocalModelCapabilities.None,
                 (current, item) => current | CapabilityNames.GetValueOrDefault(item, LocalModelCapabilities.None)),
             Hardware = Texts(json, "hardware")?.Where(HardwareNames.ContainsKey).Select(item => HardwareNames[item]).Distinct().ToArray(),
+            ContextContract = Text(json, "contextContract", 64),
+            SupportsRepositoryContext = Boolean(json, "supportsRepositoryContext"),
             RecommendedContextTokens = Integer(json, "recommendedContextTokens", 64, 8192),
             RecommendedCompletionTokens = Integer(json, "recommendedCompletionTokens", 1, 256),
             Autocomplete = Generation(generation, "autocomplete", 256),
@@ -58,6 +60,15 @@ internal static class LocalModelMetadataReader
         if (!json.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null) return null;
         if (value.ValueKind != JsonValueKind.Array) throw new InvalidDataException();
         return value.EnumerateArray().Take(64).Select(item => item.ValueKind == JsonValueKind.String ? item.GetString()!.Trim() : throw new InvalidDataException()).ToArray();
+    }
+
+    private static bool? Boolean(JsonElement json, string name)
+    {
+        if (!json.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null) return null;
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true, JsonValueKind.False => false, _ => throw new InvalidDataException()
+        };
     }
 
     private static int? Integer(JsonElement json, string name, int minimum, int maximum)

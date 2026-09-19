@@ -15,6 +15,16 @@ public sealed record LocalModelMetadata
     public LocalModelCapabilities? Capabilities { get; init; }
     /// <summary>Hardware the export supports; null means no restriction declared.</summary>
     public IReadOnlyList<AiAccelerationMode>? Hardware { get; init; }
+    /// <summary>
+    /// Prompt contract the model expects (see <see cref="LocalModelContextContracts"/>); null means the package
+    /// declares none, which is treated as the frozen <c>editor-context-v1</c> and never as an incompatibility.
+    /// </summary>
+    public string? ContextContract { get; init; }
+    /// <summary>
+    /// Whether the model can exploit context from other files besides the current tab. Null means undeclared and
+    /// behaves as false; the distinction is preserved so a future package can state false explicitly.
+    /// </summary>
+    public bool? SupportsRepositoryContext { get; init; }
     public int? RecommendedContextTokens { get; init; }
     public int? RecommendedCompletionTokens { get; init; }
     public LocalModelGenerationDefaults Autocomplete { get; init; } = new();

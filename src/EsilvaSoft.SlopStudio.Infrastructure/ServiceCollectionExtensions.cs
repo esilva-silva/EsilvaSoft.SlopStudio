@@ -1,4 +1,5 @@
 using EsilvaSoft.SlopStudio.Application;
+using EsilvaSoft.SlopStudio.Application.SchemaLearning;
 using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.LocalAi.Core;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,6 +28,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IWorkspaceSessionRepository>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
         services.AddSingleton<IEnvironmentVaultRepository>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
         services.AddSingleton<IConsoleHistoryRepository>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
+        // L14: learned schema lives in the same file, owned by the same instance. Never a second LiteDatabase.
+        services.AddSingleton<ILearnedSchemaRepository>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
         services.AddSingleton<IConsoleDatabaseSessionFactory, ConsoleDatabaseSessionFactory>();
         services.AddSingleton<IConsoleRuntime, ConsoleRuntime>();
         services.AddSingleton<IConnectionSecretStore, SessionConnectionSecretStore>();
@@ -38,7 +41,26 @@ public static class ServiceCollectionExtensions
             provider.GetRequiredService<IApplicationOperationService>(), provider.GetRequiredService<IMetadataInvalidationBus>()));
         services.AddSingleton<ICatalogSource>(_ => new LanguageCatalogSource());
         services.AddSingleton<ICatalogSource>(provider => new MetadataCatalogSource(provider.GetRequiredService<IMetadataCache>()));
+        // L15: registered right after MetadataCatalogSource and never before it. KnowledgeCatalog consumes
+        // IEnumerable<ICatalogSource> in registration order, and DEC-L15-DEDUP folds the learned annotation into the
+        // live-evidence symbol already in the sink — which only happens if live evidence was collected first.
+        services.AddSingleton<LearnedSchemaOptOut>();
+        services.AddSingleton<ILearnedSchemaOptOut>(provider => provider.GetRequiredService<LearnedSchemaOptOut>());
+        // Registered as its own concrete type — not only as ICatalogSource — so WorkspaceService can also take it as
+        // an optional constructor parameter and call InvalidateProfile on deletion; both resolve the same singleton.
+        services.AddSingleton<LearnedSchemaCatalogSource>(provider => new LearnedSchemaCatalogSource(
+            provider.GetRequiredService<ILearnedSchemaRepository>(), provider.GetRequiredService<IMetadataCache>(),
+            provider.GetRequiredService<ILearnedSchemaOptOut>()));
+        services.AddSingleton<ICatalogSource>(provider => provider.GetRequiredService<LearnedSchemaCatalogSource>());
         services.AddSingleton<IKnowledgeCatalog, KnowledgeCatalog>();
+        // L15: producer side, one queue and one worker for the whole application. The coordinator is owned by
+        // SchemaLearningHost instead of being a service of its own — see that type for why (it is IAsyncDisposable
+        // only, and the desktop disposes this container synchronously at Exit). BackgroundSchemaAnalyzer's optional
+        // constructor parameters are tuning knobs, not services, so it is built explicitly with its defaults.
+        services.AddSingleton<BackgroundSchemaAnalyzer>(_ => new BackgroundSchemaAnalyzer(TimeProvider.System));
+        services.AddSingleton<SchemaLearningHost>(provider => new SchemaLearningHost(
+            provider.GetRequiredService<BackgroundSchemaAnalyzer>(), provider.GetRequiredService<ILearnedSchemaRepository>()));
+        services.AddSingleton<SchemaLearningService>(provider => provider.GetRequiredService<SchemaLearningHost>().Service);
         services.AddSingleton<IExplorerMetadataService, ExplorerMetadataService>();
         services.AddSingleton<IScriptExecutionService, MongoshScriptExecutionService>();
         services.AddSingleton<IScriptFileService, LocalScriptFileService>();

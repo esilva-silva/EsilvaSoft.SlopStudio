@@ -61,6 +61,12 @@ public sealed class LocalModelCatalog(string? defaultDirectory = null, IReadOnly
             {
                 return Rejected(LocalModelState.Invalid, $"{LocalModelMetadata.FileName} inválido: confira nomes, tipos e limites dos campos.");
             }
+            // Compatibilidade de contrato de prompt: decidida só com o metadata já em memória, sem I/O extra e sem
+            // carregar pesos. Ausência de declaração nunca é incompatibilidade (pacotes antigos continuam válidos).
+            if (metadata?.ContextContract is { } contract && !LocalModelContextContracts.IsSupported(contract))
+                return Rejected(LocalModelState.Invalid,
+                    $"Modelo requer contrato de contexto \"{contract}\", não suportado por esta versão do SlopStudio. " +
+                    $"Contratos suportados: {string.Join(", ", LocalModelContextContracts.Supported)}.");
             using var tokenizer = ReadJson(Path.Combine(root, "tokenizer.json"));
             using (ReadJson(Path.Combine(root, "tokenizer_config.json"))) { }
             if (adapter.Validate(new(root, type, decoderPath, tokenizer.RootElement)) is { } failure) return Rejected(failure.State, failure.Message);

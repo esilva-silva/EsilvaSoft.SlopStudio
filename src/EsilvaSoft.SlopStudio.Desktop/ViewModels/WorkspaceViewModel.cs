@@ -1,6 +1,7 @@
 using EsilvaSoft.SlopStudio.LocalAi.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using EsilvaSoft.SlopStudio.Application;
+using EsilvaSoft.SlopStudio.Application.SchemaLearning;
 using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Autocomplete.Core.Completion;
 using EsilvaSoft.SlopStudio.Core;
@@ -20,6 +21,12 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     // Persisted form kept as loaded (null = absent) so autosave never drops or materializes custom shortcuts.
     private EditorKeyBindings? _keyBindings;
     private readonly HashSet<Guid> _excludedProfiles = [];
+    /// <summary>
+    /// L15 opt-out (per-connection): null when no host wires one, in which case applying preferences and
+    /// <see cref="SetLearnedSchemaExcludedAsync"/> are no-ops and the general flag alone still governs serving,
+    /// exactly the null-conditional convention already used for the other optional collaborators below.
+    /// </summary>
+    private readonly ILearnedSchemaOptOut? _learnedSchemaOptOut;
     private readonly Dictionary<Guid, UuidRepresentation> _profileUuidRepresentations = [];
     private readonly SynchronizationContext? _context = SynchronizationContext.Current;
     private readonly bool _ownsMetadata;
@@ -64,9 +71,11 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
 
     public WorkspaceViewModel(WorkspaceService workspace, IWorkspaceSessionRepository sessions, IAutocompleteService? autocomplete = null, ILocalModelCatalog? modelCatalog = null, IAiChatService? aiChat = null,
         IKnowledgeCatalog? knowledgeCatalog = null,
-        ILocalAiModelService? localModels = null, IAppUpdateService? updates = null, IRemoteModelSource? remoteModels = null, IMetadataCache? metadata = null)
+        ILocalAiModelService? localModels = null, IAppUpdateService? updates = null, IRemoteModelSource? remoteModels = null, IMetadataCache? metadata = null,
+        ILearnedSchemaOptOut? learnedSchemaOptOut = null)
     {
         _workspace = workspace; _sessions = sessions; Operations = new(workspace.Operations); Details = new ExplorerDetailsViewModel(workspace);
+        _learnedSchemaOptOut = learnedSchemaOptOut;
         // Without a registered driver source, explorer write-through still feeds highlighting and names; remote loads stay unavailable.
         _ownsMetadata = metadata is null;
         Metadata = metadata ?? new MetadataCache(UnavailableMetadataSource.Instance);
@@ -116,6 +125,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
             RecoverDrafts = session.Preferences.RecoverDrafts;
             _excludedProfiles.UnionWith(session.Preferences.ExcludedProfileIds);
             foreach (var profileId in session.Preferences.SchemaSamplingProfileIds) Metadata.SetSchemaSamplingAllowed(profileId, true);
+            _learnedSchemaOptOut?.ApplyPreferences(session.Preferences);
             foreach (var entry in session.Preferences.ProfileUuidRepresentations) _profileUuidRepresentations[entry.Key] = entry.Value;
             UuidRepresentation = session.Preferences.UuidRepresentation;
             IdentifierMode = session.Preferences.IdentifierMode;
@@ -174,7 +184,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
                 ActiveTabId = ActiveTab?.Id,
                 Preferences = new WorkspacePreferences { Autocomplete = _autocompleteSettings, Theme = Theme, CodeFontSize = CodeFontSize, ExplorerWidth = ExplorerWidth, EditorRatio = EditorRatio, RecoverDrafts = RecoverDrafts, ExcludedProfileIds = _excludedProfiles.ToArray(),
                     UuidRepresentation = UuidRepresentation, ProfileUuidRepresentations = new(_profileUuidRepresentations), IdentifierMode = IdentifierMode,
-                    SchemaSamplingProfileIds = Metadata.SchemaSamplingProfiles.ToArray(), EditorKeyBindings = _keyBindings },
+                    SchemaSamplingProfileIds = Metadata.SchemaSamplingProfiles.ToArray(),
+                    LearnedSchemaExcludedProfileIds = _learnedSchemaOptOut?.ExcludedProfiles.ToArray() ?? [], EditorKeyBindings = _keyBindings },
                 Tabs = Tabs.Select(t => t.Snapshot()).ToArray()
             };
             await _sessions.SaveSessionAsync(session);

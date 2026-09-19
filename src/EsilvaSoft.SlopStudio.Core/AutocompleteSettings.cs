@@ -32,6 +32,18 @@ public sealed record AutocompleteSettings
     /// <summary>Additive to version 1: Enter accepts the highlighted list item; false leaves Enter to insert a new line.</summary>
     public bool CompletionEnterAccepts { get; init; } = true;
 
+    /// <summary>
+    /// Additive to version 1: whether persisted schema learning (Fase L) may be <em>served</em> to the catalog.
+    /// True by default — unlike the automatic AI features (<see cref="InlineUseAi"/>), this is not generation: it is
+    /// structural metadata (field names/types/frequencies) already collected, passively, from <c>find</c> results
+    /// the user already executed, with no additional query and the same per-source quota as every other catalog
+    /// source (K16-b). Turning it off only stops <em>serving</em> already learned structure; it neither deletes
+    /// anything nor stops new collection, which is governed independently by <c>SchemaLearningPolicy</c>
+    /// (schema-learning.md § Projeções, consultas derivadas e privacidade proposes the twin flags true by default
+    /// for this same reason). Absent (legacy document) is <see langword="true"/>.
+    /// </summary>
+    public bool LearnedSchemaEnabled { get; init; } = true;
+
     // As três opções abaixo são aditivas à versão 1 e distinguem "campo ausente" de "false explícito" pela presença no
     // JSON, e não pelo inicializador da propriedade: o valor persistido é o anulável, e o valor efetivo é derivado.
     // Um documento antigo (sem as flags) precisa ser migrado; um documento novo com false explícito precisa ser

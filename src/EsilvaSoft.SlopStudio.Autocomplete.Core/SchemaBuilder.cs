@@ -217,6 +217,39 @@ public sealed class SchemaBuilder
     }
 
     /// <summary>
+    /// Adds one field of persisted schema learning (L15), addressed by explicit segments — never a dotted string —
+    /// so a literal field named <c>"Customer.Id"</c> cannot collide with the nested path <c>Customer</c> ›
+    /// <c>Id</c> at the call site (the resulting <see cref="FieldNode.Path"/> is still dot-joined display text,
+    /// the same pre-existing limitation every other builder method already has). Sets only
+    /// <see cref="EvidenceSources.Learned"/> and never touches the sample size, so <see cref="FieldNode.Occurrence"/>
+    /// stays null by construction (DEC-L-MERGE): the learned source presents its own frequency, with its own
+    /// denominator, independently of this schema's <see cref="CollectionSchema.SampleSize"/>.
+    /// </summary>
+    public SchemaBuilder AddLearnedField(IReadOnlyList<string> segments, IReadOnlyDictionary<string, long> typeObservations, bool isArray,
+        IReadOnlyDictionary<string, long>? arrayElementTypeObservations = null)
+    {
+        ArgumentNullException.ThrowIfNull(segments);
+        ArgumentNullException.ThrowIfNull(typeObservations);
+        if (segments.Count == 0 || segments.Count > _maximumDepth || segments.Any(string.IsNullOrEmpty)) return this;
+        var node = _root;
+        foreach (var segment in segments)
+        {
+            if (Child(node, segment) is not { } child) return this;
+            child.Evidence |= EvidenceSources.Learned;
+            node = child;
+        }
+        foreach (var (type, count) in typeObservations) node.AddType(type, (int)Math.Clamp(count, 0, int.MaxValue));
+        if (isArray)
+        {
+            node.Flags |= FieldTraits.Array;
+            if (arrayElementTypeObservations is not null && arrayElementTypeObservations.Keys.Any(type => type is "object" or "document"))
+                node.Flags |= FieldTraits.ArrayOfDocuments;
+        }
+        _evidence |= EvidenceSources.Learned;
+        return this;
+    }
+
+    /// <summary>
     /// Registra um campo inferido de um estágio de agregação: caminho pontilhado, tipos observados, traços e evidência.
     /// Nenhum valor de documento é lido; a chamada apenas declara a existência do campo naquela posição do pipeline.
     /// </summary>

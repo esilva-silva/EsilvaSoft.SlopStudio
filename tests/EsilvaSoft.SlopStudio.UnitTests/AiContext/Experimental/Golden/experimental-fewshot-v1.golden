@@ -1,0 +1,55 @@
+# Golden do formato experimental experimental-fewshot-v1 (lote A34b). Formato inalcançável em produção; não regenerar para esconder regressão.
+== aba-vazia ==
+context=EXEMPLOS SINTETICOS (nomes inventados, nao sao do workspace atual):\nexemplo 1\n  nomes: pedidos, clientes\n  campos: cliente.nome: string, total: double\n  entrada: db.pedidos.find({ "cliente.\n  continuacao: nome": "Ana" })\nexemplo 2\n  nomes: eventos\n  campos: criadoEm: date, tipo: string\n  entrada: db.eventos.aggregate([{ $match: { ti\n  continuacao: po: "login" } }])\nFIM DOS EXEMPLOS\nCONTEXTO REAL\n  linguagem: json\n  operadores: $match, $project, $group, $sort, $limit, $lookup, $unwind, $eq, $ne, $gt, $gte, $lt, $lte, $in, $and, $or\n  continuacao: complete no cursor, usando somente os nomes acima.\n
+sha=20940859130c7a471ecd9b49d40827d835164dbb8b050d2fb8d1335673c7d629
+prefix=
+suffix=
+dictionary=$match|$project|$group|$sort|$limit|$lookup|$unwind|$eq|$ne|$gt|$gte|$lt|$lte|$in|$and|$or
+== json-completo ==
+context=EXEMPLOS SINTETICOS (nomes inventados, nao sao do workspace atual):\nexemplo 1\n  nomes: pedidos, clientes\n  campos: cliente.nome: string, total: double\n  entrada: db.pedidos.find({ "cliente.\n  continuacao: nome": "Ana" })\nexemplo 2\n  nomes: eventos\n  campos: criadoEm: date, tipo: string\n  entrada: db.eventos.aggregate([{ $match: { ti\n  continuacao: po: "login" } }])\nFIM DOS EXEMPLOS\nCONTEXTO REAL\n  linguagem: json\n  nomes: servidor-alfa, Projetos, Clientes\n  campos: Id, NomeProjeto, Cliente.Id, Cliente.Nome\n  operadores: $match, $project, $group, $sort, $limit, $lookup, $unwind, $eq, $ne, $gt, $gte, $lt, $lte, $in, $and, $or\n  locais: entrada: painel\n  continuacao: complete no cursor, usando somente os nomes acima.\n
+sha=7c04064b89625c93911657a50c75b27c889197c27e19de8a1dca3c48a8e12535
+prefix=db.Clientes.find({}).limit(10)\ndb.Projetos.countDocuments({})\ndb.Projetos.find({ "Cliente.
+suffix=
+dictionary=servidor-alfa|Projetos|Clientes|Id|NomeProjeto|Cliente.Id|Cliente.Nome|$match|$project|$group|$sort|$limit|$lookup|$unwind|$eq|$ne|$gt|$gte|$lt|$lte|$in|$and|$or|entrada
+== mongosh-sem-paineis ==
+context=EXEMPLOS SINTETICOS (nomes inventados, nao sao do workspace atual):\nexemplo 1\n  nomes: pedidos, clientes\n  campos: cliente.nome: string, total: double\n  entrada: db.pedidos.find({ "cliente.\n  continuacao: nome": "Ana" })\nexemplo 2\n  nomes: eventos\n  campos: criadoEm: date, tipo: string\n  entrada: db.eventos.aggregate([{ $match: { ti\n  continuacao: po: "login" } }])\nFIM DOS EXEMPLOS\nCONTEXTO REAL\n  linguagem: JavaScript (mongosh)\n  nomes: servidor-alfa, Projetos, Clientes\n  operadores: db.getCollection, db.getSiblingDB, find, findOne, aggregate, sort, limit, countDocuments, print, ObjectId, UUID\n  continuacao: complete no cursor, usando somente os nomes acima.\n
+sha=1ad2d7fef78e1e55487dbc5dbd444db634f8992f6ac90dce94082dbf8a84e1b3
+prefix=db.Projetos.find({ "Cliente.
+suffix=
+dictionary=servidor-alfa|Projetos|Clientes|db.getCollection|db.getSiblingDB|find|findOne|aggregate|sort|limit|countDocuments|print|ObjectId|UUID
+== console-com-texto-sensivel ==
+context=EXEMPLOS SINTETICOS (nomes inventados, nao sao do workspace atual):\nexemplo 1\n  nomes: pedidos, clientes\n  campos: cliente.nome: string, total: double\n  entrada: db.pedidos.find({ "cliente.\n  continuacao: nome": "Ana" })\nexemplo 2\n  nomes: eventos\n  campos: criadoEm: date, tipo: string\n  entrada: db.eventos.aggregate([{ $match: { ti\n  continuacao: po: "login" } }])\nFIM DOS EXEMPLOS\nCONTEXTO REAL\n  linguagem: Mongo Console JavaScript\n  nomes: Clientes\n  operadores: db.getCollection, getConnection, ConnectionPool, console.log, ENV.get, ObjectId, UUID\n  continuacao: complete no cursor, usando somente os nomes acima.\n
+sha=04fe7da19ae3a66fb1135d948fcc62aa10a5cb15aa83377a9bcbf47f47a7eac8
+prefix=ENV.get("SENHA")\ngetConnection("alfa")
+suffix=
+dictionary=Clientes|db.getCollection|getConnection|ConnectionPool|console.log|ENV.get|ObjectId|UUID
+== fatos-ricos ==
+context=EXEMPLOS SINTETICOS (nomes inventados, nao sao do workspace atual):\nexemplo 1\n  nomes: pedidos, clientes\n  campos: cliente.nome: string, total: double\n  entrada: db.pedidos.find({ "cliente.\n  continuacao: nome": "Ana" })\nexemplo 2\n  nomes: eventos\n  campos: criadoEm: date, tipo: string\n  entrada: db.eventos.aggregate([{ $match: { ti\n  continuacao: po: "login" } }])\nFIM DOS EXEMPLOS\nCONTEXTO REAL\n  linguagem: json\n  nomes: Pedidos\n  campos: total: double, cliente.nome: string\n  operadores: $match\n  locais: cursor: Cursor\n  continuacao: complete no cursor, usando somente os nomes acima.\n
+sha=4ed52c7dfb4622a0cfbb574efb2d1528f960bbb9ff4dca6c2accd6319f05d06e
+prefix=db.Pedidos.find({ 
+suffix=})
+dictionary=Pedidos|total|cliente.nome|$match|cursor
+== detalhe-hostil ==
+context=EXEMPLOS SINTETICOS (nomes inventados, nao sao do workspace atual):\nexemplo 1\n  nomes: pedidos, clientes\n  campos: cliente.nome: string, total: double\n  entrada: db.pedidos.find({ "cliente.\n  continuacao: nome": "Ana" })\nexemplo 2\n  nomes: eventos\n  campos: criadoEm: date, tipo: string\n  entrada: db.eventos.aggregate([{ $match: { ti\n  continuacao: po: "login" } }])\nFIM DOS EXEMPLOS\nCONTEXTO REAL\n  linguagem: json\n  campos: caminho/estranho: string\n  continuacao: complete no cursor, usando somente os nomes acima.\n
+sha=47c91c20eb4571104e92c2af3422ba0642c68113c3d79bb92b77c5fdc91d0b80
+prefix=db.x.find({ 
+suffix=
+dictionary=caminho/estranho
+== janela-truncada ==
+context=EXEMPLOS SINTETICOS (nomes inventados, nao sao do workspace atual):\nexemplo 1\n  nomes: pedidos, clientes\n  campos: cliente.nome: string, total: double\n  entrada: db.pedidos.find({ "cliente.\n  continuacao: nome": "Ana" })\nexemplo 2\n  nomes: eventos\n  campos: criadoEm: date, tipo: string\n  entrada: db.eventos.aggregate([{ $match: { ti\n  continuacao: po: "login" } }])\nFIM DOS EXEMPLOS\nCONTEXTO REAL\n  linguagem: json\n  nomes: Eventos\n  continuacao: complete no cursor, usando somente os nomes acima.\n
+sha=a69b6fc8ab4190815b84fe4d7dbfafae0371367d72b1e5d37bd3917c70d034e5
+prefix=db.Eventos.countDocuments({})\ndb.Eventos.aggregate([{ $matc
+suffix=
+dictionary=Eventos
+== acima-do-teto-minimo ==
+context=EXEMPLOS SINTETICOS (nomes inventados, nao sao do workspace atual):\nexemplo 1\n  nomes: pedidos, clientes\n  campos: cliente.nome: string, total: double\n  entrada: db.pedidos.find({ "cliente.\n  continuacao: nome": "Ana" })\nexemplo 2\n  nomes: eventos\n  campos: criadoEm: date, tipo: string\n  entrada: db.eventos.aggregate([{ $match: { ti\n  continuacao: po: "login" } }])\nFIM DOS EXEMPLOS\nCONTEXTO REAL\n  linguagem: json\n  campos: campo1: string, campo2: string, campo3: string, campo4: string, campo5: string, campo6: string, campo7: string, campo8: string, campo9: string, campo10: string, campo11: string, campo12: string, campo13: string, campo14: string, campo15: string, campo16: string, campo17: string, campo18: string, campo19: string, campo20: string\n  continuacao: complete no cursor, usando somente os nomes acima.\n
+sha=8e3eaba12d6d8ef6a9524d61b53e4ec33204555fd4fbf3addb8645c53ab97b83
+prefix=db.Pedidos.find({ 
+suffix=
+dictionary=campo1|campo2|campo3|campo4|campo5|campo6|campo7|campo8|campo9|campo10|campo11|campo12|campo13|campo14|campo15|campo16|campo17|campo18|campo19|campo20
+== sem-fatos-com-janela ==
+context=EXEMPLOS SINTETICOS (nomes inventados, nao sao do workspace atual):\nexemplo 1\n  nomes: pedidos, clientes\n  campos: cliente.nome: string, total: double\n  entrada: db.pedidos.find({ "cliente.\n  continuacao: nome": "Ana" })\nexemplo 2\n  nomes: eventos\n  campos: criadoEm: date, tipo: string\n  entrada: db.eventos.aggregate([{ $match: { ti\n  continuacao: po: "login" } }])\nFIM DOS EXEMPLOS\nCONTEXTO REAL\n  linguagem: json\n  continuacao: complete no cursor, usando somente os nomes acima.\n
+sha=013e152df400784b69862ef1c2e75747f17c6d6427585b023a52766c5904b1b5
+prefix=db.Pedidos.find({ 
+suffix=})
+dictionary=

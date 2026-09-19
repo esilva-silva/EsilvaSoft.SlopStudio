@@ -406,3 +406,118 @@ BenchmarkDotNet, AMD Ryzen 9 7900, Windows 11 25H2, .NET 10.0.12. Análise por t
   como estava.
 - O estouro do highlighting (3,5 ms em 64 KiB contra orçamento de 2 ms por tecla) **não foi corrigido** e permanece
   pendente, fora do escopo desta entrega.
+
+## Baseline medida — Fase L (schema learning) — 19/09/2026
+
+Execução de 19/09/2026 em AMD Ryzen 9 7900 3,70 GHz (12 núcleos físicos, 24 lógicos), Windows 11 25H2
+(10.0.26200.9457), .NET SDK 10.0.401 / runtime .NET 10.0.12 x64 RyuJIT x86-64-v4, BenchmarkDotNet 0.15.8 com
+`--job short --inProcess` (3 aquecimentos + 3 iterações, 1 lançamento) — o mesmo protocolo da
+[baseline da Fase 1](#baseline-medida--fase-1), com a mesma limitação: com N = 3 a margem de 99,9% fica
+frequentemente acima da própria média, então **as médias indicam ordem de grandeza e o desvio padrão é o que se
+publica; p95/p99 continuam não medidos**. Desvio padrão entre parênteses; alocação por operação na última coluna.
+Reproduzir:
+
+```bash
+dotnet run -c Release --project tests/EsilvaSoft.SlopStudio.Benchmarks -- --filter "*SchemaLearning*" --job short --inProcess
+```
+
+Os lotes sintéticos são gerados por `tests/EsilvaSoft.SlopStudio.Benchmarks/SchemaLearning/SyntheticLearningWorkload.cs`
+e a forma que eles realmente produzem — profundidade, número de caminhos e tamanho por documento — é afirmada em
+`SyntheticLearningWorkloadTests.cs`, para que o benchmark não possa mentir sobre o cenário que mediu.
+
+### Análise de lote (`BackgroundSchemaAnalyzer.Analyze`)
+
+Limites reais do analisador, conferidos no código: profundidade 12, 10 000 nós por lote, 1 000 elementos de array por
+campo por documento, 64 KiB por documento, 32 documentos por lote.
+
+| Forma do lote | Documentos / caracteres | Caminhos | Média | Alocado |
+| --- | --- | ---: | ---: | ---: |
+| Pequeno (4 campos × 2 níveis) | 8 / 3 098 | 11 | 24,59 µs (0,08) | 70,24 KB |
+| Médio (12 campos × 5 níveis) | 32 / 77 478 | 66 | 612,85 µs (11,41) | 1 655,76 KB |
+| Grande (24 campos × 12 níveis, nomes distintos por documento) | 32 / 388 112 | 9 570 | 20 137,66 µs (497,29) | 21 334,41 KB |
+| Estourando (30 campos × 14 níveis) | 32 / 553 524 | 13 858 pedidos → 10 000 gravados, `IsTruncated` | 22 529,60 µs (1 016,17) | 23 531,33 KB |
+
+**Aceitável para o caminho em que roda.** O analisador só é chamado pelo worker único do `SchemaLearningCoordinator`
+(`Task.Run` no construtor), nunca pelo despachante da UI: 20–23 ms por lote no teto dos orçamentos é custo de fundo, e
+o caso que estoura custa apenas ~12% a mais que o que encosta no limite — o truncamento é barato, o tamanho é que não é.
+**Pendência honesta registrada e não corrigida nesta entrega:** 21 MB alocados por lote no teto, com coletas de Gen2,
+vêm de `GetOrCreateAccumulator` materializar `LearnedFieldPath` + `ToCanonicalId()` + `Convert.ToBase64String` por
+caminho **por documento**, e de `Append` copiar o vetor de segmentos a cada nível. É pressão de GC de fundo, não de
+tecla, mas é o maior número desta medição.
+
+### Commit em LiteDB (`ILearnedSchemaRepository.ApplyAsync`)
+
+Banco LiteDB temporário real, namespace já existente (mede-se a atualização, não a inserção), BatchIds distintos para
+que cada commit seja de fato aplicado e não caia no atalho de idempotência.
+
+| Operação | 8 campos | 64 campos | 512 campos |
+| --- | ---: | ---: | ---: |
+| `ApplyAsync` (transação curta) | 124,10 µs (7,20) | 355,47 µs (0,44) | 2 509,45 µs (4,98) |
+| Alocado por commit | 117,14 KB | 603,85 KB | 4 518,28 KB |
+| `ReadAvailabilityAsync` (leitura do namespace) | 38,82 µs (0,20) | 130,72 µs (0,18) | 948,64 µs (2,58) |
+| Alocado por leitura | 57,92 KB | 312,94 KB | 2 350,44 KB |
+
+**Aceitável para o caminho em que roda, com uma ressalva explícita.** O commit acontece no mesmo worker de fundo,
+depois da análise, e nunca no caminho da consulta do usuário. Mas ele roda sob o `_gate` do **único** dono do arquivo
+LiteDB, o mesmo do autosave de sessão e do repositório de perfis: um delta de 512 caminhos segura esse lock por ~2,5 ms.
+Com no máximo 32 lotes na fila e um worker só, o pior caso contíguo é da ordem de dezenas de milissegundos de lock —
+aceitável hoje, e a razão pela qual aumentar o paralelismo do worker não é uma otimização inócua.
+
+### Hidratação do catálogo aprendido (`LearnedSchemaCatalogSource`)
+
+Repositório em memória: mede-se o custo do próprio catálogo (montar o `CollectionSchema` e varrer os filhos), sem
+disco. A latência fria ponta a ponta percebida é esta **somada** à leitura do namespace da tabela anterior.
+
+| Operação | 50 campos aprendidos | 500 campos | 5 000 campos |
+| --- | ---: | ---: | ---: |
+| `Collect` com LRU quente | 104,41 µs (2,69) | 65,27 µs (17,28) | 93,32 µs (1,00) |
+| Alocado por consulta quente | 52,82 KB | 98,99 KB | 98,99 KB |
+| Primeira `Collect` (devolve `Loading`) | 1,12 µs (0,61) | 0,59 µs (0,26) | 2,12 µs (1,49) |
+| Frio até servível (hidratação completa) | 156,50 µs (3,40) | 462,07 µs (13,57) | 13 701,57 µs (75,94) |
+| Alocado na hidratação | 182,94 KB | 1 174,58 KB | 11 241,32 KB |
+
+**Rápido o bastante para não atrasar a lista, com duas ressalvas.** A consulta quente fica em 0,05–0,10 ms, dentro do
+orçamento de 1 ms por consulta ao catálogo da Fase 1 — e a variação entre 50 e 500 campos é menor que a margem de
+N = 3, ou seja, o que estes números sustentam é a ordem de grandeza (dezenas de µs), não uma curva. A primeira consulta
+custa ~1–2 µs e devolve `Loading`: **o contrato de nunca fazer I/O na thread chamadora está medido, não só afirmado**.
+As ressalvas: (a) a consulta quente aloca 53–99 KB, o que **estoura o orçamento de 64 KB por tecla** a partir de ~500
+campos aprendidos, exatamente a mesma classe de defeito já registrada para `MetadataCatalogSource.Describe` na
+[remedição de 17/09/2026](#remedição-da-alocação-por-tecla--17092026) e não corrigida aqui; (b) com 5 000 campos
+aprendidos a hidratação fria custa ~13,7 ms de CPU mais a leitura de disco (~0,95 ms), uma vez por namespace e por
+ciclo do LRU de 8 entradas — aceitável como custo único, e é o número a vigiar se o teto de campos aprendidos subir.
+
+### Vazão e descarte da fila (`SchemaLearningCoordinator`)
+
+Capacidade padrão de 32 lotes, worker único, repositório falso com latência artificial (o descarte é o objeto da
+medição; I/O real tornaria o resultado dependente do estado do SSD). Uma invocação é a rajada inteira mais a drenagem.
+
+| Rajada | Latência do commit | Aceitos | Descartados | Processados | Média | Alocado |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 64 | 0 ms | 32 | 32 (50,0%) | 32 | 981,8 µs (116,65) | 2,22 MB |
+| 64 | 2 ms | 32 | 32 (50,0%) | 32 | 505 114 µs (3 753,76) | 2,24 MB |
+| 512 | 0 ms | 33 | 479 (93,6%) | 33 | 1 018,0 µs (74,55) | 2,27 MB |
+| 512 | 2 ms | 33 | 479 (93,6%) | 33 | 515 236 µs (432,02) | 2,26 MB |
+
+A média das linhas de 2 ms **não mede a fila**: 32 commits de `Task.Delay(2 ms)` viram ~500 ms por causa da resolução
+do temporizador do Windows (~15,6 ms), o mesmo mecanismo já registrado na
+[medição de edição → ghost](#edição--ghost--meta-de-20-ms-não-comprovadamente-atendida). O número útil destas linhas é
+a coluna de descarte, e ela não muda com a latência do repositório.
+
+**Aceitável, e o resultado é informativo.** O produtor nunca bloqueia: `TryEnqueue` é síncrono e a rajada de 512
+lotes é absorvida em ~1 ms. Mas **o descarte começa no 33º lote da rajada independentemente da velocidade do
+repositório** — mesmo com commit instantâneo só 33 foram aceitos, porque o produtor é ordens de grandeza mais rápido
+que analisar + comitar. Isso é o comportamento especificado (fila cheia descarta o lote novo, nunca o que está em
+processamento, e aprendizado nunca faz parte do sucesso da consulta), mas significa, em número: **uma navegação
+rápida por muitas páginas contribui com cerca de 32 lotes, não com todas as páginas vistas**. A UI não pode prometer
+"aprendi tudo o que você viu"; a redação de "observações de documentos analisadas" já é a correta por outro motivo e
+também cobre este.
+
+### Pendências desta medição
+
+- p95/p99 não medidos: `--job short` com N = 3 dá margens de 99,9% maiores que a própria média em vários casos.
+- Nenhuma otimização foi aplicada. As duas candidatas com evidência são a chave Base64 por caminho por documento no
+  analisador (21 MB/lote no teto) e os 99 KB por consulta quente do catálogo aprendido, esta última já com causa
+  conhecida e compartilhada com `MetadataCatalogSource`.
+- A medição não cobre o `find` → resultado com aprendizado ligado contra desligado na mesma carga, nem o lock do
+  LiteDB com autosave concorrente, pedidos na seção
+  [Benchmark do Schema Discovery / Schema Learning](#benchmark-do-schema-discovery--schema-learning).

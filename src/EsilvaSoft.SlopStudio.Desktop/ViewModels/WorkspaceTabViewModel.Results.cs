@@ -200,6 +200,21 @@ public sealed partial class WorkspaceTabViewModel
             foreach (var set in console) ConsoleResults.Add(set);
         _resultRenderable = true;
         ApplyPresentation(prepared.Presentation);
+        NotifySchemaLearning(prepared.Sets);
+    }
+
+    /// <summary>
+    /// L13 hook (schema-learning.md § Fluxo e isolamento): called only after the result is already assigned and
+    /// rendered to this tab, never before. <see cref="EsilvaSoft.SlopStudio.Application.WorkspaceService.SchemaLearning"/>
+    /// is null-safe by design — a missing service (feature off, DI absent in a test) makes this a no-op — and
+    /// <see cref="EsilvaSoft.SlopStudio.Application.SchemaLearning.SchemaLearningService.NotifyResultDelivered"/>
+    /// itself never throws, so this call can never fail the execution that already succeeded for the user.
+    /// </summary>
+    private void NotifySchemaLearning(StructuredResultSet[] sets)
+    {
+        if (_workspace.SchemaLearning is not { } schemaLearning || sets.Length == 0) return;
+        var executionId = Guid.NewGuid();
+        foreach (var set in sets) schemaLearning.NotifyResultDelivered(set, executionId, set.Number, 0);
     }
 
     private void ClearResults(string state)

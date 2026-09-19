@@ -1,10 +1,18 @@
+using EsilvaSoft.SlopStudio.Application.SchemaLearning;
 using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Application;
 
-public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQueryHistoryRepository queryHistory, IScriptHistoryRepository scriptHistory, ISavedQueryRepository savedQueries, IAuditRepository audit, IMongoWorkspaceService mongo, IScriptExecutionService scripts, IScriptFileService scriptFiles, IConnectionSecretStore secrets, IEnvironmentVaultRepository? environments = null, IExplorerMetadataService? explorer = null, IConsoleRuntime? console = null, IConsoleHistoryRepository? consoleHistory = null, IApplicationOperationService? operations = null, ICodeFormatter? formatter = null, IResultPageExportService? resultExports = null, ICodeValidator? validator = null, IMetadataInvalidationBus? metadataInvalidation = null)
+public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQueryHistoryRepository queryHistory, IScriptHistoryRepository scriptHistory, ISavedQueryRepository savedQueries, IAuditRepository audit, IMongoWorkspaceService mongo, IScriptExecutionService scripts, IScriptFileService scriptFiles, IConnectionSecretStore secrets, IEnvironmentVaultRepository? environments = null, IExplorerMetadataService? explorer = null, IConsoleRuntime? console = null, IConsoleHistoryRepository? consoleHistory = null, IApplicationOperationService? operations = null, ICodeFormatter? formatter = null, IResultPageExportService? resultExports = null, ICodeValidator? validator = null, IMetadataInvalidationBus? metadataInvalidation = null, SchemaLearningService? schemaLearning = null, LearnedSchemaCatalogSource? learnedSchemaCatalog = null)
 {
+    /// <summary>
+    /// Producer-side entry point of schema learning (L13; schema-learning.md § Fluxo e isolamento). Null when the
+    /// feature is not wired (L14's repository does not exist yet, or a test does not configure it): callers must
+    /// use the null-conditional operator, never assume this is available.
+    /// </summary>
+    public SchemaLearningService? SchemaLearning { get; } = schemaLearning;
+
     // Published only after the operation succeeds; autocomplete metadata never refreshes itself from a failed DDL.
     private void InvalidateMetadata(ConnectionProfile profile, MetadataChange change, string database = "", string collection = "", InvalidationStrength strength = InvalidationStrength.Strong) =>
         metadataInvalidation?.Publish(new(profile.Id, change, database, collection, strength));
@@ -72,6 +80,9 @@ public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQue
     {
         await profiles.DeleteAsync(profileId, cancellationToken).ConfigureAwait(false);
         secrets.Remove(profileId);
+        // LiteDB already reflects the delete; this only drops the in-memory LRU so the same running instance stops
+        // serving a schema learned for a connection that no longer exists (see LearnedSchemaCatalogSource.InvalidateProfile).
+        learnedSchemaCatalog?.InvalidateProfile(profileId);
     }
 
     public Task<IReadOnlyList<QueryHistoryEntry>> GetRecentQueryHistoryAsync(Guid? profileId, int maximum = 50, CancellationToken cancellationToken = default) =>

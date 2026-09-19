@@ -1,0 +1,55 @@
+# Golden do formato experimental experimental-json-v1 (lote A34b). Formato inalcançável em produção; não regenerar para esconder regressão.
+== aba-vazia ==
+context={"contract":"experimental-json-v1","language":"json","operators":["$match","$project","$group","$sort","$limit","$lookup","$unwind","$eq","$ne","$gt","$gte","$lt","$lte","$in","$and","$or"],"task":"continue at the caret; output only the continuation"}\n
+sha=4b3e4d9420a940fdf7291a3cb38fdfcb88aea4bc4ec10da9bcd3dee70609c17c
+prefix=
+suffix=
+dictionary=$match|$project|$group|$sort|$limit|$lookup|$unwind|$eq|$ne|$gt|$gte|$lt|$lte|$in|$and|$or
+== json-completo ==
+context={"contract":"experimental-json-v1","language":"json","collections":["servidor-alfa","Projetos","Clientes"],"fields":[{"name":"Id"},{"name":"NomeProjeto"},{"name":"Cliente.Id"},{"name":"Cliente.Nome"}],"operators":["$match","$project","$group","$sort","$limit","$lookup","$unwind","$eq","$ne","$gt","$gte","$lt","$lte","$in","$and","$or"],"locals":[{"name":"entrada","type":"painel","detail":"{ \\"ativo\\": true }"}],"window":{"statements":3,"truncated":false},"task":"continue at the caret; output only the continuation"}\n
+sha=b2cf34a02dbbfa04a9fb98f2dd3414d5da6f84c92025e176376783a679ed9c77
+prefix=db.Clientes.find({}).limit(10)\ndb.Projetos.countDocuments({})\ndb.Projetos.find({ "Cliente.
+suffix=
+dictionary=servidor-alfa|Projetos|Clientes|Id|NomeProjeto|Cliente.Id|Cliente.Nome|$match|$project|$group|$sort|$limit|$lookup|$unwind|$eq|$ne|$gt|$gte|$lt|$lte|$in|$and|$or|entrada
+== mongosh-sem-paineis ==
+context={"contract":"experimental-json-v1","language":"JavaScript (mongosh)","collections":["servidor-alfa","Projetos","Clientes"],"operators":["db.getCollection","db.getSiblingDB","find","findOne","aggregate","sort","limit","countDocuments","print","ObjectId","UUID"],"window":{"statements":1,"truncated":false},"task":"continue at the caret; output only the continuation"}\n
+sha=28319091e082b3dbe4bd9962bcb8bb8ca3d66447db5d428b328f04b29380f008
+prefix=db.Projetos.find({ "Cliente.
+suffix=
+dictionary=servidor-alfa|Projetos|Clientes|db.getCollection|db.getSiblingDB|find|findOne|aggregate|sort|limit|countDocuments|print|ObjectId|UUID
+== console-com-texto-sensivel ==
+context={"contract":"experimental-json-v1","language":"Mongo Console JavaScript","collections":["Clientes"],"operators":["db.getCollection","getConnection","ConnectionPool","console.log","ENV.get","ObjectId","UUID"],"window":{"statements":2,"truncated":false},"task":"continue at the caret; output only the continuation"}\n
+sha=fdb8c05d1a8b842afdc49396dfadd199325261bb1adb52bbc784dc08f2e87d6e
+prefix=ENV.get("SENHA")\ngetConnection("alfa")
+suffix=
+dictionary=Clientes|db.getCollection|getConnection|ConnectionPool|console.log|ENV.get|ObjectId|UUID
+== fatos-ricos ==
+context={"contract":"experimental-json-v1","language":"json","collections":["Pedidos"],"fields":[{"name":"total","type":"double","presence":1,"values":["double","int"]},{"name":"cliente.nome","type":"string","presence":0.25,"confidence":0.5,"detail":"aprendido de 400 documentos"}],"operators":["$match"],"locals":[{"name":"cursor","type":"Cursor"}],"window":{"statements":1,"truncated":false},"task":"continue at the caret; output only the continuation"}\n
+sha=efdffcf70e1af5dbc92467d5b67292fd775e9c85c49169f91026527f93c85ca9
+prefix=db.Pedidos.find({ 
+suffix=})
+dictionary=Pedidos|total|cliente.nome|$match|cursor
+== detalhe-hostil ==
+context={"contract":"experimental-json-v1","language":"json","fields":[{"name":"caminho\\/estranho","type":"string","detail":"linha 1\\nlinha 2 *\\/ fim \\"aspas\\" \\\\ barra"}],"window":{"statements":1,"truncated":false},"task":"continue at the caret; output only the continuation"}\n
+sha=98854365bd2225e77ac94b51b7085596fba81027059ed3c23c729276b21ade6b
+prefix=db.x.find({ 
+suffix=
+dictionary=caminho/estranho
+== janela-truncada ==
+context={"contract":"experimental-json-v1","language":"json","collections":["Eventos"],"window":{"statements":2,"truncated":true},"task":"continue at the caret; output only the continuation"}\n
+sha=52911377cc7c9cb19ef27c8ee953a8457bd822f6179f805e8e2502d3f87fe28e
+prefix=db.Eventos.countDocuments({})\ndb.Eventos.aggregate([{ $matc
+suffix=
+dictionary=Eventos
+== acima-do-teto-minimo ==
+context={"contract":"experimental-json-v1","language":"json","fields":[{"name":"campo1","type":"string"},{"name":"campo2","type":"string"},{"name":"campo3","type":"string"},{"name":"campo4","type":"string"},{"name":"campo5","type":"string"},{"name":"campo6","type":"string"},{"name":"campo7","type":"string"},{"name":"campo8","type":"string"},{"name":"campo9","type":"string"},{"name":"campo10","type":"string"},{"name":"campo11","type":"string"},{"name":"campo12","type":"string"},{"name":"campo13","type":"string"},{"name":"campo14","type":"string"},{"name":"campo15","type":"string"},{"name":"campo16","type":"string"},{"name":"campo17","type":"string"},{"name":"campo18","type":"string"},{"name":"campo19","type":"string"},{"name":"campo20","type":"string"}],"window":{"statements":1,"truncated":false},"task":"continue at the caret; output only the continuation"}\n
+sha=e09848de284b38a7081ea4970b4f3e8dd43b78526bec4c19c4de2f5c2ad75ef1
+prefix=db.Pedidos.find({ 
+suffix=
+dictionary=campo1|campo2|campo3|campo4|campo5|campo6|campo7|campo8|campo9|campo10|campo11|campo12|campo13|campo14|campo15|campo16|campo17|campo18|campo19|campo20
+== sem-fatos-com-janela ==
+context={"contract":"experimental-json-v1","language":"json","window":{"statements":1,"truncated":false},"task":"continue at the caret; output only the continuation"}\n
+sha=01e014ce392f30f13e0ee43a074b6d685cc44b628d5049355ea7da8db7f53282
+prefix=db.Pedidos.find({ 
+suffix=})
+dictionary=

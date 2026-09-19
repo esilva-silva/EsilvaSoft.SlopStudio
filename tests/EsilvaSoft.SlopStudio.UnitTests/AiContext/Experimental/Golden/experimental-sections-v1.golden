@@ -1,0 +1,55 @@
+# Golden do formato experimental experimental-sections-v1 (lote A34b). Formato inalcançável em produção; não regenerar para esconder regressão.
+== aba-vazia ==
+context=# contexto-local\nformato: experimental-sections-v1\nlinguagem: json\n## operadores\n- $match: operador\n- $project: operador\n- $group: operador\n- $sort: operador\n- $limit: operador\n- $lookup: operador\n- $unwind: operador\n- $eq: operador\n- $ne: operador\n- $gt: operador\n- $gte: operador\n- $lt: operador\n- $lte: operador\n- $in: operador\n- $and: operador\n- $or: operador\n## instrucao\nContinue exatamente no cursor e responda somente a continuacao.\n
+sha=037f5f7b075099a3a6eafe8b58531af9df79aa002a44be51d6cdffa272f29581
+prefix=
+suffix=
+dictionary=$match|$project|$group|$sort|$limit|$lookup|$unwind|$eq|$ne|$gt|$gte|$lt|$lte|$in|$and|$or
+== json-completo ==
+context=# contexto-local\nformato: experimental-sections-v1\nlinguagem: json\n## colecoes\n- servidor-alfa\n- Projetos\n- Clientes\n## campos\n- Id\n- NomeProjeto\n- Cliente.Id\n- Cliente.Nome\n## operadores\n- $match: operador\n- $project: operador\n- $group: operador\n- $sort: operador\n- $limit: operador\n- $lookup: operador\n- $unwind: operador\n- $eq: operador\n- $ne: operador\n- $gt: operador\n- $gte: operador\n- $lt: operador\n- $lte: operador\n- $in: operador\n- $and: operador\n- $or: operador\n## locais\n- entrada: painel -- { "ativo": true }\n## janela\nstatements: 3\n## instrucao\nContinue exatamente no cursor e responda somente a continuacao.\n
+sha=565ef257843ef0922ba4e4c9124e708d97955273dd1c2d2bf7e021d46dd48368
+prefix=db.Clientes.find({}).limit(10)\ndb.Projetos.countDocuments({})\ndb.Projetos.find({ "Cliente.
+suffix=
+dictionary=servidor-alfa|Projetos|Clientes|Id|NomeProjeto|Cliente.Id|Cliente.Nome|$match|$project|$group|$sort|$limit|$lookup|$unwind|$eq|$ne|$gt|$gte|$lt|$lte|$in|$and|$or|entrada
+== mongosh-sem-paineis ==
+context=# contexto-local\nformato: experimental-sections-v1\nlinguagem: JavaScript (mongosh)\n## colecoes\n- servidor-alfa\n- Projetos\n- Clientes\n## operadores\n- db.getCollection: operador\n- db.getSiblingDB: operador\n- find: operador\n- findOne: operador\n- aggregate: operador\n- sort: operador\n- limit: operador\n- countDocuments: operador\n- print: operador\n- ObjectId: operador\n- UUID: operador\n## janela\nstatements: 1\n## instrucao\nContinue exatamente no cursor e responda somente a continuacao.\n
+sha=d83f74a8a6f79fca41f7236051c25e519ff48e6d5edf5f683c9c0a43c51f6838
+prefix=db.Projetos.find({ "Cliente.
+suffix=
+dictionary=servidor-alfa|Projetos|Clientes|db.getCollection|db.getSiblingDB|find|findOne|aggregate|sort|limit|countDocuments|print|ObjectId|UUID
+== console-com-texto-sensivel ==
+context=# contexto-local\nformato: experimental-sections-v1\nlinguagem: Mongo Console JavaScript\n## colecoes\n- Clientes\n## operadores\n- db.getCollection: operador\n- getConnection: operador\n- ConnectionPool: operador\n- console.log: operador\n- ENV.get: operador\n- ObjectId: operador\n- UUID: operador\n## janela\nstatements: 2\n## instrucao\nContinue exatamente no cursor e responda somente a continuacao.\n
+sha=03bfd8e7a8a8c65621647ce65abe781b9864d48ab617465f5f1dae86ae946115
+prefix=ENV.get("SENHA")\ngetConnection("alfa")
+suffix=
+dictionary=Clientes|db.getCollection|getConnection|ConnectionPool|console.log|ENV.get|ObjectId|UUID
+== fatos-ricos ==
+context=# contexto-local\nformato: experimental-sections-v1\nlinguagem: json\n## colecoes\n- Pedidos (loja)\n## campos\n- total: double [double, int] presenca=1 (loja)\n- cliente.nome: string presenca=0.25 confianca=0.5 (loja) -- aprendido de 400 documentos\n## operadores\n- $match: stage\n## locais\n- cursor: Cursor\n## janela\nstatements: 1\n## instrucao\nContinue exatamente no cursor e responda somente a continuacao.\n
+sha=592578918760400d8628b00b9ee8177ae7666a3132733241a31f694ffe4b9c6b
+prefix=db.Pedidos.find({ 
+suffix=})
+dictionary=Pedidos|total|cliente.nome|$match|cursor
+== detalhe-hostil ==
+context=# contexto-local\nformato: experimental-sections-v1\nlinguagem: json\n## campos\n- caminho/estranho: string -- linha 1\\nlinha 2 * / fim "aspas" \\\\ barra\n## janela\nstatements: 1\n## instrucao\nContinue exatamente no cursor e responda somente a continuacao.\n
+sha=d87f7603a06fb7430cd79ca1ace4718ec65f2373e59d8f04e5126511029c2d02
+prefix=db.x.find({ 
+suffix=
+dictionary=caminho/estranho
+== janela-truncada ==
+context=# contexto-local\nformato: experimental-sections-v1\nlinguagem: json\n## colecoes\n- Eventos\n## janela\nstatements: 2\ntruncada: sim\n## instrucao\nContinue exatamente no cursor e responda somente a continuacao.\n
+sha=726499165d1984742ebad1764fa46c1bac7b9957c065535f23f5c676b0a27c12
+prefix=db.Eventos.countDocuments({})\ndb.Eventos.aggregate([{ $matc
+suffix=
+dictionary=Eventos
+== acima-do-teto-minimo ==
+context=# contexto-local\nformato: experimental-sections-v1\nlinguagem: json\n## campos\n- campo1: string (loja)\n- campo2: string (loja)\n- campo3: string (loja)\n- campo4: string (loja)\n- campo5: string (loja)\n- campo6: string (loja)\n- campo7: string (loja)\n- campo8: string (loja)\n- campo9: string (loja)\n- campo10: string (loja)\n- campo11: string (loja)\n- campo12: string (loja)\n- campo13: string (loja)\n- campo14: string (loja)\n- campo15: string (loja)\n- campo16: string (loja)\n- campo17: string (loja)\n- campo18: string (loja)\n- campo19: string (loja)\n- campo20: string (loja)\n## janela\nstatements: 1\n## instrucao\nContinue exatamente no cursor e responda somente a continuacao.\n
+sha=7ca2a655b5ef7651a664ec13d07261a048a431d59b403fde75a4fb3551aa1844
+prefix=db.Pedidos.find({ 
+suffix=
+dictionary=campo1|campo2|campo3|campo4|campo5|campo6|campo7|campo8|campo9|campo10|campo11|campo12|campo13|campo14|campo15|campo16|campo17|campo18|campo19|campo20
+== sem-fatos-com-janela ==
+context=# contexto-local\nformato: experimental-sections-v1\nlinguagem: json\n## janela\nstatements: 1\n## instrucao\nContinue exatamente no cursor e responda somente a continuacao.\n
+sha=2dcb4068a0d5c8e3269020aaf7e36f2f4e16c6920486d65ba21e2dace6a17940
+prefix=db.Pedidos.find({ 
+suffix=})
+dictionary=

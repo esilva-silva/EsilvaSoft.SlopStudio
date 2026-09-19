@@ -66,4 +66,74 @@ public sealed class LocalModelCatalogTests
         Assert.That((settings with { SelectedModel = "", ChatModel = "" }).ResolveModelPath(LocalModelRole.Chat, "default"), Is.EqualTo("external"));
         Assert.That(new AutocompleteSettings().HasModelSelection(), Is.False);
     }
+
+    /// <summary>Lote A31c: compatibilidade de contrato de prompt decidida só pelo metadata, sem carregar pesos.</summary>
+    [Test]
+    public async Task ContextContractIsOptionalAndOnlyAnUnknownIdentifierRejectsThePackage()
+    {
+        using var models = new TemporaryDirectory();
+        CreateQwenModel(models.Path, "No-Metadata");
+        CreateQwenModel(models.Path, "No-Contract", """{"name":"Sem contrato"}""");
+        CreateQwenModel(models.Path, "Known-Contract", """{"contextContract":"editor-context-v1","supportsRepositoryContext":true}""");
+        CreateQwenModel(models.Path, "Repo-Context-False", """{"contextContract":"editor-context-v1","supportsRepositoryContext":false}""");
+        CreateQwenModel(models.Path, "Unknown-Contract", """{"contextContract":"repository-files-v3"}""");
+
+        var found = (await new LocalModelCatalog(models.Path).DiscoverAsync()).ToDictionary(validation => Path.GetFileName(validation.Path));
+
+        Assert.That(found["No-Metadata"].Validity, Is.EqualTo(LocalModelValidity.Valid));
+        Assert.That(found["No-Metadata"].Model!.Metadata, Is.Null);
+        Assert.That(found["No-Contract"].Validity, Is.EqualTo(LocalModelValidity.Valid));
+        Assert.That(found["No-Contract"].Model!.Metadata!.ContextContract, Is.Null);
+        Assert.That(found["Known-Contract"].Validity, Is.EqualTo(LocalModelValidity.Valid));
+        Assert.That(found["Known-Contract"].Model!.Metadata!.ContextContract, Is.EqualTo(LocalModelContextContracts.EditorContextV1));
+        Assert.That(found["Unknown-Contract"].Validity, Is.EqualTo(LocalModelValidity.Invalid));
+        Assert.That(found["Unknown-Contract"].Status.Message, Does.Contain("repository-files-v3").And.Contain("contrato de contexto"));
+        Assert.That(found["Unknown-Contract"].Status.Message, Does.Contain(LocalModelContextContracts.EditorContextV1));
+        Assert.That(found["Unknown-Contract"].Model, Is.Null);
+    }
+
+    /// <summary>Null (undeclared), true and false are three distinct states of <c>supportsRepositoryContext</c>.</summary>
+    [Test]
+    public async Task RepositoryContextSupportDistinguishesAbsentFromExplicitFalse()
+    {
+        using var models = new TemporaryDirectory();
+        CreateQwenModel(models.Path, "Absent", """{"name":"Sem declaração"}""");
+        CreateQwenModel(models.Path, "True", """{"supportsRepositoryContext":true}""");
+        CreateQwenModel(models.Path, "False", """{"supportsRepositoryContext":false}""");
+
+        var found = (await new LocalModelCatalog(models.Path).DiscoverAsync()).ToDictionary(validation => Path.GetFileName(validation.Path));
+
+        Assert.That(found["Absent"].Model!.Metadata!.SupportsRepositoryContext, Is.Null);
+        Assert.That(found["True"].Model!.Metadata!.SupportsRepositoryContext, Is.True);
+        Assert.That(found["False"].Model!.Metadata!.SupportsRepositoryContext, Is.False);
+        Assert.That(found.Values.Select(validation => validation.Validity), Is.All.EqualTo(LocalModelValidity.Valid));
+    }
+
+    /// <summary>Same discipline as the rest of the reader: a wrong JSON type is malformed metadata, not an unknown contract.</summary>
+    [TestCase("""{"contextContract":7}""")]
+    [TestCase("""{"contextContract":["editor-context-v1"]}""")]
+    [TestCase("""{"supportsRepositoryContext":"true"}""")]
+    [TestCase("""{"supportsRepositoryContext":1}""")]
+    public async Task WrongTypesInTheNewFieldsAreRejectedAsMalformedMetadata(string metadata)
+    {
+        using var models = new TemporaryDirectory();
+        CreateQwenModel(models.Path, "Typed-Wrong", metadata);
+
+        var validation = await new LocalModelCatalog(models.Path).ValidateAsync(Path.Combine(models.Path, "Typed-Wrong"));
+
+        Assert.That(validation.Validity, Is.EqualTo(LocalModelValidity.Invalid));
+        Assert.That(validation.Status.Message, Does.Contain(LocalModelMetadata.FileName));
+        Assert.That(validation.Model, Is.Null);
+    }
+
+    [Test]
+    public void UndeclaredContractResolvesToTheFrozenV1AndUnknownIdentifiersResolveToNothing()
+    {
+        Assert.That(LocalModelContextContracts.IsSupported(null), Is.True);
+        Assert.That(LocalModelContextContracts.Resolve(null), Is.EqualTo(LocalModelContextContracts.EditorContextV1));
+        Assert.That(LocalModelContextContracts.IsSupported("Editor-Context-V1"), Is.True);
+        Assert.That(LocalModelContextContracts.Resolve("Editor-Context-V1"), Is.EqualTo(LocalModelContextContracts.EditorContextV1));
+        Assert.That(LocalModelContextContracts.IsSupported("compact-facts-v1"), Is.False);
+        Assert.That(LocalModelContextContracts.Resolve("compact-facts-v1"), Is.Null);
+    }
 }

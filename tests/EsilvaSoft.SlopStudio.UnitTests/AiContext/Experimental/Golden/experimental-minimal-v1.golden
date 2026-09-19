@@ -1,0 +1,55 @@
+# Golden do formato experimental experimental-minimal-v1 (lote A34b). Formato inalcançável em produção; não regenerar para esconder regressão.
+== aba-vazia ==
+context=
+sha=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+prefix=
+suffix=
+dictionary=$match|$project|$group|$sort|$limit|$lookup|$unwind|$eq|$ne|$gt|$gte|$lt|$lte|$in|$and|$or
+== json-completo ==
+context=servidor-alfa\nProjetos\nClientes\nId\nNomeProjeto\nCliente.Id\nCliente.Nome\n
+sha=356b7b8e572f5ee261888a993866b076f4f77b7788606e0f73ed5a02a8c3e4fc
+prefix=db.Clientes.find({}).limit(10)\ndb.Projetos.countDocuments({})\ndb.Projetos.find({ "Cliente.
+suffix=
+dictionary=servidor-alfa|Projetos|Clientes|Id|NomeProjeto|Cliente.Id|Cliente.Nome|$match|$project|$group|$sort|$limit|$lookup|$unwind|$eq|$ne|$gt|$gte|$lt|$lte|$in|$and|$or|entrada
+== mongosh-sem-paineis ==
+context=servidor-alfa\nProjetos\nClientes\n
+sha=a693599e7548d1069708124159a5fa969a3e5e0761de6b57f7a765a43a007f20
+prefix=db.Projetos.find({ "Cliente.
+suffix=
+dictionary=servidor-alfa|Projetos|Clientes|db.getCollection|db.getSiblingDB|find|findOne|aggregate|sort|limit|countDocuments|print|ObjectId|UUID
+== console-com-texto-sensivel ==
+context=Clientes\n
+sha=073f60e1673ad92832d680e1a3737563e112a9c4e6f7424743493f4cf0dab565
+prefix=ENV.get("SENHA")\ngetConnection("alfa")
+suffix=
+dictionary=Clientes|db.getCollection|getConnection|ConnectionPool|console.log|ENV.get|ObjectId|UUID
+== fatos-ricos ==
+context=Pedidos\ntotal:double\ncliente.nome:string\n
+sha=16e4f2e205db439c61c3b589a03a78ef8a6a1444a8f5f50e8d53bdcdb1f5130f
+prefix=db.Pedidos.find({ 
+suffix=})
+dictionary=Pedidos|total|cliente.nome|$match|cursor
+== detalhe-hostil ==
+context=caminho/estranho:string\n
+sha=600c52772f2164a3e06e0fb61fb22cda3fd86812571e3567fea1a0bb7dcdc124
+prefix=db.x.find({ 
+suffix=
+dictionary=caminho/estranho
+== janela-truncada ==
+context=Eventos\n
+sha=0f5f1ad9e5fea7a1d2bb48c0208b37d068189dcceab351c5ea42e353761bb256
+prefix=db.Eventos.countDocuments({})\ndb.Eventos.aggregate([{ $matc
+suffix=
+dictionary=Eventos
+== acima-do-teto-minimo ==
+context=campo1:string\ncampo2:string\ncampo3:string\ncampo4:string\ncampo5:string\ncampo6:string\ncampo7:string\ncampo8:string\ncampo9:string\ncampo10:string\ncampo11:string\ncampo12:string\n
+sha=3bac1f717cc7fd49c677788d44e16cd28086331c25af70d1e4869b87e16121f2
+prefix=db.Pedidos.find({ 
+suffix=
+dictionary=campo1|campo2|campo3|campo4|campo5|campo6|campo7|campo8|campo9|campo10|campo11|campo12|campo13|campo14|campo15|campo16|campo17|campo18|campo19|campo20
+== sem-fatos-com-janela ==
+context=
+sha=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+prefix=db.Pedidos.find({ 
+suffix=})
+dictionary=

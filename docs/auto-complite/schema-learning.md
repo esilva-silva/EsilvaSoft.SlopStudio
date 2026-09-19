@@ -4,9 +4,9 @@ Complemento incorporado em **15/09/2026**. **Planejado**: substitui a decisão a
 
 ## Base real e pontos de integração
 
-[StructuredResults.cs](../../src/EsilvaSoft.SlopStudio.Core/StructuredResults.cs) já oferece `StructuredResultSet`, `ResultOrigin` (ProfileId, perfil capturado, banco/coleção), Method, Completeness, IsTruncated e documentos EJSON. Console classifica find/findOne como Complete ou PartialProjection; aggregate como Derived. Reutilizar esses contratos, sem deduzir namespace da seleção atual do Explorer.
+[StructuredResultSet.cs](../../src/EsilvaSoft.SlopStudio.Core/StructuredResultSet.cs), [StructuredResultDocument.cs](../../src/EsilvaSoft.SlopStudio.Core/StructuredResultDocument.cs) e [ResultOrigin.cs](../../src/EsilvaSoft.SlopStudio.Core/ResultOrigin.cs) já oferecem `StructuredResultSet`, `ResultOrigin` (ProfileId, perfil capturado, banco/coleção), Method, Completeness, IsTruncated e documentos EJSON. Console classifica find/findOne como Complete ou PartialProjection; aggregate como Derived. Reutilizar esses contratos, sem deduzir namespace da seleção atual do Explorer.
 
-[CollectionSchema.cs](../../src/EsilvaSoft.SlopStudio.Application/Language/CollectionSchema.cs) já conhece nomes, tipos BSON, arrays, evidência e ocorrência em amostras, mas não FirstSeen/LastSeen persistentes, deltas duráveis ou aprendizado por execução. Sua Merge atual reconstrói por união; não usá-la para somar todo o histórico a cada consulta.
+[CollectionSchema.cs](../../src/EsilvaSoft.SlopStudio.Autocomplete.Core/CollectionSchema.cs) já conhece nomes, tipos BSON, arrays, evidência e ocorrência em amostras, mas não FirstSeen/LastSeen persistentes, deltas duráveis ou aprendizado por execução. Sua Merge atual reconstrói por união; não usá-la para somar todo o histórico a cada consulta.
 
 [LiteDbConnectionProfileRepository](../../src/EsilvaSoft.SlopStudio.Infrastructure/LiteDbConnectionProfileRepository.cs) é proprietário único do arquivo e possui caminho assíncrono com sincronização. Estender esse proprietário (preferencialmente partial com arquivo específico), registrando `ILearnedSchemaRepository` na **mesma instância**. Não criar `new LiteDatabase`, segundo arquivo de sessão ou dependência comercial.
 
@@ -36,11 +36,13 @@ Produtor recebe ExecutionId + ResultSetNumber + PageSequence + origem + completu
 
 ## Identidade segura
 
-Chave lógica: `(ProfileId, SourceGenerationId, Database, Collection)`. Database/Collection com comparação ordinal; mesmo nome em outro servidor/banco não colide. SourceGenerationId é identificador opaco persistido e renovado quando muda URI, TargetHost, ambiente efetivo ou credencial que possa alterar visibilidade. Não usar nome amigável, URI textual ou hash sensível como chave durável.
+Chave lógica: `(ProfileId, Database, Collection)`, conforme [DEC-L-KEY](decisions.md#dec-l-key). **`SourceGenerationId` não faz parte da chave**: revisão volátil na identidade transformaria cada troca de credencial, URI, `TargetHost` ou ambiente em linhas inalcançáveis — não referenciáveis, não contabilizáveis pela cota, não removíveis por Limpar aprendizado e não renomeáveis por DDL. Ele é coluna não-chave (`LastObservedGenerationId`) e a confiança é derivada ([DEC-L-TRUST](decisions.md#dec-l-trust)). Database/Collection com comparação ordinal; mesmo nome em outro servidor/banco não colide. Não usar nome amigável, URI textual ou hash sensível como chave durável.
 
-Perfil renomeado sem troca de origem mantém identidade. Edição de origem/ENV exige nova geração e invalidação da anterior; se origem resolvida não puder ser confirmada no reinício, cache fica Unverified/inativo até conectar/confirmar geração. Sem mudança conhecida e identidade persistida íntegra, schema é hidratado offline como evidência histórica, nunca como prova de conexão ativa.
+O `_id` é a **codificação canônica** da chave — não o hash dela, que impediria enumerar namespaces de um perfil e o rename atômico — gravada como binário BSON, porque a colação padrão do LiteDB é cultura corrente com `IgnoreCase` e fundiria `Orders` com `orders`. A codificação é `0x01 ‖ ProfileId (16 bytes, big-endian RFC 4122) ‖ len32be(utf8(Database)) ‖ utf8(Database) ‖ len32be(utf8(Collection)) ‖ utf8(Collection)`; o byte inicial é versão **da codificação da chave**, nunca versão de formato do conteúdo, que é campo do documento. Os prefixos de comprimento são o que separa `("a", "b.c")` de `("a.b", "c")`. Contrato em `Application/SchemaLearning/LearnedSchemaKey.cs`.
 
-DDL confirmado: drop limpa/tombstone da coleção; rename move identidade atomicamente só quando origem/destino conhecidos, senão invalida ambos; drop database invalida descendentes. Mudanças externas não observadas são tratadas por envelhecimento, sem polling/change streams novos. Desconectar cancela lotes pendentes da geração, mas não apaga aprendizado persistido; remover perfil/limpar aprendizado apaga por comando.
+Perfil renomeado, favoritado ou com cor/pasta alterada mantém identidade e geração. Edição de origem/ENV renova a geração no caminho de gravação do próprio repositório de perfis ([DEC-L-GENERATION](decisions.md#dec-l-generation)). A confiança do snapshot **não é bandeira persistida**: é derivada na hidratação em dois eixos ortogonais — origem (`Current` × `Superseded`, comparando `LastObservedGenerationId` com a geração corrente) e sessão (`Confirmed` × `Unconfirmed`). `Current`+`Unconfirmed` é servido como evidência histórica marcada, sem afirmar cobertura nem conexão ativa; `Superseded` não é servido e também não é apagado, sofrendo *rollover* no primeiro delta comitado sob a geração nova.
+
+DDL confirmado ([DEC-L-RETENTION](decisions.md#dec-l-retention)): drop de coleção apaga o namespace; drop database apaga os descendentes; rename com origem e destino conhecidos é reescrita do `_id` (delete + insert) em uma transação, e se o destino já existir **o destino prevalece** e a origem é removida, porque mesclar somaria observações de coleções diferentes no mesmo denominador; origem ou destino desconhecido invalida ambos. Mudanças externas não observadas são tratadas por envelhecimento, sem polling/change streams novos. Desconectar cancela lotes pendentes da geração, mas não apaga aprendizado persistido; remover perfil/limpar aprendizado apaga por comando.
 
 ## Representação probabilística
 
@@ -84,7 +86,7 @@ Coleções propostas:
 
 | Coleção local | Conteúdo / índice |
 | --- | --- |
-| learnedSchemaNamespaces | ID opaco, ProfileId, SourceGenerationId, Database, Collection, format/revision e totais; índice de identidade única codificada |
+| learnedSchemaNamespaces | `_id` binário com a codificação canônica da chave, ProfileId (indexado, única forma durável de varrer/limpar por perfil), Database, Collection, SchemaFormatVersion, Revision, LastObservedGenerationId (opaco, **não-chave**), FirstLearnedUtc, LastObservedUtc e totais |
 | learnedSchemaFields | ID namespace + FieldId, segmentos/ParentId/SearchName normalizado, estatísticas; índice NamespaceId e ParentLookupKey |
 | learnedSchemaBatches | BatchId, NamespaceId, committedAt; dedup de retries com retenção limitada |
 
@@ -98,13 +100,13 @@ Encerramento: parar produção, tentar flush limitado (2 s propostos) no fluxo d
 
 ## Catálogo e confiança
 
-`LearnedSchemaCatalogSource` ou extensão de MetadataCatalogSource consome snapshots do serviço de aprendizado. Merge de apresentação une evidências por campo, mas mantém contadores learned separados de validator/índice/amostra explícita. Não somar frequências de origens incompatíveis. Complete do cache não significa coleção completa; aprendido tem cobertura Observed e decaimento por frescor.
+`LearnedSchemaCatalogSource` é `ICatalogSource` independente e consome snapshots do serviço de aprendizado. Por [DEC-L-MERGE](decisions.md#dec-l-merge) o schema aprendido **não** entra em `MergedSchema`/`FieldNode` de `MetadataCatalogSource`: a fonte constrói o próprio `CollectionSchema` com `EvidenceSources.Learned` e `SampleSize = 0`, para que nenhuma porcentagem aprendida some numeradores de duas populações sobre o denominador da amostra. Merge de apresentação une evidências por campo, mas mantém contadores learned separados de validator/índice/amostra explícita. Não somar frequências de origens incompatíveis. Complete do cache não significa coleção completa; aprendido tem cobertura Observed e decaimento por frescor.
 
 Revisão do aprendido invalida contexto/ranking/AI facts da coleção, não todos os editores. Ghost já visível não muda pelo refresh; nova oportunidade usa revisão nova. IA recebe somente subconjunto relevante de nomes/tipos, nunca toda base persistida. Sem conexão, linguagem e aprendido histórico funcionam offline, sem iniciar MongoDB.
 
 ## Testes, benchmarks e agentes
 
-Knowledge é dono de analyzer, deltas, serviço/fonte e persistência no proprietário existente; Architecture revisa contratos/lifetime; Testing mantém fixtures; Performance mede impacto desde primeiro hook. Tarefas **L11–L16** em [execution-plan.md](execution-plan.md); não iniciar implementação nesta revisão.
+Knowledge é dono de analyzer, deltas, serviço/fonte e persistência no proprietário existente; Architecture revisa contratos/lifetime; Testing mantém fixtures; Performance mede impacto desde primeiro hook. Tarefas **L11–L16** em [execution-plan.md](execution-plan.md). **L11 entregue**: contratos puros em `src/EsilvaSoft.SlopStudio.Application/SchemaLearning/` (`LearnedSchemaKey`, `LearnedFieldPath`, `SchemaLearningEnvelope`, `SchemaLearningAdmissionPolicy`, `SchemaObservationDelta`, `LearnedSchemaSnapshot`, `ILearnedSchemaRepository`), cobertos por `tests/EsilvaSoft.SlopStudio.UnitTests/SchemaLearningContractsTests.cs`; L12–L16 seguem sem implementação.
 
 Aceite mínimo: resultado entregue com analyzer/repositório bloqueados; fila cheia não bloqueia UI; zero queries adicionais; isolamento de 3 namespaces homônimos; projeção não polui schema; BSON/UUID/array/missing/null; repetição BatchId; observações repetidas declaradas; envelope não retém `StructuredResultSet` (teste de WeakReference/limite de bytes); concorrência, disconnect/opt-out/drop/rename durante commit; recuperação após restart; corrupção/migração/erro de disco visíveis; mesmo proprietário LiteDB; arquivo/snapshot sem valores de fixtures.
 

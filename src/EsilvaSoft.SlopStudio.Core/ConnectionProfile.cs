@@ -17,6 +17,15 @@ public sealed record ConnectionProfile(
 {
     /// <summary>Explicit runtime target; never written into the saved connection URI.</summary>
     public string? TargetHost { get; init; }
+
+    /// <summary>
+    /// Durable, opaque marker of the data origin this profile currently points to. Renewed only by the
+    /// repository (never by a ViewModel or per-process) when <see cref="ConnectionString"/>,
+    /// <see cref="TargetHost"/> or <see cref="Environment"/> differs from the stored document; never derived
+    /// from a hash of the connection string, which would keep credential-derived material at rest. Null until
+    /// the profile has been persisted for the first time.
+    /// </summary>
+    public Guid? SourceGenerationId { get; init; }
     public string RoutingLabel => TargetHost is not null ? "Instância explícita: " + TargetHost : Regex.IsMatch(ConnectionString, @"[?&]directConnection=true(?:&|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) ? "Instância configurada na URI: " + Endpoint : "Seleção automática do driver";
     public string Endpoint
     {

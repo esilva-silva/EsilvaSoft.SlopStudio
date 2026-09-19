@@ -26,6 +26,17 @@ public sealed record WorkspacePreferences
     /// </summary>
     public Guid[] SchemaSamplingProfileIds { get; init; } = [];
     /// <summary>
+    /// Additive to version 1: per-connection opt-out of <em>serving</em> persisted schema learning to the
+    /// autocomplete catalog, in the same shape as <see cref="SchemaSamplingProfileIds"/> (an explicit list, never a
+    /// boolean per profile). Unlike that list — which is opt-in because it triggers automatic sampling — this one
+    /// is opt-out, because <see cref="AutocompleteSettings.LearnedSchemaEnabled"/> already defaults serving to
+    /// true; excluding a profile here only stops serving what was already learned for it, it never deletes
+    /// anything (that is the explicit "Limpar aprendizado" command, DEC-L-RETENTION, which calls
+    /// <c>ILearnedSchemaRepository.RemoveProfileAsync</c>/<c>RemoveDatabaseAsync</c> directly and needs no flag).
+    /// Absent (legacy document) excludes nobody.
+    /// </summary>
+    public Guid[] LearnedSchemaExcludedProfileIds { get; init; } = [];
+    /// <summary>
     /// Additive to version 1: null (absent) uses <see cref="Core.EditorKeyBindings.Defaults"/> and is not written back,
     /// so sessions without custom shortcuts keep their shape.
     /// </summary>
@@ -38,6 +49,8 @@ public sealed record WorkspacePreferences
     {
         if (SchemaSamplingProfileIds is null || SchemaSamplingProfileIds.Contains(Guid.Empty))
             throw new InvalidDataException("Preferência de amostragem de schema inválida.");
+        if (LearnedSchemaExcludedProfileIds is null || LearnedSchemaExcludedProfileIds.Contains(Guid.Empty))
+            throw new InvalidDataException("Preferência de exclusão de schema aprendido inválida.");
     }
 
     public void ValidateUuid()

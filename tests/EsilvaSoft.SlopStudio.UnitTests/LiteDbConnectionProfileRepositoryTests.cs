@@ -18,7 +18,7 @@ public sealed class LiteDbConnectionProfileRepositoryTests
         await repository.SaveAsync(alpha);
         var profiles = await repository.GetAllAsync();
 
-        Assert.That(profiles, Is.EqualTo(new[] { alpha, zulu }));
+        Assert.That(profiles, Is.EqualTo(new[] { alpha, zulu }).Using<ConnectionProfile>(IgnoringSourceGeneration));
     }
 
     [Test]
@@ -34,7 +34,7 @@ public sealed class LiteDbConnectionProfileRepositoryTests
         await repository.DeleteAsync(first.Id);
         var profiles = await repository.GetAllAsync();
 
-        Assert.That(profiles, Is.EqualTo(new[] { second }));
+        Assert.That(profiles, Is.EqualTo(new[] { second }).Using<ConnectionProfile>(IgnoringSourceGeneration));
     }
 
     [Test]
@@ -49,7 +49,7 @@ public sealed class LiteDbConnectionProfileRepositoryTests
         await repository.SaveAsync(favorite);
         var profiles = await repository.GetAllAsync();
 
-        Assert.That(profiles, Is.EqualTo(new[] { favorite, regular }));
+        Assert.That(profiles, Is.EqualTo(new[] { favorite, regular }).Using<ConnectionProfile>(IgnoringSourceGeneration));
     }
 
     [Test]
@@ -66,7 +66,7 @@ public sealed class LiteDbConnectionProfileRepositoryTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(profiles, Is.EqualTo(new[] { development, production }));
+            Assert.That(profiles, Is.EqualTo(new[] { development, production }).Using<ConnectionProfile>(IgnoringSourceGeneration));
             Assert.That(profiles[0].Folder, Is.EqualTo("Cliente A / Desenvolvimento"));
         });
     }
@@ -211,6 +211,194 @@ public sealed class LiteDbConnectionProfileRepositoryTests
             Assert.That(entries, Has.Count.EqualTo(500));
             Assert.That(entries[0].Summary, Is.EqualTo("Evento 500."));
             Assert.That(entries[^1].Summary, Is.EqualTo("Evento 1."));
+        });
+    }
+
+    /// <summary>
+    /// <see cref="ConnectionProfile.SourceGenerationId"/> is assigned by the repository, so equality between a
+    /// pre-save instance and its round-tripped counterpart must ignore it explicitly rather than compare it.
+    /// </summary>
+    private static bool IgnoringSourceGeneration(ConnectionProfile expected, ConnectionProfile actual) =>
+        Equals(expected with { SourceGenerationId = null }, actual with { SourceGenerationId = null });
+
+    [Test]
+    public async Task SaveAsyncAssignsSourceGenerationIdToABrandNewProfile()
+    {
+        await using var fixture = new TemporaryWorkspace();
+        using var repository = new LiteDbConnectionProfileRepository(fixture.DatabasePath);
+        var profile = ConnectionProfile.Create("Principal", "mongodb://principal:27017");
+        Assert.That(profile.SourceGenerationId, Is.Null);
+
+        await repository.SaveAsync(profile);
+        var loaded = (await repository.GetAllAsync()).Single();
+
+        Assert.That(loaded.SourceGenerationId, Is.Not.Null.And.Not.EqualTo(Guid.Empty));
+    }
+
+    [Test]
+    public async Task SaveAsyncKeepsTheSameSourceGenerationIdAcrossSavesThatDoNotChangeTheOrigin()
+    {
+        await using var fixture = new TemporaryWorkspace();
+        using var repository = new LiteDbConnectionProfileRepository(fixture.DatabasePath);
+        var profile = ConnectionProfile.Create("Principal", "mongodb://principal:27017");
+
+        await repository.SaveAsync(profile);
+        var firstGenerationId = (await repository.GetAllAsync()).Single().SourceGenerationId;
+        await repository.SaveAsync(profile);
+        var secondGenerationId = (await repository.GetAllAsync()).Single().SourceGenerationId;
+
+        Assert.That(secondGenerationId, Is.EqualTo(firstGenerationId));
+    }
+
+    [Test]
+    public async Task SaveAsyncRenewsSourceGenerationIdWhenConnectionStringChanges()
+    {
+        await using var fixture = new TemporaryWorkspace();
+        using var repository = new LiteDbConnectionProfileRepository(fixture.DatabasePath);
+        var profile = ConnectionProfile.Create("Principal", "mongodb://principal:27017");
+        await repository.SaveAsync(profile);
+        var originalGenerationId = (await repository.GetAllAsync()).Single().SourceGenerationId;
+
+        await repository.SaveAsync(profile with { ConnectionString = "mongodb://replacement:27017" });
+        var renewedGenerationId = (await repository.GetAllAsync()).Single().SourceGenerationId;
+
+        Assert.That(renewedGenerationId, Is.Not.EqualTo(originalGenerationId));
+    }
+
+    [Test]
+    public async Task SaveAsyncRenewsSourceGenerationIdWhenTargetHostChanges()
+    {
+        await using var fixture = new TemporaryWorkspace();
+        using var repository = new LiteDbConnectionProfileRepository(fixture.DatabasePath);
+        var profile = ConnectionProfile.Create("Principal", "mongodb://principal:27017");
+        await repository.SaveAsync(profile);
+        var originalGenerationId = (await repository.GetAllAsync()).Single().SourceGenerationId;
+
+        await repository.SaveAsync(profile with { TargetHost = "10.0.0.5:27018" });
+        var renewedGenerationId = (await repository.GetAllAsync()).Single().SourceGenerationId;
+
+        Assert.That(renewedGenerationId, Is.Not.EqualTo(originalGenerationId));
+    }
+
+    [Test]
+    public async Task SaveAsyncRenewsSourceGenerationIdWhenEnvironmentChanges()
+    {
+        await using var fixture = new TemporaryWorkspace();
+        using var repository = new LiteDbConnectionProfileRepository(fixture.DatabasePath);
+        var profile = ConnectionProfile.Create("Principal", "mongodb://principal:27017", environment: "staging");
+        await repository.SaveAsync(profile);
+        var originalGenerationId = (await repository.GetAllAsync()).Single().SourceGenerationId;
+
+        await repository.SaveAsync(profile with { Environment = "production" });
+        var renewedGenerationId = (await repository.GetAllAsync()).Single().SourceGenerationId;
+
+        Assert.That(renewedGenerationId, Is.Not.EqualTo(originalGenerationId));
+    }
+
+    [Test]
+    public async Task SaveAsyncDoesNotRenewSourceGenerationIdWhenRenamingTheProfile()
+    {
+        await using var fixture = new TemporaryWorkspace();
+        using var repository = new LiteDbConnectionProfileRepository(fixture.DatabasePath);
+        var profile = ConnectionProfile.Create("Nome antigo", "mongodb://principal:27017");
+        await repository.SaveAsync(profile);
+        var originalGenerationId = (await repository.GetAllAsync()).Single().SourceGenerationId;
+
+        var renamed = profile with { Name = "Nome novo" };
+        await repository.SaveAsync(renamed);
+        var afterRenameGenerationId = (await repository.GetAllAsync()).Single().SourceGenerationId;
+
+        Assert.That(afterRenameGenerationId, Is.EqualTo(originalGenerationId));
+    }
+
+    [Test]
+    public async Task SaveAsyncDoesNotRenewSourceGenerationIdWhenFavoritingTheProfile()
+    {
+        await using var fixture = new TemporaryWorkspace();
+        using var repository = new LiteDbConnectionProfileRepository(fixture.DatabasePath);
+        var profile = ConnectionProfile.Create("Principal", "mongodb://principal:27017");
+        await repository.SaveAsync(profile);
+        var originalGenerationId = (await repository.GetAllAsync()).Single().SourceGenerationId;
+
+        await repository.SaveAsync(profile with { IsFavorite = true });
+        var afterFavoriteGenerationId = (await repository.GetAllAsync()).Single().SourceGenerationId;
+
+        Assert.That(afterFavoriteGenerationId, Is.EqualTo(originalGenerationId));
+    }
+
+    [Test]
+    public async Task LegacyDocumentWithoutSourceGenerationIdIsReadableAndReceivesOneOnFirstSave()
+    {
+        await using var fixture = new TemporaryWorkspace();
+        var profile = ConnectionProfile.Create("Legado", "mongodb://legado:27017");
+        using (var writer = new LiteDB.LiteDatabase($"Filename={fixture.DatabasePath};Connection=direct"))
+        {
+            var collection = writer.GetCollection("connectionProfiles");
+            collection.Insert(new LiteDB.BsonDocument
+            {
+                ["_id"] = profile.Id,
+                ["Name"] = profile.Name,
+                ["ConnectionString"] = profile.ConnectionString,
+                ["IsReadOnly"] = false,
+                ["IsFavorite"] = false
+            });
+        }
+
+        using var repository = new LiteDbConnectionProfileRepository(fixture.DatabasePath);
+        var loadedBeforeSave = (await repository.GetAllAsync()).Single();
+        Assert.That(loadedBeforeSave.SourceGenerationId, Is.Null);
+
+        await repository.SaveAsync(loadedBeforeSave);
+        var loadedAfterSave = (await repository.GetAllAsync()).Single();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(loadedAfterSave.SourceGenerationId, Is.Not.Null);
+            Assert.That(loadedAfterSave.Name, Is.EqualTo("Legado"));
+            Assert.That(loadedAfterSave.ConnectionString, Is.EqualTo("mongodb://legado:27017"));
+        });
+    }
+
+    [Test]
+    public async Task SaveAsyncRoundTripsTheSameSourceGenerationIdAfterReopeningTheDatabase()
+    {
+        await using var fixture = new TemporaryWorkspace();
+        var profile = ConnectionProfile.Create("Principal", "mongodb://principal:27017");
+        Guid? generationId;
+        using (var repository = new LiteDbConnectionProfileRepository(fixture.DatabasePath))
+        {
+            await repository.SaveAsync(profile);
+            generationId = (await repository.GetAllAsync()).Single().SourceGenerationId;
+        }
+
+        using var reopened = new LiteDbConnectionProfileRepository(fixture.DatabasePath);
+        var loaded = (await reopened.GetAllAsync()).Single();
+
+        Assert.That(loaded.SourceGenerationId, Is.EqualTo(generationId));
+    }
+
+    [Test]
+    public async Task FailedSaveOfAConnectionStringChangeIsVisibleAndPreservesThePreviousDocument()
+    {
+        await using var fixture = new TemporaryWorkspace();
+        using var repository = new LiteDbConnectionProfileRepository(fixture.DatabasePath);
+        var profile = ConnectionProfile.Create("Principal", "mongodb://principal:27017");
+        await repository.SaveAsync(profile);
+        var originalGenerationId = (await repository.GetAllAsync()).Single().SourceGenerationId;
+
+        // A profile name colliding with the unique index makes LiteDB reject the write, simulating a
+        // persistence failure. The failure must surface to the caller and leave the previous document intact.
+        var otherProfile = ConnectionProfile.Create("Outra", "mongodb://outra:27017");
+        await repository.SaveAsync(otherProfile);
+        Assert.ThrowsAsync<LiteDB.LiteException>(() =>
+            repository.SaveAsync(profile with { Id = otherProfile.Id, ConnectionString = "mongodb://replacement:27017" }));
+
+        var reloaded = await repository.GetAllAsync();
+        var untouched = reloaded.Single(item => item.Id == profile.Id);
+        Assert.Multiple(() =>
+        {
+            Assert.That(untouched.ConnectionString, Is.EqualTo("mongodb://principal:27017"));
+            Assert.That(untouched.SourceGenerationId, Is.EqualTo(originalGenerationId));
         });
     }
 

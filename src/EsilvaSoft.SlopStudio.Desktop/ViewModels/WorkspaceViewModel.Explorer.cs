@@ -88,6 +88,20 @@ public sealed partial class WorkspaceViewModel
         await SaveSessionAsync();
     }
 
+    /// <summary>
+    /// Per-connection opt-out of <em>serving</em> already-learned schema to the autocomplete catalog (L15), mirroring
+    /// <see cref="SetSchemaSamplingAllowedAsync"/> exactly: update the in-memory decision first, then persist. A
+    /// null <see cref="_learnedSchemaOptOut"/> (no host wired it) makes this a no-op besides the save, matching
+    /// <see cref="SaveSessionAsync"/> writing an empty list in that case. There is no dedicated per-connection UI for
+    /// this toggle yet — only the general <see cref="AutocompleteSettings.LearnedSchemaEnabled"/> switch has a
+    /// screen — so today this is reachable only from tests and future callers, not from a menu.
+    /// </summary>
+    public async Task SetLearnedSchemaExcludedAsync(Guid profileId, bool excluded)
+    {
+        _learnedSchemaOptOut?.SetServingExcluded(profileId, excluded);
+        await SaveSessionAsync();
+    }
+
     public bool IsProfileConnected(ConnectionProfile profile) => Roots.Any(r => r.Profile.Id == profile.Id && r.Profile.TargetHost == profile.TargetHost && r.IsConnected);
 
     public async Task OpenConnectionAsync(ConnectionProfile profile)

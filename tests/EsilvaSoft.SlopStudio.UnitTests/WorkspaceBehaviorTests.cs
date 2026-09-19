@@ -73,7 +73,9 @@ public sealed class WorkspaceBehaviorTests
         await context.Repository.SaveAsync(profile);
         Assert.That((await context.Repository.LoadSessionAsync()).Tabs, Is.Empty);
         await context.Repository.SaveSessionAsync(new WorkspaceSession { Preferences = new() { Theme = "Escuro", CodeFontSize = 18 } });
-        Assert.That((await context.Repository.GetAllAsync()).Single(), Is.EqualTo(profile));
+        var reloaded = (await context.Repository.GetAllAsync()).Single();
+        Assert.That(reloaded.SourceGenerationId, Is.Not.Null);
+        Assert.That(reloaded, Is.EqualTo(profile with { SourceGenerationId = reloaded.SourceGenerationId }));
         var preferences = (await context.Repository.LoadSessionAsync()).Preferences;
         Assert.That(preferences.Theme, Is.EqualTo("Escuro"));
         Assert.That(preferences.CodeFontSize, Is.EqualTo(18));
