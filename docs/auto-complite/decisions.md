@@ -585,3 +585,260 @@ para ficarem num lugar só. Cada uma traz o que a destrava.
    feito nos realces do `CompletionRanker`) é conhecida e não foi aplicada em nenhum dos dois. Não é regressão da
    meta: o número já existia e a meta o mediu em vez de o presumir. *Destrava:* um lote de desempenho que aplique o
    adiamento do `Detail` nas duas fontes e estenda a guarda permanente de `NameTableAllocationTests` a elas.
+
+## Fase 4 — IA explícita (lote R41, 19/09/2026)
+
+### DEC-R41-REASONS
+
+**A recusa da IA local é um valor tipado; a mensagem deriva do motivo, nunca o contrário.**
+`LocalModelUnavailableReason` deixa de ter três valores e passa a cobrir, de forma **aditiva** (nenhum valor existente
+foi removido, renomeado ou reordenado), toda a [matriz de fallback](ai-autocomplete.md#fallback) que a IA explícita
+precisa distinguir para escolher a mensagem da lista tradicional:
+
+| Motivo | Quando | Efeito colateral |
+| --- | --- | --- |
+| `NoModelConfigured` | Nenhum modelo selecionado (chave com pasta vazia) | Nenhum |
+| `ModelInvalid` | Reprovação estrutural do catálogo: arquivos ausentes, arquitetura não suportada, tokenizer incompatível e **contrato de contexto declarado e desconhecido** ([DEC-A31C-CONTEXTCONTRACT](#dec-a31c-contextcontract)) | Abre janela de recusa |
+| `CapabilityMissing` | O modelo carregou mas não declara a capacidade do papel pedido | Nenhum — não é falha |
+| `ProviderUnavailable` | Hardware/execution provider exigido não executa o modelo (`AiProviderUnavailableException`, em todo construtor) | Abre janela de recusa |
+| `Cooldown` | Janela de recusa aberta por uma falha **transitória** desta chave | — |
+| `NotLoaded` / `DifferentConfiguration` | `LoadedOnly` sem a chave exata carregada ([DEC-INLINE-LOADEDONLY](#dec-inline-loadedonly)); `DifferentConfiguration` é o refinamento "há outro modelo carregado" | Nenhum |
+| `ContextOverflow` | O pedido não cabe na janela do modelo (`LocalModelContextException`) | Nenhum — o modelo continua carregado e servindo pedidos menores |
+| `RuntimeFailure` | Erro nativo de inicialização ou inferência, já convertido em mensagem segura | Descarrega e abre janela de recusa |
+
+**Contrato de contexto desconhecido bloqueia geração e carga, não só a listagem.** A decisão A31c era aplicada em
+`LocalModelCatalog.Validate`, e `LocalAiModelService` já validava por ali antes de carregar — mas devolvia o motivo
+como não classificado. Agora `GenerateAsync` e `LoadModelAsync` recusam com `ModelInvalid` e a mensagem do catálogo
+(com o identificador declarado), sem inicializar runtime nenhum: **nenhum peso é lido para descobrir que o contrato
+não serve**.
+
+**Janela de contexto.** `ContextOverflow` é motivo próprio e nunca se confunde com `ModelInvalid`: o pacote está
+correto e o pedido é que não cabe. A autoridade sobre o tamanho real da janela continua sendo o runtime
+(`context_length` do `genai_config.json`, verificado em `OnnxLocalModelRuntime`), e **não** `RecommendedContextTokens`
+do manifesto — esse campo é um *padrão de preferência* consumido pela tela de configuração, e recusar contra uma
+recomendação rejeitaria pedidos que o modelo atende. Por isso o serviço não replica a aritmética da janela: traduz a
+exceção do runtime em motivo tipado e garante que essa tradução não descarrega o modelo nem abre janela de recusa.
+
+**Versão de pacote de modelo ("pacote antigo") não tem equivalente a `SchemaFormatVersion`.** Não existe, e não foi
+criado aqui, um número de formato para o pacote de modelo: `slopstudio-model.json` é inteiramente opcional, campos
+desconhecidos são ignorados por compatibilidade progressiva e `metadata.version` é texto livre do publicador. O
+mecanismo de compatibilidade dos pacotes é o `contextContract` de A31c, que já distingue "não declarou" (válido, v1)
+de "declarou algo que esta versão não implementa" (`ModelInvalid`). Um pacote antigo, portanto, continua válido por
+construção, e um pacote *novo demais* é rejeitado pelo contrato — não por um número de versão paralelo.
+
+### DEC-R41-COOLDOWN
+
+**A janela de recusa é por chave de modelo, de 30 s, aberta por uma única falha, com relógio injetado; e a janela é
+o mecanismo, não o motivo.** O mecanismo já existia em `LocalAiModelService` (`_failedKey`/`_retryAfter`) e não foi
+substituído — foi revisado, parametrizado por escrito e tornado observável. Parâmetros, agora explícitos:
+
+| Parâmetro | Valor | Razão |
+| --- | --- | --- |
+| N (falhas para abrir a janela) | **1** | O serviço já descarrega o modelo na primeira falha de geração; um contador ≥ 2 exigiria recarregar o modelo só para falhar de novo, pagando segundos de carga por tentativa. A falha de IA local é quase sempre determinística (provider ausente, memória insuficiente, exportação incompatível), não intermitente como uma rede. |
+| Janela de contagem | **não se aplica** | Com N = 1 não há contagem; o "reset" é qualquer sucesso de carga, `UnloadModelAsync`, `SwitchModelAsync` ou `TestModelAsync`, que chamam `ClearRetry`. Salvar preferências ou testar o modelo é a ação explícita do usuário dizendo "tente de novo agora" e zera a espera imediatamente. |
+| Duração | **30 s** (`RetryDelay`) | Valor já praticado e documentado em [onnx-strategy.md](onnx-strategy.md); curto o bastante para não parecer travado e longo o bastante para não reentrar em carga a cada tecla. |
+| Escopo | **chave** = pasta + aceleração + execution provider | A mesma identidade de `LoadedOnly`. Trocar de acelerador ou de modelo é uma configuração diferente e não herda a punição da anterior. |
+| Relógio | `TimeProvider` injetado | Nunca `DateTime.Now`: a expiração é avançada pelo teste, sem espera real nem tolerância de tempo de parede. |
+
+**A causa durável sobrevive à janela.** Guardar só "falhou às 12h00" faz o segundo pedido responder "aguarde 30 s" a
+quem acabou de escolher um pacote inválido ou um provider que esta máquina não tem — problemas que não se resolvem
+sozinhos em 30 s. O serviço passa a guardar também a causa (`_failedCause`) e, durante a janela, **repete a causa
+durável** (`ModelInvalid`, `ProviderUnavailable`, `NoModelConfigured`) com `RetryAfter` preenchido; só uma falha
+transitória de runtime aparece como `Cooldown`. Assim a linha "Cooldown após falha → lista + tempo restante" da matriz
+de fallback recebe o tempo restante em todos os casos, sem perder a razão real em nenhum.
+
+**A janela também vale sob `LoadedOnly`.** Sem isso, o caminho automático relataria "nenhum modelo carregado" logo
+depois de uma falha — verdade literal e explicação errada. `RequireLoaded` verifica, nesta ordem: chave exata
+carregada → sem seleção (`NoModelConfigured`) → janela ativa (causa registrada) → outro modelo carregado
+(`DifferentConfiguration`) → nada carregado (`NotLoaded`). A ordem não altera o invariante de DEC-INLINE-LOADEDONLY:
+em nenhum desses ramos há carga, descarga ou troca de modelo.
+
+## Fase 4 — IA explícita (lote R42, 19/09/2026)
+
+### DEC-R42-INCREMENTAL
+
+**O texto da geração é montado token a token; a sequência inteira nunca é redecodificada.** O runtime decodificava,
+a cada token gerado, toda a saída desde o início da geração — uma vez para procurar o sufixo de parada e outra no
+fim — o que custa O(n²) em uma geração de n tokens e é exatamente o que o critério de aceite 6 da fase proíbe.
+`ITokenizer` ganha, de forma **aditiva**, `CreateIncrementalDecoder()` (`IIncrementalDecoder`: `Append(int)` devolve
+só o texto novo, `Flush()` encerra), com implementação padrão que redecodifica tudo — nenhum tokenizador existente
+quebra, e quem não tem streaming apenas não ganha o benefício.
+
+| Tokenizador | Decodificação incremental | Custo por token |
+| --- | --- | --- |
+| `OnnxModelTokenizer` (GenAI) | `Tokenizer.CreateStream()` → `TokenizerStream.Decode(id)`, que existe no pacote 0.15.2 e mantém no nativo os bytes de um caractere ainda aberto | constante |
+| `DeepSeekModelTokenizer` (BPE em .NET) | peças do próprio vocabulário em bytes, retidas por `Utf8IncrementalBuffer` até fechar o caractere | constante |
+| Qualquer outro `ITokenizer` | `BatchFallbackIncrementalDecoder` (padrão da interface) | linear no acumulado |
+
+**Unicode fragmentado é problema de bytes, não de `char`.** Um acento, um CJK ou um emoji nasce partido entre tokens
+de um BPE byte-level; decodificar o token sozinho produziria `U+FFFD` na prévia. `Utf8IncrementalBuffer` segura os
+bytes de uma sequência incompleta e só entrega texto em fronteira de caractere, reproduzindo a regra de *maximal
+subpart* do `Encoding.UTF8` para bytes inválidos — é isso que garante que a concatenação dos pedaços seja idêntica à
+decodificação em lote, inclusive quando a saída é inválida. O decodificador padrão retém também um substituto alto
+ou um `U+FFFD` no fim do texto, pelo mesmo motivo: são a marca de um caractere que ainda não fechou. É o mesmo
+cuidado de [DEC-L-KEY](#dec-l-key)/`TokenizedBlockCache` com pares substitutos, um nível abaixo (UTF-8, não UTF-16).
+
+**A parada por texto passa a olhar a cauda.** Procurar o sufixo no texto inteiro a cada token teria o mesmo custo
+quadrático que a decodificação. Como qualquer ocorrência nova termina dentro do pedaço recém-decodificado, basta
+manter uma cauda do tamanho da maior sequência de parada menos um. O conjunto de tokens de parada (`_stops`)
+continua calculado uma única vez por inicialização, pelo adapter.
+
+### DEC-R42-STREAMASYNC
+
+**`StreamAsync` é o único caminho de geração; `GenerateAsync` é a concatenação dele.** A interface
+`ILocalModelRuntime` ganha `StreamAsync` com **corpo padrão** que faz uma chamada a `GenerateAsync` e devolve tudo
+num único `GeneratedChunk` final — runtimes falsos e futuros continuam válidos sem escrever nada. O
+`OnnxLocalModelRuntime` sobrescreve com streaming real e implementa `GenerateAsync` **em cima** do mesmo laço
+interno, em vez de manter dois caminhos de geração que poderiam divergir em parada, contagem de tokens ou métricas.
+
+**O fallback para CPU não é igual nos dois modos, de propósito.** Sem streaming, uma falha nativa do provider
+acelerado repete o pedido inteiro na CPU: ninguém viu nada, nada se duplica. Em streaming, o pedido só é refeito se
+**nenhum pedaço foi entregue**; depois do primeiro texto exibido, reiniciar duplicaria o que o usuário já está
+lendo, então a falha sobe e a UI decide. `AiProviderUnavailableException` e os motivos de
+[DEC-R41-REASONS](#dec-r41-reasons) continuam sendo o vocabulário; nada de novo foi criado aqui.
+
+**Abandonar a enumeração encerra a sessão nativa.** O laço nativo roda numa thread de trabalho e publica em um
+canal; o iterador só lê. Sair do `await foreach` sem consumir tudo dispara `terminate_session`, espera o gerador ser
+descartado e libera o decodificador incremental antes de devolver o controle — sem exceção não observada. É o mesmo
+tratamento do `Esc`, e o teste com modelo real confirma que o runtime volta a servir no pedido seguinte.
+
+### DEC-R42-PROMPTTOKENS
+
+**Campos aditivos em `ModelGenerationRequest`, nenhum obrigatório.** `PromptTokens` (`IReadOnlyList<int>?`) permite
+entregar o prompt já tokenizado — quem montou o contexto na Fase 3 não paga a tokenização duas vezes; o runtime
+continua dono da janela e recusa com `LocalModelContextException` o que não couber. `StopSequences`
+(`IReadOnlyList<string>?`) acrescenta paradas por texto às do modelo, sem substituir a parada pelo sufixo do editor.
+`PrefixCache` (`PrefixCacheState?`) é **inerte nesta entrega**: existe só para que a assinatura não mude quando R43
+implementar o experimento de reuso de KV; nenhum runtime lê o valor, e prometer o contrário seria maquiar R43.
+
+## Fase 4 — IA explícita (lote A42, 19/09/2026)
+
+### DEC-A42-PRESENTER
+
+**A prévia de `Ctrl+;` tem presenter próprio; a *superfície* é que continua única.** O
+`CompletionWindowPresenter` guarda lista filtrada por prefixo e seleção estável por identidade de símbolo — aqui não
+há lista, item, filtro nem seleção, só um texto que cresce por pedaços e que vale enquanto o documento não mudar.
+Reaproveitá-lo significaria esvaziar metade dele. O novo `AiCompletionPreviewPresenter` guarda estado
+(`Idle`/`Generating`/`Preview`), texto acumulado, documento/cursor capturados e uma geração monotônica; a Fase 4 já
+previa "indicador de geração (renderizador de fundo)" como componente novo, distinto do ghost determinístico da
+Fase 5.1.
+
+O invariante "um presenter, uma edição" é lido como **uma apresentação visível por vez**, e é garantido por
+construção: `Ctrl+;` começa por `InvalidateCompletion()` (fecha lista, apaga ghost, cancela pedido anterior) e,
+enquanto a prévia está ativa, `CaptureInlineState().ExplicitRequestPending` é verdadeiro, de modo que o ghost
+automático sequer é pedido. O painel novo (`AiCompletionPanel`, em uma camada própria) usa os mesmos tokens do painel
+da lista — `PanelBackground`, `ControlBorderBrush`, `Syntax.GhostText`, `AccentBrush` —, sem cor fixa.
+
+### DEC-A42-ARBITRATION
+
+**`Ctrl+;` não é bloqueado pela lista aberta: ele a fecha e assume a superfície.** É o que
+[architecture.md](architecture.md#ia-explícita-ctrl) já registrava ("`Ctrl+Espaço` cancela prévia/IA pendente e abre
+lista; `Ctrl+;` fecha lista e substitui ghost"), e a precedência Lista › Snippet › Inline › Global continua intacta:
+o comando é do escopo `Global` e só é alcançado quando nenhum estado ativo reivindicou a tecla. A recíproca também
+vale — `Ctrl+Espaço` durante a geração cancela o pedido explícito e abre a lista.
+
+`Tab` e `Esc` da prévia são os comandos do escopo `Inline` (`editor.inline.accept`/`editor.inline.dismiss`), não
+comandos novos: AC-18 define `Ctrl+;` como uma prévia inline, e prévia e ghost nunca estão ativos ao mesmo tempo, de
+modo que não há ambiguidade a resolver. Um reatalho de qualquer um dos dois continua valendo, inclusive no rótulo da
+prévia, que é derivado dos gestos efetivos da aba.
+
+### DEC-A42-FALLBACK-LINE
+
+**O motivo vive em um campo da lista, não em uma escrita única na linha de estado.** Refiltrar a lista reescreve
+aquela linha; guardar o motivo em `_traditionalCompletionReason` e recompô-lo a cada atualização é o que faz a
+explicação sobreviver ao usuário digitar com a lista aberta. A tradução motivo → texto está em
+`AiCompletionFallbackMessages` e é decidida **só** por `AiCompletionFailure` + `LocalModelUnavailableReason`
+(DEC-R41-REASONS); a mensagem do serviço só é usada quando não há motivo tipado nenhum. `RetryAfter` no futuro
+acrescenta "Nova tentativa em N s" a qualquer motivo, que é como a linha de cooldown da matriz recebe o tempo
+restante sem perder a causa durável.
+
+Duas condições que não são recusa do modelo entram pela mesma porta: IA desligada nas preferências (`Enabled` falso
+ou modo `Basic`) e aba sem provider explícito. Nenhuma abre diálogo; todas abrem a lista com uma linha.
+
+### DEC-A42-UNDO
+
+**O aceite é uma inserção dentro de um único `RunUpdate`, sem aceite incremental.** Um `Ctrl+Z` desfaz a prévia
+inteira, igual ao aceite pela lista (HDL-08). O `IncrementalTab` do ghost não se aplica: o candidato explícito é
+multilinha e entregá-lo por palavra deixaria um fragmento estruturalmente quebrado justamente no caso em que o
+usuário pediu a sugestão inteira. A prévia nunca é aceita sozinha, nunca executa nada e desaparece sem tocar no
+documento se não for confirmada.
+
+**Resultado obsoleto.** O mecanismo é o que já existia: `InvalidateCompletion` — chamado por edição, movimento de
+cursor, troca de seleção, perda de foco, troca de aba e mudança de preferências — agora também cancela o token da IA
+e reseta o presenter, o que **avança a geração**. Cada atualização recebida é conferida contra essa geração e contra
+documento/cursor/foco/aba antes de desenhar, então um provedor que ignore o cancelamento continua gerando para
+ninguém.
+## Fase 4 — IA explícita (lote A43, 19/09/2026)
+
+### DEC-A43-TIMEOUT
+
+**O prazo rígido corta a espera, não o resultado: vencido, o que já era válido vira candidato.** A matriz de
+fallback pede "mantém prévia parcial válida; sem prévia, lista", e a leitura literal disso é que o tempo esgotado
+**não é uma falha** quando sobrou texto aproveitável. O `AiGenerationPipeline` fecha a geração com o mesmo
+`CompletionOutputProcessor.CleanStructured` de sempre e devolve um `AiCompletionCandidate` marcado
+(`TimedOut = true`, `IsComplete = false`); só quando a limpeza não deixa nada é que aparece
+`AiCompletionFailure.Timeout` e a lista tradicional abre. Um pedido com `RequireComplete` recusa direto, porque
+para ele um pedaço nunca serviu.
+
+| Parâmetro | Valor | Razão |
+| --- | --- | --- |
+| Onde vive | `AutocompleteSettings.AiTimeoutMilliseconds` (aditivo, ausente = 10 000) | É o campo que [configuration.md](configuration.md#opções-necessárias) já previa; criar uma constante interna deixaria a documentação mentindo sobre ser configurável |
+| Faixa | 1 000–60 000 ms, em `Validate()` | A mesma faixa proposta na tabela de opções |
+| Escopo da medida | ponta a ponta, do primeiro `MoveNextAsync` ao último pedaço — fila, carga e geração inclusive | O usuário espera o relógio de parede dele, não o do runtime |
+| Relógio | `TimeProvider` injetado no pipeline | Nunca `Task.Delay` real: o teste avança dez segundos sem dormir um |
+| Quem cancela | um `CancellationTokenSource` ligado ao do chamador | O runtime é interrompido pelo mesmo caminho do `Esc` (DEC-R42-STREAMASYNC); nada precisou mudar em `LocalAiModelService` |
+
+**Prazo vencido e `Esc` não se confundem.** O pipeline só trata como prazo o cancelamento em que o token do
+chamador continua intacto. Um `Esc` durante uma geração que já produziu texto continua descartando tudo — aceitar o
+parcial ali seria transformar "desisti" em "aceito o que tiver".
+
+### DEC-A43-INDICATOR
+
+**No primeiro segundo não se desenha nada, a menos que o resultado já esteja pronto.** A tabela de tempos pede um
+segundo de atraso para o indicador; aplicá-lo só ao texto "gerando…", e não ao painel, deixaria o painel piscando
+vazio, que é exatamente o ruído que o atraso existe para evitar. A regra implementada é uma só e vale para as duas
+esperas (carga e geração): o painel aparece quando o temporizador de 1 s vence **ou** quando há candidato final. Uma
+geração que termina em 300 ms não mostra indicador nenhum — o usuário vê a sugestão aparecer.
+
+O temporizador é criado por um `TimeProvider` da própria view (`_aiClock`), pela mesma razão do prazo rígido: teste
+determinístico, sem tempo de parede. Isso reabre — de propósito — três asserções de A42 que mediam o indicador
+"imediatamente"; elas passaram a avançar o relógio, e o que se afirma agora é mais forte: em uma geração rápida a
+linha de estado **nunca chega a conter** "Gerando".
+
+### DEC-A43-OVERFLOW
+
+**`ContextOverflow` reduz o orçamento uma vez, e só antes de existir prévia.** A redução é a mesma da Fase 3 — o
+`AiContextPipeline` corta fatos e encolhe a janela do editor sozinho quando recebe um orçamento menor —, de modo que
+a segunda tentativa não é um caminho novo: é o mesmo `Prepare` com `contextTokens × 0,75`
+(`AiContextPipeline.WindowShrinkFactor`, a constante que a fase já usava para encolher). Uma única repetição, nunca
+um laço: se o orçamento reduzido ainda não cabe, a recusa sai com `LocalModelUnavailableReason.ContextOverflow`
+intacto, que é o que a linha da matriz manda mostrar.
+
+Duas guardas: a repetição não acontece depois de algum pedaço já ter sido publicado (repetir reescreveria o texto
+que o usuário está lendo — o mesmo motivo pelo qual o runtime não reinicia em streaming, DEC-R42-STREAMASYNC), e
+não acontece quando o orçamento reduzido ficaria abaixo do mínimo utilizável, caso em que insistir só trocaria a
+mensagem certa por outra.
+
+### DEC-A43-PREEMPTION
+
+**Preempção é descarte silencioso na tela e falha tipada no contrato.** `LocalModelPreemptedException` deixa de cair
+no ramo genérico de `LocalModelUnavailableException` (que abriria a lista tradicional explicando uma "recusa do
+modelo" que não houve) e passa a produzir `AiCompletionFailure.Preempted`. A interface trata esse valor como um
+cancelamento: apaga o indicador e não abre lista nem escreve linha de estado. A distinção continua existindo para
+quem observa diagnóstico — `LocalAiModelService` já registra `ai.generation.preempted` e a métrica com
+`reason=preempted` —, e é isso que separa "o usuário desistiu" de "fui preemptado" sem inventar uma diferença
+visual que a matriz não pede.
+
+### DEC-A43-TRADITIONAL
+
+**`TraditionalEnabled` existe como preferência e o fallback da IA a respeita; o gate do `Ctrl+Espaço` continua
+pendente em T08.** O campo entra em `AutocompleteSettings` no mesmo formato anulável das flags inline (ausente =
+true, false explícito preservado), como manda [configuration.md](configuration.md#migração). Com a lista desligada,
+uma falha de `Ctrl+;` mostra **uma linha de estado** com o motivo da IA mais "Lista tradicional desligada nas
+preferências" e **não** abre lista nenhuma — o fallback não reabre, nem "só desta vez", uma apresentação que o
+usuário desligou, e não altera a preferência para conseguir mostrá-la.
+
+O que este lote **não** fez, e fica registrado como pendência de T08: `Ctrl+Espaço` pedido diretamente ainda abre a
+lista mesmo com a flag falsa (`traditional.manual = Enabled && TraditionalEnabled` só está aplicado no caminho de
+fallback da IA), e a flag continua sem controle visual em `AutocompleteSettingsWindow`, exatamente como as três
+flags inline de 5.1.

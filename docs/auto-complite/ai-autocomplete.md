@@ -69,6 +69,13 @@ Padrão: um candidato greedy. Alternativas via `num_return_sequences`/amostragem
 | Timeout | — | Mantém prévia parcial válida; sem prévia, lista |
 | Erro nativo | `LocalModelUnavailableException` | Lista + mensagem segura; status do modelo atualizado |
 
+Cada linha acima tem um valor de `LocalModelUnavailableReason` (`NoModelConfigured`, `ModelInvalid`,
+`CapabilityMissing`, `ProviderUnavailable`, `Cooldown`, `NotLoaded`/`DifferentConfiguration`, `ContextOverflow`,
+`RuntimeFailure`), decidido em `LocalAiModelService` e descrito em [DEC-R41-REASONS](decisions.md#dec-r41-reasons):
+quem monta o fallback escolhe a mensagem pelo motivo e nunca por inspeção de texto. Durante a janela de recusa
+([DEC-R41-COOLDOWN](decisions.md#dec-r41-cooldown)) a exceção traz `RetryAfter`, que é de onde sai o
+tempo restante. Contexto sensível continua sendo decisão do provider (privacidade do editor) e não chega ao serviço.
+
 ## Tempos
 
 | Limite | Valor inicial | Observação |
@@ -79,6 +86,16 @@ Padrão: um candidato greedy. Alternativas via `num_return_sequences`/amostragem
 | Tokens gerados (inline) | 24 (avaliar 16/32) | Latência |
 
 Todos provisórios até os benchmarks de [performance.md](performance.md).
+
+**Estado (lote A43, 19/09/2026).** O prazo rígido está implementado e é configurável por
+`AutocompleteSettings.AiTimeoutMilliseconds` (1 000–60 000 ms, ausente = 10 000), medido ponta a ponta com
+`TimeProvider` injetado; vencido, mantém a prévia parcial válida como candidato
+([DEC-A43-TIMEOUT](decisions.md#dec-a43-timeout)). O atraso de 1 s vale para o painel inteiro, e não só para o texto
+do indicador: uma geração mais rápida não desenha nada ([DEC-A43-INDICATOR](decisions.md#dec-a43-indicator)).
+"Carga em andamento", "contexto excede a janela" (reduz uma vez) e "preempção" também estão implementadas
+([DEC-A43-OVERFLOW](decisions.md#dec-a43-overflow), [DEC-A43-PREEMPTION](decisions.md#dec-a43-preemption)). Os tetos
+de tokens gerados continuam vindo de `MaximumCompletionTokens`; a leitura de `generation.autocomplete.maxTokens` do
+metadata segue pendente.
 
 ## Desempenho
 

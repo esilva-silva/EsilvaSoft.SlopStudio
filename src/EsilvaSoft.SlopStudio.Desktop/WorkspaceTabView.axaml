@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui" xmlns:syntax="using:EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" xmlns:core="using:EsilvaSoft.SlopStudio.Core" xmlns:localai="using:EsilvaSoft.SlopStudio.LocalAi.Core" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" xmlns:completion="using:EsilvaSoft.SlopStudio.Autocomplete.Core.Completion" x:Class="EsilvaSoft.SlopStudio.Desktop.WorkspaceTabView" x:DataType="vm:WorkspaceTabViewModel">
+﻿<UserControl xmlns="https://github.com/avaloniaui" xmlns:syntax="using:EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" xmlns:core="using:EsilvaSoft.SlopStudio.Core" xmlns:localai="using:EsilvaSoft.SlopStudio.LocalAi.Core" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" xmlns:completion="using:EsilvaSoft.SlopStudio.Autocomplete.Core.Completion" x:Class="EsilvaSoft.SlopStudio.Desktop.WorkspaceTabView" x:DataType="vm:WorkspaceTabViewModel">
   <Grid RowDefinitions="Auto,*">
     <Border Padding="12,6" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Background="{DynamicResource SecondaryBackground}">
       <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
@@ -126,6 +126,19 @@
                   </ListBox.ItemTemplate>
                 </ListBox>
                 <TextBlock x:Name="TraditionalCompletionDocumentation" Grid.Row="2" Classes="metadata" Margin="8,6,8,4" MaxHeight="54" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" AutomationProperties.Name="Detalhes da sugestão selecionada" />
+              </Grid>
+            </Border>
+          </Canvas>
+          <Canvas x:Name="AiCompletionLayer" ClipToBounds="True">
+            <Border x:Name="AiCompletionPanel" IsVisible="False" Width="400" MaxHeight="180" Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource ControlBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="4" BoxShadow="0 4 12 0 #40000000" AutomationProperties.Name="Sugestão da IA local">
+              <Grid RowDefinitions="Auto,*">
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,4">
+                  <Border x:Name="AiCompletionIndicator" Width="8" Height="8" CornerRadius="4" VerticalAlignment="Center" Background="{DynamicResource AccentBrush}" AutomationProperties.Name="Gerando" />
+                  <TextBlock x:Name="AiCompletionStatus" Classes="metadata" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <ScrollViewer Grid.Row="1" IsVisible="{Binding #AiCompletionPreview.IsVisible}" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                  <TextBlock x:Name="AiCompletionPreview" FontFamily="{StaticResource CodeFont}" FontSize="{Binding CodeFontSize}" LineHeight="{Binding CodeLineHeight}" Margin="8,0,8,4" TextWrapping="NoWrap" Foreground="{DynamicResource Syntax.GhostText}" AutomationProperties.Name="Prévia da sugestão da IA local" />
+                </ScrollViewer>
               </Grid>
             </Border>
           </Canvas>

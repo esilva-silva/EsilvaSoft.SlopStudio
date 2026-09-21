@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
@@ -420,8 +420,12 @@ public sealed class TraditionalCompletionUiTests
             await Task.Delay(30); Dispatcher.UIThread.RunJobs();
 
             Assert.That(tab.Text, Is.EqualTo("db"), "Ctrl+; nunca insere ';' literal no documento.");
-            Assert.That(panel.IsVisible, Is.False, "Ctrl+; nunca abre a lista tradicional no lugar da IA explícita.");
-            Assert.That(tab.Messages, Does.Contain("IA"), "A indisponibilidade é comunicada discretamente pelas mensagens da aba.");
+            // A partir do lote A42 o atalho tem handler: sem provider de IA nesta aba, ele cai no fallback previsto
+            // pela fase 4 — a lista tradicional com uma linha de estado dizendo por quê. O que continua proibido é o
+            // que este teste sempre protegeu: inserir o caractere do gesto ou disparar qualquer execução.
+            Assert.That(panel.IsVisible, Is.True, "Sem IA disponível, Ctrl+; abre a lista tradicional com o motivo.");
+            Assert.That(view.FindControl<TextBlock>("TraditionalCompletionStatus")!.Text,
+                Does.Contain("IA explícita não está disponível"), "A linha de estado é discreta e honesta, sem diálogo.");
             typeof(MainWindow).GetField("_allowClose", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(window, true);
             window.Close(); return true;
         }, CancellationToken.None);

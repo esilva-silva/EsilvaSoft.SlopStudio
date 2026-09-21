@@ -1,4 +1,4 @@
-# Configuração e compatibilidade
+﻿# Configuração e compatibilidade
 
 Especificação de 15/09/2026; novos campos ainda **não implementados**. Evoluir `Core/Autocomplete.cs` e `WorkspaceSession.cs` de forma aditiva, mantendo versão 1, validação e proprietário LiteDB. Não criar árvore de preferências paralela.
 
@@ -24,6 +24,14 @@ Especificação de 15/09/2026; novos campos ainda **não implementados**. Evolui
 
 Delay adaptativo, pesos, margem de confiança, número de candidatos, linhas do ghost e orçamento total automático são constantes internas em `LanguageServiceOptions`, medidas antes de expor controles. Não acrescentar opções de ociosidade, warmup, alternativas ou Ctrl+→ nesta entrega.
 
+**Estado de implementação — lote A43 (19/09/2026):** `AiTimeoutMilliseconds` e `TraditionalEnabled` existem em
+`AutocompleteSettings`, de forma aditiva — o primeiro como inteiro validado em 1 000–60 000 ms (ausente = 10 000), o
+segundo no mesmo formato anulável das flags inline (ausente = true). `AiTimeoutMilliseconds` já governa o prazo
+rígido da IA explícita ([DEC-A43-TIMEOUT](decisions.md#dec-a43-timeout)). `TraditionalEnabled` já governa o
+**fallback** da IA explícita ([DEC-A43-TRADITIONAL](decisions.md#dec-a43-traditional)), mas ainda **não** bloqueia o
+`Ctrl+Espaço` pedido diretamente: a linha `traditional.manual` da precedência abaixo continua pendente em T08.
+Nenhum dos dois tem controle visual em `AutocompleteSettingsWindow`.
+
 **Estado de implementação — lote de 18/09/2026 (5.1):** `InlineEnabled`, `InlineUseTraditional` e `InlineUseAi` existem como propriedades anuláveis de `AutocompleteSettings` e são lidas/gravadas pelo `InlineCompletionCoordinator`/`InlineCompletionPolicy`, com a migração descrita abaixo. **Nenhuma das três tem controle visual em `AutocompleteSettingsWindow`**: só são editáveis por quem altera o JSON persistido diretamente. A UI para essas flags é pendência de implementação, não apenas de homologação.
 
 ## Precedência
@@ -45,7 +53,7 @@ Tradicional inline não depende de TraditionalEnabled; desligar lista não elimi
 - Modo Ai legado já permite dicionário; não reinterpretá-lo como exclusão do tradicional.
 - Opções UseEditorContext/UseResultPanelContext/UseInputPanelContext continuam governando contexto transitório. Persistir entrada JSON permanece opt-in separado; habilitar contexto não autoriza salvar Input.
 - Mesmas regras de falha: configuração ilegível não vira sessão vazia; erro de gravação fica visível e preserva estado. Nenhum resultado, prompt, credencial ou cache entra nos rascunhos.
-- Atalhos em `EditorKeyBindings` aditivo, sem tela nova: implementado em W0 (18/09/2026) com `Ctrl+Espaço` (básico), `Ctrl+;` (IA, sem runtime ainda), `Tab`/`Shift+Tab`/`Enter`/`Esc` por escopo. `Ctrl+.` saiu dos padrões; um override explícito já salvo continua legível e não é reescrito. Validar conflitos/layouts conforme [editor](editor-integration.md#atalhos).
+- Atalhos em `EditorKeyBindings` aditivo, sem tela nova: implementado em W0 (18/09/2026) com `Ctrl+Espaço` (básico), `Ctrl+;` (IA explícita, com handler desde A42), `Tab`/`Shift+Tab`/`Enter`/`Esc` por escopo. `Ctrl+.` saiu dos padrões; um override explícito já salvo continua legível e não é reescrito. Validar conflitos/layouts conforme [editor](editor-integration.md#atalhos).
 
 ## Aceite
 

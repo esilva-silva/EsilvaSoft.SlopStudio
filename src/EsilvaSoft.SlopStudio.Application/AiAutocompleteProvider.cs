@@ -45,19 +45,14 @@ public sealed class AiAutocompleteProvider : IAsyncDisposable, IDisposable
 
     public Task ResetAsync(CancellationToken cancellationToken = default) => Models.UnloadModelAsync(cancellationToken);
 
-    internal static bool ContainsReservedOrSensitiveText(string source) => CompletionPrivacy.ContainsSensitiveText(source)
-        || source.Contains("<|", StringComparison.Ordinal) || source.Contains("<｜", StringComparison.Ordinal);
+    /// <summary>Mesma disciplina de privacidade de <see cref="CompletionOutputProcessor"/>, em uma única implementação.</summary>
+    internal static bool ContainsReservedOrSensitiveText(string source) => CompletionOutputProcessor.ContainsReservedOrSensitiveText(source);
 
-    /// <summary>Returns null for output that must never reach the editor.</summary>
-    internal static string? CleanGeneratedText(string text, string suffix)
-    {
-        // FIM exports can echo the existing suffix and then keep generating unrelated functions.
-        // Preserve the actual document suffix instead of inserting a duplicate.
-        if (suffix.Length >= 2 && text.IndexOf(suffix, StringComparison.Ordinal) is var suffixIndex && suffixIndex >= 0)
-            text = text[..suffixIndex];
-        return string.IsNullOrWhiteSpace(text) || text.Length > 8192 || text.Contains('\0') || text.Contains("```", StringComparison.Ordinal)
-            || ContainsReservedOrSensitiveText(text) ? null : text;
-    }
+    /// <summary>
+    /// Returns null for output that must never reach the editor. O caminho automático usa a limpeza tradicional, sem
+    /// parada estrutural: o ghost é uma continuação curta que o usuário vê antes de aceitar.
+    /// </summary>
+    internal static string? CleanGeneratedText(string text, string suffix) => CompletionOutputProcessor.Clean(text, suffix);
 
     public async ValueTask DisposeAsync()
     {

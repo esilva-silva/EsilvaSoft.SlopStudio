@@ -138,6 +138,11 @@
         "resolved": "3.1.6",
         "contentHash": "jek4XYaQ/PGUwDKKhwR8K47Uh1189PFzMeLqO83mXrXQVIpARZCcfuDedH50YDTepBkfijCZN5U/vZi++erxtg=="
       },
+      "Microsoft.Extensions.AI.Abstractions": {
+        "type": "Transitive",
+        "resolved": "9.8.0",
+        "contentHash": "0++t+lPqX5amr7Kgh+ZFm1C5hhzMmFc5Dhoc6siNZ4sPXxy0pLTFRk+4vHn0hZf7Xe8Y9OoqL2cL4oTdjt8STQ=="
+      },
       "Microsoft.Extensions.DependencyInjection.Abstractions": {
         "type": "Transitive",
         "resolved": "10.0.0",
@@ -167,6 +172,14 @@
         "type": "Transitive",
         "resolved": "6.0.0",
         "contentHash": "9+PnzmQFfEFNR9J2aDTfJGGupShHjOuGw4VUv+JB044biSHrnmCIMD+mJHmb2H7YryrfBEXDurxQ47gJZdCKNQ=="
+      },
+      "Microsoft.ML.OnnxRuntimeGenAI.Managed": {
+        "type": "Transitive",
+        "resolved": "0.15.2",
+        "contentHash": "qILyIlkcecRZb1S+CW76hcV8UxFussgbC7BrD89hP7M+ZiUPoT8NDFCmvxWEhUBWvYfKF2sflQDI0eCBFgjfFQ==",
+        "dependencies": {
+          "Microsoft.Extensions.AI.Abstractions": "9.8.0"
+        }
       },
       "Microsoft.Testing.Extensions.Telemetry": {
         "type": "Transitive",
@@ -224,6 +237,11 @@
           "Newtonsoft.Json": "13.0.3"
         }
       },
+      "Microsoft.Windows.AI.MachineLearning": {
+        "type": "Transitive",
+        "resolved": "2.1.1",
+        "contentHash": "A5BbYPLVrcaRJvpwx0nv7aMDOMqR20qaw9EaLcUe9pkSArzKoSk6cilRsSioU+eRa9+HahidBZTegawdswKqIQ=="
+      },
       "MongoDB.Bson": {
         "type": "Transitive",
         "resolved": "3.11.1",
@@ -270,6 +288,11 @@
           "System.CodeDom": "9.0.5"
         }
       },
+      "System.Numerics.Tensors": {
+        "type": "Transitive",
+        "resolved": "9.0.0",
+        "contentHash": "hyJB4UlpAi19Xr9AXzu2NuagKC4lPfHObNMEAA0HmqFz2rX7wKgzeYzO/jM/eBHDhnUGFFEjk5cOoJaxqg5J4A=="
+      },
       "System.Reflection.TypeExtensions": {
         "type": "Transitive",
         "resolved": "4.7.0",
@@ -305,6 +328,16 @@
           "LiteDB": "[5.0.21, )",
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.0, )",
           "MongoDB.Driver": "[3.11.1, )"
+        }
+      },
+      "esilvasoft.slopstudio.infrastructure.localai": {
+        "type": "Project",
+        "dependencies": {
+          "EsilvaSoft.SlopStudio.Application": "[1.0.0, )",
+          "EsilvaSoft.SlopStudio.LocalAi.Core": "[1.0.0, )",
+          "Microsoft.Extensions.DependencyInjection": "[10.0.0, )",
+          "Microsoft.ML.OnnxRuntime.Managed": "[1.28.0, )",
+          "Microsoft.ML.OnnxRuntimeGenAI.WinML": "[0.15.2, )"
         }
       },
       "esilvasoft.slopstudio.localai.core": {
@@ -344,6 +377,25 @@
         "contentHash": "FU/IfjDfwaMuKr414SSQNTIti/69bHEMb+QKrskRb26oVqpx3lNFXMjs/RC9ZUuhBhcwDM2BwOgoMw+PZ+beqQ==",
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.0"
+        }
+      },
+      "Microsoft.ML.OnnxRuntime.Managed": {
+        "type": "CentralTransitive",
+        "requested": "[1.28.0, )",
+        "resolved": "1.28.0",
+        "contentHash": "4ecKjwASHhAZXczK/xm5KU6MdvoIGfMd23UAwDbM9vfcfgqZgNqvFWPZPT0Elc1wu5vXWs2Kij1ZBmHCcv1UlA==",
+        "dependencies": {
+          "System.Numerics.Tensors": "9.0.0"
+        }
+      },
+      "Microsoft.ML.OnnxRuntimeGenAI.WinML": {
+        "type": "CentralTransitive",
+        "requested": "[0.15.2, )",
+        "resolved": "0.15.2",
+        "contentHash": "ECpsCeGUfPlXVHPd5pYAXyo1EEY3rkfrqtFF3wwA6AvzOkDAoxc+Rak+ahXZ5aJ3IuzVDU2lPGKTGtfYXN4iKQ==",
+        "dependencies": {
+          "Microsoft.ML.OnnxRuntimeGenAI.Managed": "0.15.2",
+          "Microsoft.Windows.AI.MachineLearning": "2.1.1"
         }
       },
       "MongoDB.Driver": {

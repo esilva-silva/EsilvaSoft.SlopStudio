@@ -22,6 +22,13 @@ public sealed record AutocompleteSettings
     public int ContextTokens { get; init; } = 2048;
     public int MaximumCompletionTokens { get; init; } = 32;
     public int DelayMilliseconds { get; init; } = 150;
+
+    /// <summary>
+    /// Additive to version 1: hard timeout of an explicit AI completion (<c>Ctrl+;</c>), measured end to end — queue,
+    /// model load and generation included. Expiring never fails the request outright: a partial preview that is
+    /// already valid is kept, and only a generation that produced nothing falls back to the list.
+    /// </summary>
+    public int AiTimeoutMilliseconds { get; init; } = 10_000;
     public bool UseDictionary { get; init; } = true;
     public bool UseInputPanelContext { get; init; } = true;
     public bool UseResultPanelContext { get; init; } = true;
@@ -51,6 +58,21 @@ public sealed record AutocompleteSettings
     private readonly bool? _inlineEnabled;
     private readonly bool? _inlineUseTraditional;
     private readonly bool? _inlineUseAi;
+    private readonly bool? _traditionalEnabled;
+
+    /// <summary>Valor persistido de <see cref="TraditionalEnabled"/>; nulo significa ausente no documento salvo.</summary>
+    [JsonPropertyName(nameof(TraditionalEnabled)), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? TraditionalEnabledValue { get => _traditionalEnabled; init => _traditionalEnabled = value; }
+
+    /// <summary>
+    /// Additive to version 1: the explicit contextual list (<c>Ctrl+Espaço</c>) is available. Absent means enabled.
+    /// Independent of the AI and of the inline ghost — turning the list off does not remove the automatic suggestion
+    /// (<see cref="InlineUseTraditional"/>), and turning the AI off does not remove the list. When an explicit AI
+    /// request fails and this is off, the fallback reports the unavailability <em>without</em> opening a list the user
+    /// turned off and without changing the preference.
+    /// </summary>
+    [JsonIgnore]
+    public bool TraditionalEnabled { get => _traditionalEnabled ?? true; init => _traditionalEnabled = value; }
 
     /// <summary>Valor persistido de <see cref="InlineEnabled"/>; nulo significa ausente no documento salvo.</summary>
     [JsonPropertyName(nameof(InlineEnabled)), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -89,7 +111,8 @@ public sealed record AutocompleteSettings
         if (Version != 1 || !Enum.IsDefined(Mode) || !Enum.IsDefined(Acceleration) || !Enum.IsDefined(ExecutionProvider)
             || ModelPath is null || ModelPath.Length > 4096 || ModelDirectory is null || ModelDirectory.Length > 4096
             || !IsModelFolderName(SelectedModel) || !IsModelFolderName(ChatModel) || ContextTokens is < 64 or > 8192
-            || MaximumCompletionTokens is < 1 or > 256 || DelayMilliseconds is < 50 or > 2000)
+            || MaximumCompletionTokens is < 1 or > 256 || DelayMilliseconds is < 50 or > 2000
+            || AiTimeoutMilliseconds is < 1000 or > 60_000)
             throw new ArgumentException("Configuração de autocomplete inválida ou de versão não suportada.");
         return this;
     }

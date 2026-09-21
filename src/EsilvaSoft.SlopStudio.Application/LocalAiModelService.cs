@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.LocalAi.Core;
 using EsilvaSoft.SlopStudio.Core;
@@ -26,6 +27,7 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
     // Guarded by _stateGate.
     private ModelKey? _failedKey;
     private DateTimeOffset _retryAfter;
+    private LocalModelUnavailableReason _failedCause;
     private CancellationTokenSource? _active;
     private CancellationTokenSource? _activePreemption;
     private AiRequestPriority _activePriority;
@@ -122,46 +124,171 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
             if (priority == AiRequestPriority.Background && _gate.HasWaiters((int)AiRequestPriority.Interactive)) preemption.Cancel();
             var generated = await loaded.Runtime.GenerateAsync(request(loaded.Model), token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
-            SetStatus(GenerationStatus(loaded, key, generated));
-            diagnostics?.Record("ai.generation.success", role + " | " + generated.Provider, generated.Elapsed);
-            RecordGeneration(roleTag, generated);
+            Succeeded(loaded, key, roleTag, role, generated);
             return new(loaded.Model, generated);
-        }
-        catch (OperationCanceledException) when (preemption.IsCancellationRequested && !cancellationToken.IsCancellationRequested && !_shutdown.IsCancellationRequested)
-        {
-            diagnostics?.Record("ai.generation.preempted");
-            AutocompleteMetrics.AiCompletionCancelled.Add(1, roleTag, new KeyValuePair<string, object?>("reason", "preempted"));
-            throw new LocalModelPreemptedException();
-        }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
-        {
-            diagnostics?.Record("autocomplete.canceled");
-            AutocompleteMetrics.AiCompletionCancelled.Add(1, roleTag, new KeyValuePair<string, object?>("reason", "cancelled"));
-            throw;
-        }
-        catch (ObjectDisposedException) { throw; }
-        catch (AiProviderUnavailableException ex)
-        {
-            await FailGenerationAsync(key, ex, ex.Message).ConfigureAwait(false);
-            throw;
-        }
-        catch (LocalModelUnavailableException) { throw; }
-        catch (LocalModelContextException ex)
-        {
-            // The request is too large; the model stays loaded and usable for smaller requests.
-            throw new LocalModelUnavailableException("O contexto completo excede a janela do modelo. Reduza o conteúdo antes de solicitar à IA.", ex);
         }
         catch (Exception ex)
         {
-            AutocompleteMetrics.AiCompletionGenerated.Add(1, roleTag, new KeyValuePair<string, object?>("outcome", "failed"));
-            await FailGenerationAsync(key, ex).ConfigureAwait(false);
-            throw new LocalModelUnavailableException(Status.Message, ex);
+            var translated = await TranslateGenerationFailureAsync(ex, key, roleTag, preemption, cancellationToken, token).ConfigureAwait(false);
+            if (ReferenceEquals(translated, ex)) throw;
+            throw translated;
         }
         finally
         {
             lock (_stateGate)
                 if (ReferenceEquals(_active, linked)) { _active = null; _activePreemption = null; }
             _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// A mesma geração de <see cref="GenerateAsync"/>, entregue em pedaços pelo runtime (DEC-R42-STREAMASYNC).
+    /// </summary>
+    /// <remarks>
+    /// <para><strong>Nada aqui é um caminho paralelo.</strong> Fila e preempção por prioridade, política de carga
+    /// <see cref="AiModelLoadPolicy.LoadedOnly"/>, capacidade do papel, janela de recusa de DEC-R41-COOLDOWN e os
+    /// motivos tipados de DEC-R41-REASONS são exatamente os do modo não streaming: a resolução do modelo usa os
+    /// mesmos <see cref="RequireLoaded"/>/<see cref="EnsureLoadedAsync"/> e toda falha passa pelo mesmo
+    /// <see cref="TranslateGenerationFailureAsync"/>. A única diferença é o formato da entrega.</para>
+    /// <para><strong>A fila acompanha a enumeração.</strong> Sendo um iterador, o corpo só começa no primeiro
+    /// <c>MoveNextAsync</c>: é ali que a vez na fila é tomada, e ela só é devolvida quando a enumeração termina ou é
+    /// abandonada — abandonar o <c>await foreach</c> descarta o enumerador do runtime, que encerra a sessão nativa,
+    /// e libera a vez para quem está esperando.</para>
+    /// </remarks>
+    public async IAsyncEnumerable<GeneratedChunk> StreamAsync(LocalModelRole role, AutocompleteSettings settings,
+        Func<LocalModelDefinition, ModelGenerationRequest> request, AiRequestPriority priority, AiModelLoadPolicy load = AiModelLoadPolicy.LoadIfNeeded,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(request);
+        var roleTag = new KeyValuePair<string, object?>("role", role.ToString());
+        AutocompleteMetrics.AiCompletionRequested.Add(1, roleTag);
+        using var preemption = new CancellationTokenSource();
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdown.Token, preemption.Token);
+        var token = linked.Token;
+        if (priority == AiRequestPriority.Interactive) PreemptBackground();
+        await _gate.WaitAsync((int)priority, token).ConfigureAwait(false);
+        var key = KeyFor(role, settings);
+        try
+        {
+            ActiveModel loaded;
+            ModelGenerationRequest generation;
+            try
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                token.ThrowIfCancellationRequested();
+                loaded = load == AiModelLoadPolicy.LoadedOnly
+                    ? RequireLoaded(key)
+                    : await EnsureLoadedAsync(key, settings, token).ConfigureAwait(false);
+                RequireCapability(loaded.Model, role);
+                generation = request(loaded.Model);
+            }
+            catch (Exception ex)
+            {
+                var translated = await TranslateGenerationFailureAsync(ex, key, roleTag, preemption, cancellationToken, token).ConfigureAwait(false);
+                if (ReferenceEquals(translated, ex)) throw;
+                throw translated;
+            }
+            lock (_stateGate) { _active = linked; _activePreemption = preemption; _activePriority = priority; }
+            if (priority == AiRequestPriority.Background && _gate.HasWaiters((int)AiRequestPriority.Interactive)) preemption.Cancel();
+
+            GeneratedChunk? last = null;
+            var enumerator = loaded.Runtime.StreamAsync(generation, token).GetAsyncEnumerator(token);
+            try
+            {
+                while (true)
+                {
+                    GeneratedChunk chunk;
+                    try
+                    {
+                        if (!await enumerator.MoveNextAsync().ConfigureAwait(false)) break;
+                        chunk = enumerator.Current;
+                    }
+                    catch (Exception ex)
+                    {
+                        var translated = await TranslateGenerationFailureAsync(ex, key, roleTag, preemption, cancellationToken, token).ConfigureAwait(false);
+                        if (ReferenceEquals(translated, ex)) throw;
+                        throw translated;
+                    }
+                    if (chunk.IsFinal) last = chunk;
+                    yield return chunk;
+                }
+            }
+            finally { await enumerator.DisposeAsync().ConfigureAwait(false); }
+
+            try
+            {
+                token.ThrowIfCancellationRequested();
+                Succeeded(loaded, key, roleTag, role, Measured(last));
+            }
+            catch (Exception ex)
+            {
+                var translated = await TranslateGenerationFailureAsync(ex, key, roleTag, preemption, cancellationToken, token).ConfigureAwait(false);
+                if (ReferenceEquals(translated, ex)) throw;
+                throw translated;
+            }
+        }
+        finally
+        {
+            lock (_stateGate)
+                if (ReferenceEquals(_active, linked)) { _active = null; _activePreemption = null; }
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Medições do pedaço final em forma de resultado, para que estado e métricas sejam os mesmos nos dois modos.
+    /// Sem pedaço final o runtime não mediu nada: o estado diz "nenhum token", nunca um número inventado.
+    /// </summary>
+    private static ModelGenerationResult Measured(GeneratedChunk? last) =>
+        last is null
+            ? new("", 0, TimeSpan.Zero, "")
+            : new("", last.GeneratedTokens, last.Elapsed, last.Provider, last.IsComplete, last.UsedCpuFallback) { TimeToFirstToken = last.TimeToFirstToken };
+
+    /// <summary>Contabilidade comum de uma geração bem-sucedida: estado exibido, diagnóstico e métricas.</summary>
+    private void Succeeded(ActiveModel loaded, ModelKey key, KeyValuePair<string, object?> roleTag, LocalModelRole role, ModelGenerationResult generated)
+    {
+        SetStatus(GenerationStatus(loaded, key, generated));
+        diagnostics?.Record("ai.generation.success", role + " | " + generated.Provider, generated.Elapsed);
+        RecordGeneration(roleTag, generated);
+    }
+
+    /// <summary>
+    /// Tradução única de falha de geração, compartilhada pelos dois modos: é o que garante que streaming e não
+    /// streaming recusem com o mesmo motivo tipado (DEC-R41-REASONS) e abram a mesma janela (DEC-R41-COOLDOWN).
+    /// Devolve a exceção a lançar; quando devolve a própria entrada, o chamador relança com <c>throw;</c> e preserva
+    /// a pilha original.
+    /// </summary>
+    private async Task<Exception> TranslateGenerationFailureAsync(Exception exception, ModelKey key, KeyValuePair<string, object?> roleTag,
+        CancellationTokenSource preemption, CancellationToken caller, CancellationToken token)
+    {
+        switch (exception)
+        {
+            case OperationCanceledException when preemption.IsCancellationRequested && !caller.IsCancellationRequested && !_shutdown.IsCancellationRequested:
+                diagnostics?.Record("ai.generation.preempted");
+                AutocompleteMetrics.AiCompletionCancelled.Add(1, roleTag, new KeyValuePair<string, object?>("reason", "preempted"));
+                return new LocalModelPreemptedException();
+            case OperationCanceledException when token.IsCancellationRequested:
+                diagnostics?.Record("autocomplete.canceled");
+                AutocompleteMetrics.AiCompletionCancelled.Add(1, roleTag, new KeyValuePair<string, object?>("reason", "cancelled"));
+                return exception;
+            case ObjectDisposedException:
+                return exception;
+            case AiProviderUnavailableException provider:
+                await FailGenerationAsync(key, provider, provider.Message).ConfigureAwait(false);
+                return provider;
+            case LocalModelUnavailableException:
+                return exception;
+            case LocalModelContextException:
+                // The request is too large; the model stays loaded and usable for smaller requests. Motivo próprio: não é
+                // pacote inválido e não esfria nada — reduzir o orçamento e repetir é a resposta correta.
+                return new LocalModelUnavailableException("O contexto completo excede a janela do modelo. Reduza o conteúdo antes de solicitar à IA.", exception)
+                { UnavailableReason = LocalModelUnavailableReason.ContextOverflow };
+            default:
+                AutocompleteMetrics.AiCompletionGenerated.Add(1, roleTag, new KeyValuePair<string, object?>("outcome", "failed"));
+                await FailGenerationAsync(key, exception).ConfigureAwait(false);
+                return new LocalModelUnavailableException(Status.Message, exception)
+                { UnavailableReason = LocalModelUnavailableReason.RuntimeFailure, RetryAfter = CooldownUntil(key) };
         }
     }
 
@@ -210,6 +337,11 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
             steps.Add(new("Tokenizer", true, "Carregado com o modelo."));
             steps.Add(new("Sessão ONNX e provider", true, info is null ? "Sessão criada."
                 : $"{LocalAiStatusFormatter.HardwareLabel(info.Backend)} · {info.Provider}{(info.Device is null ? "" : " · " + info.Device)}"));
+            // Sonda do teste de modelo. Ela é deliberadamente construída aqui, e não pedida ao IModelAdapter: o texto é
+            // MongoDB, e o motor ONNX (adaptadores inclusos) é agnóstico de domínio — pedir um "prompt de teste" ao
+            // adaptador colocaria consulta MongoDB dentro do runtime de IA. O que é específico da arquitetura já vem do
+            // pacote: o contrato de treino do DeepSeek por PromptFormat, aqui, e os marcadores FIM no construtor de
+            // prompt do próprio adaptador, dentro do runtime.
             var probe = new AutocompleteRequest("db.Users.find({", "", "javascript");
             ModelGenerationResult generated;
             try
@@ -284,9 +416,11 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
     private static void RequireCapability(LocalModelDefinition model, LocalModelRole role)
     {
         if (role == LocalModelRole.Chat && !model.Capabilities.HasFlag(LocalModelCapabilities.Chat))
-            throw new LocalModelUnavailableException($"Chat indisponível: o modelo {model.Name} não declara a capacidade chat. Selecione outro modelo para o Assistente IA.");
+            throw new LocalModelUnavailableException($"Chat indisponível: o modelo {model.Name} não declara a capacidade chat. Selecione outro modelo para o Assistente IA.")
+            { UnavailableReason = LocalModelUnavailableReason.CapabilityMissing };
         if (role == LocalModelRole.Autocomplete && (model.Capabilities & (LocalModelCapabilities.Autocomplete | LocalModelCapabilities.Fim)) == 0)
-            throw new LocalModelUnavailableException($"Autocomplete por IA indisponível: o modelo {model.Name} não declara as capacidades autocomplete ou fim.");
+            throw new LocalModelUnavailableException($"Autocomplete por IA indisponível: o modelo {model.Name} não declara as capacidades autocomplete ou fim.")
+            { UnavailableReason = LocalModelUnavailableReason.CapabilityMissing };
     }
 
     private void PreemptBackground()
@@ -305,12 +439,55 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
     private ActiveModel RequireLoaded(ModelKey key)
     {
         if (_loaded is { } loaded && _key == key) return loaded;
+        if (key.Path.Length == 0) throw NoModelConfigured();
+        // Uma falha recente desta chave é informação mais útil do que "não está carregado": sob gate o modelo não
+        // está carregado justamente porque falhou, e quem exibe o fallback precisa distinguir os dois casos.
+        if (CooldownRefusal(key) is { } cooling) throw cooling;
         var different = _loaded is not null || _loading is not null;
         throw new LocalModelUnavailableException(different
             ? "O modelo carregado é de outra configuração; a sugestão automática não troca de modelo."
             : "Nenhum modelo carregado; a sugestão automática não carrega modelo por digitação.")
         {
             UnavailableReason = different ? LocalModelUnavailableReason.DifferentConfiguration : LocalModelUnavailableReason.NotLoaded
+        };
+    }
+
+    private static LocalModelUnavailableException NoModelConfigured() =>
+        new("Nenhum modelo selecionado. Escolha um modelo em Preferências para usar a IA local.")
+        { UnavailableReason = LocalModelUnavailableReason.NoModelConfigured };
+
+    /// <summary>
+    /// Fim da recusa temporária desta chave, ou nulo quando não há cooldown ativo. O cooldown é por chave de modelo
+    /// (pasta + aceleração + provider), dura <see cref="RetryDelay"/> a partir da falha e usa o <c>TimeProvider</c>
+    /// injetado — nunca <c>DateTime.Now</c> — para ser observável em teste.
+    /// </summary>
+    private DateTimeOffset? CooldownUntil(ModelKey key)
+    {
+        lock (_stateGate) return _failedKey == key && _clock.GetUtcNow() < _retryAfter ? _retryAfter : null;
+    }
+
+    /// <summary>
+    /// Recusa pronta enquanto a janela desta chave não expira, ou nulo quando ela já passou. A janela é o mecanismo,
+    /// não o motivo: uma causa durável (pacote inválido, provider indisponível) continua sendo o motivo exibido, com
+    /// o instante de expiração junto; só uma falha transitória de runtime aparece como
+    /// <see cref="LocalModelUnavailableReason.Cooldown"/>. Sem isso, quem acabou de escolher um modelo incompatível
+    /// veria "tente em 30 s" no lugar da incompatibilidade que não vai se resolver sozinha.
+    /// </summary>
+    private LocalModelUnavailableException? CooldownRefusal(ModelKey key)
+    {
+        LocalModelUnavailableReason cause;
+        DateTimeOffset until;
+        lock (_stateGate)
+        {
+            if (_failedKey != key || _clock.GetUtcNow() >= _retryAfter) return null;
+            cause = _failedCause;
+            until = _retryAfter;
+        }
+        return new(Status.Message)
+        {
+            UnavailableReason = cause is LocalModelUnavailableReason.Unspecified or LocalModelUnavailableReason.RuntimeFailure
+                ? LocalModelUnavailableReason.Cooldown : cause,
+            RetryAfter = until
         };
     }
 
@@ -324,8 +501,7 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
         if (_loaded is { } loaded) return loaded;
         if (_loading is null)
         {
-            lock (_stateGate)
-                if (_failedKey == key && _clock.GetUtcNow() < _retryAfter) throw new LocalModelUnavailableException(Status.Message);
+            if (CooldownRefusal(key) is { } cooling) throw cooling;
             _key = key;
             _loadCancellation = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
             _loading = LoadCoreAsync(key, settings, _loadCancellation.Token);
@@ -365,9 +541,13 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
             var validation = await catalog.ValidateAsync(key.Path, token).ConfigureAwait(false);
             if (validation.Model is not { } model)
             {
-                MarkFailed(key, validation.Status with { ModelName = name, RequestedHardware = key.Hardware });
+                MarkFailed(key, validation.Status with { ModelName = name, RequestedHardware = key.Hardware },
+                    key.Path.Length == 0 ? LocalModelUnavailableReason.NoModelConfigured : LocalModelUnavailableReason.ModelInvalid);
                 operation?.Complete(ApplicationOperationStatus.Warning, $"Modelo {name} indisponível: {LocalAiStatusFormatter.ValidityLabel(validation.Validity)}");
-                throw new LocalModelUnavailableException(validation.Status.Message);
+                // Sem seleção não há pacote a acusar; com seleção, toda reprovação estrutural do catálogo (arquivos
+                // ausentes, arquitetura, tokenizer e contrato de contexto declarado e desconhecido) é "modelo inválido".
+                if (key.Path.Length == 0) throw NoModelConfigured();
+                throw new LocalModelUnavailableException(validation.Status.Message) { UnavailableReason = LocalModelUnavailableReason.ModelInvalid };
             }
             name = model.Name;
             operation?.Report(0, 0, $"Carregando {name}…");
@@ -394,7 +574,7 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
         {
             await DisposeQuietlyAsync(runtime).ConfigureAwait(false);
             diagnostics?.Record("provider.unavailable", LocalAiStatusFormatter.HardwareLabel(ex.Hardware));
-            MarkFailed(key, new(LocalModelState.Failed, ex.Message) { ModelName = name, RequestedHardware = key.Hardware });
+            MarkFailed(key, new(LocalModelState.Failed, ex.Message) { ModelName = name, RequestedHardware = key.Hardware }, LocalModelUnavailableReason.ProviderUnavailable);
             operation?.Complete(ApplicationOperationStatus.Error, $"Falha ao carregar {name} — {LocalAiStatusFormatter.HardwareLabel(ex.Hardware)}");
             throw;
         }
@@ -421,9 +601,12 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
                 LocalModelLoadException { Stage: LocalModelLoadStage.Tokenizer } => "Falha ao carregar o tokenizer. Use tokenizer.json e tokenizer_config.json da mesma exportação do modelo.",
                 _ => "Falha ao inicializar o modelo. Confira arquivos ONNX, memória e provider. Autocomplete básico ativo."
             };
-            MarkFailed(key, new(ex is NotSupportedException ? LocalModelState.Unsupported : LocalModelState.Failed, message) { ModelName = name, RequestedHardware = key.Hardware });
+            // Arquitetura e tokenizer descrevem o pacote; o resto é falha do runtime nativo.
+            var cause = ex is NotSupportedException or LocalModelLoadException { Stage: LocalModelLoadStage.Tokenizer }
+                ? LocalModelUnavailableReason.ModelInvalid : LocalModelUnavailableReason.RuntimeFailure;
+            MarkFailed(key, new(ex is NotSupportedException ? LocalModelState.Unsupported : LocalModelState.Failed, message) { ModelName = name, RequestedHardware = key.Hardware }, cause);
             operation?.Complete(ApplicationOperationStatus.Error, $"Falha ao carregar {name}");
-            throw new LocalModelUnavailableException(message, ex);
+            throw new LocalModelUnavailableException(message, ex) { UnavailableReason = cause, RetryAfter = CooldownUntil(key) };
         }
     }
 
@@ -433,7 +616,13 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
         diagnostics?.Record("autocomplete.ai.failure", exception.GetType().Name);
         MarkFailed(key, new(exception is NotSupportedException ? LocalModelState.Unsupported : LocalModelState.Failed,
             message ?? "Falha ao inicializar ou gerar. Confira modelo, tokenizer, memória e provider. Autocomplete básico ativo.")
-        { ModelName = LoadedModel?.Name ?? ModelName(key.Path), RequestedHardware = key.Hardware });
+        { ModelName = LoadedModel?.Name ?? ModelName(key.Path), RequestedHardware = key.Hardware },
+            exception switch
+            {
+                AiProviderUnavailableException => LocalModelUnavailableReason.ProviderUnavailable,
+                NotSupportedException => LocalModelUnavailableReason.ModelInvalid,
+                _ => LocalModelUnavailableReason.RuntimeFailure
+            });
         await UnloadCoreAsync().ConfigureAwait(false);
     }
 
@@ -464,15 +653,16 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
         catch (Exception) { /* The original failure is the one reported. */ }
     }
 
-    private void MarkFailed(ModelKey key, LocalModelStatus status)
+    /// <summary>Abre a janela de recusa desta chave e guarda a causa, que sobrevive à janela inteira.</summary>
+    private void MarkFailed(ModelKey key, LocalModelStatus status, LocalModelUnavailableReason cause = LocalModelUnavailableReason.RuntimeFailure)
     {
-        lock (_stateGate) { _failedKey = key; _retryAfter = _clock.GetUtcNow() + RetryDelay; }
+        lock (_stateGate) { _failedKey = key; _retryAfter = _clock.GetUtcNow() + RetryDelay; _failedCause = cause; }
         SetStatus(status);
     }
 
     private void ClearRetry()
     {
-        lock (_stateGate) { _failedKey = null; _retryAfter = default; }
+        lock (_stateGate) { _failedKey = null; _retryAfter = default; _failedCause = LocalModelUnavailableReason.Unspecified; }
     }
 
     private void SetStatus(LocalModelStatus status)

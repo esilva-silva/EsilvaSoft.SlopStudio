@@ -1,4 +1,5 @@
 using EsilvaSoft.SlopStudio.LocalAi.Core;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -109,15 +110,42 @@ public sealed class DeepSeekModelTokenizer : ITokenizer
 
     public string Decode(IEnumerable<int> tokens)
     {
+        ArgumentNullException.ThrowIfNull(tokens);
         var bytes = new List<byte>();
-        foreach (var id in tokens)
-        {
-            var piece = _pieces[id];
-            // ByteLevel also decodes added tokens. Non-byte marker strings remain literal.
-            if (piece.All(CharacterBytes.ContainsKey)) bytes.AddRange(piece.Select(c => CharacterBytes[c]));
-            else bytes.AddRange(Encoding.UTF8.GetBytes(piece));
-        }
+        foreach (var id in tokens) AppendBytes(id, bytes);
         return Encoding.UTF8.GetString(bytes.ToArray());
+    }
+
+    /// <summary>Bytes de uma peça, na mesma regra usada pela decodificação em lote e pela incremental.</summary>
+    private void AppendBytes(int id, List<byte> bytes)
+    {
+        var piece = _pieces[id];
+        // ByteLevel also decodes added tokens. Non-byte marker strings remain literal.
+        if (piece.All(CharacterBytes.ContainsKey)) bytes.AddRange(piece.Select(c => CharacterBytes[c]));
+        else bytes.AddRange(Encoding.UTF8.GetBytes(piece));
+    }
+
+    /// <summary>
+    /// Decodificação incremental de verdade: cada token vira bytes uma única vez e o texto sai nas fronteiras de
+    /// caractere, sem redecodificar a sequência. Não há streaming nativo aqui (é BPE em .NET puro), então o estado
+    /// pendente é o buffer UTF-8 compartilhado do núcleo.
+    /// </summary>
+    public IIncrementalDecoder CreateIncrementalDecoder() => new ByteLevelDecoder(this);
+
+    private sealed class ByteLevelDecoder(DeepSeekModelTokenizer tokenizer) : IIncrementalDecoder
+    {
+        private readonly Utf8IncrementalBuffer _buffer = new();
+        private readonly List<byte> _bytes = [];
+
+        public string Append(int token)
+        {
+            _bytes.Clear();
+            tokenizer.AppendBytes(token, _bytes);
+            return _buffer.Append(CollectionsMarshal.AsSpan(_bytes));
+        }
+
+        public string Flush() => _buffer.Flush();
+        public void Dispose() => _bytes.Clear();
     }
 
     private static char[] BuildByteCharacters()

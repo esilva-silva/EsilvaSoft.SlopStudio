@@ -118,6 +118,7 @@ public sealed partial class WorkspaceViewModel
         tab.Autocomplete = AutocompleteService;
         tab.TraditionalCompletion = TraditionalCompletion;
         tab.InlinePreemptiveCompletion = InlinePreemptiveCompletion;
+        tab.AiCompletion = AiCompletion;
         tab.PipelineInputSchema = ResolvePipelineInputSchema;
         tab.CompletionUsage = CompletionUsage;
         tab.Commands = Commands;

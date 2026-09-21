@@ -1,4 +1,4 @@
-namespace EsilvaSoft.SlopStudio.Core;
+﻿namespace EsilvaSoft.SlopStudio.Core;
 
 /// <summary>
 /// Stable editor command identifiers persisted in <see cref="EditorKeyBindings"/>. The strings are persistence keys and never
@@ -8,7 +8,7 @@ namespace EsilvaSoft.SlopStudio.Core;
 public static class EditorCommandIds
 {
     public const string CompletionShow = "editor.completion.show";
-    /// <summary>Reserved for explicit AI completion; no handler is bound yet.</summary>
+    /// <summary>Explicit AI completion (Ctrl+;), handled by the editor view since phase 4.</summary>
     public const string CompletionAi = "editor.completion.ai";
     public const string CompletionNext = "editor.completion.next";
     public const string CompletionPrevious = "editor.completion.previous";

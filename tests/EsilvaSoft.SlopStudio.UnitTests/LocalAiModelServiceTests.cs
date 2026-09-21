@@ -12,6 +12,7 @@ public sealed class LocalAiModelServiceTests
     private static readonly string[] SwitchLog = ["load Coder-0.5B", "generate Coder-0.5B", "generate Coder-0.5B", "unload Coder-0.5B", "load Coder-1.5B", "generate Coder-1.5B",
         "unload Coder-1.5B", "load Coder-Chat", "generate Coder-Chat"];
     private static readonly string[] TestSteps = ["Pasta e arquivos", "Tokenizer", "Sessão ONNX e provider", "Geração"];
+    private static readonly string[] QueueOrder = ["bloqueio", "chat", "autocomplete"];
     private static readonly AiChatRequest ChatRequest = new(new("Limitar a 10", "Console", "db.customers.find({})", "javascript", "MongoDB", "test", "customers", "consulta"));
 
     [Test]
@@ -222,6 +223,351 @@ public sealed class LocalAiModelServiceTests
 
     private static readonly string[] LoadedOnlyLog = ["load Coder-Chat", "generate Coder-Chat"];
     private static readonly string[] LoadedOnlyServedLog = ["load Coder-Chat", "generate Coder-Chat", "generate Coder-Chat"];
+
+    // R41 — um teste por motivo tipado de recusa. A mensagem exibida deriva do motivo; nenhum consumidor volta a
+    // interpretar texto para decidir o fallback da IA explícita.
+
+    [Test]
+    public async Task WithoutASelectedModelTheRefusalSaysSoInsteadOfBlamingThePackage()
+    {
+        var runtime = new CompletionRuntimeFake();
+        var catalog = new CompletionCatalogFake { Validation = new(null, new(LocalModelState.NotInstalled, "Modelo não instalado.")) };
+        await using var service = new LocalAiModelService(catalog, () => runtime);
+
+        var refused = Assert.ThrowsAsync<LocalModelUnavailableException>(() => service.GenerateAsync(
+            LocalModelRole.Autocomplete, new(), Request, AiRequestPriority.Interactive))!;
+        var gated = Assert.ThrowsAsync<LocalModelUnavailableException>(() => service.GenerateAsync(
+            LocalModelRole.Autocomplete, new(), Request, AiRequestPriority.Background, AiModelLoadPolicy.LoadedOnly))!;
+
+        Assert.That(refused.UnavailableReason, Is.EqualTo(LocalModelUnavailableReason.NoModelConfigured));
+        Assert.That(refused.Message, Does.Contain("Preferências"));
+        Assert.That(gated.UnavailableReason, Is.EqualTo(LocalModelUnavailableReason.NoModelConfigured),
+            "Sob gate a ausência de seleção continua sendo ausência de seleção, não \"o modelo não está carregado\".");
+        Assert.That(runtime.Initializations, Is.Zero);
+    }
+
+    /// <summary>
+    /// DEC-A31C-CONTEXTCONTRACT: um contrato declarado e desconhecido invalida o pacote na validação estrutural.
+    /// Aqui a invalidade também tem de barrar geração e carga — não só a listagem — e sem tocar em peso algum.
+    /// </summary>
+    [Test]
+    public async Task AnUnknownContextContractRefusesGenerationAndLoadAndNotOnlyTheListing()
+    {
+        using var models = new LocalModelFolderFixture.TemporaryDirectory();
+        LocalModelFolderFixture.CreateQwenModel(models.Path, "Unknown-Contract", """{"contextContract":"repository-files-v3"}""");
+        var runtime = new CompletionRuntimeFake();
+        await using var service = new LocalAiModelService(new LocalModelCatalog(models.Path), () => runtime);
+        var settings = new AutocompleteSettings { ModelDirectory = models.Path, SelectedModel = "Unknown-Contract" }.Validate();
+
+        var generation = Assert.ThrowsAsync<LocalModelUnavailableException>(() => service.GenerateAsync(
+            LocalModelRole.Autocomplete, settings, Request, AiRequestPriority.Interactive))!;
+        var load = Assert.ThrowsAsync<LocalModelUnavailableException>(() => service.LoadModelAsync(LocalModelRole.Autocomplete, settings))!;
+
+        Assert.That(generation.UnavailableReason, Is.EqualTo(LocalModelUnavailableReason.ModelInvalid));
+        Assert.That(generation.Message, Does.Contain("repository-files-v3").And.Contain("contrato de contexto"));
+        Assert.That(load.UnavailableReason, Is.EqualTo(LocalModelUnavailableReason.ModelInvalid),
+            "A janela de recusa aberta pela primeira reprovação não pode esconder a causa durável atrás de um cooldown.");
+        Assert.That(load.RetryAfter, Is.Not.Null, "A janela existe e é exibível, mas o motivo continua sendo o pacote.");
+        Assert.That(runtime.Initializations, Is.Zero, "Nenhum peso é carregado para descobrir que o contrato não serve.");
+    }
+
+    [Test]
+    public async Task AMissingCapabilityIsTypedAndKeepsTheModelUsableForItsOwnRole()
+    {
+        var runtime = new CompletionRuntimeFake();
+        var catalog = new CompletionCatalogFake
+        {
+            Validation = new(new("fim", "FIM only", "models", "Qwen2.5-Coder") { Capabilities = LocalModelCapabilities.Autocomplete | LocalModelCapabilities.Fim },
+                new(LocalModelState.Available, "available"))
+        };
+        await using var service = new LocalAiModelService(catalog, () => runtime);
+        var settings = new AutocompleteSettings { ModelPath = "model" };
+
+        var refused = Assert.ThrowsAsync<LocalModelUnavailableException>(() => service.GenerateAsync(
+            LocalModelRole.Chat, settings, Request, AiRequestPriority.Interactive))!;
+
+        Assert.That(refused.UnavailableReason, Is.EqualTo(LocalModelUnavailableReason.CapabilityMissing));
+        Assert.That(refused.RetryAfter, Is.Null, "Capacidade ausente não é falha: não esfria nada.");
+        Assert.That(runtime.Disposed, Is.False);
+        await service.GenerateAsync(LocalModelRole.Autocomplete, settings, Request, AiRequestPriority.Background);
+        Assert.That(runtime.Initializations, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task AnUnavailableExplicitProviderIsTypedOnGenerationAndNotOnlyOnTheModelTest()
+    {
+        var runtime = new CompletionRuntimeFake { OnInitialize = _ => throw new AiProviderUnavailableException(AiAccelerationMode.Gpu, "DirectML provider unavailable.") };
+        await using var service = new LocalAiModelService(new CompletionCatalogFake(), () => runtime, timeProvider: new ManualTimeProvider());
+
+        var refused = Assert.ThrowsAsync<AiProviderUnavailableException>(() => service.GenerateAsync(
+            LocalModelRole.Autocomplete, new() { ModelPath = "model", Acceleration = AiAccelerationMode.Gpu }, Request, AiRequestPriority.Interactive))!;
+
+        Assert.That(refused.UnavailableReason, Is.EqualTo(LocalModelUnavailableReason.ProviderUnavailable));
+        Assert.That(runtime.Generations, Is.Zero);
+    }
+
+    /// <summary>
+    /// DEC-R41-COOLDOWN: uma falha da chave recusa os pedidos seguintes por 30 s, com motivo próprio e instante de
+    /// expiração; o fim da janela é decidido pelo <see cref="TimeProvider"/> injetado, não por tempo de parede.
+    /// </summary>
+    [Test]
+    public async Task AFailedGenerationCoolsDownTheSameKeyAndTheRefusalExpiresWithTheClock()
+    {
+        var clock = new ManualTimeProvider();
+        var failing = true;
+        var runtime = new CompletionRuntimeFake
+        {
+            Handler = (_, _) => failing
+                ? throw new InvalidOperationException("native failure")
+                : Task.FromResult(new ModelGenerationResult("find({})", 4, TimeSpan.FromMilliseconds(4), "cpu"))
+        };
+        await using var service = new LocalAiModelService(new CompletionCatalogFake(), () => runtime, timeProvider: clock);
+        var settings = new AutocompleteSettings { ModelPath = "model" };
+
+        var failure = Assert.ThrowsAsync<LocalModelUnavailableException>(() => service.GenerateAsync(
+            LocalModelRole.Autocomplete, settings, Request, AiRequestPriority.Interactive))!;
+        Assert.That(failure.UnavailableReason, Is.EqualTo(LocalModelUnavailableReason.RuntimeFailure));
+        Assert.That(failure.RetryAfter, Is.EqualTo(clock.Now.AddSeconds(30)));
+
+        failing = false;
+        clock.Advance(TimeSpan.FromSeconds(29));
+        var cooling = Assert.ThrowsAsync<LocalModelUnavailableException>(() => service.GenerateAsync(
+            LocalModelRole.Autocomplete, settings, Request, AiRequestPriority.Interactive))!;
+        Assert.That(cooling.UnavailableReason, Is.EqualTo(LocalModelUnavailableReason.Cooldown));
+        Assert.That(cooling.RetryAfter, Is.EqualTo(clock.Now.AddSeconds(1)));
+        var gated = Assert.ThrowsAsync<LocalModelUnavailableException>(() => service.GenerateAsync(
+            LocalModelRole.Autocomplete, settings, Request, AiRequestPriority.Background, AiModelLoadPolicy.LoadedOnly))!;
+        Assert.That(gated.UnavailableReason, Is.EqualTo(LocalModelUnavailableReason.Cooldown), "Sob gate a falha recente também é o motivo exibido.");
+        Assert.That(runtime.Initializations, Is.EqualTo(1), "Durante a janela nem se tenta recarregar.");
+
+        clock.Advance(TimeSpan.FromSeconds(1));
+        var recovered = await service.GenerateAsync(LocalModelRole.Autocomplete, settings, Request, AiRequestPriority.Interactive);
+        Assert.That(recovered.Result.Text, Is.EqualTo("find({})"));
+        Assert.That(runtime.Initializations, Is.EqualTo(2));
+    }
+
+    [Test]
+    public async Task UnderTheGateTheWrongModelIsRefusedAndTheRightOneKeepsBeingServed()
+    {
+        var runtime = new CompletionRuntimeFake();
+        await using var service = new LocalAiModelService(new CompletionCatalogFake(), () => runtime);
+        var settings = new AutocompleteSettings { ModelPath = "model" };
+
+        var idle = Assert.ThrowsAsync<LocalModelUnavailableException>(() => service.GenerateAsync(
+            LocalModelRole.Autocomplete, settings, Request, AiRequestPriority.Background, AiModelLoadPolicy.LoadedOnly))!;
+        Assert.That(idle.UnavailableReason, Is.EqualTo(LocalModelUnavailableReason.NotLoaded));
+        Assert.That(runtime.Initializations, Is.Zero);
+
+        await service.LoadModelAsync(LocalModelRole.Autocomplete, settings);
+        var served = await service.GenerateAsync(LocalModelRole.Autocomplete, settings, Request, AiRequestPriority.Background, AiModelLoadPolicy.LoadedOnly);
+        Assert.That(served.Result.Text, Is.Not.Empty, "A chave exata carregada continua sendo atendida sob gate.");
+
+        var other = Assert.ThrowsAsync<LocalModelUnavailableException>(() => service.GenerateAsync(
+            LocalModelRole.Autocomplete, settings with { Acceleration = AiAccelerationMode.Gpu }, Request,
+            AiRequestPriority.Background, AiModelLoadPolicy.LoadedOnly))!;
+        Assert.That(other.UnavailableReason, Is.EqualTo(LocalModelUnavailableReason.DifferentConfiguration));
+        Assert.That(runtime.Initializations, Is.EqualTo(1), "Nenhuma troca silenciosa de aceleração.");
+        Assert.That(runtime.Disposed, Is.False);
+        Assert.That(service.LoadedModel, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task AContextOverflowIsNeitherAnInvalidModelNorAFailureThatCoolsDown()
+    {
+        var oversized = true;
+        var runtime = new CompletionRuntimeFake
+        {
+            Handler = (_, _) => oversized
+                ? throw new LocalModelContextException("O contexto completo excede a janela do modelo.")
+                : Task.FromResult(new ModelGenerationResult("find({})", 4, TimeSpan.FromMilliseconds(4), "cpu"))
+        };
+        await using var service = new LocalAiModelService(new CompletionCatalogFake(), () => runtime, timeProvider: new ManualTimeProvider());
+        var settings = new AutocompleteSettings { ModelPath = "model" };
+
+        var refused = Assert.ThrowsAsync<LocalModelUnavailableException>(() => service.GenerateAsync(
+            LocalModelRole.Autocomplete, settings, Request, AiRequestPriority.Interactive))!;
+
+        Assert.That(refused.UnavailableReason, Is.EqualTo(LocalModelUnavailableReason.ContextOverflow));
+        Assert.That(refused.UnavailableReason, Is.Not.EqualTo(LocalModelUnavailableReason.ModelInvalid));
+        Assert.That(refused.RetryAfter, Is.Null);
+        Assert.That(refused.InnerException, Is.InstanceOf<LocalModelContextException>());
+        Assert.That(service.LoadedModel, Is.Not.Null, "Pedido grande demais não descarrega o modelo.");
+        Assert.That(runtime.Disposed, Is.False);
+
+        // Reduzir o orçamento e repetir funciona imediatamente: não há janela de espera nem recarga.
+        oversized = false;
+        var smaller = await service.GenerateAsync(LocalModelRole.Autocomplete, settings, Request, AiRequestPriority.Interactive);
+        Assert.That(smaller.Result.Text, Is.EqualTo("find({})"));
+        Assert.That(runtime.Initializations, Is.EqualTo(1));
+    }
+
+    /// <summary>
+    /// Fila sob carga: gerações de fundo simultâneas nunca se sobrepõem, nenhuma é descartada e o modelo é carregado
+    /// uma única vez. É a invariante do <c>PriorityGate</c> vista pelo serviço — uma geração por vez, sempre.
+    /// </summary>
+    /// <remarks>
+    /// <b>Evidência de lógica, não de hardware.</b> O runtime é falso e a duração de cada geração é simulada; este
+    /// teste prova serialização e ausência de inanição, e nada sobre o custo real de um modelo. TTFT, tokens/s e
+    /// working set de modelo de verdade só saem do relatório do <c>AiRuntimeHarness</c>, com pesos ONNX reais.
+    /// </remarks>
+    [Test]
+    public async Task ConcurrentBackgroundGenerationsAreSerializedByTheQueueAndNoneIsStarved()
+    {
+        const int requests = 20;
+        var runtime = new QueueProbeRuntime();
+        await using var service = new LocalAiModelService(new CompletionCatalogFake(), () => runtime);
+        var settings = new AutocompleteSettings { ModelPath = "model" };
+
+        var generations = Enumerable.Range(0, requests)
+            .Select(_ => service.GenerateAsync(LocalModelRole.Autocomplete, settings, Request, AiRequestPriority.Background))
+            .ToArray();
+        var results = await Task.WhenAll(generations).WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(results, Has.Length.EqualTo(requests), "Nenhuma geração de fundo pode ficar presa na fila.");
+            Assert.That(runtime.Generations, Is.EqualTo(requests));
+            Assert.That(runtime.MaximumConcurrency, Is.EqualTo(1), "Duas gerações dentro do runtime ao mesmo tempo violariam a fila.");
+            Assert.That(runtime.Initializations, Is.EqualTo(1), "Vinte pedidos do mesmo modelo carregam o pacote uma vez.");
+        });
+    }
+
+    /// <summary>
+    /// Distribuição do tempo de fila sob carga, em relógio simulado: com o portão servindo uma geração por vez e cada
+    /// uma custando exatamente <see cref="QueueProbeRuntime.ServiceTime"/>, a espera do k-ésimo atendido é
+    /// <c>(k - 1) × ServiceTime</c>. O p50 e o p95 do lote são, assim, aritmética verificável — e não uma amostra de
+    /// tempo de parede tirada de máquina compartilhada, que não significaria nada.
+    /// </summary>
+    [Test]
+    public async Task UnderLoadTheQueueWaitPercentilesFollowSerializationExactly()
+    {
+        const int requests = 20;
+        var runtime = new QueueProbeRuntime();
+        await using var service = new LocalAiModelService(new CompletionCatalogFake(), () => runtime);
+        var settings = new AutocompleteSettings { ModelPath = "model" };
+
+        var generations = Enumerable.Range(0, requests)
+            .Select(_ => service.GenerateAsync(LocalModelRole.Autocomplete, settings, Request, AiRequestPriority.Background))
+            .ToArray();
+        await Task.WhenAll(generations).WaitAsync(TimeSpan.FromSeconds(30));
+
+        var waits = runtime.SimulatedStarts;
+        var unit = QueueProbeRuntime.ServiceTime.TotalMilliseconds;
+        Assert.Multiple(() =>
+        {
+            Assert.That(waits, Has.Count.EqualTo(requests));
+            Assert.That(waits, Is.EqualTo(Enumerable.Range(0, requests).Select(index => index * unit)).AsCollection,
+                "Uma geração por vez: a k-ésima atendida espera as k-1 anteriores inteiras.");
+            Assert.That(Percentile(waits, 0.5), Is.EqualTo(9.5 * unit).Within(1e-9), "p50 do tempo de fila.");
+            Assert.That(Percentile(waits, 0.95), Is.EqualTo(18.05 * unit).Within(1e-9), "p95 do tempo de fila.");
+        });
+    }
+
+    /// <summary>
+    /// CPU e chat disputando a mesma fila: um pedido de chat (interativo) enfileirado <em>depois</em> de um
+    /// autocomplete de fundo é atendido <em>antes</em> dele, e o de fundo ainda assim termina. Prioridade correta e
+    /// nenhum dos dois travado indefinidamente. É a pergunta que a preempção não responde: em
+    /// <c>LocalAiModelServiceStreamingTests</c> o pedido de fundo já estava correndo e é interrompido; aqui ele ainda
+    /// está na fila, e perder a vez não pode virar descarte.
+    /// </summary>
+    [Test]
+    public async Task ChatOutranksQueuedAutocompleteAndTheBackgroundRequestStillCompletes()
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var served = new List<string>();
+        var runtime = new CompletionRuntimeFake
+        {
+            Handler = async (request, token) =>
+            {
+                lock (served) served.Add(request.Prefix);
+                if (request.Prefix == "bloqueio") { entered.TrySetResult(); await release.Task.WaitAsync(token); }
+                return new("collection.find({})", 6, TimeSpan.FromMilliseconds(5), "cpu");
+            }
+        };
+        await using var service = new LocalAiModelService(new CompletionCatalogFake(), () => runtime);
+        var settings = new AutocompleteSettings { ModelPath = "model" };
+
+        // Um pedido interativo segura a vez; os dois seguintes entram na fila, o de fundo primeiro.
+        var holder = service.GenerateAsync(LocalModelRole.Autocomplete, settings, For("bloqueio"), AiRequestPriority.Interactive);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var background = service.GenerateAsync(LocalModelRole.Autocomplete, settings, For("autocomplete"), AiRequestPriority.Background);
+        var chat = service.GenerateAsync(LocalModelRole.Chat, settings, For("chat"), AiRequestPriority.Interactive);
+        release.SetResult();
+        await Task.WhenAll(holder, background, chat).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(served, Is.EqualTo(QueueOrder).AsCollection,
+                "O chat é interativo e passa na frente do autocomplete de fundo que já estava na fila.");
+            Assert.That(background.Result.Result.Text, Is.Not.Empty, "Perder a vez não é ser descartado.");
+            Assert.That(chat.Result.Result.Text, Is.Not.Empty);
+            Assert.That(runtime.Initializations, Is.EqualTo(1), "Autocomplete e chat do mesmo pacote compartilham uma carga só.");
+            Assert.That(runtime.Disposed, Is.False);
+        });
+    }
+
+    private static Func<LocalModelDefinition, ModelGenerationRequest> For(string prefix) => _ => new(prefix, "", 512, 8);
+
+    /// <summary>Percentil por interpolação linear, a mesma régua do <c>AiMetricSummary</c> dos benchmarks.</summary>
+    private static double Percentile(IReadOnlyList<double> ordered, double fraction)
+    {
+        if (ordered.Count == 1) return ordered[0];
+        var position = fraction * (ordered.Count - 1);
+        var lower = (int)Math.Floor(position);
+        var upper = (int)Math.Ceiling(position);
+        return lower == upper ? ordered[lower] : ordered[lower] + ((ordered[upper] - ordered[lower]) * (position - lower));
+    }
+
+    /// <summary>
+    /// Runtime falso que observa a fila: conta quantas gerações estão dentro dele ao mesmo tempo — com um
+    /// <c>Task.Yield</c> no meio, para que uma sobreposição de verdade fosse observável — e mantém um relógio
+    /// simulado que avança <see cref="ServiceTime"/> por geração. Nenhuma espera real acontece: o tempo de fila
+    /// reportado é o da aritmética da serialização, não o do escalonador do sistema operacional.
+    /// </summary>
+    private sealed class QueueProbeRuntime : ILocalModelRuntime
+    {
+        /// <summary>Custo simulado de uma geração.</summary>
+        public static readonly TimeSpan ServiceTime = TimeSpan.FromMilliseconds(40);
+
+        private readonly object _gate = new();
+        private readonly List<double> _starts = [];
+        private int _inside;
+        private double _now;
+
+        public int Initializations { get; private set; }
+        public int Generations { get; private set; }
+        public int MaximumConcurrency { get; private set; }
+
+        /// <summary>Instante simulado de início de cada geração, na ordem em que foram atendidas.</summary>
+        public IReadOnlyList<double> SimulatedStarts { get { lock (_gate) return [.. _starts]; } }
+
+        public Task InitializeAsync(LocalModelDefinition model, AutocompleteSettings settings, CancellationToken cancellationToken = default)
+        {
+            lock (_gate) Initializations++;
+            return Task.CompletedTask;
+        }
+
+        public async Task<ModelGenerationResult> GenerateAsync(ModelGenerationRequest request, CancellationToken cancellationToken = default)
+        {
+            double started;
+            lock (_gate)
+            {
+                Generations++;
+                _inside++;
+                MaximumConcurrency = Math.Max(MaximumConcurrency, _inside);
+                started = _now;
+                _starts.Add(started);
+                _now += ServiceTime.TotalMilliseconds;
+            }
+            // Janela real de sobreposição: se a fila deixasse duas gerações entrarem, o contador acima as veria.
+            await Task.Yield();
+            lock (_gate) _inside--;
+            return new("collection.find({})", 6, ServiceTime, "cpu") { TimeToFirstToken = TimeSpan.FromMilliseconds(5) };
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
 
     private static ModelGenerationRequest Request(LocalModelDefinition model) => new("db.", "", 512, 8);
 

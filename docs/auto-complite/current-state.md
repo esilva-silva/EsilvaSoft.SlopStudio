@@ -8,7 +8,7 @@
 > - O **presenter nativo e os snippets existem** (`CompletionWindowPresenter`, `SnippetTemplate`), assim como o
 >   parser tolerante (`Autocomplete.Core/Syntax/TolerantParser`).
 > - **`Ctrl+.` e `Ctrl+Espaço` estão implementados** e são o padrão em `EditorKeyBindings` (`editor.completion.show`),
->   com atalhos persistidos e rebindáveis; não são planejados. `Ctrl+;` (IA explícita) segue sem handler.
+>   com atalhos persistidos e rebindáveis; não são planejados. `Ctrl+;` (IA explícita) ganhou handler no lote A42 (19/09/2026): indicador, prévia inline multilinha, `Tab`/`Esc` e fallback para a lista tradicional com o motivo. O provider vem por injeção (`IAiCompletionProvider`, registrado em `AddSlopStudioLocalAiInfrastructure`) e é compartilhado por todas as abas; sem modelo configurado, o atalho cai no fallback com o motivo.
 > - `PipelineStageReader` liga o fluxo de campos do pipeline ao contexto (ADR-041), então campos posteriores a um
 >   `$group`/`$project` deixam de vir da coleção de origem.
 > - O link para `src/EsilvaSoft.SlopStudio.Core/Autocomplete.cs` **aponta para um arquivo que não existe mais**; as

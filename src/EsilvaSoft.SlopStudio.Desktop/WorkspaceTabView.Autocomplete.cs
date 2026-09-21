@@ -146,6 +146,10 @@ public partial class WorkspaceTabView
         _inlineCoordinator.Cancel(reason);
         // Pertence à própria aba (EditorRequestScope), nunca um CTS cru compartilhado entre visões ou abas.
         _completionTab?.CancelTraditionalCompletion();
+        // Mesma disciplina para a IA explícita: qualquer edição, movimento de cursor, troca de aba ou perda de foco
+        // que invalide o ghost também interrompe a geração em andamento e descarta a prévia — um resultado obsoleto
+        // nunca chega à tela.
+        CancelAiCompletion();
         _completion = null; _completionOriginal = null; _inlineSuggestion = null;
         CompletionPanel.IsVisible = false;
         CloseTraditionalCompletion();
@@ -217,8 +221,9 @@ public partial class WorkspaceTabView
         SnippetActive = _snippetSession is not null,
         Composing = ImeComposing,
         // O painel da lista fica visível durante o "Carregando sugestões…", antes de o presenter abrir: um pedido
-        // explícito já iniciado tem precedência e o automático não disputa com ele.
-        ExplicitRequestPending = TraditionalCompletionPanel.IsVisible && !_traditionalPresenter.IsOpen
+        // explícito já iniciado tem precedência e o automático não disputa com ele. A prévia da IA explícita entra
+        // pela mesma porta — enquanto ela está na tela, o ghost sequer é pedido, e há sempre um só presenter ativo.
+        ExplicitRequestPending = (TraditionalCompletionPanel.IsVisible && !_traditionalPresenter.IsOpen) || _aiPresenter.IsActive
     };
 
     private async void RequestInlineCompletion()
@@ -386,6 +391,13 @@ public partial class WorkspaceTabView
             _snippetSession = null;
             return true;
         }
+        // A geração explícita é cancelada pelo Escape antes do ghost, pelo mesmo motivo de ordem do bloco acima: as
+        // duas ocupam o escopo Inline e nunca estão ativas juntas.
+        if (_aiPresenter.IsActive && dispatcher.Match(keyEvent, EditorCommandScope.Inline) == EditorCommandIds.InlineDismiss)
+        {
+            CancelAiCompletion();
+            return true;
+        }
         if (CompletionPanel.IsVisible && dispatcher.Match(keyEvent, EditorCommandScope.Inline) == EditorCommandIds.InlineDismiss)
         {
             InvalidateCompletion();
@@ -440,6 +452,14 @@ public partial class WorkspaceTabView
             if (command == EditorCommandIds.SnippetPrevious && MoveSnippetPlaceholder(reverse: true)) { e.Handled = true; return; }
             if (command == EditorCommandIds.SnippetCancel) { _snippetSession = null; e.Handled = true; return; }
         }
+        // A prévia da IA explícita ocupa o mesmo escopo Inline do ghost (AC-18: Ctrl+; é uma prévia inline) e as duas
+        // nunca estão ativas ao mesmo tempo, então não há ambiguidade: Tab insere a prévia, Esc cancela a geração.
+        if (_aiPresenter.IsActive)
+        {
+            var command = dispatcher.Match(keyEvent, EditorCommandScope.Inline);
+            if (command == EditorCommandIds.InlineAccept && AcceptAiCompletion()) { e.Handled = true; return; }
+            if (command == EditorCommandIds.InlineDismiss) { CancelAiCompletion(); e.Handled = true; return; }
+        }
         if (CompletionPanel.IsVisible)
         {
             var command = dispatcher.Match(keyEvent, EditorCommandScope.Inline);
@@ -450,10 +470,9 @@ public partial class WorkspaceTabView
         if (global == EditorCommandIds.CompletionShow) { e.Handled = true; ShowTraditionalCompletionList(sender, e); return; }
         if (global == EditorCommandIds.CompletionAi)
         {
-            // IA explícita ainda não tem runtime nesta entrega: nunca inserir texto, nunca abrir a lista tradicional
-            // no lugar e nunca disparar uma consulta. O aviso é discreto (via Messages da própria aba) e honesto.
+            // Nunca insere o caractere do gesto e nunca executa consulta alguma: pede a geração e espera confirmação.
             e.Handled = true;
-            tab.Messages = "Sugestão por IA explícita ainda não está disponível nesta versão.";
+            StartAiCompletion(tab);
         }
     }
 

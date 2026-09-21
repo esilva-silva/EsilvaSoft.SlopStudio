@@ -6,11 +6,19 @@ namespace EsilvaSoft.SlopStudio.Application;
 /// <summary>The requested hardware cannot run the model. Outside Automatic mode there is no silent CPU fallback.</summary>
 public sealed class AiProviderUnavailableException : LocalModelUnavailableException
 {
-    public AiProviderUnavailableException() { }
-    public AiProviderUnavailableException(string message) : base(message) { }
-    public AiProviderUnavailableException(string message, Exception? innerException) : base(message, innerException) { }
+    // Todo construtor fixa o motivo tipado: o provider indisponível é uma linha própria da matriz de fallback e quem
+    // a trata não pode depender de qual sobrecarga criou a exceção.
+    public AiProviderUnavailableException() => UnavailableReason = LocalModelUnavailableReason.ProviderUnavailable;
+    public AiProviderUnavailableException(string message) : base(message) => UnavailableReason = LocalModelUnavailableReason.ProviderUnavailable;
+    public AiProviderUnavailableException(string message, Exception? innerException) : base(message, innerException) =>
+        UnavailableReason = LocalModelUnavailableReason.ProviderUnavailable;
     public AiProviderUnavailableException(AiAccelerationMode hardware, string reason, Exception? innerException = null)
-        : base(Format(hardware, reason), innerException) { Hardware = hardware; Reason = reason; }
+        : base(Format(hardware, reason), innerException)
+    {
+        Hardware = hardware;
+        Reason = reason;
+        UnavailableReason = LocalModelUnavailableReason.ProviderUnavailable;
+    }
 
     public AiAccelerationMode Hardware { get; }
     public string Reason { get; } = "";

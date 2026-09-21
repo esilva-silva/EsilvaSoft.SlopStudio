@@ -42,7 +42,7 @@ Build `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore`: **0 avisos, 0 erro
 - `InlineEnabled`/`InlineUseTraditional`/`InlineUseAi` não têm controle em `AutocompleteSettingsWindow`; só editáveis
   via JSON persistido.
 - Arquivos `.case` em `tests/.../Language/Cases/` continuam sem runner: são especificação, não teste executado.
-- Fases 3, 4, 5.2 e 5.3 não iniciadas; `Ctrl+;` continua apenas informando indisponibilidade.
+- Fases 5.2 e 5.3 não iniciadas. A Fase 4 está em andamento: `Ctrl+;` tem comando, indicador, prévia inline multilinha e matriz de fallback na lista tradicional (A42), a evidência automatizada usa serviço de modelo falso; o caminho com modelo ONNX real continua pendente de homologação.
 
 Detalhe: [acompanhamento](12-acompanhamento-da-implementacao.md#fase-1-k11k16-k16-b-e-fase-51-traditional-preemptive--18092026),
 [phase-1-data-traditional](auto-complite/phases/phase-1-data-traditional.md),

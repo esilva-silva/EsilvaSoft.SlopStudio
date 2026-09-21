@@ -47,6 +47,14 @@ public partial class WorkspaceTabView
         PositionTraditionalCompletionPanel();
     }
 
+    /// <summary>
+    /// Motivo que abriu esta lista como fallback da IA explícita (<c>Ctrl+;</c>), quando foi o caso. Vive no mesmo
+    /// ciclo da lista: é definido logo depois da invalidação que precede a consulta e apagado por
+    /// <see cref="CloseTraditionalCompletion"/>. Fica em um campo, e não escrito uma vez na linha de estado, porque
+    /// refiltrar a lista reescreve aquela linha — e o motivo precisa sobreviver ao refiltro.
+    /// </summary>
+    private string? _traditionalCompletionReason;
+
     private void ShowTraditionalCompletionMessage(string text)
     {
         _traditionalPresenter.Show([]);
@@ -88,9 +96,10 @@ public partial class WorkspaceTabView
         var desired = _traditionalPresenter.Selected;
         TraditionalCompletionList.ItemsSource = _traditionalPresenter.Items.ToArray();
         TraditionalCompletionList.SelectedItem = desired;
-        TraditionalCompletionStatus.Text = _traditionalPresenter.Items.Count == 0
+        var summary = _traditionalPresenter.Items.Count == 0
             ? "Nenhuma sugestão corresponde ao texto atual"
             : $"{_traditionalPresenter.Items.Count} itens{(_traditionalCompletionIncomplete ? " · dados ainda carregando" : "")} · {TraditionalCompletionShortcutsText()}";
+        TraditionalCompletionStatus.Text = _traditionalCompletionReason is { Length: > 0 } reason ? $"{reason} · {summary}" : summary;
         ResolveTraditionalDocumentation(desired);
     }
 
@@ -143,6 +152,7 @@ public partial class WorkspaceTabView
         _traditionalCompletionDocument = null;
         _traditionalCompletionIncomplete = false;
         _traditionalCompletionContext = null;
+        _traditionalCompletionReason = null;
         if (this.FindControl<TextBlock>("TraditionalCompletionDocumentation") is { } documentation) documentation.Text = "";
         if (this.FindControl<Border>("TraditionalCompletionPanel") is { } panel) panel.IsVisible = false;
     }
@@ -260,14 +270,28 @@ public partial class WorkspaceTabView
     /// <summary>XAML-bound entry point (Button.Click requires this exact delegate shape); always an explicit invocation.</summary>
     private void ShowTraditionalCompletionList(object? sender, RoutedEventArgs e) => ShowTraditionalCompletionList(sender, e, CompletionTrigger.Invoked);
 
-    private async void ShowTraditionalCompletionList(object? sender, RoutedEventArgs e, CompletionTrigger trigger)
+    /// <param name="sender">Origem do evento; ignorado, a lista sempre pertence a esta view.</param>
+    /// <param name="e">Evento roteado da origem; ignorado pelo mesmo motivo.</param>
+    /// <param name="trigger">Como a lista foi pedida.</param>
+    /// <param name="reason">
+    /// Linha de estado a acompanhar a lista. Só a IA explícita a fornece, quando abre a lista como fallback: é ela
+    /// que transforma "a lista abriu do nada" em "a lista abriu porque a IA não pôde atender, e por este motivo".
+    /// </param>
+    private async void ShowTraditionalCompletionList(object? sender, RoutedEventArgs e, CompletionTrigger trigger, string? reason = null)
     {
         if (DataContext is not WorkspaceTabViewModel tab) return;
         if (CodeEditor.SelectionStart != CodeEditor.SelectionEnd) return;
         var selectedSymbol = _traditionalPresenter.Selected?.SymbolId;
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         InvalidateCompletion();
-        if (tab.TraditionalCompletion is null) { ShowTraditionalCompletionMessage(TraditionalCompletionUnavailableText); return; }
+        // Depois da invalidação, que fecha a lista anterior e apagaria o motivo junto com ela.
+        _traditionalCompletionReason = reason;
+        if (tab.TraditionalCompletion is null)
+        {
+            ShowTraditionalCompletionMessage(reason is { Length: > 0 } explained
+                ? $"{explained} · {TraditionalCompletionUnavailableText}" : TraditionalCompletionUnavailableText);
+            return;
+        }
         AutocompleteMetrics.CompletionRequested.Add(1,
             new KeyValuePair<string, object?>("modality", "list"),
             new KeyValuePair<string, object?>("trigger", trigger == CompletionTrigger.Invoked ? "invoked" : "trigger-character"));

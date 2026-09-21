@@ -15,6 +15,8 @@
     <ProjectReference Include="../../src/EsilvaSoft.SlopStudio.Application/EsilvaSoft.SlopStudio.Application.csproj" />
     <!-- L16: os benchmarks de commit de schema aprendido medem o repositorio LiteDB real, nao um fake. -->
     <ProjectReference Include="../../src/EsilvaSoft.SlopStudio.Infrastructure/EsilvaSoft.SlopStudio.Infrastructure.csproj" />
+    <!-- A44: o AiRuntimeHarness mede modelos ONNX reais; sem esta referencia so haveria fake, e fake nao prova real. -->
+    <ProjectReference Include="../../src/EsilvaSoft.SlopStudio.Infrastructure.LocalAi/EsilvaSoft.SlopStudio.Infrastructure.LocalAi.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />

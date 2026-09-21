@@ -1,4 +1,4 @@
-using EsilvaSoft.SlopStudio.LocalAi.Core;
+﻿using EsilvaSoft.SlopStudio.LocalAi.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 using EsilvaSoft.SlopStudio.Application;
 using EsilvaSoft.SlopStudio.Application.SchemaLearning;
@@ -43,6 +43,11 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     /// <summary>Gerador determinístico da sugestão automática; independe de modelo de IA e de conexão aberta.</summary>
     public ICompletionProvider? InlinePreemptiveCompletion { get; }
     /// <summary>
+    /// Provider da IA explícita (<c>Ctrl+;</c>), compartilhado por todas as abas — uma instância, um pipeline, um
+    /// serviço de modelo. Nulo quando a composição não o registrou: o atalho então só abre a lista com o motivo.
+    /// </summary>
+    public IAiCompletionProvider? AiCompletion { get; }
+    /// <summary>
     /// Sinal de uso da sessão, compartilhado por todas as abas: quem aprende é o usuário, não a aba, e uma sugestão
     /// aceita em uma aba deve subir na seguinte. É só memória — nomes, sem valores — e nunca chega ao LiteDB nem à
     /// sessão persistida. Compartilhar isto não é compartilhar cancelamento: o CancellationTokenSource segue por aba.
@@ -72,8 +77,12 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public WorkspaceViewModel(WorkspaceService workspace, IWorkspaceSessionRepository sessions, IAutocompleteService? autocomplete = null, ILocalModelCatalog? modelCatalog = null, IAiChatService? aiChat = null,
         IKnowledgeCatalog? knowledgeCatalog = null,
         ILocalAiModelService? localModels = null, IAppUpdateService? updates = null, IRemoteModelSource? remoteModels = null, IMetadataCache? metadata = null,
-        ILearnedSchemaOptOut? learnedSchemaOptOut = null)
+        ILearnedSchemaOptOut? learnedSchemaOptOut = null, IAiCompletionProvider? aiCompletion = null)
     {
+        // Provider da IA explícita (Ctrl+;), opcional: sem ele — e é o caso enquanto o registro do pipeline ONNX não
+        // existir na composição — o atalho continua reconhecido e cai no fallback da lista tradicional com o motivo,
+        // nunca em silêncio e nunca inserindo texto.
+        AiCompletion = aiCompletion;
         _workspace = workspace; _sessions = sessions; Operations = new(workspace.Operations); Details = new ExplorerDetailsViewModel(workspace);
         _learnedSchemaOptOut = learnedSchemaOptOut;
         // Without a registered driver source, explorer write-through still feeds highlighting and names; remote loads stay unavailable.

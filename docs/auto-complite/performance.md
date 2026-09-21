@@ -521,3 +521,139 @@ também cobre este.
 - A medição não cobre o `find` → resultado com aprendizado ligado contra desligado na mesma carga, nem o lock do
   LiteDB com autosave concorrente, pedidos na seção
   [Benchmark do Schema Discovery / Schema Learning](#benchmark-do-schema-discovery--schema-learning).
+
+## Perfil da IA local — Fase 4 (`Ctrl+;`), lote A44 — 19/09/2026
+
+Execução de 19/09/2026 em AMD Ryzen 9 7900 (12 núcleos físicos, 24 lógicos) + AMD Radeon RX 7800 XT, Windows 11
+(10.0.26200), runtime .NET 10.0.12 x64, build `Release`, backend `WinML` (DirectML), GC de estação de trabalho,
+sem depurador. Pacotes reais instalados em `%LOCALAPPDATA%\EsilvaSoft\SlopStudio\Models`. Reproduzir:
+
+```bash
+dotnet test tests/EsilvaSoft.SlopStudio.Benchmarks -c Release --filter "FullyQualifiedName~AiRuntimeRealModelRunner"
+dotnet run -c Release --project tests/EsilvaSoft.SlopStudio.Benchmarks -- --filter "*IncrementalDecode*" --job short --inProcess
+```
+
+O instrumento é `tests/EsilvaSoft.SlopStudio.Benchmarks/Ai/AiRuntimeHarness.cs`; a saída JSON e Markdown vai para
+`tests/EsilvaSoft.SlopStudio.Benchmarks/Ai/output/ai-runtime-latency.json|.md`, é efêmera e não é commitada — ela só
+vale junto com a máquina, e a máquina está dentro do arquivo.
+
+### Origem da evidência: o que é modelo real e o que é fake
+
+Esta seção **nunca** mistura as duas categorias. Cada número abaixo carrega a sua:
+
+| Origem | O que prova | Onde |
+| --- | --- | --- |
+| **Modelo real** (pesos ONNX, hardware desta máquina) | Carga, TTFT, total, tokens/s, working set, montagem de contexto e tokenização | `AiRuntimeRealModelRunner`, relatório JSON com `evidence: RealModel` |
+| **Fake determinístico** (runtime falso, relógio simulado) | Serialização da fila, prioridade chat × autocomplete, percentis de espera na fila | `LocalAiModelServiceTests`, `AiRuntimeHarnessTests` |
+| **Microbenchmark sem pesos** | Custo de decodificação por token | `IncrementalDecodeBenchmarks` |
+
+Um número de fake jamais é citado como latência de modelo. O próprio relatório grava a `AiRuntimeEvidence` por alvo
+para que a distinção sobreviva ao arquivo sair daqui.
+
+### Matriz medida — modelo × hardware (evidência: modelo real)
+
+Aquecimento de 1 execução e 9 execuções cronometradas por cenário; 6 cenários (3 tamanhos de contexto × 2 reservas de
+geração) = 54 casos por alvo. Working set é do processo inteiro (inclui .NET e o tokenizador auxiliar), não VRAM —
+**VRAM continua não medida**.
+
+| Alvo | Provider efetivo | Carga (ms) | WS pós-carga | WS pico | Casos | Gerados |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| SlopCoder-Mongo-0.5B-ONNX-int4 · CPU | CPU | 920 | 1 459 MiB | 1 778 MiB | 54 | 54 |
+| SlopCoder-Mongo-0.5B-ONNX-int4 · GPU | — | 536 | — | — | 1 | 0 (recusado) |
+| SlopCoder-Mongo-1.5B-full ONNX DML-FP16 · CPU | — | 24 | — | — | 1 | 0 (recusado) |
+| SlopCoder-Mongo-1.5B-full ONNX DML-FP16 · GPU | DirectML | 2 333 | 6 660 MiB | 7 141 MiB | 54 | 54 |
+
+As duas recusas são reais e ficaram no relatório em vez de serem escondidas: o 0.5B INT4 não roda em DirectML nesta
+máquina (`This session cannot use the graph capture feature […] as all compute graph nodes have not been partitioned
+to the DmlExecutionProvider`) e o 1.5B DML-FP16 declara suporte só a GPU em `slopstudio-model.json`. **Metade da
+matriz modelo × hardware desta máquina não existe**, e o relatório marca essas células com `—`, nunca com `0,00 ms`.
+
+### Latência agregada por alvo (evidência: modelo real)
+
+| Métrica | 0.5B INT4 · CPU | 1.5B DML-FP16 · GPU |
+| --- | ---: | ---: |
+| TTFT do runtime, média (desvio) | 866,4 ms (987,8) | 202,7 ms (116,9) |
+| TTFT p50 / p95 | 246,1 / 2 254,1 ms | 127,7 / 369,6 ms |
+| Primeiro texto observado p50 / p95 | 246,7 / 2 259,0 ms | 130,6 / 375,4 ms |
+| Total p50 / p95 | 588,2 / 2 631,1 ms | 503,0 / 1 465,1 ms |
+| tokens/s (decode) média (desvio) | 79,8 (10,7) | 81,1 (9,2) |
+| Working set p50 / máx | 1 504 / 1 778 MiB | 6 927 / 7 141 MiB |
+| Montagem de contexto p50 / p95 | 270,8 / 690,1 µs | 198,9 / 537,6 µs |
+| Tokenização do prompt p50 / p95 | 126,8 / 484,6 µs | 85,4 / 398,6 µs |
+
+**O desvio padrão maior que a média no TTFT da CPU não é máquina instável**: a amostra é trimodal por construção —
+os seis cenários têm prompts de 85, 199 e 1 594 tokens, e o TTFT é dominado pelo prefill. O recorte por cenário
+abaixo mostra que, *dentro* de cada cenário, p50 e p95 praticamente coincidem, que é o que se espera de máquina
+ociosa.
+
+### Recorte por contexto e geração (evidência: modelo real)
+
+| Cenário (prompt → geração) | 0.5B INT4 · CPU — TTFT p50 / p95 | 0.5B — total p95 | 1.5B DML · GPU — TTFT p50 / p95 | 1.5B — total p95 |
+| --- | ---: | ---: | ---: | ---: |
+| curto, 85 tokens → 32 | 110,0 / 112,1 ms | 295,8 ms | 113,4 / 121,3 ms | 330,9 ms |
+| curto, 85 tokens → 96 | 109,8 / 111,3 ms | 294,1 ms | 115,5 / 126,1 ms | 323,9 ms |
+| médio, 199 tokens → 32 | 246,8 / 248,3 ms | 591,5 ms | 126,1 / 128,0 ms | 477,9 ms |
+| médio, 199 tokens → 96 | 245,8 / 249,3 ms | 592,5 ms | 128,3 / 129,4 ms | 540,6 ms |
+| longo, 1 594 tokens → 32 | 2 245,7 / 2 254,2 ms | 2 625,1 ms | 359,9 / 363,1 ms | 791,2 ms |
+| longo, 1 594 tokens → 96 | 2 248,8 / 2 271,4 ms | 2 646,1 ms | 368,8 / 385,9 ms | 1 479,3 ms |
+
+Leituras diretas destes números:
+
+- **O prefill manda, não o decode.** Entre 85 e 1 594 tokens de prompt o TTFT da CPU cresce 20× (110 → 2 246 ms) e o
+  da GPU cresce 3,2× (113 → 360 ms), enquanto tokens/s fica estável em ~80 nos dois. Reduzir contexto é a alavanca de
+  latência; aumentar a reserva de geração quase não move o TTFT.
+- **Contexto e tokenização são ruído frente ao modelo.** Somadas, ficam abaixo de 1,2 ms p95 nos dois alvos — três
+  ordens de grandeza abaixo do TTFT. O orçamento "seleção de fatos + builder p95 ≤ 10 ms" da Fase 3 está folgado no
+  caminho real, agora com o tokenizador de verdade do pacote e não com o contador determinístico.
+- **O 1.5B em DirectML é mais rápido que o 0.5B em CPU em todos os cenários**, ao custo de 6,9 GiB de working set
+  contra 1,5 GiB e de 2,3 s de carga contra 0,9 s.
+
+### Custo de decodificação por token (evidência: microbenchmark sem pesos)
+
+`IncrementalDecodeBenchmarks`, BenchmarkDotNet 0.15.8, `--job short --inProcess` (3 aquecimentos + 3 iterações);
+médias com desvio padrão entre parênteses. Custo **por token gerado**, derivado da média dividida pela contagem:
+
+| Tokens gerados | Sequência inteira por token (linha de base) | Incremental (caminho atual) | Custo/token base | Custo/token atual |
+| ---: | ---: | ---: | ---: | ---: |
+| 10 | 401,3 ns (0,39) | 251,3 ns (0,68) | 40,1 ns | 25,1 ns |
+| 50 | 2 799,0 ns (1,39) | 1 314,0 ns (2,65) | 56,0 ns | 26,3 ns |
+| 200 | 24 516,0 ns (124,44) | 5 222,0 ns (26,03) | 122,6 ns | 26,1 ns |
+| 500 | 130 516,8 ns (1 071,58) | 13 160,6 ns (107,86) | 261,0 ns | 26,3 ns |
+
+Alocação por operação cai de 440 665 B para 40 336 B em 500 tokens (0,09×).
+
+### Fila, prioridade e concorrência (evidência: fake determinístico)
+
+Medido em `LocalAiModelServiceTests` com runtime falso e relógio simulado; **nenhum destes números é latência de
+modelo**:
+
+- 20 gerações `Background` simultâneas: concorrência máxima observada dentro do runtime = 1, 20 de 20 atendidas,
+  1 carga de pacote. A fila serializa e não mata ninguém de fome.
+- Espera na fila sob carga, com custo de serviço fixo *S*: a k-ésima atendida espera exatamente `(k-1)·S`, logo
+  p50 = 9,5·*S* e p95 = 18,05·*S* para N = 20. É aritmética da serialização, verificada, e não uma amostra de tempo
+  de parede — que numa máquina compartilhada não significaria nada.
+- Chat (`Interactive`) enfileirado **depois** de um autocomplete (`Background`) é atendido **antes** dele, e o de
+  fundo ainda assim conclui: perder a vez não é ser descartado. A preempção do pedido de fundo *já em execução* é
+  outro caso e continua coberta em `LocalAiModelServiceStreamingTests`.
+
+### Critérios de aceite da Fase 4 cobertos por este lote
+
+| # | Critério | Situação |
+| --- | --- | --- |
+| 6 | Custo de decodificação por token deixa de crescer com o número de tokens | **Atendido.** 25,1 → 26,3 ns/token entre 10 e 500 tokens (variação de 5%), contra 40,1 → 261,0 ns/token da linha de base. |
+| 8 | Relatório com TTFT p50/p95, total, tokens/s e working set por pacote/hardware | **Atendido.** JSON e Markdown gerados por `AiRuntimeHarness` para os quatro alvos da matriz, com as duas recusas registradas como recusa e não como zero. |
+| 9 | `Ctrl+;` → primeiro texto dentro do orçamento (p95 ≤ 1 s) na máquina de referência com o pacote recomendado | **Atendido com o pacote recomendado; desvio registrado fora dele.** Com o 1.5B DML-FP16 em GPU — o pacote recomendado nesta máquina — o primeiro texto fica em p95 375 ms agregado e ≤ 386 ms em todos os seis cenários. Com o 0.5B INT4 em CPU o orçamento é atendido em contexto curto (112 ms) e médio (249 ms) e **não é atendido em contexto longo** (2 254 ms p95, 2,25× o orçamento), por prefill de 1 594 tokens em CPU. Duas ressalvas honestas: (a) a medição é com o modelo **já carregado** — a primeira invocação soma 0,9 s (CPU) ou 2,3 s (GPU) de carga, e é por isso que a matriz de fallback tem a linha "carga em andamento"; (b) o número é do harness de console, não do aplicativo. |
+| 10 | UI dentro do orçamento por quadro durante geração em CPU | **Não atendido por este lote, por limitação declarada do instrumento.** Um harness de console não instancia Avalonia e não tem quadro para cronometrar; publicar aqui um número de quadro seria inventar evidência. A ausência de travamento observável em CPU está coberta pelos testes Headless de A42; a medição de orçamento por quadro exige o aplicativo nativo rodando e fica como evidência manual pendente. A limitação está gravada dentro do próprio relatório JSON (`uiFrameBudgetNote`). |
+| 11 | Métricas emitidas somente com tags permitidas | **Atendido, mas não por este lote.** A evidência é `AutocompleteMetricsTests.InstrumentsCarryOnlyAllowedTagsWithoutUserText`; A44 não acrescentou cobertura e não encontrou emissão fora da lista no caminho que exercitou. |
+
+### Pendências honestas desta medição
+
+- **VRAM não medida.** Working set é memória de processo; o consumo em placa do alvo DirectML continua sem número,
+  como já registrado na seção de instrumentação.
+- **Uma máquina só.** Todos os números são de uma única máquina de referência; a "máquina modesta" continua a
+  definir, e nenhum destes valores deve ser lido como característica do pacote.
+- **Metade da matriz não existe nesta máquina.** 0.5B em DirectML e 1.5B em CPU são recusas de pacote/provider, não
+  medições lentas; qualquer comparação CPU × GPU aqui é entre pacotes diferentes, não entre backends do mesmo pacote.
+- **NPU não medida:** nenhum provider de NPU disponível nesta distribuição.
+- **Orçamento por quadro da UI durante geração:** ver critério 10 acima.
+- **Prefix cache (4.6 / R43) fora deste lote:** experimento opcional, desligado, sem medição aqui.
