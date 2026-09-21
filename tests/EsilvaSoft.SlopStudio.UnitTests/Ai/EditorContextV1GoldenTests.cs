@@ -10,16 +10,15 @@ namespace EsilvaSoft.SlopStudio.UnitTests.Ai;
 /// Freezes the <c>editor-context-v1</c> contract consumed by SlopCoder training packages:
 /// <see cref="AutocompleteContextBuilder.Build"/> and <see cref="AutocompleteContextBuilder.ModelPrefix"/>.
 /// <para>
-/// <see cref="AutocompleteContextBuilder.Build"/> joins header lines with <see cref="Environment.NewLine"/>
-/// (via <c>StringBuilder.AppendLine</c>), while <see cref="AutocompleteContextBuilder.ModelPrefix"/> wraps that
-/// context with a bare <c>"\n"</c> literal. On Windows those differ (CRLF vs LF); on Linux they coincide. A golden
+/// <see cref="AutocompleteContextBuilder.Build"/> joins header lines with the frozen CRLF contract, while
+/// <see cref="AutocompleteContextBuilder.ModelPrefix"/> wraps that context with a bare <c>"\n"</c> literal. A golden
 /// that normalizes <c>\r\n</c> to <c>\n</c> before comparing would hide exactly the regression this file exists to
-/// catch (for example swapping <c>AppendLine</c> for <c>Append("\n")</c>). Every artifact below is therefore stored
+/// catch (for example swapping the contract CRLF for <c>Append("\n")</c>). Every artifact below is therefore stored
 /// as three parts: an LF-placeholder body (<c>text</c>), the origin of every placeholder in order (<c>eol</c>,
-/// <c>H</c> = <see cref="Environment.NewLine"/>, <c>L</c> = the bare <c>"\n"</c> literal in <c>ModelPrefix</c>), and
+/// <c>H</c> = the frozen CRLF contract, <c>L</c> = the bare <c>"\n"</c> literal in <c>ModelPrefix</c>), and
 /// two SHA-256 hashes of the two possible byte-exact materializations (all-LF host, all-CRLF host). Both hashes are
 /// verified on every platform; the live output on the current host is verified byte-for-byte against whichever
-/// materialization matches this host's own <see cref="Environment.NewLine"/>.
+/// materialization matches the frozen CRLF/LF composition.
 /// </para>
 /// Never regenerate this golden to hide a regression; a legitimate contract change needs explicit justification
 /// and, per <c>agents/architecture-agent.md</c>, sign-off from Architecture before consumers change.
@@ -94,8 +93,8 @@ public sealed class EditorContextV1GoldenTests
             var golden = expected!.Artifacts[name];
             var raw = live[name];
             // modelPrefix.* always end with request.Prefix, byte for byte and unmodified; everything before that
-            // point is the wrap + context text that actually mixes AppendLine's Environment.NewLine with the
-            // literal "\n" from ModelPrefix, so only that head is subject to the H/L reconstruction below.
+            // point is the wrap + context text that mixes the frozen CRLF header with the literal "\n" from
+            // ModelPrefix, so only that head is subject to the H/L reconstruction below.
             string head;
             if (name == "context") head = raw;
             else
@@ -106,13 +105,12 @@ public sealed class EditorContextV1GoldenTests
             }
             var (observedText, observedEol) = Decompose(head);
             Assert.That(observedText, Is.EqualTo(golden.Text), $"{id}/{name}: conteúdo divergente do golden.");
-            Assert.That(observedEol, Is.EqualTo(golden.Eol), $"{id}/{name}: origem dos terminadores (H=Environment.NewLine, L=literal \\n) divergente.");
+            Assert.That(observedEol, Is.EqualTo(golden.Eol), $"{id}/{name}: origem dos terminadores (H=CRLF do contrato, L=literal \\n) divergente.");
             var reconstructedLf = Recompose(golden.Text, golden.Eol, "\n");
             var reconstructedCrLf = Recompose(golden.Text, golden.Eol, "\r\n");
             Assert.That(Sha256(reconstructedLf), Is.EqualTo(golden.ShaLf), $"{id}/{name}: sha.lf não reconstrói a partir de text+eol.");
             Assert.That(Sha256(reconstructedCrLf), Is.EqualTo(golden.ShaCrLf), $"{id}/{name}: sha.crlf não reconstrói a partir de text+eol.");
-            var hostReconstructed = Environment.NewLine == "\r\n" ? reconstructedCrLf : reconstructedLf;
-            Assert.That(head, Is.EqualTo(hostReconstructed), $"{id}/{name}: saída ao vivo diverge da materialização esperada para este host.");
+            Assert.That(head, Is.EqualTo(reconstructedCrLf), $"{id}/{name}: saída ao vivo diverge da materialização CRLF do contrato.");
         }
         Assert.That(EscapeInline(request.Prefix), Is.EqualTo(expected!.Prefix), $"{id}: Prefix divergente do golden.");
         Assert.That(EscapeInline(request.Suffix), Is.EqualTo(expected!.Suffix), $"{id}: Suffix divergente do golden.");
@@ -139,8 +137,7 @@ public sealed class EditorContextV1GoldenTests
 
     /// <summary>
     /// Splits <paramref name="raw"/> into an LF-placeholder body plus the per-break origin: <c>H</c> when the break
-    /// is exactly <c>"\r\n"</c> (this file is captured on Windows, where that is byte-for-byte
-    /// <see cref="Environment.NewLine"/>), <c>L</c> for a bare <c>"\n"</c>. This sniffing is only trustworthy
+    /// is exactly the contract's <c>"\r\n"</c>, <c>L</c> for a bare <c>"\n"</c>. This sniffing is only trustworthy
     /// because no header field value in the corpus embeds a raw newline of its own (checked implicitly: any
     /// content-level newline would corrupt the H/L count and fail <c>ArtifactsMatchTheFrozenContract</c>
     /// immediately after capture).
@@ -249,9 +246,8 @@ public sealed class EditorContextV1GoldenTests
     }
 
     /// <summary>
-    /// Captures the golden from the current implementation. Must be run once on Windows (the only host where
-    /// <see cref="Environment.NewLine"/> is "\r\n", so sha.crlf reflects a real materialization instead of a
-    /// synthetic one) and its output inspected by hand before committing. Never rerun to make a failing
+    /// Captures the golden from the current implementation. Its output must be inspected by hand before committing.
+    /// Never rerun to make a failing
     /// <c>ArtifactsMatchTheFrozenContract</c> pass without an explicit, reviewed justification for the behavior
     /// change — see the discipline documented on <c>HighlightingGoldenTests.CaptureGolden</c>.
     /// </summary>

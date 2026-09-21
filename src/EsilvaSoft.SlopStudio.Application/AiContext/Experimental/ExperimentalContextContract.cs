@@ -28,8 +28,7 @@ namespace EsilvaSoft.SlopStudio.Application.AiContext.Experimental;
 /// </para>
 /// <para>
 /// <b>Quebras de linha.</b> Todos os quatro formatos escrevem apenas <c>"\n"</c> literal. Eles não herdam a mistura
-/// de <see cref="Environment.NewLine"/> (vinda de <c>StringBuilder.AppendLine</c>) com <c>"\n"</c> que o contrato v1
-/// carrega por motivos históricos, e por isso os goldens destes formatos não precisam da reconstrução H/L de
+/// do CRLF congelado do cabeçalho v1 com <c>"\n"</c> que o contrato v1 carrega por motivos históricos, e por isso os goldens destes formatos não precisam da reconstrução H/L de
 /// <c>EditorContextV1GoldenTests</c>: a saída é idêntica byte a byte em Windows e Linux.
 /// </para>
 /// <para>

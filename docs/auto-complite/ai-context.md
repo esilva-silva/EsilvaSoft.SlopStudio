@@ -229,7 +229,7 @@ Harness em `tests/EsilvaSoft.SlopStudio.Benchmarks` (execução `Explicit`, mode
 
 ## Correções de contrato e orçamento — 15/09/2026
 
-Conservar serialização editor-context-v1 byte a byte para a mesma entrada, inclusive cabeçalho especial DeepSeek. Isso não obriga manter seleção irrelevante: separar seleção de fatos e serializador, avaliando mudança de conteúdo. Arquivo groups do catálogo e metadata de modelo têm schemas próprios; campos opcionais exigem parser/validação e round-trip.
+Conservar serialização editor-context-v1 byte a byte para a mesma entrada, inclusive cabeçalho especial DeepSeek e CRLF fixo no cabeçalho. Isso não obriga manter seleção irrelevante: separar seleção de fatos e serializador, avaliando mudança de conteúdo. Arquivo groups do catálogo e metadata de modelo têm schemas próprios; campos opcionais exigem parser/validação e round-trip.
 
 Tokenização BPE não é composicional: Encode(A)+Encode(B) pode diferir de Encode(A+B). Cache de blocos não pode concatenar IDs arbitrariamente. Cachear prompt final exato ou blocos separados por fronteiras especiais garantidas pelo adapter, com testes diferenciais de Unicode/whitespace/marcadores. Confirmar contagem final incluindo FIM, BOS/EOS exigidos e reserva de saída antes de inferir; estimativa só reduz custo, nunca garante limite.
 

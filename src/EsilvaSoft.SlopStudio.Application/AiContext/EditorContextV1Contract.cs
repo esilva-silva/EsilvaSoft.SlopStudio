@@ -9,9 +9,8 @@ namespace EsilvaSoft.SlopStudio.Application.AiContext;
 /// </summary>
 /// <remarks>
 /// This type is a façade and nothing else. It delegates verbatim to <see cref="AutocompleteContextBuilder.Build"/>
-/// rather than re-implementing the header, because the byte-for-byte output — including the mix of
-/// <see cref="Environment.NewLine"/> written by <c>StringBuilder.AppendLine</c> inside <c>Build</c> with the literal
-/// <c>"\n"</c> used by <c>ModelPrefix</c> — is the training contract itself and is frozen by
+/// rather than re-implementing the header, because the byte-for-byte output — including the frozen CRLF header and
+/// the literal <c>"\n"</c> delimiters used by <c>ModelPrefix</c> — is the training contract itself and is frozen by
 /// <c>EditorContextV1GoldenTests</c>. Any duplicated logic here would be a second source of truth free to drift.
 /// </remarks>
 public sealed class EditorContextV1Contract : IAiContextContract

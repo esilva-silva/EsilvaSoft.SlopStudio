@@ -553,14 +553,12 @@ a condição para travá-las sem alterar comportamento.
 Nenhuma destas é defeito não visto: todas foram decididas, registradas no lote de origem e são repetidas aqui só
 para ficarem num lugar só. Cada uma traz o que a destrava.
 
-1. **Divergência CRLF/LF do prompt de produção v1 — por design, nunca corrigida.** `AutocompleteContextBuilder.Build`
-   junta as linhas de cabeçalho com `Environment.NewLine` enquanto `ModelPrefix` escreve `"\n"` literal; em Windows
-   os dois diferem e o prompt de produção sai com terminadores misturados. Corrigir hoje mudaria os bytes que os
-   pacotes SlopCoder viram em treino, e é justamente isso que [DEC-A31C-CONTEXTCONTRACT](#dec-a31c-contextcontract)
-   congela. A divergência é, portanto, **parte do contrato `editor-context-v1`**, não um bug pendente: `Ai/EditorContextV1GoldenTests`
-   a afirma com goldens `text` + `eol` (H = `Environment.NewLine`, L = `"\n"`) e dois SHA-256 (materialização all-LF
-   e all-CRLF), verificando nos dois sistemas operacionais. Os quatro formatos experimentais de A34b já nascem só
-   com `"\n"`. *Destrava:* um contrato `editor-context-v2` com pacotes treinados nele — nunca uma edição do v1.
+1. **Terminadores do prompt de produção v1 — contrato determinístico.** `AutocompleteContextBuilder.Build` escreve
+   o cabeçalho com CRLF fixo, enquanto `ModelPrefix` mantém os delimitadores literais `"\n"`. O CRLF preserva os bytes
+   dos pacotes SlopCoder treinados no Windows e evita que o mesmo modelo receba prompts diferentes conforme o sistema
+   operacional. `Ai/EditorContextV1GoldenTests` congela essa composição com `text` + `eol` (H = CRLF do contrato,
+   L = `"\n"`) e dois SHA-256 (materialização all-LF e all-CRLF), agora verificados de forma idêntica em Windows e
+   Linux. Os quatro formatos experimentais de A34b já nascem somente com `"\n"`.
 2. **Critério de aceite 7 da Fase 3 (formato alternativo vencendo em modelo base) — não atingível nesta meta.**
    Só existem pacotes SlopCoder treinados no contrato v1; medir qualquer formato novo contra eles enviesa a
    comparação a favor do v1 por construção, e o resultado não significaria nada. Os quatro formatos foram

@@ -365,11 +365,21 @@ public sealed class LiteDbSchemaLearningRepositoryTests
             await repository.ApplyAsync(SampleDelta(key, Guid.NewGuid(), GenerationOne), CancellationToken.None);
         }
 
-        // LiteDB does not expose a file system abstraction to inject an arbitrary disk failure; an exclusive lock on
-        // the same file is the failure mode reachable from a test. What matters is that it is loud and lossless.
+        // LiteDB does not expose a file system abstraction to inject an arbitrary disk failure. Windows enforces the
+        // exclusive handle and therefore must fail loudly; Unix permits the handles to coexist, so that platform
+        // instead verifies that the concurrent open is lossless and that the original document remains readable.
         using (var intruder = OpenRaw(workspace))
         {
-            Assert.That(() => new LiteDbConnectionProfileRepository(workspace.DatabasePath), Throws.InstanceOf<Exception>());
+            if (OperatingSystem.IsWindows())
+            {
+                Assert.That(() => new LiteDbConnectionProfileRepository(workspace.DatabasePath), Throws.InstanceOf<Exception>());
+            }
+            else
+            {
+                using var concurrent = new LiteDbConnectionProfileRepository(workspace.DatabasePath);
+                Assert.That((await concurrent.GetAsync(key, CancellationToken.None))!.CompleteDocumentObservations, Is.EqualTo(10));
+            }
+
             Assert.That(intruder.GetCollection(LiteDbConnectionProfileRepository.LearnedSchemaCollectionName).Count(), Is.EqualTo(1));
         }
 
