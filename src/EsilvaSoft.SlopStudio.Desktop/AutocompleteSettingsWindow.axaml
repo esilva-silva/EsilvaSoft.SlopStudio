@@ -110,14 +110,27 @@
         <TextBlock Text="Detectado"/>
         <TextBlock Text="{Binding DetectedHardware}" Classes="metadata" TextWrapping="Wrap"/>
         <TextBlock Text="Automático tenta NPU, GPU e CPU, nessa ordem, entre os disponíveis e compatíveis com o modelo, e registra o provider usado. CPU, GPU ou NPU escolhidos explicitamente não recorrem a outro hardware: uma falha é informada. Sem modelo válido, as sugestões básicas continuam disponíveis." Classes="metadata" TextWrapping="Wrap"/>
+        <TextBlock Text="Perfil de estimativa"/>
+        <ComboBox ItemsSource="{Binding HardwareProfiles}" SelectedItem="{Binding SelectedHardwareProfile}" PlaceholderText="Usar hardware detectado" AutomationProperties.Name="Perfil manual de hardware">
+        </ComboBox>
+        <TextBlock Text="{Binding HardwareProfileSummary}" Classes="metadata" TextWrapping="Wrap"/>
+        <Grid ColumnDefinitions="*,*,Auto,Auto" ColumnSpacing="8">
+          <TextBox Text="{Binding HardwareProfileVendor}" PlaceholderText="Fabricante" AutomationProperties.Name="Fabricante do perfil de hardware"/>
+          <TextBox Grid.Column="1" Text="{Binding HardwareProfileName}" PlaceholderText="GPU / perfil" AutomationProperties.Name="Nome da GPU do perfil"/>
+          <TextBox Grid.Column="2" Text="{Binding HardwareProfileMemoryGiB}" PlaceholderText="GiB" Width="70" AutomationProperties.Name="Memória da GPU em GiB"/>
+          <Button Grid.Column="3" Content="Adicionar" Command="{Binding AddHardwareProfileCommand}" AutomationProperties.Name="Adicionar perfil de hardware"/>
+        </Grid>
+        <Button Content="Remover perfil selecionado" Command="{Binding RemoveHardwareProfileCommand}" IsVisible="{Binding HasSelectedHardwareProfile}" HorizontalAlignment="Left"/>
+        <TextBlock Text="A memória utilizável reserva margem para sistema, driver e runtime. Perfis manuais servem para estimativa e não alteram o provider real." Classes="metadata" TextWrapping="Wrap"/>
         <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="4">
           <TextBlock Text="Tokens de contexto"/>
           <TextBlock Grid.Column="1" Text="Máximo de tokens gerados"/>
-          <NumericUpDown Grid.Row="1" Minimum="64" Maximum="8192" Value="{Binding ContextTokens}" AutomationProperties.Name="Tokens de contexto"/>
-          <NumericUpDown Grid.Row="1" Grid.Column="1" Minimum="1" Maximum="256" Value="{Binding MaximumTokens}" AutomationProperties.Name="Máximo de tokens gerados"/>
+          <ComboBox x:Name="ContextTokenBox" Grid.Row="1" ItemsSource="{Binding ContextTokenSuggestions}" Text="{Binding ContextTokensText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True" PlaceholderText="Digite ou selecione" SelectionChanged="TokenSuggestionChanged" LostFocus="TokenEditorLostFocus" AutomationProperties.Name="Tokens de contexto"/>
+          <ComboBox x:Name="MaximumTokenBox" Grid.Row="1" Grid.Column="1" ItemsSource="{Binding MaximumTokenSuggestions}" Text="{Binding MaximumTokensText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True" PlaceholderText="Digite ou selecione" SelectionChanged="TokenSuggestionChanged" LostFocus="TokenEditorLostFocus" AutomationProperties.Name="Máximo de tokens gerados"/>
           <TextBlock Grid.Row="2" Text="Pausa até a sugestão automática (ms)" TextWrapping="Wrap"/>
           <NumericUpDown Grid.Row="3" Minimum="50" Maximum="2000" Value="{Binding DelayMilliseconds}" ToolTip.Tip="Tempo sem digitar até a sugestão automática (inline) aparecer no cursor." AutomationProperties.Name="Pausa até a sugestão automática"/>
         </Grid>
+        <TextBlock Text="{Binding TokenBudgetWarning}" Classes="warning" TextWrapping="Wrap" IsVisible="{Binding HasTokenBudgetWarning}" AutomationProperties.Name="Validação do orçamento de tokens"/>
         <TextBlock Text="A sugestão aparece no cursor. Tab avança; Esc descarta. Ctrl+Espaço mantém as sugestões de Console/MQL. Baixe um modelo acima ou copie uma exportação ONNX GenAI para o diretório de modelos." Classes="metadata" TextWrapping="Wrap"/>
         <TextBlock Text="Estado do modelo" Classes="section-title"/>
         <TextBlock Text="{Binding Status}" TextWrapping="Wrap" AutomationProperties.Name="Estado do modelo"/>

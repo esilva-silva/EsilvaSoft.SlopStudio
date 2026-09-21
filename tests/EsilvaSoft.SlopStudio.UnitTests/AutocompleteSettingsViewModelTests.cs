@@ -2,6 +2,7 @@ using EsilvaSoft.SlopStudio.Infrastructure.LocalAi;
 using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
 using EsilvaSoft.SlopStudio.Infrastructure;
+using System.Text.Json;
 using static EsilvaSoft.SlopStudio.UnitTests.LocalModelFolderFixture;
 
 namespace EsilvaSoft.SlopStudio.UnitTests;
@@ -101,5 +102,111 @@ public sealed class AutocompleteSettingsViewModelTests
         Assert.That((preferences.CompletionAutoOpenOnTrigger, preferences.CompletionEnterAccepts), Is.EqualTo((true, false)));
         await preferences.ApplyCommand.ExecuteAsync(null);
         Assert.That((saved!.CompletionAutoOpenOnTrigger, saved.CompletionEnterAccepts), Is.EqualTo((true, false)));
+    }
+
+    [Test]
+    public void ManualHardwareProfileDrivesSuggestionsAndPersistsAsAdditiveJson()
+    {
+        var preferences = new AutocompleteSettingsViewModel(new CompletionServiceFake(), catalog: null, settings => Task.CompletedTask);
+        preferences.Load(new());
+        preferences.HardwareProfileVendor = "AMD";
+        preferences.HardwareProfileName = "Radeon RX 7800 XT";
+        preferences.HardwareProfileMemoryGiB = "16";
+        preferences.AddHardwareProfileCommand.Execute(null);
+
+        Assert.That(preferences.SelectedHardwareProfile!.TierLabel, Is.EqualTo("Alto"));
+        Assert.That(preferences.ContextTokenSuggestions, Does.Contain("4096"));
+        Assert.That(preferences.ContextTokenSuggestions, Has.None.Contains("."));
+        var snapshot = preferences.Snapshot();
+        Assert.That(snapshot.HardwareProfilesJson, Does.Contain("Radeon RX 7800 XT"));
+
+        preferences.Load(snapshot);
+        Assert.That(preferences.SelectedHardwareProfile!.Name, Is.EqualTo("Radeon RX 7800 XT"));
+    }
+
+    [Test]
+    public void FreeTypedBudgetsRejectAnInvalidCombinedWindow()
+    {
+        var preferences = new AutocompleteSettingsViewModel(new CompletionServiceFake(), catalog: null, settings => Task.CompletedTask);
+        preferences.Load(new());
+        preferences.ContextTokensText = "8192";
+        preferences.MaximumTokensText = "256";
+
+        Assert.That(preferences.HasTokenBudgetError, Is.True);
+        Assert.Throws<ArgumentException>(() => preferences.Snapshot());
+    }
+
+    [TestCase("8.192")]
+    [TestCase("8,192")]
+    public void TokenEditorsRejectCultureSpecificGrouping(string text)
+    {
+        var preferences = new AutocompleteSettingsViewModel(new CompletionServiceFake(), catalog: null, settings => Task.CompletedTask);
+        preferences.Load(new());
+        preferences.ContextTokensText = text;
+
+        Assert.That(preferences.HasTokenBudgetError, Is.True);
+        Assert.That(preferences.TokenBudgetWarning, Does.Contain("somente dígitos"));
+        Assert.Throws<ArgumentException>(() => preferences.Snapshot());
+    }
+
+    [Test]
+    public async Task TokenEditorAcceptsTheExactInclusiveModelBoundary()
+    {
+        using var models = new TemporaryDirectory();
+        var path = CreateQwenModel(models.Path, "Boundary", "{\"generation\":{\"autocomplete\":{\"maxTokens\":32}}}");
+        File.WriteAllText(Path.Combine(path, "genai_config.json"), "{\"model\":{\"type\":\"qwen2\",\"context_length\":32768,\"decoder\":{\"filename\":\"model.onnx\"}}}");
+
+        var preferences = new AutocompleteSettingsViewModel(new CompletionServiceFake(), new LocalModelCatalog(models.Path), settings => Task.CompletedTask);
+        preferences.Load(new());
+        await preferences.RefreshModelsCommand.ExecuteAsync(null);
+        preferences.SelectedModelOption = preferences.Models.Single();
+        preferences.MaximumTokensText = "32";
+
+        Assert.That(preferences.MaximumTokens, Is.EqualTo(32));
+        Assert.That(preferences.HasTokenBudgetError, Is.False);
+        Assert.That(preferences.MaximumTokenSuggestions, Does.Contain("32"));
+        preferences.ContextTokensText = "32733";
+        Assert.That(preferences.HasTokenBudgetError, Is.False, "The inclusive boundary includes the three FIM overhead tokens.");
+        preferences.ContextTokensText = "32734";
+        Assert.That(preferences.HasTokenBudgetError, Is.True);
+        preferences.ContextTokensText = "16384";
+        Assert.That(preferences.Snapshot().MaximumCompletionTokens, Is.EqualTo(32));
+    }
+
+    [Test]
+    public void EditableBudgetTextIsCommittedToTheSavedSettings()
+    {
+        var preferences = new AutocompleteSettingsViewModel(new CompletionServiceFake(), catalog: null, settings => Task.CompletedTask);
+        preferences.Load(new());
+        preferences.ContextTokensText = "4096";
+        preferences.MaximumTokensText = "64";
+
+        var snapshot = preferences.Snapshot();
+
+        Assert.That((snapshot.ContextTokens, snapshot.MaximumCompletionTokens), Is.EqualTo((4096, 64)));
+        Assert.That(preferences.HasTokenBudgetError, Is.False);
+    }
+
+    [Test]
+    public async Task TestCommandShowsTokenValidationInsteadOfHidingIt()
+    {
+        var preferences = new AutocompleteSettingsViewModel(new CompletionServiceFake(), catalog: null, settings => Task.CompletedTask);
+        preferences.Load(new());
+        preferences.MaximumTokensText = "";
+
+        await preferences.TestCommand.ExecuteAsync(null);
+
+        Assert.That(preferences.OperationStatus, Does.Contain("Tokens gerados"));
+    }
+
+    [Test]
+    public void TokenBudgetsSurviveSettingsJsonRoundTrip()
+    {
+        var original = new AutocompleteSettings { ContextTokens = 3072, MaximumCompletionTokens = 77 };
+        var json = JsonSerializer.Serialize(original);
+        var restored = JsonSerializer.Deserialize<AutocompleteSettings>(json);
+
+        Assert.That(restored, Is.Not.Null);
+        Assert.That((restored!.ContextTokens, restored.MaximumCompletionTokens), Is.EqualTo((3072, 77)));
     }
 }

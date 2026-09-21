@@ -72,7 +72,11 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
     [ObservableProperty] private string _operationStatus = "";
     [ObservableProperty] private bool _isBusy;
 
-    partial void OnHardwareIndexChanged(int value) => RefreshStatus();
+    partial void OnHardwareIndexChanged(int value)
+    {
+        RefreshStatus();
+        RefreshTokenBudget();
+    }
 
     partial void OnInlineEnabledEffectiveChanged(bool value)
     {
@@ -147,9 +151,13 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
         UpdateModelDetails();
         RefreshStatus();
         // A deliberate choice applies the model's recommended budgets; loading saved preferences never overrides them.
-        if (_loading || value?.Model?.Metadata is not { } metadata) return;
-        if (metadata.RecommendedContextTokens is { } context) ContextTokens = context;
-        if (metadata.RecommendedCompletionTokens is { } completion) MaximumTokens = completion;
+        if (!_loading && value?.Model?.Metadata is { } metadata)
+        {
+            if (metadata.RecommendedContextTokens is { } context) ContextTokens = context;
+            if (metadata.RecommendedCompletionTokens is { } completion) MaximumTokens = completion;
+        }
+        ApplyRecommendedBudget();
+        RefreshTokenBudget();
     }
 
     public void Load(AutocompleteSettings settings)
@@ -177,10 +185,12 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
             SelectedModelOption = settings.SelectedModel.Length > 0 ? Add(new(settings.SelectedModel, false))
                 : !string.IsNullOrWhiteSpace(settings.ModelPath) ? Add(new(settings.ModelPath.Trim(), true)) : null;
             TestReport = "";
+            LoadBudgetSettings(settings);
         }
         finally { _loading = false; }
         UpdateModelDetails();
         RefreshStatus();
+        RefreshTokenBudget();
     }
 
     public void RefreshStatus()
@@ -191,6 +201,9 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
 
     public AutocompleteSettings Snapshot()
     {
+        CommitTokenEditors();
+        RefreshTokenBudget();
+        if (HasTokenBudgetError) throw new ArgumentException(TokenBudgetWarning);
         var option = SelectedModelOption;
         // Start from the loaded settings so fields without a control here (list flags) keep their saved values.
         return (_loaded with
@@ -199,6 +212,8 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
             ModelDirectory = ModelDirectory.Trim(), SelectedModel = option is { IsExternal: false } ? option.Reference : "",
             ModelPath = option is { IsExternal: true } ? option.Reference : "", ChatModel = _chatModel, ChatEnabled = ChatEnabled,
             ContextTokens = ContextTokens, MaximumCompletionTokens = MaximumTokens,
+            HardwareProfilesJson = SnapshotHardwareProfiles(),
+            SelectedHardwareProfile = _hardwareProfileLocked ? SelectedHardwareProfile?.Name ?? "" : "",
             DelayMilliseconds = DelayMilliseconds, ExecutionProvider = _executionProvider,
             UseDictionary = UseDictionary, UseInputPanelContext = UseInputPanelContext,
             UseResultPanelContext = UseResultPanelContext, UseEditorContext = UseEditorContext, IncrementalTab = IncrementalTab,
@@ -267,6 +282,8 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
             finally { _loading = false; }
             UpdateModelDetails();
             RefreshStatus();
+            ApplyRecommendedBudget();
+            RefreshTokenBudget();
             var invalid = found.Where(candidate => candidate.Model is null).ToArray();
             ModelDiagnostics = invalid.Length == 0 ? ""
                 : "Pastas ignoradas: " + string.Join("; ", invalid.Select(candidate => $"{FolderOf(candidate.Path)} — {LocalAiStatusFormatter.ValidityLabel(candidate.Validity)}"));
@@ -292,6 +309,7 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
             option.Label = device is null ? LocalAiStatusFormatter.HardwareLabel(option.Mode) + " — indisponível" : LocalAiStatusFormatter.DeviceLine(device);
         }
         DetectedHardware = string.Join("\n", _hardware.Select(LocalAiStatusFormatter.DeviceLine));
+        SelectDetectedProfile();
         // GPU exports are marked only after the runtime reported which devices exist.
         RefreshInstalledRemoteModels();
         RefreshStatus();
@@ -302,6 +320,7 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
     {
         IsBusy = true;
         try { await save(Snapshot()); OperationStatus = "Preferências de autocomplete salvas."; RefreshStatus(); }
+        catch (ArgumentException ex) { OperationStatus = ex.Message; }
         catch (Exception) { OperationStatus = "Preferências não salvas. Confira os valores e o estado da sessão local."; }
         finally { IsBusy = false; }
     }
@@ -321,6 +340,8 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
             RefreshStatus();
         }
         catch (OperationCanceledException) { OperationStatus = "Teste cancelado."; }
+        catch (ArgumentException ex) { OperationStatus = ex.Message; }
+        catch (LocalModelUnavailableException ex) { OperationStatus = ex.Message; }
         catch (Exception) { OperationStatus = "Teste não concluído. Confira a configuração e a persistência da sessão."; }
         finally { IsBusy = false; }
     }

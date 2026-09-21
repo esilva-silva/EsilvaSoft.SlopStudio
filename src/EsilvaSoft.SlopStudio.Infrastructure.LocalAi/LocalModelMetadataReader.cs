@@ -39,9 +39,9 @@ internal static class LocalModelMetadataReader
             Hardware = Texts(json, "hardware")?.Where(HardwareNames.ContainsKey).Select(item => HardwareNames[item]).Distinct().ToArray(),
             ContextContract = Text(json, "contextContract", 64),
             SupportsRepositoryContext = Boolean(json, "supportsRepositoryContext"),
-            RecommendedContextTokens = Integer(json, "recommendedContextTokens", 64, 8192),
-            RecommendedCompletionTokens = Integer(json, "recommendedCompletionTokens", 1, 256),
-            Autocomplete = Generation(generation, "autocomplete", 256),
+            RecommendedContextTokens = Integer(json, "recommendedContextTokens", 64, AutocompleteSettings.AbsoluteContextMaximum),
+            RecommendedCompletionTokens = Integer(json, "recommendedCompletionTokens", 1, AutocompleteSettings.AbsoluteCompletionMaximum),
+            Autocomplete = Generation(generation, "autocomplete", AutocompleteSettings.AbsoluteCompletionMaximum),
             Chat = Generation(generation, "chat", 1024)
         };
     }

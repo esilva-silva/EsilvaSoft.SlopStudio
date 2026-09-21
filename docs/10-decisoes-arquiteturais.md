@@ -280,3 +280,13 @@ A alternativa descartada era transportar os campos como `CatalogQuery.LocalSymbo
 **Verificação.** Os testes passaram a asserir a **ausência** dos pontos de entrada (`DisabledFeatureEntryPointsTests`, `AppUpdateUiTests`, `DatabaseExplorerUiTests`) enquanto os testes que atribuem `Mode = "Script"` ou `"Agregação"` por código permanecem inalterados, provando que o caminho preservado continua íntegro.
 
 **Não decidido aqui.** Esta ADR não declara a v0.5.0 homologada, não encerra nenhum gate de aceite e não autoriza remover implementação necessária ao funcionamento atual — o armazenamento local de ambientes, por exemplo, continua em uso porque a resolução de `${ENV.get("chave")}` depende dele.
+
+## ADR-043 — Orçamento local de tokens por janela do modelo e tier de memória (20/09/2026)
+
+**Estado: implementada; homologação real de cada provider/GPU continua parcial.** Os orçamentos de contexto e geração permanecem preferências editáveis, mas a UI passa a oferecer sugestões orientadas pelo modelo selecionado e pela memória disponível. `context_length` do `genai_config.json` é limite rígido quando disponível; `generation.autocomplete.maxTokens` limita a saída. Contexto, overhead do contrato e geração são validados em conjunto, com limite inclusivo e soma segura. Sem declaração, os fallbacks são 8192 tokens de contexto e 256 de saída; uma declaração maior do modelo pode ser usada dentro do limite absoluto de 1.048.576 tokens. A edição usa somente dígitos sem separador de milhar.
+
+A classificação de hardware usa VRAM em GiB: 0–2 Sem acelerador, >2–4 Básico, >4–8 Intermediário, >8–12 Avançado, >12–16 Alto, >16–24 Muito alto e >24 Workstation. A estimativa reserva margem para sistema, driver e runtime e desconta o tamanho conhecido dos pesos. Perfis manuais persistidos por fabricante, nome e memória são somente simuladores de capacidade: não habilitam provider, não alteram fallback e não substituem a detecção do ONNX Runtime. Quando a janela do modelo é desconhecida, aplica-se o teto conservador do produto com aviso explícito.
+
+ComboBox editável é o controle oficial para ambos os valores: seleção de presets e digitação livre são equivalentes, desde que respeitem os limites. A confirmação definitiva permanece sendo o carregamento/teste do modelo; uma estimativa de VRAM não é uma medição de memória livre.
+
+Os sete presets de tier são sempre oferecidos na janela e o tier detectado fica selecionado por padrão. Cada preset fornece um orçamento inicial de contexto/saída; o valor é reduzido quando o metadata ou a janela do modelo impõe um teto menor. A escolha automática não é persistida como hardware do usuário: ao abrir novamente, o tier é recalculado. Uma seleção manual explícita de preset ou perfil customizado pode ser persistida.

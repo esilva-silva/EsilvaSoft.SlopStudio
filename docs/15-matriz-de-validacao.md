@@ -421,3 +421,14 @@ Testes `dotnet test EsilvaSoft.SlopStudio.slnx --no-build --no-restore`: **1 156
 | Matriz de 18 PNGs (claro/escuro, 4 estados) | nenhuma | Fora do escopo desta entrega |
 | Highlighting em 64 KiB | 3,5 ms medidos contra orçamento de 2 ms | Não corrigido |
 | MongoDB real, leitor de tela, diálogos nativos | nenhuma | Homologação manual pendente |
+
+## Orçamento de tokens por hardware e modelo — 20/09/2026
+
+| Área | Evidência automatizada | Validação pendente |
+|---|---|---|
+| Tiers de VRAM | `AiHardwareTierTests`: limites 2/4/8/12/16/24 GiB e RTX 2060 6/12 GiB | GPUs físicas adicionais |
+| Limites do modelo | `LocalModelCatalogTests.ModelExposesContextWindowAndAutocompleteGenerationLimit`, `ModelMetadataAcceptsDeclaredBudgetsAboveLegacyLimits`; fallback 8192/256, origem/confiança e limite inclusivo | Exportações de cada família de modelo |
+| Perfis manuais e persistência | `AutocompleteSettingsViewModelTests.ManualHardwareProfileDrivesSuggestionsAndPersistsAsAdditiveJson` | Uso interativo da modal em Windows/Linux |
+| Orçamento combinado | Validação do ViewModel com contexto + saída + overhead, valores inclusivos e clamp no provider | Memória livre real do provider/driver |
+| UI | `AutocompleteUiTests.TokenBudgetComboBoxesKeepSelectionsAndFreeTypedValuesWhenSaved`; seleção exata de 32, somente dígitos e PNGs Dark/Light existentes | Inspeção manual adicional da composição em Windows/Linux |
+| ONNX real | `LocalAiModelServiceTests.RealModelTestRunsOnTheRequestedHardware`: Automático e GPU aprovados para SlopCoder DML FP16; CPU recusada corretamente porque o metadata declara GPU-only | Outras exportações/providers |

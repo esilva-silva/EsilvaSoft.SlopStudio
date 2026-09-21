@@ -1,6 +1,6 @@
 ﻿# Configuração e compatibilidade
 
-Especificação de 15/09/2026; novos campos ainda **não implementados**. Evoluir `Core/Autocomplete.cs` e `WorkspaceSession.cs` de forma aditiva, mantendo versão 1, validação e proprietário LiteDB. Não criar árvore de preferências paralela.
+Especificação de 15/09/2026; os campos de orçamento e hardware descritos nesta seção estão implementados de forma aditiva em `AutocompleteSettings`, mantendo versão 1, validação e o proprietário LiteDB. Não criar árvore de preferências paralela.
 
 ## Opções necessárias
 
@@ -14,7 +14,7 @@ Especificação de 15/09/2026; novos campos ainda **não implementados**. Evolui
 | Preemptivo IA | `InlineUseAi` novo | false | Opt-in de processamento automático; explícito continua disponível |
 | Dicionário legado | `UseDictionary` existente | true | Não passa a controlar catálogo inteiro; migração abaixo |
 | Atraso IA automática | `DelayMilliseconds` existente | 150 ms | Validar 50–2000; explícito sem debounce |
-| Janela / saída IA | `ContextTokens`, `MaximumCompletionTokens` existentes | 2048 / 32 | Tetos; inline tem teto interno 24 e pacote pode reduzir |
+| Janela / saída IA | `ContextTokens`, `MaximumCompletionTokens` existentes | 2048 / 32 | ComboBox editável; limites do modelo vencem os limites conservadores e a estimativa de memória orienta sugestões |
 | Modelo / hardware | `SelectedModel`, `ModelPath`, `Acceleration`, `ExecutionProvider` existentes | Preservados | Não criar PreferredModel/PreferredProvider equivalentes |
 | Timeout IA explícita | `AiTimeoutMilliseconds` novo | 10000 | Limite de espera incluindo fila; faixa proposta 1000–60000 |
 | Lista ao digitar | `CompletionAutoOpenOnTrigger` novo | false | Não confundir popup automático com ghost tradicional |

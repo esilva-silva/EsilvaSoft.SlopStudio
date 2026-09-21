@@ -50,7 +50,15 @@ public sealed class OnnxLocalModelRuntime(IAutocompleteDiagnostics? diagnostics 
         Utils.DisableTelemetryEvents();
         using (var file = File.OpenRead(Path.Combine(model.Path, "genai_config.json")))
         using (var json = JsonDocument.Parse(file))
-            _contextLength = json.RootElement.GetProperty("model").GetProperty("context_length").GetInt32();
+        {
+            var modelConfig = json.RootElement.GetProperty("model");
+            _contextLength = modelConfig.TryGetProperty("context_length", out var contextLength)
+                && contextLength.ValueKind == JsonValueKind.Number
+                && contextLength.TryGetInt32(out var parsedContext)
+                && parsedContext is >= 64 and <= 1_048_576
+                ? parsedContext
+                : LocalModelDefinition.ConservativeContextLength;
+        }
         var devices = hardware is null ? OnnxHardwareProbe.Detect() : await hardware.GetAvailableHardwareAsync(cancellationToken).ConfigureAwait(false);
         var plan = AiProviderSelector.Plan(settings, devices, model);
         _plan = plan;

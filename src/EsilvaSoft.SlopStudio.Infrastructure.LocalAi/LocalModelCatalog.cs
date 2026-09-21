@@ -43,6 +43,9 @@ public sealed class LocalModelCatalog(string? defaultDirectory = null, IReadOnly
             using var config = ReadJson(configPath);
             var model = config.RootElement.GetProperty("model");
             var type = model.GetProperty("type").GetString() ?? "";
+            int? contextLength = model.TryGetProperty("context_length", out var contextValue)
+                && contextValue.ValueKind == JsonValueKind.Number && contextValue.TryGetInt32(out var parsedContext)
+                && parsedContext is >= 64 and <= 1_048_576 ? parsedContext : null;
             var decoder = model.GetProperty("decoder").GetProperty("filename").GetString();
             if (string.IsNullOrWhiteSpace(decoder) || Path.IsPathRooted(decoder)) throw new InvalidDataException();
             var decoderPath = Path.GetFullPath(Path.Combine(root, decoder));
@@ -74,7 +77,11 @@ public sealed class LocalModelCatalog(string? defaultDirectory = null, IReadOnly
             var name = string.IsNullOrWhiteSpace(metadata?.Name) ? folder : metadata.Name;
             var definition = new LocalModelDefinition(folder, name, root, adapter.Architecture, Path.Combine(root, "tokenizer.json"))
             {
-                PromptFormat = adapter.PromptFormat, Capabilities = metadata?.Capabilities ?? adapter.DefaultCapabilities, Metadata = metadata
+                PromptFormat = adapter.PromptFormat, Capabilities = metadata?.Capabilities ?? adapter.DefaultCapabilities, Metadata = metadata,
+                ContextLength = contextLength, AutocompleteMaximumTokens = metadata?.Autocomplete.MaximumTokens,
+                ModelSizeBytes = Directory.EnumerateFiles(root, "*", SearchOption.TopDirectoryOnly)
+                    .Where(file => file.EndsWith(".onnx", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".data", StringComparison.OrdinalIgnoreCase))
+                    .Select(file => new FileInfo(file).Length).Sum()
             };
             return new(definition, new(LocalModelState.Available, "Arquivos encontrados. Use Testar modelo para validar inferência e provider.") { ModelName = name }) { Path = root };
         }

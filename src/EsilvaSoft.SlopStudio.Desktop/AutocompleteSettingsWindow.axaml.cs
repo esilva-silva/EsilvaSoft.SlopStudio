@@ -65,6 +65,21 @@ public partial class AutocompleteSettingsWindow : Window
     }
 
     private void CloseDialog(object? sender, RoutedEventArgs e) => Close();
+
+    private void TokenSuggestionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is not AutocompleteSettingsViewModel model || sender is not ComboBox combo) return;
+        // Use the item added by the selection event. SelectedItem can already point to the next item while
+        // Avalonia is reconciling an editable ComboBox, which used to turn an exact 32 into a neighbouring value.
+        var value = e.AddedItems.OfType<string>().LastOrDefault();
+        if (value is null) return;
+        combo.Text = value;
+        if (ReferenceEquals(combo, ContextTokenBox)) model.ContextTokensText = value;
+        else if (ReferenceEquals(combo, MaximumTokenBox)) model.MaximumTokensText = value;
+    }
+
+    private void TokenEditorLostFocus(object? sender, RoutedEventArgs e) => (DataContext as AutocompleteSettingsViewModel)?.CommitTokenEditors();
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         if (e.Key == Key.Escape) { e.Handled = true; Close(); }

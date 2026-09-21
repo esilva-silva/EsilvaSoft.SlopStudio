@@ -244,6 +244,51 @@ public sealed class AutocompleteUiTests
         }, CancellationToken.None);
     }
 
+    [Test]
+    public async Task TokenBudgetComboBoxesKeepSelectionsAndFreeTypedValuesWhenSaved()
+    {
+        var session = HeadlessUnitTestSession.GetOrStartForAssembly(typeof(UiTestApp).Assembly);
+        await session.Dispatch<bool>(async () =>
+        {
+            AutocompleteSettings? saved = null;
+            var service = new CompletionServiceFake();
+            var preferences = new AutocompleteSettingsViewModel(service, catalog: null,
+                settings => { saved = settings; return Task.CompletedTask; });
+            preferences.Load(new());
+            var window = new AutocompleteSettingsWindow { DataContext = preferences, Width = 660, Height = 680 };
+            window.Show(); window.UpdateLayout(); Dispatcher.UIThread.RunJobs();
+
+            var contextBox = window.FindControl<ComboBox>("ContextTokenBox")!;
+            var maximumBox = window.FindControl<ComboBox>("MaximumTokenBox")!;
+            Assert.That(contextBox.IsEditable, Is.True);
+            Assert.That(maximumBox.IsEditable, Is.True);
+            Assert.That(contextBox.ItemsSource, Does.Contain("2048"));
+            Assert.That(maximumBox.ItemsSource, Does.Contain("32"));
+            Assert.That(contextBox.ItemsSource!.Cast<string>().Any(value => value.Contains('.') || value.Contains(',')), Is.False);
+            Assert.That(maximumBox.ItemsSource!.Cast<string>().Any(value => value.Contains('.') || value.Contains(',')), Is.False);
+
+            // A selected suggestion must remain exact; in particular 32 must never become 31.
+            contextBox.SelectedItem = contextBox.ItemsSource!.Cast<string>().First(value => value.Replace(".", "", StringComparison.Ordinal) == "4096");
+            maximumBox.SelectedItem = "64";
+            maximumBox.SelectedItem = "32";
+            window.UpdateLayout(); Dispatcher.UIThread.RunJobs();
+            Assert.That((preferences.ContextTokensText, preferences.MaximumTokensText), Is.EqualTo(("4096", "32")));
+
+            // Exercise arbitrary text after a selection.
+            contextBox.Text = "3072";
+            maximumBox.Text = "77";
+            window.UpdateLayout(); Dispatcher.UIThread.RunJobs();
+            Assert.That((preferences.ContextTokensText, preferences.MaximumTokensText), Is.EqualTo(("3072", "77")));
+
+            // Use the production Snapshot path, which is what Save/Test invoke.
+            await preferences.ApplyCommand.ExecuteAsync(null);
+            Assert.That((saved!.ContextTokens, saved.MaximumCompletionTokens), Is.EqualTo((3072, 77)));
+
+            window.Close();
+            return true;
+        }, CancellationToken.None);
+    }
+
     private static async Task WaitForAsync(Func<bool> condition)
     {
         for (var i = 0; i < 100 && !condition(); i++) { await Task.Delay(10); Dispatcher.UIThread.RunJobs(); }

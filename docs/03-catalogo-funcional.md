@@ -143,7 +143,7 @@ O modo Script/mongosh continua separado. Não se anuncia compatibilidade integra
 
 ## Incremento EDT — autocomplete local opcional (11/09/2026)
 
-IA local Qwen2.5-Coder via ONNX GenAI adicionada ao autocomplete determinístico: configuração persistente, carregamento lazy, CPU mínimo, FIM e fallback. Prévia preemptiva por editor, Tab/Esc e menu Ctrl+Espaço. Modelos externos e status explícito. Providers acelerados permanecem condicionados a distribuição/homologação específica. [Requisitos e evidência](21-autocomplete-local.md); geração real não é comprovada pelos testes com fakes.
+IA local Qwen2.5-Coder via ONNX GenAI adicionada ao autocomplete determinístico: configuração persistente, carregamento lazy, CPU mínimo, FIM e fallback. Prévia preemptiva por editor, Tab/Esc e menu Ctrl+Espaço. Modelos externos e status explícito. Os orçamentos de contexto e geração aceitam sugestões orientadas por VRAM/RAM e modelo, além de livre digitação validada; a seleção preserva valores exatos como `32` e os campos não usam separadores de milhar. Providers acelerados permanecem condicionados a distribuição/homologação específica. [Requisitos e evidência](21-autocomplete-local.md); geração real não é comprovada pelos testes com fakes.
 
 ## Incremento EDT-03 — UUID/GUID configurável (11/09/2026)
 

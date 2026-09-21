@@ -4,6 +4,11 @@ namespace EsilvaSoft.SlopStudio.Core;
 
 public sealed record AutocompleteSettings
 {
+    /// <summary>Absolute safety bound for an editable budget; a model-declared smaller window still wins.</summary>
+    public const int AbsoluteContextMaximum = 1_048_576;
+    /// <summary>Absolute safety bound for output; an explicit model cap can be lower.</summary>
+    public const int AbsoluteCompletionMaximum = 1_048_576;
+
     public int Version { get; init; } = 1;
     public bool Enabled { get; init; } = true;
     public AutocompleteMode Mode { get; init; } = AutocompleteMode.Automatic;
@@ -22,6 +27,9 @@ public sealed record AutocompleteSettings
     public int ContextTokens { get; init; } = 2048;
     public int MaximumCompletionTokens { get; init; } = 32;
     public int DelayMilliseconds { get; init; } = 150;
+    /// <summary>Stable JSON payload for manual estimation profiles; empty preserves legacy documents and equality.</summary>
+    public string HardwareProfilesJson { get; init; } = "";
+    public string SelectedHardwareProfile { get; init; } = "";
 
     /// <summary>
     /// Additive to version 1: hard timeout of an explicit AI completion (<c>Ctrl+;</c>), measured end to end — queue,
@@ -110,8 +118,8 @@ public sealed record AutocompleteSettings
     {
         if (Version != 1 || !Enum.IsDefined(Mode) || !Enum.IsDefined(Acceleration) || !Enum.IsDefined(ExecutionProvider)
             || ModelPath is null || ModelPath.Length > 4096 || ModelDirectory is null || ModelDirectory.Length > 4096
-            || !IsModelFolderName(SelectedModel) || !IsModelFolderName(ChatModel) || ContextTokens is < 64 or > 8192
-            || MaximumCompletionTokens is < 1 or > 256 || DelayMilliseconds is < 50 or > 2000
+            || !IsModelFolderName(SelectedModel) || !IsModelFolderName(ChatModel) || ContextTokens is < 64 or > AbsoluteContextMaximum
+            || MaximumCompletionTokens is < 1 or > AbsoluteCompletionMaximum || DelayMilliseconds is < 50 or > 2000
             || AiTimeoutMilliseconds is < 1000 or > 60_000)
             throw new ArgumentException("Configuração de autocomplete inválida ou de versão não suportada.");
         return this;

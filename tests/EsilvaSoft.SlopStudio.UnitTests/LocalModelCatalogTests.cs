@@ -45,6 +45,44 @@ public sealed class LocalModelCatalogTests
         Assert.That(found["Llama-Plain"].Validity, Is.EqualTo(LocalModelValidity.Unsupported));
     }
 
+    [Test]
+    public async Task ModelExposesContextWindowAndAutocompleteGenerationLimit()
+    {
+        using var models = new TemporaryDirectory();
+        var path = CreateQwenModel(models.Path, "Limited", "{\"generation\":{\"autocomplete\":{\"maxTokens\":128}}}");
+        var config = Path.Combine(path, "genai_config.json");
+        await File.WriteAllTextAsync(config, "{\"model\":{\"type\":\"qwen2\",\"context_length\":4096,\"decoder\":{\"filename\":\"model.onnx\"}}}");
+
+        var validation = await new LocalModelCatalog(models.Path).ValidateAsync(path);
+
+        Assert.That(validation.Model!.ContextLength, Is.EqualTo(4096));
+        Assert.That(validation.Model.AutocompleteMaximumTokens, Is.EqualTo(128));
+        Assert.That((validation.Model.EffectiveContextLength, validation.Model.EffectiveAutocompleteMaximumTokens), Is.EqualTo((4096, 128)));
+        Assert.That(validation.Model.BudgetConfidence, Is.EqualTo("declarado pelo modelo"));
+
+        var undeclaredPath = CreateQwenModel(models.Path, "Undeclared");
+        await File.WriteAllTextAsync(Path.Combine(undeclaredPath, "genai_config.json"), "{\"model\":{\"type\":\"qwen2\",\"decoder\":{\"filename\":\"model.onnx\"}}}");
+        var undeclared = await new LocalModelCatalog(models.Path).ValidateAsync(undeclaredPath);
+        Assert.That((undeclared.Model!.ContextLength, undeclared.Model.AutocompleteMaximumTokens), Is.EqualTo(((int?)null, (int?)null)));
+        Assert.That((undeclared.Model.EffectiveContextLength, undeclared.Model.EffectiveAutocompleteMaximumTokens), Is.EqualTo((8192, 256)));
+        Assert.That(undeclared.Model.BudgetConfidence, Is.EqualTo("estimativa"));
+    }
+
+    [Test]
+    public async Task ModelMetadataAcceptsDeclaredBudgetsAboveLegacyLimits()
+    {
+        using var models = new TemporaryDirectory();
+        var path = CreateQwenModel(models.Path, "Large-Budget", "{\"recommendedContextTokens\":32768,\"recommendedCompletionTokens\":1024,\"generation\":{\"autocomplete\":{\"maxTokens\":1024}}}");
+        await File.WriteAllTextAsync(Path.Combine(path, "genai_config.json"), "{\"model\":{\"type\":\"qwen2\",\"context_length\":32768,\"decoder\":{\"filename\":\"model.onnx\"}}}");
+
+        var validation = await new LocalModelCatalog(models.Path).ValidateAsync(path);
+
+        Assert.That(validation.Model!.ContextLength, Is.EqualTo(32768));
+        Assert.That(validation.Model.Metadata!.RecommendedContextTokens, Is.EqualTo(32768));
+        Assert.That(validation.Model.Metadata.RecommendedCompletionTokens, Is.EqualTo(1024));
+        Assert.That(validation.Model.AutocompleteMaximumTokens, Is.EqualTo(1024));
+    }
+
     [TestCase("..")]
     [TestCase("models/other")]
     [TestCase(@"models\other")]

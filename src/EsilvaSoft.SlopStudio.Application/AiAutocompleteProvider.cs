@@ -35,7 +35,10 @@ public sealed class AiAutocompleteProvider : IAsyncDisposable, IDisposable
         {
             generation = await Models.GenerateAsync(LocalModelRole.Autocomplete, settings, model => new ModelGenerationRequest(
                 AutocompleteContextBuilder.ModelPrefix(request, LocalAiModelService.IsDeepSeek(model)), request.Suffix,
-                settings.ContextTokens, settings.MaximumCompletionTokens, request.RequireComplete) { Temperature = model.Metadata?.Autocomplete.Temperature ?? 0 },
+                Math.Min(settings.ContextTokens, Math.Max(64, model.EffectiveContextLength
+                    - Math.Min(settings.MaximumCompletionTokens, model.EffectiveAutocompleteMaximumTokens)
+                    - AutocompleteTokenBudget.PromptOverheadTokens)),
+                Math.Min(settings.MaximumCompletionTokens, model.EffectiveAutocompleteMaximumTokens), request.RequireComplete) { Temperature = model.Metadata?.Autocomplete.Temperature ?? 0 },
                 AiRequestPriority.Background, load, cancellationToken).ConfigureAwait(false);
         }
         catch (LocalModelUnavailableException) { return null; }

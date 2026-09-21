@@ -82,7 +82,7 @@ tempo restante. Contexto sensível continua sendo decisão do provider (privacid
 | --- | --- | --- |
 | Indicador "ainda gerando" | 1 s | Feedback |
 | Timeout rígido explícito | 10 s (configurável) | Nunca bloqueia a UI |
-| Tokens gerados (explícito) | `generation.autocomplete.maxTokens` do metadata, senão 64 | Hoje: 32 para ambos |
+| Tokens gerados (explícito) | `generation.autocomplete.maxTokens` do metadata, senão 256 | Hoje: 32 para ambos |
 | Tokens gerados (inline) | 24 (avaliar 16/32) | Latência |
 
 Todos provisórios até os benchmarks de [performance.md](performance.md).
@@ -94,8 +94,9 @@ Todos provisórios até os benchmarks de [performance.md](performance.md).
 do indicador: uma geração mais rápida não desenha nada ([DEC-A43-INDICATOR](decisions.md#dec-a43-indicator)).
 "Carga em andamento", "contexto excede a janela" (reduz uma vez) e "preempção" também estão implementadas
 ([DEC-A43-OVERFLOW](decisions.md#dec-a43-overflow), [DEC-A43-PREEMPTION](decisions.md#dec-a43-preemption)). Os tetos
-de tokens gerados continuam vindo de `MaximumCompletionTokens`; a leitura de `generation.autocomplete.maxTokens` do
-metadata segue pendente.
+de tokens gerados continuam vindo de `MaximumCompletionTokens`, limitados pelo valor declarado em
+`generation.autocomplete.maxTokens` quando disponível. O orçamento editável usa somente dígitos sem separador e valida
+contexto, overhead e saída contra a janela efetiva do modelo.
 
 ## Desempenho
 
