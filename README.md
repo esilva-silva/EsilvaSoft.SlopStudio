@@ -1,17 +1,19 @@
 # EsilvaSoft.SlopStudio
 
-A desktop IDE for MongoDB built with **.NET 10 and Avalonia**, for **Windows and Linux**, with local **LiteDB** storage and an optional **local AI** assistant. Licensed under **MIT**.
+EsilvaSoft.SlopStudio is an open-source desktop IDE for MongoDB, built with **.NET 10** and **Avalonia** for **Windows and Linux**. It focuses on a predictable database workflow, BSON-aware results, local LiteDB storage, and optional on-device AI assistance. Licensed under **MIT**.
 
-> [!WARNING]
-> **This is an experimental test project, built entirely with vibe coding.**
+> [!CAUTION]
+> **Experimental project status.** The code, tests, and documentation in this repository were produced with AI-assisted development ("vibe coding") and have not yet undergone a full human code review, security audit, or production hardening. Expect bugs, rough edges, and design decisions that may change.
 >
-> All code, tests and documentation in this repository were produced through AI-assisted "vibe coding". It has not gone through a full human code review, security audit or production hardening. Expect bugs, rough edges and design decisions that may change.
->
-> - Do **not** point it at production databases without backups and read-only credentials.
-> - Treat every write, delete, import and AI-generated proposal as untrusted until you review it.
+> - Do **not** connect to production databases without backups and read-only credentials.
+> - Treat every write, delete, import, and AI-generated proposal as untrusted until reviewed.
 > - Connection profiles and environment variables are stored **unencrypted** in a local LiteDB file.
 >
-> **Version 1.0.0 will be fully reviewed** — code, architecture, security, tests and documentation — before it is declared stable. Until then, every release is a pre-release.
+> **Version 1.0.0 will receive a full review** of code, architecture, security, tests, and documentation before it is declared stable. Until then, every release is a pre-release.
+
+## Support the project
+
+If Slop Studio is useful to you, please consider [sponsoring esilva-silva on GitHub Sponsors](https://github.com/sponsors/esilva-silva). Sponsorship helps sustain development, testing, and documentation for this open-source project.
 
 ## MVP (v0.5.0, archived)
 
@@ -27,8 +29,8 @@ Concretely: save and test connection profiles, browse databases and collections,
 
 | Phase | Version | Goal | Status |
 | --- | --- | --- | --- |
-| 1 | v0.5.0 | **MVP**: connect → navigate → query → view → edit → export | Feature scope implemented and [archived](docs/done/release_v0.5.0/README.md). Windows/Linux acceptance validation still [pending](docs/done/release_v0.5.0/pendencias-de-homologacao.md) |
-| 2 | v0.6.0 | Project organisation and basic autocomplete | **Active phase** — core separation, business rules and simple deterministic autocomplete |
+| 1 | v0.5.0 | **MVP**: connect → navigate → query → view → edit → export | Feature scope completed and [archived](docs/done/release_v0.5.0/README.md). Windows/Linux acceptance validation remains [pending](docs/done/release_v0.5.0/pendencias-de-homologacao.md) |
+| 2 | v0.6.0 | Project organisation and basic autocomplete | **Active phase** — deterministic autocomplete and its supporting architecture are under consolidation |
 | 3 | v0.7.0 | AI-assisted autocomplete | Planned — local-model suggestions, always reviewable, never applied automatically |
 | 4 | v0.8.0 | Opening and saving text files | Planned — open files in the editor as plain text, save the current content, and "Save as" |
 | 5 | v0.9.0 | Local AI and contextual productivity | Experimental — ONNX models, ghost text, reviewable chat proposals, multi-model catalog, CPU/GPU/NPU selection |
@@ -43,7 +45,11 @@ Concretely: save and test connection profiles, browse databases and collections,
 - **Backlog** — requirements with no assigned phase, postponed, or removed from the current scope. Nothing is deleted: the implementation is preserved and isolated, only its entry points are removed. See [backlog](docs/backlog/README.md).
 - **Archived release** — a version whose feature scope is closed, in [`docs/done`](docs/done/README.md). Archiving does **not** mean it passed homologation; open acceptance gates stay recorded next to the release.
 
-No phase has passed its formal acceptance gate yet: automated tests (including headless UI rendering) do not replace validation against real MongoDB servers, both operating systems, screen readers and native dialogs. Details: [phases](docs/phases/README.md), [roadmap](docs/09-plano-de-implementacao.md) and [implementation inventory](docs/24-inventario-roadmap.md) (Portuguese).
+### Phase 2 delivered milestones
+
+Phase 2 remains active, but its deterministic autocomplete work already includes a parser and context engine, contextual ranking, snippets, configurable keyboard shortcuts, and traditional preemptive suggestions. These are implementation milestones, not phase closure or formal acceptance; the remaining scope and evidence are tracked in the [Phase 2 documentation](docs/phases/phase-02-v0.6.0/README.md), [autocomplete execution plan](docs/auto-complite/execution-plan.md), and [implementation tracking](docs/12-acompanhamento-da-implementacao.md).
+
+No phase has passed its formal acceptance gate yet: automated tests (including headless UI rendering) do not replace validation against real MongoDB servers, both operating systems, screen readers, and native dialogs. See the [phase index](docs/phases/README.md), [roadmap](docs/09-plano-de-implementacao.md), [validation matrix](docs/15-matriz-de-validacao.md), and [implementation inventory](docs/24-inventario-roadmap.md) (Portuguese).
 
 ## Requirements
 
