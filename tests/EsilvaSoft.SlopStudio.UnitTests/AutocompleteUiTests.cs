@@ -255,6 +255,9 @@ public sealed class AutocompleteUiTests
             var preferences = new AutocompleteSettingsViewModel(service, catalog: null,
                 settings => { saved = settings; return Task.CompletedTask; });
             preferences.Load(new());
+            // Keep the visual contract independent of the host/container memory limit (Linux CI can expose less RAM).
+            // Hardware detection is covered separately; this test exercises the token controls with a stable tier.
+            preferences.SelectedHardwareProfile = preferences.HardwareProfiles.Single(profile => profile.Name.StartsWith("Alto (", StringComparison.Ordinal));
             var window = new AutocompleteSettingsWindow { DataContext = preferences, Width = 660, Height = 680 };
             window.Show(); window.UpdateLayout(); Dispatcher.UIThread.RunJobs();
 
