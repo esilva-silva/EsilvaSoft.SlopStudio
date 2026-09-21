@@ -1,6 +1,6 @@
 # Corpus de fixtures da Fase 2 — contexto, faixas e ranking
 
-Estado: **escrito em 15/09/2026, antes da implementação das etapas 2.3 e 2.4, e ainda não executado** (não há runner). As expectativas foram derivadas da especificação (`docs/auto-complite/*`, `docs/06-editor-bson-e-uuid.md`, `mongodb-language.v1.json`) e do comportamento do MongoDB — nunca de código novo. Por isso servem de evidência independente.
+Estado: **executado desde 21/09/2026**. O runner cobre parsing, papéis de contexto, shapes, kinds, aspas, `ReplaceSpan`, tipos BSON e ranking determinístico. As expectativas continuam derivadas da especificação (`docs/auto-complite/*`, `docs/06-editor-bson-e-uuid.md`, `mongodb-language.v1.json`) e do comportamento do MongoDB — nunca de código novo.
 
 Regras (AGENTS.md):
 
@@ -30,7 +30,7 @@ Language/Cases/
 
 Caminhos citados dentro das fixtures (`schemas/...`) são relativos a `Language/Cases/`, inclusive nos arquivos de `ranking/`.
 
-O projeto de testes ainda não copia esses arquivos para a saída. O runner precisa incluir `Language/Cases/**` com `CopyToOutputDirectory` no `.csproj` ou ler a partir do diretório do código-fonte. Esta pasta não altera o `.csproj`.
+O projeto de testes copia `Language/Cases/**` para a saída com `CopyToOutputDirectory`; o runner carrega o corpus a partir desse diretório.
 
 ## Formato `.case`
 
@@ -143,7 +143,7 @@ Por grupo e por divisão (`calibration`, `validation`):
 
 A calibração (busca em grade de `RankingProfile`) usa **somente** `calibration/`. A `validation/` só é medida e comparada antes/depois, nunca usada para escolher pesos.
 
-Os valores iniciais de MRR/top-1/top-5 viram baseline quando o primeiro runner executar. Não existe baseline nesta entrega.
+Os valores de MRR/top-1/top-5 ainda não são baseline desta entrega; o runner atual valida presença/ordenação publicada, sem executar gates de performance.
 
 ## Schema sintético (`slop-case-schema/1`)
 
@@ -346,7 +346,7 @@ Cada item registra a ambiguidade, a opção adotada nas fixtures e quem precisa 
 
 ## O que falta cobrir
 
-- **Runner**: parser do formato, fontes falsas a partir dos JSON, cópia dos arquivos para a saída e relatório de métricas do conjunto-ouro. Nenhuma fixture foi executada.
+- **Runner**: parser do formato, cópia dos arquivos para a saída, validação de contexto, ranking, edições e expansão de snippets. A integração completa com metadata persistido, namespaces de coleção, subpipelines complexos e relatório MRR/top-K permanece pendente.
 - **Operadores e stages sem fixture**: `$unionWith` (alvo `coll` e sub-pipeline), `$graphLookup`, `$replaceWith`, `$setWindowFields`, `$bucket`, `$merge`/`$out` com marca `Write`, e literais de `enum` em valor (`Pedidos.status`).
 - **Fontes sem fixture**: `EnvironmentKey` (`ENV.get("|")`) e `LocalVariable` (sugestão de declarações locais).
 - **Detalhe e snippets**: detalhe de tipos polimórficos ("+1 tipo" para `age`); snippet tipado `filter.condition` com `UUID("…")` vindo de `IdentifierRepresentationService`; marca `Write` em snippets de escrita; placeholder de escolha `${1|a,b|}`.
@@ -355,4 +355,4 @@ Cada item registra a ambiguidade, a opção adotada nas fixtures e quem precisa 
 - **Sintaxe JavaScript**: ASI, template com `${}` e mais casos de regex × divisão.
 - **Estilo dominante** sem chaves e aspas simples com caminho com ponto (D-25).
 - **Desempenho**: orçamentos de 64 KiB e 1 MiB são benchmark; as fixtures grandes só verificam o contexto correto.
-- **Fora do escopo da Fase 2**: IA explícita (`Ctrl+;`), preemptivo além de mover trabalho da UI, Linux/ARM.
+- **Fora deste corpus**: IA explícita/preemptiva é exercitada por testes Application/Desktop próprios; Linux/ARM, modelos reais e performance permanecem fora da meta atual.

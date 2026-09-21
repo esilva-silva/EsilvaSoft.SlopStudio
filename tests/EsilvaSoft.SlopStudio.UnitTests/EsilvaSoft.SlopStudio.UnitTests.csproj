@@ -17,4 +17,7 @@
     <PackageReference Include="Avalonia.Headless" />
     <PackageReference Include="NUnit3TestAdapter" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="Language\Cases\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

@@ -14,5 +14,7 @@ public enum PipelineValueKind : byte
     Accumulator,
     NumericAccumulator,
     Literal,
-    Names
+    Names,
+    Pipeline,
+    FacetBranches
 }

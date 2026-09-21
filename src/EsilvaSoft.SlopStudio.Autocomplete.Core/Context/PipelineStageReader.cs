@@ -2,6 +2,8 @@ using EsilvaSoft.SlopStudio.Autocomplete.Core.Syntax;
 
 namespace EsilvaSoft.SlopStudio.Autocomplete.Core.Context;
 
+internal readonly record struct SiblingCollectionContext(string Collection, string Property, int PipelineOpen);
+
 /// <summary>
 /// Produz <see cref="PipelineStage"/> a partir dos tokens do editor. É deliberadamente não avaliativo: nada é
 /// executado, nenhuma expressão é interpretada e qualquer trecho não reconhecido vira <see cref="PipelineValueKind.Unknown"/>,
@@ -23,6 +25,53 @@ public static class PipelineStageReader
         ArgumentNullException.ThrowIfNull(text);
         ArgumentOutOfRangeException.ThrowIfNegative(caret);
         return dialect == EditorDialects.AggregationJson ? OutermostOpenArray(tokens, text, caret) : AggregateArgument(tokens, text, caret);
+    }
+
+    /// <summary>
+    /// Localiza um valor cujo shape declara <c>SiblingCollection:...</c> dentro do <c>$lookup</c> que contém o caret.
+    /// A coleção irmã precisa ser um literal estático; expressões dinâmicas mantêm o contexto conservador do chamador.
+    /// </summary>
+    internal static SiblingCollectionContext? FindSiblingCollectionContext(IReadOnlyList<MongoToken> tokens, string text,
+        int caret, LanguageDefinition? definition = null)
+    {
+        ArgumentNullException.ThrowIfNull(tokens);
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentOutOfRangeException.ThrowIfNegative(caret);
+        definition ??= LanguageDefinition.Default;
+        if (!definition.Shapes.TryGetValue("LookupBody", out var lookupShape)) return null;
+
+        SiblingCollectionContext? result = null;
+        for (var lookupKey = 0; lookupKey + 2 < tokens.Count; lookupKey++)
+        {
+            if (Name(tokens, text, lookupKey) != "$lookup" || Text(tokens, text, lookupKey + 1) != ":"
+                || Text(tokens, text, lookupKey + 2) != "{") continue;
+
+            var bodyOpen = lookupKey + 2;
+            var bodyClose = MatchingClose(tokens, text, bodyOpen);
+            var limit = bodyClose >= 0 ? bodyClose : tokens.Count;
+            var bodyEnd = bodyClose >= 0 ? tokens[bodyClose].End : text.Length;
+            if (caret < tokens[bodyOpen].Start || caret > bodyEnd) continue;
+
+            var properties = Keys(tokens, text, bodyOpen, limit).ToArray();
+            foreach (var propertyKey in properties)
+            {
+                var valueIndex = propertyKey + 2;
+                if (!ValueContainsCaret(tokens, text, valueIndex, limit, caret)) continue;
+                var property = Name(tokens, text, propertyKey);
+                var rule = lookupShape.Keys.FirstOrDefault(candidate => candidate.Rule == "Fixed"
+                    && candidate.Names.Contains(property, StringComparer.Ordinal));
+                if (rule?.Scope is not { } scope || !scope.StartsWith("SiblingCollection:", StringComparison.Ordinal)) continue;
+
+                var sourceProperty = scope["SiblingCollection:".Length..];
+                var sourceKey = properties.FirstOrDefault(candidate =>
+                    string.Equals(Name(tokens, text, candidate), sourceProperty, StringComparison.Ordinal));
+                if (sourceKey <= 0 || StaticLiteral(tokens, text, sourceKey + 2) is not { Length: > 0 } collection) continue;
+                var pipelineOpen = property == "pipeline" && Text(tokens, text, valueIndex) == "[" ? valueIndex : -1;
+                result = new(collection, property, pipelineOpen);
+                break;
+            }
+        }
+        return result;
     }
 
     /// <summary>Estágios encerrados antes do caret, em ordem de origem.</summary>
@@ -115,7 +164,7 @@ public static class PipelineStageReader
         var valueIndex = key + 2;
         if (valueIndex > close - 1) return new PipelineStage(name, new PipelineStageProperty(name, PipelineStageValue.Unknown));
         if (Text(tokens, text, valueIndex) != "{")
-            return new PipelineStage(name, new PipelineStageProperty(name, Classify(tokens, text, valueIndex, close, definition)));
+            return new PipelineStage(name, new PipelineStageProperty(name, Classify(tokens, text, valueIndex, close, definition, cancellationToken)));
 
         var body = MatchingClose(tokens, text, valueIndex);
         if (body < 0 || body > close) return new PipelineStage(name, new PipelineStageProperty(name, PipelineStageValue.Unknown));
@@ -125,7 +174,7 @@ public static class PipelineStageReader
             cancellationToken.ThrowIfCancellationRequested();
             var propertyName = Name(tokens, text, property);
             if (propertyName.Length == 0) continue;
-            properties.Add(new(propertyName, Classify(tokens, text, property + 2, body, definition)));
+            properties.Add(new(propertyName, Classify(tokens, text, property + 2, body, definition, cancellationToken)));
         }
         return new PipelineStage(name, properties.ToArray());
     }
@@ -145,7 +194,7 @@ public static class PipelineStageReader
     }
 
     private static PipelineStageValue Classify(IReadOnlyList<MongoToken> tokens, string text, int index, int limit,
-        LanguageDefinition definition)
+        LanguageDefinition definition, CancellationToken cancellationToken)
     {
         if (index < 0 || index >= tokens.Count || index >= limit) return PipelineStageValue.Unknown;
         var token = tokens[index];
@@ -162,9 +211,11 @@ public static class PipelineStageReader
                 if (content.Length <= 1) return content.Length == 0 ? PipelineStageValue.Unknown : PipelineStageValue.Literal(content);
                 return content[0] == '$' ? PipelineStageValue.FieldReference(content[1..]) : PipelineStageValue.Literal(content);
             case MongoTokenKind.Punctuation when value == "[":
-                return ClassifyArray(tokens, text, index, limit);
+                return IsPipelineArray(tokens, text, index, limit)
+                    ? PipelineStageValue.Pipeline(ReadPipelineArray(tokens, text, index, limit, definition, cancellationToken))
+                    : ClassifyArray(tokens, text, index, limit);
             case MongoTokenKind.Punctuation when value == "{":
-                return ClassifyObject(tokens, text, index, limit, definition);
+                return ClassifyObject(tokens, text, index, limit, definition, cancellationToken);
             default:
                 return PipelineStageValue.Unknown;
         }
@@ -188,10 +239,34 @@ public static class PipelineStageReader
     }
 
     private static PipelineStageValue ClassifyObject(IReadOnlyList<MongoToken> tokens, string text, int open, int limit,
-        LanguageDefinition definition)
+        LanguageDefinition definition, CancellationToken cancellationToken)
     {
         var close = MatchingClose(tokens, text, open);
         if (close < 0 || close > limit) return PipelineStageValue.Unknown;
+        // $replaceRoot/$replaceWith carrega uma referência simples ao documento. Preservá-la
+        // permite que a inferência troque a raiz pelo subdocumento sem avaliar a expressão.
+        var properties = Keys(tokens, text, open, close).ToArray();
+        if (properties.Length > 0 && properties.All(property =>
+            Text(tokens, text, property + 2) == "[" && IsPipelineArray(tokens, text, property + 2, close)))
+        {
+            var branches = new Dictionary<string, IReadOnlyList<PipelineStage>>(StringComparer.Ordinal);
+            foreach (var property in properties)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                branches[Name(tokens, text, property)] = ReadPipelineArray(tokens, text, property + 2, close, definition, cancellationToken);
+            }
+            return PipelineStageValue.Facet(branches);
+        }
+        if (properties.Length == 1 && Name(tokens, text, properties[0]) is "newRoot" or "replacement")
+        {
+            var valueIndex = properties[0] + 2;
+            if (valueIndex < close && tokens[valueIndex].Kind == MongoTokenKind.String && tokens[valueIndex].IsTerminated)
+            {
+                var content = Unquote(Text(tokens, text, valueIndex));
+                if (content.StartsWith('$') && !content.StartsWith("$$", StringComparison.Ordinal))
+                    return PipelineStageValue.FieldReference(content[1..]);
+            }
+        }
         foreach (var key in Keys(tokens, text, open, close))
         {
             var name = Name(tokens, text, key);
@@ -201,8 +276,55 @@ public static class PipelineStageReader
         return PipelineStageValue.Expression;
     }
 
+    private static bool IsPipelineArray(IReadOnlyList<MongoToken> tokens, string text, int open, int limit)
+    {
+        var close = MatchingClose(tokens, text, open);
+        if (close < 0 || close > limit) return false;
+        for (var index = open + 1; index < close; index++)
+        {
+            var value = Text(tokens, text, index);
+            if (value == ",") continue;
+            return value == "{";
+        }
+        return true;
+    }
+
+    private static List<PipelineStage> ReadPipelineArray(IReadOnlyList<MongoToken> tokens, string text, int open,
+        int limit, LanguageDefinition definition, CancellationToken cancellationToken)
+    {
+        var close = MatchingClose(tokens, text, open);
+        if (close < 0 || close > limit) return [];
+        var stages = new List<PipelineStage>();
+        for (var index = open + 1; index < close; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Text(tokens, text, index) == ",") continue;
+            if (Text(tokens, text, index) != "{") continue;
+            var stageClose = MatchingClose(tokens, text, index);
+            if (stageClose < 0 || stageClose > close) break;
+            stages.Add(ReadStage(tokens, text, index, stageClose, definition, cancellationToken));
+            index = stageClose;
+        }
+        return stages;
+    }
+
     private static bool IsAccumulator(LanguageDefinition definition, string name) =>
         definition.Symbols.Any(symbol => symbol.Kind == SymbolKind.Accumulator && string.Equals(symbol.Name, name, StringComparison.Ordinal));
+
+    private static bool ValueContainsCaret(IReadOnlyList<MongoToken> tokens, string text, int valueIndex, int limit, int caret)
+    {
+        if (valueIndex < 0 || valueIndex >= tokens.Count || valueIndex >= limit || caret < tokens[valueIndex].Start) return false;
+        var value = Text(tokens, text, valueIndex);
+        if (value is not ("{" or "[")) return caret <= tokens[valueIndex].End;
+        var close = MatchingClose(tokens, text, valueIndex);
+        return close < 0 || close <= limit && caret <= tokens[close].End;
+    }
+
+    private static string? StaticLiteral(IReadOnlyList<MongoToken> tokens, string text, int index)
+    {
+        if (index < 0 || index >= tokens.Count || tokens[index].Kind != MongoTokenKind.String || !tokens[index].IsTerminated) return null;
+        return Unquote(Text(tokens, text, index));
+    }
 
     /// <summary>Índice do token que fecha o grupo aberto em <paramref name="open"/>, ou -1 quando não há fechamento.</summary>
     private static int MatchingClose(IReadOnlyList<MongoToken> tokens, string text, int open)

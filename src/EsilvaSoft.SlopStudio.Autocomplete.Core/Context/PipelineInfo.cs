@@ -60,11 +60,14 @@ public sealed class PipelineInfo
         var result = stage.Name switch
         {
             "$match" or "$sort" or "$limit" or "$skip" or "$sample" => fields,
+            "$unwind" => fields,
             "$project" => Project(fields, stage.Properties),
             "$addFields" or "$set" => AddFields(fields, stage.Properties),
             "$unset" => Unset(fields, stage.Properties),
             "$group" => Group(stage.Properties),
             "$lookup" => Lookup(fields, stage.Properties, lookupSchema),
+            "$facet" => Facet(fields, stage.Properties),
+            "$replaceRoot" or "$replaceWith" => ReplaceRoot(fields, stage.Properties),
             "$count" => Count(stage.Properties),
             _ => null
         };
@@ -149,6 +152,9 @@ public sealed class PipelineInfo
         if (alias.Kind != PipelineValueKind.Literal || string.IsNullOrEmpty(alias.Text)) return null;
         RemoveSubtree(input, alias.Text);
         input[alias.Text] = PipelineField.Computed(alias.Text, ["array"], FieldTraits.Array | FieldTraits.ArrayOfDocuments);
+        var nested = properties.SingleOrDefault(property => property.Name == "pipeline")?.Value;
+        if (nested?.Kind == PipelineValueKind.Pipeline && foreignSchema is not null)
+            foreignSchema = PipelineInfo.From(foreignSchema).Apply(nested.Stages!).ToSchema();
         if (foreignSchema is null) return input;
         foreach (var field in foreignSchema.Descendants())
         {
@@ -158,11 +164,53 @@ public sealed class PipelineInfo
         return input;
     }
 
+    private static Dictionary<string, PipelineField>? Facet(Dictionary<string, PipelineField> input,
+        IReadOnlyList<PipelineStageProperty> properties)
+    {
+        var branches = properties.Where(property => property.Value.Kind == PipelineValueKind.Pipeline && property.Value.Stages is not null)
+            .ToDictionary(property => property.Name, property => (IReadOnlyList<PipelineStage>)property.Value.Stages!, StringComparer.Ordinal);
+        if (branches.Count == 0)
+            branches = properties.FirstOrDefault(property => property.Value.Kind == PipelineValueKind.FacetBranches)?.Value.Branches
+                is { } declared ? new Dictionary<string, IReadOnlyList<PipelineStage>>(declared, StringComparer.Ordinal) : [];
+        if (branches is null) return null;
+        var output = new Dictionary<string, PipelineField>(StringComparer.Ordinal);
+        foreach (var (name, stages) in branches)
+        {
+            var branch = PipelineInfo.From(ToSchema(input)).Apply(stages);
+            if (!branch.IsKnown) return null;
+            AddComputed(output, name, ["array"], FieldTraits.Array | FieldTraits.ArrayOfDocuments);
+            foreach (var field in branch.Fields.Values)
+            {
+                var path = name + "." + field.Path;
+                output[path] = new PipelineField(path, field.Source, field.Types, field.Traits);
+            }
+        }
+        return output;
+    }
+
+    private static CollectionSchema ToSchema(IReadOnlyDictionary<string, PipelineField> fields)
+    {
+        var builder = new SchemaBuilder();
+        foreach (var field in fields.Values)
+            builder.AddPipelineField(field.Path, field.Types, field.Traits, EvidenceSources.Pipeline);
+        return builder.Build();
+    }
+
     private static Dictionary<string, PipelineField>? Count(IReadOnlyList<PipelineStageProperty> properties)
     {
         if (properties.Count != 1 || properties[0].Value.Kind != PipelineValueKind.Literal || string.IsNullOrEmpty(properties[0].Value.Text)) return null;
         var name = properties[0].Value.Text!;
         return new(StringComparer.Ordinal) { [name] = PipelineField.Computed(name, ["number"]) };
+    }
+
+    private static Dictionary<string, PipelineField>? ReplaceRoot(Dictionary<string, PipelineField> input,
+        IReadOnlyList<PipelineStageProperty> properties)
+    {
+        var reference = properties.SingleOrDefault(property => property.Name is "newRoot" or "replacement")?.Value;
+        if (reference?.Kind != PipelineValueKind.FieldReference || string.IsNullOrEmpty(reference.Text)) return null;
+        var output = new Dictionary<string, PipelineField>(StringComparer.Ordinal);
+        CopySubtree(input, output, reference.Text!, "");
+        return output.Count == 0 ? null : output;
     }
 
     private static void CopySubtree(IReadOnlyDictionary<string, PipelineField> source, Dictionary<string, PipelineField> destination, string sourcePath, string destinationPath)
@@ -171,6 +219,8 @@ public sealed class PipelineInfo
         {
             if (path != sourcePath && !path.StartsWith(sourcePath + ".", StringComparison.Ordinal)) continue;
             var target = destinationPath + path[sourcePath.Length..];
+            if (target.StartsWith('.')) target = target[1..];
+            if (target.Length == 0) continue;
             destination[target] = new PipelineField(target, field.Source, field.Types, field.Traits);
         }
     }

@@ -43,6 +43,8 @@ Core → contratos; Application → Core/BCL; Infrastructure → Application; De
 
 ## 3. Fluxos atuais de autocomplete
 
+> As descrições legadas abaixo são um snapshot de 15/09/2026. Para o estado implementado, prevalecem o resumo no início deste arquivo, `execution-plan.md` e a matriz de validação.
+
 - [CompletionSession](../../src/EsilvaSoft.SlopStudio.Application/CompletionSession.cs): uma por editor, versão monotônica/CTS, dicionário síncrono antes do debounce, depois IA. Movimento sem edição também pode disparar.
 - [BasicAutocompleteProvider](../../src/EsilvaSoft.SlopStudio.Application/BasicAutocompleteProvider.cs): palavras por regex, keywords e sugestões MQL; menor continuação ordinal. **Já é preemptivo determinístico lexical**, mas não contextual, sem ranker/confiança compartilhados.
 - [AutocompleteService](../../src/EsilvaSoft.SlopStudio.Application/AutocompleteService.cs): cache IA 64 entradas/30 s; JSON + SHA-256 do request/revisão; `UseDictionary` independente de Mode. IA usa prioridade Background inclusive quando chamada pelo menu legado.
@@ -61,7 +63,7 @@ Core → contratos; Application → Core/BCL; Infrastructure → Application; De
 | MQL e básico | Prefixos/palavras, ainda regras duplicadas |
 | `MongoCodeValidator`, `MongoCodeFormatter`, `ConsoleRuntime` | Acornima/Jint para validar/formatar/executar; não substituir por parser tolerante |
 
-Não há AST de completion, `CompletionContextEngine` ou `ShapeWalker` compartilhados. A proposta não pode perder facet/count já existentes ou sugerir campos anteriores como certos após transformação desconhecida.
+O caminho ativo já possui `CompletionContextEngine` e `ShapeWalker` compartilhados, com cobertura automatizada de facet/count/unwind/replaceRoot. A proposta histórica não pode perder essas proteções nem sugerir campos anteriores como certos após transformação desconhecida.
 
 ## 5. Vocabulário MongoDB duplicado
 
@@ -83,7 +85,7 @@ Não há AST de completion, `CompletionContextEngine` ou `ShapeWalker` compartil
 | [Campos observados](../../src/EsilvaSoft.SlopStudio.Desktop/ViewModels/WorkspaceTabViewModel.Autocomplete.cs) | Memoizados por conjunto/perfil/alvo; primeira inferência ainda na UI; agregação reanalisa prefixo por captura |
 | Amostragem | SampleSchemaAsync e SchemaSamplingProfileIds existem, sem controle visual. Ferramenta de validador continua lendo documentos completos |
 
-Catálogo existe, mas ainda não substitui os geradores legados de sugestões.
+Catálogo, metadata e schema learning já alimentam o caminho ativo; alguns geradores legados permanecem como fachadas de compatibilidade até a migração completa.
 
 ## 7. IA e ONNX
 
@@ -119,7 +121,7 @@ Snapshot da sessão sem resultados/credenciais; alvo capturado antes de await; E
 
 ## 10. Configuração e atalhos
 
-[AutocompleteSettings](../../src/EsilvaSoft.SlopStudio.Core/Autocomplete.cs) v1 já possui Enabled/Mode/UseDictionary, atraso 50–2000 (padrão 150), contexto 64–8192 (2048), saída 1–256 (32), modelo/provider e opções de contexto. Não há flags independentes dos dois preemptivos ou registro de atalhos. Ctrl+Espaço/Tab/Esc são handlers; Ctrl+./Ctrl+; são planejados. [Migração e precedência](configuration.md).
+[AutocompleteSettings](../../src/EsilvaSoft.SlopStudio.Core/Autocomplete.cs) v1 já possui Enabled/Mode/UseDictionary, atraso 50–2000 (padrão 150), contexto 64–8192 (2048), saída 1–256 (32), modelo/provider e opções de contexto. Os dois fluxos preemptivos têm políticas independentes; `Ctrl+Espaço` abre a lista padrão e `Ctrl+;` aciona IA explícita, enquanto overrides persistidos continuam legíveis. [Migração e precedência](configuration.md).
 
 ## 11. Testes e evidências existentes
 
@@ -136,7 +138,7 @@ KnowledgeCatalogTests.cs também contém NameTableTests, MetadataCacheTests, Sch
 | Substituir após paridade | MenuFlyout, geradores redundantes e overlay; manter fachadas até migrar último chamador, inclusive ghost |
 | Não substituir | Acornima/Jint/mongosh, escrita/auditoria, autosave, proprietário LiteDB e backend GenAI |
 
-Fase 1: **base implementada, aceite parcial**. Fases 2–5: propostas. Chave Customer.Id exige aspas; ghost inicial não corrige texto anterior ao cursor, lista explícita pode fazê-lo. [Decisões](decisions.md).
+Fase 1: **base implementada, aceite parcial**. As fases posteriores têm implementação automatizada conforme o [plano de execução](execution-plan.md): namespaces de metadata, schema learning, `$lookup` estrangeiro e o gate de ranking estão cobertos por suites determinísticas. Chave Customer.Id exige aspas; lista explícita e snippets preservam edições aplicáveis. [Decisões](decisions.md).
 
 
 ## 13. Complemento: aprendizado dinâmico

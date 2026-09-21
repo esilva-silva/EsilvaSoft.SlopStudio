@@ -148,7 +148,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         Errors = "";
         Messages = "";
         Metrics = "";
-        _resultRenderable = false; _resultPolicy = uuidPolicy; _resultProfileId = profile.Id; _resultIsConsole = mode == "Console"; _resultEmptyText = null;
+        _resultRenderable = false; _resultPolicy = uuidPolicy; _resultProfileId = profile.Id; _resultSourceGenerationId = profile.SourceGenerationId; _resultIsConsole = mode == "Console"; _resultEmptyText = null;
         ClearResults("Executando…");
         Status = "Executando…";
         try

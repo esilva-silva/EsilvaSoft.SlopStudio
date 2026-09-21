@@ -1,10 +1,10 @@
 # Autocomplete MongoDB — arquitetura e plano revisados
 
-**Revisão: 15/09/2026 · Código analisado: `b082d4a`.** Fase 1: base implementada, aceite parcial. Fases 2–5: planejamento; nenhum provider novo ou atalho foi implementado nesta revisão.
+**Revisão-base: 15/09/2026 · Código analisado: `b082d4a`.** Este arquivo preserva o plano original; o estado corrente está no bloco inicial de `current-state.md` e no [acompanhamento](../12-acompanhamento-da-implementacao.md). Desde então, o caminho tradicional contextual, os providers preemptivos, os atalhos e a integração de schema learning foram implementados no escopo automatizado. Permanecem fora desta meta homologação multiplataforma/nativa, MongoDB/modelos reais e performance.
 
 ## Resultado da revisão
 
-O catálogo, cache, schema, métricas e benchmarks já existem. O editor ainda usa o menu Ctrl+Espaço e ghost lexical/IA legados. A [nova análise](current-state.md) substitui o inventário anterior à Fase 1 e inclui a inferência de agregação já entregue.
+O catálogo, cache, schema, métricas e benchmarks já existem. O fluxo atual combina lista contextual, snippets, ghost determinístico e providers de IA explícitos/preemptivos conforme as políticas documentadas. A [análise de estado](current-state.md) distingue o que foi implementado das pendências restantes.
 
 Quatro modalidades, duas formas de geração e infraestrutura comum:
 

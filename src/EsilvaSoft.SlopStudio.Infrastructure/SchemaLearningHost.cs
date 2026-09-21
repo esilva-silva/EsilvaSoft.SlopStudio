@@ -24,11 +24,11 @@ public sealed class SchemaLearningHost : IDisposable
 {
     private bool _disposed;
 
-    public SchemaLearningHost(BackgroundSchemaAnalyzer analyzer, ILearnedSchemaRepository repository)
+    public SchemaLearningHost(BackgroundSchemaAnalyzer analyzer, ILearnedSchemaRepository repository, LearnedSchemaCatalogSource? catalog = null)
     {
         ArgumentNullException.ThrowIfNull(analyzer);
         ArgumentNullException.ThrowIfNull(repository);
-        Coordinator = new SchemaLearningCoordinator(analyzer, repository);
+        Coordinator = new SchemaLearningCoordinator(analyzer, repository, committed: catalog is null ? null : key => catalog.InvalidateNamespace(key));
         Service = new SchemaLearningService(Coordinator);
     }
 

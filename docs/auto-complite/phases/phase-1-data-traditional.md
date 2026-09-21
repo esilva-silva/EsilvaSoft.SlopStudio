@@ -4,7 +4,7 @@
 
 ## Estado da implementação
 
-LanguageDefinition/mongodb-language.v1.json, KnowledgeCatalog/NameTable, MetadataCache/MongoMetadataSource, SchemaBuilder, write-through/invalidations e AutocompleteMetrics/Benchmarks já existem no b082d4a. Campos de resultados são memoizados, mas aprendizado persistente ainda não existe. Detalhes em [current-state](../current-state.md).
+LanguageDefinition/mongodb-language.v1.json, KnowledgeCatalog/NameTable, MetadataCache/MongoMetadataSource, SchemaBuilder, write-through/invalidations e AutocompleteMetrics/Benchmarks já existem no b082d4a. O aprendizado persistente L11–L16 foi posteriormente incorporado em `Application/SchemaLearning` e no proprietário LiteDB da Infrastructure; esta fase registra a base histórica e a integração funcional atual. Detalhes em [current-state](../current-state.md) e [schema-learning](../schema-learning.md).
 
 ### K11–K16 e K16-b — concluídos em 18/09/2026
 
@@ -15,12 +15,12 @@ Trabalho real entregue nesta rodada, sem reescrever o que já existia:
 - **K13.** Limite de cargas simultâneas no `MetadataCache`: no máximo 2 por conexão e 4 globais, evitando que uma aba com muitas coleções recém-abertas sature o pool de conexão.
 - **K14.** A memoização de mescla em `MetadataCatalogSource` deixou de ser um cache sem limite e virou LRU de 8 entradas.
 - **K15.** `CollectionSchema.Merge` deixou de aceitar `int.MaxValue` como teto implícito de profundidade/nós e passou a respeitar `SchemaMaximumDepth`/`SchemaMaximumNodes`.
-- **K16-b.** Cota por fonte em `KnowledgeCatalog.Query`: impede que uma fonte oculte totalmente outra quando ambas produzem candidatos do mesmo `kind`, mesmo com `MaximumCandidates` atingido. É pré-requisito de L15 (ainda não iniciado).
+- **K16-b.** Cota por fonte em `KnowledgeCatalog.Query`: impede que uma fonte oculte totalmente outra quando ambas produzem candidatos do mesmo `kind`, mesmo com `MaximumCandidates` atingido. Implementado junto ao catálogo; a ampliação de fixtures permanece acompanhada no plano.
 
 ### Ainda aberto na Fase 1
 
 - **K17** (relatório de performance do catálogo) não iniciado.
-- **Toda a fase L (L11–L16, schema learning persistido em LiteDB) não iniciada.** Nada neste lote grava schema aprendido em disco.
+- **L11–L16.** Implementados em `Application/SchemaLearning`, `LearnedSchemaCatalogSource` e `LiteDbConnectionProfileRepository`; a cobertura automatizada inclui análise, idempotência, recuperação/corrupção, opt-out, invalidação, LRU e integração do catálogo com `CompletionService`. MongoDB real continua fora da meta atual.
 
 ### Desvios em relação ao plano
 

@@ -23,7 +23,7 @@ public sealed class CompletionRanker
     /// Ordena sem nenhum sinal de sessão: esta sobrecarga não tem contexto, então não aplica uso nem tipo.
     /// </summary>
     public IReadOnlyList<CompletionItem> Rank(IEnumerable<CompletionItem> items, string prefix, int maximum,
-        CancellationToken cancellationToken = default) => Rank(items, prefix, maximum, usage: null, cancellationToken);
+        CancellationToken cancellationToken = default) => Rank(items, prefix, maximum, usage: null, valueTypes: null, cancellationToken);
 
     /// <summary>
     /// Ordena aplicando também o sinal de uso recente da sessão, quando o contexto identifica conexão, banco, coleção
@@ -33,11 +33,11 @@ public sealed class CompletionRanker
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
-        return Rank(items, context.Prefix, maximum, UsageScope.TryCreate(_usage, context), cancellationToken);
+        return Rank(items, context.Prefix, maximum, UsageScope.TryCreate(_usage, context), context.ValueTypes, cancellationToken);
     }
 
     private CompletionItem[] Rank(IEnumerable<CompletionItem> items, string prefix, int maximum,
-        UsageScope? usage, CancellationToken cancellationToken)
+        UsageScope? usage, IReadOnlySet<string>? valueTypes, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(items);
         ArgumentNullException.ThrowIfNull(prefix);
@@ -59,15 +59,14 @@ public sealed class CompletionRanker
             var score = matchScore + SourceScore(item.Source);
             if (item.Tags.HasFlag(CompletionItemTags.Deprecated)) score -= _profile.DeprecatedPenalty;
             if (item.Tags.HasFlag(CompletionItemTags.Stale)) score -= _profile.StalePenalty;
+            if (item.Tags.HasFlag(CompletionItemTags.Write)) score -= _profile.WritePenalty;
+            score += ContextualPriority(item, valueTypes);
+            if (HasTypeMismatch(item.ApplicableTypes, valueTypes)) score -= _profile.TypeMismatchPenalty;
 
             // O termo de uso soma depois das penalidades e antes do heap: ele muda a posição, nunca a sobrevivência
             // do candidato, e o desempate continua sendo (match, rótulo, símbolo, ordem de entrada).
             if (usage is { } scope) score += _profile.UsageWeight * scope.UsageOf(item.SymbolId);
 
-            // CompletionItem não carrega hoje nenhum sinal estruturado de compatibilidade de tipo
-            // (CatalogSymbol.ApplicableTypes não é propagado para o item), e Detail/LabelDetail são texto
-            // localizado de apresentação que não pode alterar o rank. Por isso TypeMismatchPenalty segue
-            // sem aplicação: inferi-la por texto seria incorreto.
             // Highlights are not materialized here: only (score, match, label, symbolId, ordinal) drive the
             // heap, so the array allocation is deferred until the final top-K survivors are known below.
             var candidate = new Candidate(item, match, score, ordinal++);
@@ -102,6 +101,39 @@ public sealed class CompletionRanker
         _ => 0
     };
 
+    private static bool HasTypeMismatch(IReadOnlyList<string> applicableTypes, IReadOnlySet<string>? valueTypes) =>
+        applicableTypes.Count > 0 && valueTypes is { Count: > 0 } &&
+        !applicableTypes.Any(valueTypes.Contains);
+
+    private static double ContextualPriority(CompletionItem item, IReadOnlySet<string>? valueTypes)
+    {
+        if (valueTypes is { Count: > 0 } && item.CatalogKind == SymbolKind.BsonConstructor
+            && ConstructorTypes(item.Label).Any(valueTypes.Contains)) return 240;
+        if (item.CatalogKind != SymbolKind.CollectionMethod) return 0;
+        return item.Label switch
+        {
+            "find" => 30,
+            "findOne" => 25,
+            "countDocuments" => 20,
+            "distinct" => 15,
+            "aggregate" => 10,
+            _ => 0
+        };
+    }
+
+    private static IReadOnlyList<string> ConstructorTypes(string name) => name switch
+    {
+        "ObjectId" => ["objectId"],
+        "UUID" or "GUUID" or "CGUUID" or "JUUID" => ["uuid"],
+        "ISODate" => ["date"],
+        "Decimal128" or "NumberDecimal" => ["decimal"],
+        "Long" or "NumberLong" => ["long"],
+        "Int32" or "NumberInt" => ["int"],
+        "Double" => ["double"],
+        "BinData" => ["binData"],
+        _ => []
+    };
+
     /// <summary>Compares candidates in their final, best-to-worst output order.</summary>
     private static int CompareForOutput(Candidate left, Candidate right)
     {
@@ -109,6 +141,9 @@ public sealed class CompletionRanker
         if (comparison != 0) return comparison;
 
         comparison = MatchOrder(left.Match).CompareTo(MatchOrder(right.Match));
+        if (comparison != 0) return comparison;
+
+        comparison = left.Item.Label.Length.CompareTo(right.Item.Label.Length);
         if (comparison != 0) return comparison;
 
         comparison = StringComparer.OrdinalIgnoreCase.Compare(left.Item.Label, right.Item.Label);

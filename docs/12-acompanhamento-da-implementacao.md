@@ -1,5 +1,13 @@
 ﻿# Acompanhamento da implementação
 
+## Atualização da meta de autocomplete — 21/09/2026
+
+A meta foi retomada com escopo funcional e de testes automatizados, sem validar múltiplas plataformas, MongoDB/modelos reais ou metas de performance. O fluxo foi dividido por risco: tarefas de corpus e regressão ficam no perfil Luna; integração de catálogo, ranking e snippets no Terra; parser, contexto, recuperação tolerante, concorrência e cancelamento no Sol; decisões arquiteturais, persistência LiteDB e revisão sistêmica sobem ao Astra apenas quando necessário.
+
+O novo runner de casos `.case` cobre parsing, papéis de contexto, shapes, kinds, aspas, `ReplaceSpan`, edições aplicadas, expansão de snippets e um primeiro corpus de ranking tipado: **675 casos aprovados**. A cobertura já inclui stages de pipeline, `$lookup`, busca, arrays de operadores, modificadores de update, construtores BSON por tipo e prioridade de métodos de leitura. O `CompletionContextEngine`, o `ShapeWalker` e o catálogo de linguagem foram ajustados para recuperação tolerante, contexto após whitespace, referências de campo/variável, strings contextuais, `$facet` por ramo e shapes específicos por símbolo. O ranking passou a transportar tipos BSON conhecidos do campo pai até `CompletionItem`, aplicar `TypeMismatchPenalty` somente para restrições declaradas e priorizar construtores compatíveis.
+
+Os provedores explícito e preemptivo, cancelamento, concorrência, namespaces de metadata, schema learning e `$lookup` estrangeiro possuem cobertura unitária. O gate funcional de ranking registra **MRR 1,000, top-1 44/44 e top-5 44/44** sobre o corpus local; extensões futuras de corpus não reabrem este aceite. A suíte unitária completa mais recente teve **2.593 aprovados, 0 falhas e 20 ignorados**. Performance, validação multiplataforma, leitor de tela, MongoDB real e modelos reais permanecem explicitamente fora da meta.
+
 ## Fase 1 (K11–K16, K16-b) e Fase 5.1 (Traditional Preemptive) — 18/09/2026
 
 Build `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore`: **0 avisos, 0 erros**. Suíte
@@ -20,8 +28,8 @@ desconexão/invalidação, `Peek` propagado e `Changed` terminal por chave **já
 não são entrega deste lote. K11 ganhou duas travas de regressão novas: cache esvaziado após `InvalidateEnvironment` e
 hosts distintos com o mesmo nome de namespace sem reuso cruzado entre conexões.
 
-**Ainda aberto na Fase 1:** K17 (relatório de performance do catálogo) não iniciado; **toda a fase L (L11–L16, schema
-learning persistido em LiteDB) não iniciada**. Detalhe em
+**Registro histórico desta seção:** K17 (relatório de performance do catálogo) não iniciado; a implementação de L11–L16/schema
+learning persistido em LiteDB foi posteriormente incorporada ao repositório, mas ainda precisa de cobertura integrada no corpus desta meta. Detalhe em
 [phase-1-data-traditional](auto-complite/phases/phase-1-data-traditional.md#k11k16-e-k16-b--concluídos-em-18092026).
 
 ### Fase 5.1 — Traditional Preemptive Completion
@@ -59,7 +67,7 @@ existente; a implementação usa `false` também na migração, mantendo o opt-i
   despachante. A meta não foi ajustada. Computação p95 ≤ 5 ms **é atendida** (catálogo de linguagem: p95 0,009 ms;
   200 campos de schema: p95 0,068 ms). Ver [performance](auto-complite/performance.md).
 - Matriz de 18 PNGs de homologação visual não produzida nesta entrega.
-- Fases 3, 4, 5.2 e 5.3 não iniciadas; `Ctrl+;` continua apenas informando indisponibilidade.
+- Fases 3 e 4 têm o caminho de IA local implementado e coberto por fakes; 5.2/5.3 também têm o fluxo automático integrado via `CompletionSession`/`AutocompleteService`, com política `LoadedOnly`. Modelo ONNX real e performance permanecem fora desta meta.
 - Homologação real (layouts físicos ABNT2/US em Windows e Linux X11/Wayland, IME real, leitor de tela, MongoDB real,
   modelos ONNX reais) não executada.
 
@@ -622,7 +630,7 @@ DirectML no mesmo processo, download pelo **Baixar modelo**, NPU e CUDA.
 
 ## Revisão do plano de autocomplete — 15/09/2026
 
-Concluída revisão documental do autocomplete contra b082d4a: inventário atualizado, arquitetura/fases/risco/performance/testes revistos, tarefas e dez perfis documentados. Acrescentado Schema Discovery/Learning por resultados find, probabilístico, incremental e persistente no LiteDB existente. Implementação desses novos contratos/providers/analyzer ainda pendente; nenhuma homologação real nova declarada. [Plano revisado](auto-complite/README.md), [tarefas por agente](auto-complite/execution-plan.md) e [schema learning](auto-complite/schema-learning.md).
+**Registro histórico de 15/09/2026:** concluída revisão documental do autocomplete contra b082d4a, quando Schema Discovery/Learning ainda era descrito como pendente. A implementação subsequente está registrada no bloco corrente desta página e em [schema learning](auto-complite/schema-learning.md); nenhuma homologação real nova é declarada neste registro histórico. [Plano revisado](auto-complite/README.md), [tarefas por agente](auto-complite/execution-plan.md).
 
 ## Núcleos isolados de autocomplete e IA local — 17/09/2026
 

@@ -251,6 +251,16 @@ public sealed class LearnedSchemaCatalogSource : ICatalogSource
         lock (_gate) _cache.RemoveAll(entry => entry.Key.ProfileId == profileId);
     }
 
+    public void InvalidateNamespace(LearnedSchemaKey key)
+    {
+        lock (_gate) _cache.RemoveAll(entry => entry.Key.Equals(key));
+    }
+
+    public void InvalidateDatabase(Guid profileId, string database)
+    {
+        lock (_gate) _cache.RemoveAll(entry => entry.Key.ProfileId == profileId && string.Equals(entry.Key.Database, database, StringComparison.Ordinal));
+    }
+
     private enum HydrationState { Loading, NotLearned, Available, Unavailable }
 
     private sealed class NamespaceEntry(LearnedSchemaKey key)

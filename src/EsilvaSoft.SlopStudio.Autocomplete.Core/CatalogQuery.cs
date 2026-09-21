@@ -28,4 +28,5 @@ public sealed record CatalogQuery(SymbolKinds Kinds, EditorDialects Dialect, str
     /// nenhuma leitura de metadados: a forma local já descreve a posição e os campos da coleção não valem mais ali.
     /// </summary>
     public bool RestrictFieldsToLocalSchemas { get; init; }
+    public bool IncludeNestedFields { get; init; }
 }

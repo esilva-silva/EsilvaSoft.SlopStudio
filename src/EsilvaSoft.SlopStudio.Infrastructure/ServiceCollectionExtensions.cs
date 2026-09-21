@@ -59,7 +59,8 @@ public static class ServiceCollectionExtensions
         // constructor parameters are tuning knobs, not services, so it is built explicitly with its defaults.
         services.AddSingleton<BackgroundSchemaAnalyzer>(_ => new BackgroundSchemaAnalyzer(TimeProvider.System));
         services.AddSingleton<SchemaLearningHost>(provider => new SchemaLearningHost(
-            provider.GetRequiredService<BackgroundSchemaAnalyzer>(), provider.GetRequiredService<ILearnedSchemaRepository>()));
+            provider.GetRequiredService<BackgroundSchemaAnalyzer>(), provider.GetRequiredService<ILearnedSchemaRepository>(),
+            provider.GetRequiredService<LearnedSchemaCatalogSource>()));
         services.AddSingleton<SchemaLearningService>(provider => provider.GetRequiredService<SchemaLearningHost>().Service);
         services.AddSingleton<IExplorerMetadataService, ExplorerMetadataService>();
         services.AddSingleton<IScriptExecutionService, MongoshScriptExecutionService>();

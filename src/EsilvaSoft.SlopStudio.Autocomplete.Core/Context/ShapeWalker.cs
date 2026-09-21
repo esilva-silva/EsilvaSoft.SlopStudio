@@ -64,15 +64,29 @@ public static class ShapeWalker
             else if (value == ")" && stack.Count > 0) stack.Pop();
         }
         if (stack.Count > 0) best = stack.Peek();
+        if (best < 0)
+        {
+            // Recovery path for a stray closing parenthesis before the caret: preserve the last recognizable method
+            // call so a malformed argument does not erase the enclosing filter context.
+            for (var i = 1; i < tokens.Count && tokens[i].Start < caret; i++)
+                if (Value(tokens, text, i) == "(" && tokens[i - 1].Kind == MongoTokenKind.Identifier) best = i;
+        }
         if (best <= 0 || tokens[best - 1].Kind != MongoTokenKind.Identifier) return (null, -1, 0);
         var argument = 0;
-        var depth = 0;
+        var delimiters = new Stack<char>();
         for (var i = best + 1; i < tokens.Count && tokens[i].Start < caret; i++)
         {
             var value = Value(tokens, text, i);
-            if (value is "{" or "[" or "(") depth++;
-            else if (value is "}" or "]" or ")") depth--;
-            else if (value == "," && depth == 0) argument++;
+            if (value is "{" or "[" or "(") delimiters.Push(value[0]);
+            else if (value == ")")
+            {
+                if (delimiters.Count == 0) break;
+                if (delimiters.Peek() == '(') delimiters.Pop();
+                // A premature ')' inside an object is a skipped recovery token, not the end of the method call.
+            }
+            else if (value == "}" && delimiters.Count > 0 && delimiters.Peek() == '{') delimiters.Pop();
+            else if (value == "]" && delimiters.Count > 0 && delimiters.Peek() == '[') delimiters.Pop();
+            else if (value == "," && delimiters.Count == 0) argument++;
         }
         return (Value(tokens, text, best - 1), best, argument);
     }
@@ -86,10 +100,20 @@ public static class ShapeWalker
         for (var i = callOpen + 1; i < tokens.Count && tokens[i].Start < caret; i++)
         {
             var value = Value(tokens, text, i);
-            if (value == "[" && definition.Shapes.TryGetValue(shape, out var array) && array.Element is { } element)
-            { shape = element; stack.Push((shape, null)); continue; }
+            if (value == "[" && definition.Shapes.TryGetValue(shape, out var array))
+            {
+                var element = array.Element ?? array.Values.FirstOrDefault(candidate =>
+                    definition.Shapes.TryGetValue(candidate, out var valueShape) && valueShape.Element is not null);
+                while (element is not null && definition.Shapes.TryGetValue(element, out var nestedArray)
+                    && nestedArray.Element is { } nestedElement)
+                    element = nestedElement;
+                if (element is not null)
+                { shape = element; stack.Push((shape, null)); continue; }
+            }
             if (value == "{")
             {
+                if (shape == "FieldValue" && stack.Any(frame => frame.Key is "$push" or "$addToSet"))
+                    shape = "UpdateModifierObject";
                 if (definition.Shapes.TryGetValue(shape, out var valueShape))
                 {
                     var objectValue = valueShape.Values.FirstOrDefault(definition.Shapes.ContainsKey);
@@ -98,45 +122,77 @@ public static class ShapeWalker
                 stack.Push((shape, null));
                 continue;
             }
-            if (value is "}" or "]") { if (stack.Count > 1) { stack.Pop(); shape = stack.Peek().Shape; } continue; }
+            if (value is "}" or "]")
+            {
+                if (stack.Count > 1)
+                {
+                    // A key frame may represent a scalar value without its own opening delimiter. When its enclosing
+                    // object closes, discard both the value frame and the object frame; nested objects already have a
+                    // delimiter frame on top and are removed on their own closing token.
+                    var topHasKey = stack.Peek().Key is not null;
+                    stack.Pop();
+                    if (stack.Count > 1 && (topHasKey || stack.Peek().Key is not null)) stack.Pop();
+                    shape = stack.Peek().Shape;
+                }
+                continue;
+            }
             // A vírgula encerra o valor da propriedade corrente: sem devolver o quadro da chave, a próxima chave seria
             // resolvida contra a forma do valor anterior, e uma forma sem chaves descartaria todo o estreitamento.
             if (value == "," && stack.Count > 1 && stack.Peek().Key is not null) { stack.Pop(); shape = stack.Peek().Shape; continue; }
-            if ((tokens[i].Kind is MongoTokenKind.Identifier or MongoTokenKind.String) && i + 1 < tokens.Count && Value(tokens, text, i + 1) == ":")
+            if ((tokens[i].Kind is MongoTokenKind.Identifier or MongoTokenKind.String) && i + 1 < tokens.Count
+                && Value(tokens, text, i + 1) == ":" && tokens[i + 1].End <= caret)
             {
                 var key = Unquote(value);
                 if (definition.Shapes.TryGetValue(shape, out var objectShape))
                 {
-                    var rule = Match(objectShape, key);
-                    if (rule?.Value is { } next) { shape = next; stack.Push((shape, key)); }
+                    var rule = Match(objectShape, key, definition);
+                    var symbolShape = SymbolValueShape(definition, key);
+                    var next = symbolShape ?? rule?.Value;
+                    if (next is not null) { shape = next; stack.Push((shape, key)); }
                 }
             }
+        }
+        if (role is CompletionCursorRole.PropertyKey or CompletionCursorRole.PropertyKeyString
+            && stack.Count > 1 && stack.Peek().Key is not null)
+        {
+            stack.Pop();
+            shape = stack.Peek().Shape;
         }
         // Uma forma que não é objeto é ela mesma o tipo de valor aceito na posição.
         if (!definition.Shapes.TryGetValue(shape, out var current)) return new(shape, ExpectedForPrimitive(shape)) { ValueShape = shape };
         var expected = role switch
         {
-            CompletionCursorRole.PropertyKey or CompletionCursorRole.PropertyKeyString => KeyKinds(current),
-            CompletionCursorRole.ArrayElement => current.Element is { } element ? ExpectedForShape(element, definition) : KeyKinds(current),
-            CompletionCursorRole.PropertyValue => ValueKinds(current),
+            CompletionCursorRole.PropertyKey or CompletionCursorRole.PropertyKeyString => KeyKinds(current, definition),
+            CompletionCursorRole.ArrayElement => current.Element is { } element ? ExpectedForShape(element, definition) : KeyKinds(current, definition),
+            CompletionCursorRole.PropertyValue => ValueKinds(current, definition),
             _ => ExpectedForShape(shape, definition)
         };
         var parent = stack.Reverse().Select(frame => frame.Key).LastOrDefault(key => !string.IsNullOrEmpty(key)) ?? "";
-        return new(shape, expected, parent) { ValueShape = ValueShapeOf(current) };
+        // Search compound has a narrower key set than an operator body, but it remains the published context id so
+        // existing consumers continue to recognize the catalogued SearchOperatorBody shape.
+        var reportedShape = shape == "SearchCompoundBody" ? "SearchOperatorBody" : shape;
+        return new(reportedShape, expected, parent) { ValueShape = ValueShapeOf(current) };
     }
 
     // Entre os valores declarados, o primeiro tipo primitivo descreve o valor esperado; formas de objeto não são um tipo.
     private static string? ValueShapeOf(ShapeDefinition shape) =>
         shape.Values.FirstOrDefault(LanguageDefinition.PrimitiveValues.Contains) ?? (shape.Values.Count > 0 ? shape.Values[0] : null);
 
-    private static ShapeKeyRule? Match(ShapeDefinition shape, string key) => shape.Keys.FirstOrDefault(rule =>
+    private static ShapeKeyRule? Match(ShapeDefinition shape, string key, LanguageDefinition definition) => shape.Keys.FirstOrDefault(rule =>
         rule.Rule == "Fixed" && rule.Names.Contains(key, StringComparer.Ordinal)) ??
-        shape.Keys.FirstOrDefault(rule => rule.Rule == "Operator" && key.StartsWith('$')) ??
+        shape.Keys.FirstOrDefault(rule => rule.Rule == "Operator" && rule.Names.Contains(key, StringComparer.Ordinal)) ??
+        shape.Keys.FirstOrDefault(rule => rule.Rule == "Operator" && (key.StartsWith('$') ||
+            (rule.Kinds.Count > 0 && definition.Symbols.Any(symbol => string.Equals(symbol.Name, key, StringComparison.Ordinal)
+                && rule.Kinds.Contains(symbol.Kind))))) ??
+        shape.Keys.FirstOrDefault(rule => rule.Rule == "Exclusive" && (rule.Names.Count == 0 || rule.Names.Contains(key, StringComparer.Ordinal))) ??
         shape.Keys.FirstOrDefault(rule => rule.Rule is "FieldPath" or "Dynamic");
-    private static SymbolKinds KeyKinds(ShapeDefinition shape) => shape.Keys.Aggregate(SymbolKinds.None, (all, rule) => all |
+    private static string? SymbolValueShape(LanguageDefinition definition, string key) =>
+        definition.Symbols.FirstOrDefault(symbol => string.Equals(symbol.Name, key, StringComparison.Ordinal))?.ValueShape;
+    private static SymbolKinds KeyKinds(ShapeDefinition shape, LanguageDefinition definition) => shape.Keys.Aggregate(SymbolKinds.None, (all, rule) => all |
         (rule.Rule == "FieldPath" ? SymbolKinds.Field : rule.Rule is "Operator" or "Exclusive" ? rule.Kinds.Aggregate(SymbolKinds.None, (k, kind) => k | kind.ToFlag()) : SymbolKinds.None));
-    private static SymbolKinds ValueKinds(ShapeDefinition shape) => shape.Values.Aggregate(SymbolKinds.None, (all, value) => all | ExpectedForPrimitive(value));
-    private static SymbolKinds ExpectedForShape(string shape, LanguageDefinition definition) => definition.Shapes.TryGetValue(shape, out var value) ? KeyKinds(value) : ExpectedForPrimitive(shape);
+    private static SymbolKinds ValueKinds(ShapeDefinition shape, LanguageDefinition definition) => shape.Values.Aggregate(SymbolKinds.None,
+        (all, value) => all | ExpectedForShape(value, definition));
+    private static SymbolKinds ExpectedForShape(string shape, LanguageDefinition definition) => definition.Shapes.TryGetValue(shape, out var value) ? KeyKinds(value, definition) : ExpectedForPrimitive(shape);
     private static SymbolKinds ExpectedForPrimitive(string value) => value switch
     {
         "FieldPathString" or "FieldReference" => SymbolKinds.Field,

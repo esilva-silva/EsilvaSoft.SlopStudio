@@ -100,6 +100,18 @@ public sealed class MetadataCatalogSource(IMetadataCache cache) : ICatalogSource
         root.Children.Collect(query.Prefix, Remaining(query, sink), null, (field, match) => sink.Add(new(new CatalogSymbol(
             $"{prefix}/field/{field.Path}", SymbolKind.Field, field.Name, Describe(field))
             { Dialects = EditorDialects.All, Scope = scope, Evidence = field.Evidence, Field = field }, match)), cancellationToken);
+        if (query.IncludeNestedFields && query.ParentPath.Length == 0 && sink.Count < query.MaximumCandidates)
+        {
+            var existing = sink.OfType<CatalogCandidate>().Select(candidate => candidate.Symbol.Field?.Path)
+                .Where(path => path is not null).ToHashSet(StringComparer.Ordinal);
+            foreach (var field in local.Descendants().Where(field => field.Path.Contains('.', StringComparison.Ordinal)))
+            {
+                if (existing.Contains(field.Path) || !field.Path.StartsWith(query.Prefix, StringComparison.OrdinalIgnoreCase)) continue;
+                sink.Add(new(new CatalogSymbol($"{prefix}/field/{field.Path}", SymbolKind.Field, field.Name, Describe(field))
+                { Dialects = EditorDialects.All, Scope = scope, Evidence = field.Evidence, Field = field }, CatalogMatch.Prefix));
+                if (sink.Count >= query.MaximumCandidates) break;
+            }
+        }
     }
 
     internal static string Describe(FieldNode field)

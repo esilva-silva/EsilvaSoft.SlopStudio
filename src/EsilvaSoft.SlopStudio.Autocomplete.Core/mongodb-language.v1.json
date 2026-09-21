@@ -271,13 +271,13 @@
       ["$$SEARCH_META", "Metadados de MongoDB Search"], ["$$USER_ROLES", "Papéis do usuário"]
     ] },
     { "kind": "SearchOperator", "detail": "Operador de MongoDB Search", "valueShape": "SearchOperatorBody", "symbols": [
-      ["autocomplete", "Busca por prefixo"], ["compound", "Combina cláusulas"], ["embeddedDocument", "Busca em documentos incorporados"],
+      { "name": "compound", "detail": "Combina cláusulas", "valueShape": "SearchCompoundBody" }, ["autocomplete", "Busca por prefixo"], ["embeddedDocument", "Busca em documentos incorporados"],
       ["equals", "Valor igual"], ["exists", "Campo existe"], ["geoShape", "Forma geográfica"], ["geoWithin", "Dentro da geometria"], ["in", "Pertence à lista"],
       ["knnBeta", "Vizinhos mais próximos"], ["moreLikeThis", "Documentos semelhantes"], ["near", "Valor próximo"], ["phrase", "Frase"],
       ["queryString", "Sintaxe de consulta"], ["range", "Faixa de valores"], ["regex", "Expressão regular"], ["text", "Texto analisado"], ["wildcard", "Curingas"]
     ] },
     { "kind": "SearchOption", "detail": "Opção de MongoDB Search", "valueShape": "Any", "symbols": [
-      ["must", "Cláusulas obrigatórias"], ["mustNot", "Cláusulas proibidas"], ["should", "Cláusulas preferidas"], ["filter", "Cláusulas sem pontuação"],
+      { "name": "must", "detail": "Cláusulas obrigatórias", "valueShape": "SearchOperatorArray" }, { "name": "mustNot", "detail": "Cláusulas proibidas", "valueShape": "SearchOperatorArray" }, { "name": "should", "detail": "Cláusulas preferidas", "valueShape": "SearchOperatorArray" }, { "name": "filter", "detail": "Cláusulas sem pontuação", "valueShape": "SearchOperatorArray" },
       ["minimumShouldMatch", "Mínimo de should atendidas"], ["path", "Campo pesquisado"], ["query", "Texto pesquisado"], ["value", "Valor pesquisado"],
       ["score", "Ajuste de pontuação"], ["fuzzy", "Tolerância a erros"], ["tokenOrder", "Ordem dos tokens"], ["index", "Índice de busca"],
       ["highlight", "Trechos destacados"], ["count", "Contagem de resultados"], ["returnStoredSource", "Campos armazenados"], ["concurrent", "Execução paralela"]
@@ -329,6 +329,7 @@
     "Update": { "keys": [ { "rule": "Operator", "kinds": ["UpdateOperator"], "categories": ["field", "array", "bitwise"], "value": "FieldValueMap" } ] },
     "UpdateOrPipeline": { "values": ["Update", "UpdatePipeline"] },
     "FieldValueMap": { "keys": [ { "rule": "FieldPath", "value": "FieldValue", "scope": "AllowNewFields" } ] },
+    "UpdateModifierObject": { "keys": [ { "rule": "Exclusive", "kinds": ["UpdateOperator"] } ] },
     "UpdatePipeline": { "element": "UpdateStage" },
     "UpdateStage": { "keys": [ { "rule": "Exclusive", "kinds": ["AggregationStage"], "names": ["$addFields", "$set", "$project", "$unset", "$replaceRoot", "$replaceWith"] } ] },
     "UpdateOptions": { "keys": [
@@ -377,6 +378,8 @@
       { "rule": "Operator", "kinds": ["SearchOption"], "value": "Any" },
       { "rule": "Operator", "kinds": ["SearchOperator"], "value": "SearchOperatorBody" }
     ] },
+    "SearchCompoundBody": { "keys": [ { "rule": "Operator", "kinds": ["SearchOption"] } ] },
+    "SearchOperatorArray": { "element": "SearchOperatorBody" },
     "Documents": { "element": "Document" },
     "IndexKeys": { "keys": [ { "rule": "FieldPath", "value": "IndexDirection" } ] },
     "IndexOptions": { "keys": [

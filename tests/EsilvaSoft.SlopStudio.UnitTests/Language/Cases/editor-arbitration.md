@@ -40,7 +40,7 @@ Headless não homologa layout ABNT2/US nativo, IME real, leitor de tela nem Linu
 | L | Lista aberta (`CompletionWindow` visível) |
 | S | Sessão de snippet ativa |
 | G | Ghost visível (preemptivo atual, provider falso) |
-| IA | IA pendente — **fora do escopo da Fase 2** |
+| IA | IA local automática ou explícita; o caminho automático usa `LoadedOnly` |
 | N | Nenhum |
 
 Resultado observável = um ou mais destes sinais, capturados no teste:
@@ -98,8 +98,8 @@ Uma linha de teste por célula relevante. Na tabela original, "—" significa qu
 
 Listados apenas para rastreabilidade; não viram teste nesta fase:
 
-- a coluna **IA pendente** inteira (`Tab`, `Shift+Tab`, `Enter`, `Esc`, `↑/↓`): descreve um estado de geração de IA em andamento que **não existe** em nenhuma entrega atual;
-- a linha **`Ctrl+;`** em L, S, G e N: o gesto é reconhecido e consumido (PREF-09), mas o fluxo de IA explícita continua não implementado;
+- a coluna de geração automática da IA: o fluxo atual tem estado de geração, cancelamento por `Esc`, descarte por edição/geração e aceite por `Tab`; a execução com modelo ONNX real permanece fora da validação automatizada;
+- a linha **`Ctrl+;`** em L, S, G e N: o gesto é reconhecido e consumido (PREF-09), abre a prévia da IA explícita quando há provider e cai para o fallback tradicional quando necessário;
 - **`Alt+]` / `Alt+[`**: alternativas adiadas;
 - **`Ctrl+→`**: aceite por palavra adiado.
 

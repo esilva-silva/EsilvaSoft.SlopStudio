@@ -1,5 +1,11 @@
 ﻿# Matriz de validação
 
+## Estado corrente da meta de autocomplete — 21/09/2026
+
+Evidência automatizada atual: `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore -p:UsedAvaloniaProducts=` passou com **0 avisos e 0 erros**; a suíte `EsilvaSoft.SlopStudio.UnitTests` passou com **2.593 aprovados, 0 falhas e 20 ignorados**; o corpus `LanguageCaseCorpusTests` passou com **676 testes verdes** (675 fixtures e o gate agregado de ranking). Os testes novos cobrem namespaces de metadata, schema aprendido no catálogo/completion, edições/snippets, `$lookup` estrangeiro e propagação de campos por ramos de `$facet`.
+
+Fora desta meta: gates de performance, validação em múltiplas plataformas, MongoDB real, modelos reais, leitor de tela e homologação nativa. O gate funcional publicado de ranking cobre 44 casos locais com **MRR 1,000, top-1 44/44 e top-5 44/44**; namespaces de metadata, schema learning e `$lookup` estrangeiro têm suites determinísticas próprias.
+
 ## Fase 1 (K11–K16, K16-b) e Fase 5.1 (Traditional Preemptive) — 18/09/2026
 
 Build `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore`: **0 avisos, 0 erros**. Suíte
@@ -38,11 +44,11 @@ Build `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore`: **0 avisos, 0 erro
 
 ### Pendências de escopo, não de evidência
 
-- K17 (relatório de performance do catálogo) e toda a fase L (L11–L16, schema learning em LiteDB) não iniciados.
+- K17 (relatório de performance do catálogo) permanece fora desta meta; L11–L15 estão implementados com testes, enquanto L16 (benchmark/gate de performance) permanece fora desta meta.
 - `InlineEnabled`/`InlineUseTraditional`/`InlineUseAi` não têm controle em `AutocompleteSettingsWindow`; só editáveis
   via JSON persistido.
-- Arquivos `.case` em `tests/.../Language/Cases/` continuam sem runner: são especificação, não teste executado.
-- Fases 5.2 e 5.3 não iniciadas. A Fase 4 está em andamento: `Ctrl+;` tem comando, indicador, prévia inline multilinha e matriz de fallback na lista tradicional (A42), a evidência automatizada usa serviço de modelo falso; o caminho com modelo ONNX real continua pendente de homologação.
+- Registro histórico: os arquivos `.case` em `tests/.../Language/Cases/` estavam sem runner. Desde 21/09/2026, o runner automatizado cobre parsing, papéis, shapes, kinds, aspas, `ReplaceSpan`, edições/snippets e ranking tipado (**675 fixtures aprovados**); o gate agregado publica MRR/top-1/top-5 e as integrações de namespace metadata, schema learning e `$lookup` têm cobertura determinística complementar.
+- Fases 5.2 e 5.3 estão implementadas no fluxo automático com fakes: `LoadedOnly`, debounce, cancelamento, descarte por geração e arbitragem tradicional → IA são cobertos. A Fase 4 também tem `Ctrl+;`, indicador, prévia inline multilinha e matriz de fallback; o caminho com modelo ONNX real continua fora da validação desta meta.
 
 Detalhe: [acompanhamento](12-acompanhamento-da-implementacao.md#fase-1-k11k16-k16-b-e-fase-51-traditional-preemptive--18092026),
 [phase-1-data-traditional](auto-complite/phases/phase-1-data-traditional.md),

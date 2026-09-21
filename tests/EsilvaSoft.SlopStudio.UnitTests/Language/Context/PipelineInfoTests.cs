@@ -60,6 +60,21 @@ public sealed class PipelineInfoTests
     }
 
     [Test]
+    public void FacetCreatesIndependentBranchNamespaces()
+    {
+        var branches = new Dictionary<string, IReadOnlyList<PipelineStage>>(StringComparer.Ordinal)
+        {
+            ["totals"] = [PipelineStage.Count("count")],
+            ["page"] = [new PipelineStage("$project", new("_id", PipelineStageValue.Exclude), new("price", PipelineStageValue.Include))]
+        };
+        var result = PipelineInfo.From(Orders).Apply(new PipelineStage("$facet",
+            new PipelineStageProperty("branches", PipelineStageValue.Facet(branches))));
+
+        Assert.That(result.State, Is.EqualTo(PipelineFieldState.Known));
+        Assert.That(result.Fields.Keys, Is.EquivalentTo(["totals", "totals.count", "page", "page.price"]));
+    }
+
+    [Test]
     public void UnknownTransformationDropsAllCertainFields()
     {
         var result = PipelineInfo.From(Orders).Apply(new PipelineStage("$futureTransform"));

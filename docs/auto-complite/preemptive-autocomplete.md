@@ -1,6 +1,6 @@
 # Autocomplete preemptivo (inline)
 
-Revisão de 18/09/2026. **5.1 (Traditional Preemptive) implementado** desde o lote de 18/09/2026; 5.2 e 5.3 continuam **planejados**. Preemptivo descreve o disparo automático, não a tecnologia de geração.
+Revisão de 21/09/2026. **5.1 (Traditional Preemptive), 5.2 (AI Preemptive) e 5.3 (estratégia híbrida) implementados no escopo automatizado**. Preemptivo descreve o disparo automático, não a tecnologia de geração. Modelos ONNX reais, homologação nativa e performance permanecem fora desta meta.
 
 **Ordem de fonte efetiva do ghost, implementada em 5.1:** determinístico (`TraditionalPreemptiveCompletionProvider`) → dicionário lexical local → IA. A IA automática só entra com `InlineUseAi = true` **e** modelo já em `Ready` (LoadedOnly); nenhum caminho de digitação carrega, troca ou inicializa modelo. Detalhe e evidência em [phase-5-preemptive](phases/phase-5-preemptive.md#51-traditional-preemptive-completion--concluído-em-18092026-com-pendências-abertas).
 

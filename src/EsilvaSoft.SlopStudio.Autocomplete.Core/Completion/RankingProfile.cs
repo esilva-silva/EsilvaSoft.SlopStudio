@@ -13,5 +13,7 @@ public sealed record RankingProfile
     public double DeprecatedPenalty { get; init; } = 80;
     public double StalePenalty { get; init; } = 15;
     public double TypeMismatchPenalty { get; init; } = 50;
+    /// <summary>Prioriza consultas de leitura sobre métodos que alteram o estado quando o prefixo está vazio.</summary>
+    public double WritePenalty { get; init; } = 120;
     public double UsageWeight { get; init; } = 5;
 }

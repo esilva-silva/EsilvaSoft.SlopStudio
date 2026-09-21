@@ -32,15 +32,17 @@ public sealed class SchemaLearningCoordinator : IAsyncDisposable
     private long _droppedCount;
     private long _processedCount;
     private long _failedCount;
+    private long _notPersistedCount;
     private bool _stopped;
 
-    public SchemaLearningCoordinator(BackgroundSchemaAnalyzer analyzer, ILearnedSchemaRepository repository, int capacity = DefaultCapacity)
+    public SchemaLearningCoordinator(BackgroundSchemaAnalyzer analyzer, ILearnedSchemaRepository repository, int capacity = DefaultCapacity, Action<LearnedSchemaKey>? committed = null)
     {
         ArgumentNullException.ThrowIfNull(analyzer);
         ArgumentNullException.ThrowIfNull(repository);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         _analyzer = analyzer;
         _repository = repository;
+        Committed = committed;
         _channel = Channel.CreateBounded<SchemaLearningEnvelope>(new BoundedChannelOptions(capacity)
         {
             // Deliberately BoundedChannelFullMode.Wait, not DropWrite: with DropWrite the channel silently
@@ -62,6 +64,10 @@ public sealed class SchemaLearningCoordinator : IAsyncDisposable
 
     /// <summary>Batches whose analysis or commit raised; the worker kept consuming the next one regardless.</summary>
     public long FailedCount => Interlocked.Read(ref _failedCount);
+
+    public long NotPersistedCount => Interlocked.Read(ref _notPersistedCount);
+
+    public Action<LearnedSchemaKey>? Committed { get; }
 
     /// <summary>
     /// Batches discarded because the queue was full, or because the queue was already draining for shutdown.
@@ -109,8 +115,23 @@ public sealed class SchemaLearningCoordinator : IAsyncDisposable
                 // Pure, synchronous transformation (BackgroundSchemaAnalyzer's own contract), then the one
                 // short transaction owned by the repository. Never runs concurrently with another envelope.
                 var delta = _analyzer.Analyze(envelope);
-                await _repository.ApplyAsync(delta, forcedStop).ConfigureAwait(false);
+                if (!envelope.Policy.PersistenceEnabled)
+                {
+                    Interlocked.Increment(ref _notPersistedCount);
+                    Interlocked.Increment(ref _processedCount);
+                    continue;
+                }
+
+                var result = await _repository.ApplyAsync(delta, forcedStop).ConfigureAwait(false);
+                if (!result.IsPersisted)
+                {
+                    Interlocked.Increment(ref _failedCount);
+                    continue;
+                }
+
                 Interlocked.Increment(ref _processedCount);
+                try { Committed?.Invoke(delta.Key); }
+                catch { /* cache invalidation must never stop the learning worker */ }
             }
             catch (OperationCanceledException) when (forcedStop.IsCancellationRequested)
             {

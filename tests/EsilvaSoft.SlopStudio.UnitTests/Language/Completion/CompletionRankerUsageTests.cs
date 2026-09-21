@@ -112,6 +112,35 @@ public sealed class CompletionRankerUsageTests
     }
 
     [Test]
+    public void KnownFieldTypePenalizesOnlyDeclaredIncompatibleOperators()
+    {
+        var context = Context() with { ValueTypes = new HashSet<string>(StringComparer.Ordinal) { "uuid" } };
+        var profile = new RankingProfile { TypeMismatchPenalty = 500 };
+        var compatible = Item("$eq") with { ApplicableTypes = ["uuid", "string"] };
+        var incompatible = Item("$regex") with { ApplicableTypes = ["string"] };
+
+        var result = new CompletionRanker(profile).Rank(new List<CompletionItem> { incompatible, compatible }, context, 2);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Select(item => item.SymbolId), Is.EqualTo(new List<string> { "$eq", "$regex" }));
+            Assert.That(result[1].Score, Is.EqualTo(profile.ExactMatch + profile.SourceCatalog - profile.TypeMismatchPenalty));
+        });
+    }
+
+    [Test]
+    public void UnknownFieldTypeDoesNotPenalizeDeclaredOperator()
+    {
+        var context = Context() with { ValueTypes = new HashSet<string>(StringComparer.Ordinal) };
+        var profile = new RankingProfile();
+        var item = Item("$regex") with { ApplicableTypes = ["string"] };
+
+        var result = new CompletionRanker(profile).Rank([item], context, 1);
+
+        Assert.That(result[0].Score, Is.EqualTo(profile.ExactMatch + profile.SourceCatalog));
+    }
+
+    [Test]
     public void UsageKeyRequiresANonBlankSymbol()
     {
         Assert.That(CompletionRanker.TryCreateUsageKey(Context(), " ", out var key), Is.False);

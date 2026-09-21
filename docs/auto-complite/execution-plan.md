@@ -1,6 +1,12 @@
 # Plano executável por agentes
 
-Revisado em 15/09/2026. **Todas as tarefas abaixo estão pendentes**, salvo bases explicitamente existentes no inventário. Não iniciar implementação nesta revisão documental. Cada linha é um lote revisável; se exceder uma PR pequena, separar mantendo ID pai. Documentar evidência, riscos remanescentes e arquivos efetivamente alterados.
+Revisado originalmente em 15/09/2026. O quadro abaixo preserva o plano e seus registros históricos; o estado corrente da implementação está no bloco seguinte. Cada linha é um lote revisável; se exceder uma PR pequena, separar mantendo ID pai. Documentar evidência, riscos remanescentes e arquivos efetivamente alterados.
+
+## Estado corrente da meta — 21/09/2026
+
+O núcleo determinístico do autocomplete, o aprendizado de schema, a integração do catálogo aprendido e o contexto de pipeline estão implementados com cobertura automatizada. O corpus de linguagem executado tem **675 fixtures + 1 gate agregado de ranking aprovados**; a suíte UnitTests completa tem **2.593 aprovados, 0 falhas e 20 ignorados**; o build passa sem warnings/erros. O contexto agora cobre também saída de `$facet` por ramo, `$count`, `$unwind`, `$replaceRoot`/`$replaceWith` e schema estrangeiro de `$lookup`. O gate publicado registra MRR 1,000, top-1 44/44 e top-5 44/44.
+
+Este fechamento não inclui gates de performance, validação multiplataforma, MongoDB real, modelos reais, leitor de tela ou homologação nativa. A matriz MRR/top-K publicada, a integração de namespaces metadata/schema learning e a resolução de `$lookup` com schema estrangeiro foram fechadas com testes automatizados; extensões futuras de corpus não alteram este aceite.
 
 ## Convenções e ordem
 
@@ -60,9 +66,11 @@ opt-outs aditivos em `X/AutocompleteSettings.cs`/`C/WorkspacePreferences.cs`, ca
 `I/LiteDbConnectionProfileRepository.ConnectionProfiles.cs` e deduplicação decidida em
 [DEC-L15-DEDUP](decisions.md#dec-l15-dedup). Desvio registrado: `ILearnedSchemaRepository` ganhou um membro
 aditivo com implementação padrão (`ReadAvailabilityAsync`) para expor a disponibilidade de três estados sem
-depender de `Infrastructure`; nenhum implementador existente precisou mudar. A ligação em `ServiceCollectionExtensions`
-(registro de `LearnedSchemaCatalogSource` no `KnowledgeCatalog`, depois de `MetadataCatalogSource`) **não foi feita
-neste lote** — arquivo não reservado — e fica como pendência de ativação para o próximo lote que tocar a composição.
+depender de `Infrastructure`; nenhum implementador existente precisou mudar. O registro de
+`LearnedSchemaCatalogSource` no `KnowledgeCatalog`, depois de `MetadataCatalogSource`, foi concluído posteriormente
+em `ServiceCollectionExtensions`, reutilizando o proprietário LiteDB já registrado. A composição e a ordem das fontes
+são cobertas por `ServiceCollectionExtensionsSchemaLearningTests`; o caminho `LearnedSchemaCatalogSource` →
+`KnowledgeCatalog` → `CompletionService` é coberto por `LearnedSchemaCompletionIntegrationTests`.
 
 Rodada de arquitetura de 18/09/2026: a chave persistida do aprendizado, a confiança derivada, a retenção e a não-mesclagem em `MetadataCatalogSource` estão fechadas em [DEC-L-KEY](decisions.md#dec-l-key), [DEC-L-TRUST](decisions.md#dec-l-trust), [DEC-L-RETENTION](decisions.md#dec-l-retention) e [DEC-L-MERGE](decisions.md#dec-l-merge). A única reordenação é a inserção de **L14-a** antes de L14; nenhuma outra linha muda de ordem. `schema-learning.md` ainda descreve a chave antiga com `SourceGenerationId` e aponta arquivos movidos para `Autocomplete.Core`: corrigir no lote L11, conforme [DEC-L-DOCLINKS](decisions.md#dec-l-doclinks).
 

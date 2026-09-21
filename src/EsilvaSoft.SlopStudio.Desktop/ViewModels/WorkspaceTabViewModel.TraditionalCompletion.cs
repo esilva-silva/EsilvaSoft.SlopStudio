@@ -81,9 +81,11 @@ public sealed partial class WorkspaceTabViewModel
     private readonly CompletionContextCache _traditionalContextCache = new();
     /// <summary>Owns cancellation of the traditional list request for this tab only; never shared with another tab or view.</summary>
     private readonly EditorRequestScope _traditionalRequestScope = new();
+    private readonly object _traditionalRequestGate = new();
     private string _traditionalSnapshotText = "";
     private long _traditionalSnapshotSequence;
     private long _traditionalCompletionRequestId;
+    private long _traditionalOwnedRequestId;
 
     /// <summary>Cancels the traditional list request in flight for this tab, if any. Safe to call when none is pending.</summary>
     public void CancelTraditionalCompletion() => _traditionalRequestScope.Cancel();
@@ -110,29 +112,41 @@ public sealed partial class WorkspaceTabViewModel
         ArgumentNullException.ThrowIfNull(snapshot);
         var provider = TraditionalCompletion;
         if (provider is null) return new([], false);
+        token.ThrowIfCancellationRequested();
         var profile = Profile;
         var scope = profile is null ? null : new CatalogScope(ConnectionIdentity.From(profile), Database, Collection);
         var dialect = Mode switch { "Agregação" => EditorDialects.AggregationJson, "Script" => EditorDialects.MongoshScript, _ => EditorDialects.Console };
         var capturedCaret = Math.Clamp(caret, 0, snapshot.Length);
+        var requestId = Interlocked.Increment(ref _traditionalCompletionRequestId);
+        EditorRequestScope.RequestLease lease;
+        lock (_traditionalRequestGate)
+        {
+            // Request ids are issued before this gate. If an older caller was descheduled before acquiring it, a newer
+            // caller may already own the tab; the older request must then stop without replacing or cancelling it.
+            if (requestId <= _traditionalOwnedRequestId)
+                throw new OperationCanceledException("Uma solicitação de sugestões mais recente desta aba já obteve a posse.");
+
+            _traditionalOwnedRequestId = requestId;
+            var ownershipContext = new CompletionContext(
+                snapshot.Version, dialect, SymbolKinds.None, string.Empty, new TextSpan(capturedCaret, 0));
+            lease = _traditionalRequestScope.Begin(new CompletionRequest(ownershipContext, requestId, 0));
+        }
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, lease.CancellationToken);
         // Captured before the await: PipelineInputSchema reads the metadata cache with Peek, never scheduling I/O.
         var inputSchema = scope is null ? null : PipelineInputSchema?.Invoke(scope);
-        var requestId = Interlocked.Increment(ref _traditionalCompletionRequestId);
         var response = await Task.Run(async () =>
         {
-            // Analysis still runs under the caller's token: the lease only exists once the CompletionRequest is built,
-            // so an earlier analysis in this tab has no other way to be cancelled by a newer one.
             var context = _traditionalContextCache.Analyze(
-                new ContextRequest(snapshot, capturedCaret, dialect, scope, trigger) { InputSchema = inputSchema }, token).Context;
+                new ContextRequest(snapshot, capturedCaret, dialect, scope, trigger) { InputSchema = inputSchema }, linked.Token).Context;
             var request = new CompletionRequest(context, requestId, 0);
-            var lease = _traditionalRequestScope.Begin(request);
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, lease.CancellationToken);
             var result = await provider.CompleteAsync(request, linked.Token);
             // A concurrent, newer invocation of this same tab superseded this one; discard even if the provider
             // ignored cancellation and still returned a response (CompletionResponse.IsFor as the explicit guard).
             if (!lease.IsCurrent || !result.IsFor(request))
                 throw new OperationCanceledException("Uma solicitação de sugestões mais recente desta aba substituiu esta resposta.");
             return result;
-        }, token);
+        }, linked.Token);
         return new(response.List.Items, response.List.IsIncomplete, response.Request.Context);
     }
 

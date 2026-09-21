@@ -4,7 +4,7 @@ using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Application;
 
-public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQueryHistoryRepository queryHistory, IScriptHistoryRepository scriptHistory, ISavedQueryRepository savedQueries, IAuditRepository audit, IMongoWorkspaceService mongo, IScriptExecutionService scripts, IScriptFileService scriptFiles, IConnectionSecretStore secrets, IEnvironmentVaultRepository? environments = null, IExplorerMetadataService? explorer = null, IConsoleRuntime? console = null, IConsoleHistoryRepository? consoleHistory = null, IApplicationOperationService? operations = null, ICodeFormatter? formatter = null, IResultPageExportService? resultExports = null, ICodeValidator? validator = null, IMetadataInvalidationBus? metadataInvalidation = null, SchemaLearningService? schemaLearning = null, LearnedSchemaCatalogSource? learnedSchemaCatalog = null)
+public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQueryHistoryRepository queryHistory, IScriptHistoryRepository scriptHistory, ISavedQueryRepository savedQueries, IAuditRepository audit, IMongoWorkspaceService mongo, IScriptExecutionService scripts, IScriptFileService scriptFiles, IConnectionSecretStore secrets, IEnvironmentVaultRepository? environments = null, IExplorerMetadataService? explorer = null, IConsoleRuntime? console = null, IConsoleHistoryRepository? consoleHistory = null, IApplicationOperationService? operations = null, ICodeFormatter? formatter = null, IResultPageExportService? resultExports = null, ICodeValidator? validator = null, IMetadataInvalidationBus? metadataInvalidation = null, SchemaLearningService? schemaLearning = null, LearnedSchemaCatalogSource? learnedSchemaCatalog = null, ILearnedSchemaRepository? learnedSchemaRepository = null)
 {
     /// <summary>
     /// Producer-side entry point of schema learning (L13; schema-learning.md § Fluxo e isolamento). Null when the
@@ -136,6 +136,14 @@ public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQue
     public async Task RenameCollectionAsync(ConnectionProfile profile, CollectionRenameRequest request, CancellationToken cancellationToken = default)
     {
         await mongo.RenameCollectionAsync(profile, request, cancellationToken).ConfigureAwait(false);
+        var source = LearnedSchemaKey.Create(profile.Id, request.Database, request.SourceCollection);
+        var target = LearnedSchemaKey.Create(profile.Id, request.Database, request.TargetCollection);
+        // The server rename has succeeded at this point. Retention must complete even if the UI cancellation token
+        // was signalled immediately afterwards; a failure is deliberately surfaced to the caller, never reported as
+        // a rollback of the MongoDB rename.
+        if (learnedSchemaRepository is not null) await learnedSchemaRepository.RenameAsync(source, target, CancellationToken.None).ConfigureAwait(false);
+        learnedSchemaCatalog?.InvalidateNamespace(source);
+        learnedSchemaCatalog?.InvalidateNamespace(target);
         InvalidateMetadata(profile, MetadataChange.Collections, request.Database, request.SourceCollection);
         InvalidateMetadata(profile, MetadataChange.Collections, request.Database, request.TargetCollection);
     }
@@ -158,12 +166,17 @@ public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQue
     public async Task DropCollectionAsync(ConnectionProfile profile, CollectionDropRequest request, CancellationToken cancellationToken = default)
     {
         await mongo.DropCollectionAsync(profile, request, cancellationToken).ConfigureAwait(false);
+        var key = LearnedSchemaKey.Create(profile.Id, request.Database, request.Collection);
+        if (learnedSchemaRepository is not null) await learnedSchemaRepository.RemoveAsync(key, CancellationToken.None).ConfigureAwait(false);
+        learnedSchemaCatalog?.InvalidateNamespace(key);
         InvalidateMetadata(profile, MetadataChange.Collections, request.Database, request.Collection);
     }
 
     public async Task DropDatabaseAsync(ConnectionProfile profile, DatabaseDropRequest request, CancellationToken cancellationToken = default)
     {
         await mongo.DropDatabaseAsync(profile, request, cancellationToken).ConfigureAwait(false);
+        if (learnedSchemaRepository is not null) await learnedSchemaRepository.RemoveDatabaseAsync(profile.Id, request.Database, CancellationToken.None).ConfigureAwait(false);
+        learnedSchemaCatalog?.InvalidateDatabase(profile.Id, request.Database);
         InvalidateMetadata(profile, MetadataChange.Databases, request.Database);
     }
 

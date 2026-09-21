@@ -1,4 +1,5 @@
 using EsilvaSoft.SlopStudio.Autocomplete.Core.Text;
+using EsilvaSoft.SlopStudio.Autocomplete.Core.Context;
 
 namespace EsilvaSoft.SlopStudio.Autocomplete.Core.Completion;
 
@@ -10,10 +11,17 @@ public sealed record CompletionContext(
     string Prefix,
     TextSpan ReplaceSpan)
 {
+    public CompletionCursorRole Role { get; init; } = CompletionCursorRole.Unknown;
+    public char? Quote { get; init; }
+    public bool UnterminatedQuote { get; init; }
+    public char? PreferredQuote { get; init; }
+    public bool CallAhead { get; init; }
     public string ParentPath { get; init; } = "";
     /// <summary>Catalog shape that constrained this request, when structural context could be established.</summary>
     public string? ShapeId { get; init; }
     public string? ValueType { get; init; }
+    /// <summary>Tipos BSON conhecidos do campo pai; vazio significa tipo desconhecido ou posição sem campo pai.</summary>
+    public IReadOnlySet<string> ValueTypes { get; init; } = new HashSet<string>(StringComparer.Ordinal);
     public CatalogScope? Scope { get; init; }
     public IReadOnlyList<CollectionSchema> LocalSchemas { get; init; } = [];
     public IReadOnlyList<CatalogSymbol> LocalSymbols { get; init; } = [];

@@ -1,6 +1,6 @@
 # Fase 5 — Autocomplete preemptivo
 
-**Planejada, revisada em 15/09/2026.** Três entregas obrigatórias e independência entre geradores. [Arquitetura detalhada](../preemptive-autocomplete.md).
+**Implementada no escopo automatizado, revisada em 21/09/2026.** Três entregas obrigatórias e independência entre geradores. [Arquitetura detalhada](../preemptive-autocomplete.md).
 
 ## Justificativa da divisão
 
@@ -27,14 +27,14 @@ Aceite verificado: funcional com IA/modelo ausente; ambiguidade e catálogo trun
 - **UI de configuração**: `InlineEnabled`, `InlineUseTraditional` e `InlineUseAi` não têm controle em `AutocompleteSettingsWindow`; só editáveis via JSON persistido. Ver [configuration](../configuration.md).
 - Correções antes do cursor continuam só pela lista; prévia de substituição não foi implementada nesta entrega.
 
-## 5.2 AI Preemptive Completion
+## 5.2 AI Preemptive Completion — funcional com fakes; modelo real fora da meta
 
 Dependências: A41–A44/R41 da Fase 4, P51/P53. Agente: AI Preemptive; runtime exclusivamente ONNX Runtime.
 
-- P54: provider compartilhando seleção/builder/output da IA explícita, política LoadedOnly/Background.
-- P55: debounce, deadline total, limite de tokens, perfil de latência com histerese; evitar sondagens/carga/troca automática.
+- P54: implementado pelo `CompletionSession`/`AutocompleteService`, compartilhando o runtime e a política de saída da IA explícita.
+- P55: implementado com política `LoadedOnly` no automático, `CompletionSourcePolicy`, debounce/coalescimento do coordinator, cancelamento e descarte por geração; nenhuma digitação carrega ou troca modelo.
 
-Aceite: IA automática funciona com tradicional automático desligado; 20 teclas abaixo do debounce não geram inferência e pausa gera no máximo uma; modelo errado/descarregado não carrega; troca sob fila não cria sessão; prioridade interativa preempta; timeout/erro não abre popup; provider que ignora cancelamento não ressuscita ghost. Medir latência completa, não só TTFT.
+Aceite funcional automatizado: IA automática funciona com tradicional automático desligado; rajada abaixo do debounce não gera inferência; modelo descarregado não carrega em `LoadedOnly`; troca sob fila não cria sessão; prioridade interativa preempta; timeout/erro não abre popup; provider que ignora cancelamento não ressuscita ghost. Execução com modelo real e medição de latência completa permanecem explicitamente fora desta meta.
 
 ## 5.3 Hybrid Preemptive Strategy
 

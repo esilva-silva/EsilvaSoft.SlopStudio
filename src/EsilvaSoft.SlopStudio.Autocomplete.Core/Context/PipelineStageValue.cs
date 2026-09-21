@@ -1,7 +1,8 @@
 namespace EsilvaSoft.SlopStudio.Autocomplete.Core.Context;
 
 /// <summary>One semantic value supplied by a pipeline-stage tokenizer.</summary>
-public sealed record PipelineStageValue(PipelineValueKind Kind, string? Text = null, IReadOnlyList<string>? Names = null)
+public sealed record PipelineStageValue(PipelineValueKind Kind, string? Text = null, IReadOnlyList<string>? Names = null,
+    IReadOnlyList<PipelineStage>? Stages = null, IReadOnlyDictionary<string, IReadOnlyList<PipelineStage>>? Branches = null)
 {
     public static PipelineStageValue Include { get; } = new(PipelineValueKind.Include);
     public static PipelineStageValue Exclude { get; } = new(PipelineValueKind.Exclude);
@@ -32,4 +33,10 @@ public sealed record PipelineStageValue(PipelineValueKind Kind, string? Text = n
         if (names.Length == 0 || names.Any(string.IsNullOrEmpty)) throw new ArgumentException("At least one non-empty literal name is required.", nameof(names));
         return new(PipelineValueKind.Names, Names: Array.AsReadOnly(names.ToArray()));
     }
+
+    public static PipelineStageValue Pipeline(IReadOnlyList<PipelineStage> stages) =>
+        new(PipelineValueKind.Pipeline, Stages: stages);
+
+    public static PipelineStageValue Facet(IReadOnlyDictionary<string, IReadOnlyList<PipelineStage>> branches) =>
+        new(PipelineValueKind.FacetBranches, Branches: branches);
 }

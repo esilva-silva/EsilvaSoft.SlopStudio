@@ -34,4 +34,35 @@ public sealed class ShapeWalkerTests
         Assert.That(result.ExpectedKinds, Is.EqualTo(SymbolKinds.QueryOperator));
         Assert.That(result.ParentPath, Is.EqualTo("status"));
     }
+
+    [Test]
+    public void AggregateStageUsesTheSymbolValueShape()
+    {
+        var source = "db.orders.aggregate([{ $lookup: { ";
+        var result = ShapeWalker.Walk(source, source.Length, CompletionCursorRole.PropertyKey);
+
+        Assert.That(result.ShapeId, Is.EqualTo("LookupBody"));
+    }
+
+    [Test]
+    public void UpdateOrPipelineSelectsThePipelineVariantForAnArray()
+    {
+        var source = "db.orders.updateOne({}, [ { ";
+        var result = ShapeWalker.Walk(source, source.Length, CompletionCursorRole.PropertyKey);
+
+        Assert.That(result.ShapeId, Is.EqualTo("UpdateStage"));
+    }
+
+    [Test]
+    public void SearchCompoundMustArrayUsesSearchOperatorShape()
+    {
+        var source = "db.Projetos.aggregate([ { $search: { compound: { must: [ { ";
+        var result = ShapeWalker.Walk(source, source.Length, CompletionCursorRole.PropertyKey);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ShapeId, Is.EqualTo("SearchOperatorBody"));
+            Assert.That(result.ExpectedKinds, Is.EqualTo(SymbolKinds.SearchOperator | SymbolKinds.SearchOption));
+        });
+    }
 }

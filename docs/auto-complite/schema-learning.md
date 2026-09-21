@@ -1,6 +1,8 @@
 # Descoberta dinâmica e aprendizado de schema
 
-Complemento incorporado em **15/09/2026**. **Planejado**: substitui a decisão anterior de adiar persistência de schema. Não adiciona consultas MongoDB automáticas. Fonte principal são documentos retornados por `find` executado pelo usuário; conhecimento probabilístico fica disponível após reiniciar, pelo LiteDB já aberto em DI.
+Complemento incorporado em **15/09/2026**. **Implementado no núcleo Application/Infrastructure**: substitui a decisão anterior de adiar persistência de schema. Não adiciona consultas MongoDB automáticas. Fonte principal são documentos retornados por `find` executado pelo usuário; conhecimento probabilístico fica disponível após reiniciar, pelo LiteDB já aberto em DI. A integração com o catálogo e a completion possui teste dedicado; o corpus de linguagem cobre o fluxo local e os cenários de metadata, schema aprendido e `$lookup` estrangeiro têm testes determinísticos complementares.
+
+O aceite atual cobre contratos, análise incremental, opt-outs, geração/retention, proprietário LiteDB único, composição das fontes e consumo pelo autocomplete. Não cobre benchmark/gates de desempenho, MongoDB real ou validação multiplataforma.
 
 ## Base real e pontos de integração
 
@@ -76,7 +78,7 @@ Primeira entrega persistente: somente Complete find/findOne com origem inequívo
 
 Nunca persistir resultados, JSON, filtros, prompts, literais, `_id`, valores de ENV ou credenciais. Nomes/tipos/contagens/datas bastam. Campos enum aprendidos a partir dos resultados são proibidos; enum declarado do validator continua sua fonte independente e política própria. Nomes também podem ser sensíveis: opções globais/por conexão de aprendizado/persistência e comando Limpar aprendizado. Desligar UseResultPanelContext impede nova coleta dessa fonte; respeitar restrições gerais/por conexão de privacidade aplicáveis, sem inferir autorização de persistir Input.
 
-`SchemaLearningEnabled` e `SchemaLearningPersistenceEnabled` propostos, true por padrão para esta funcionalidade solicitada, com exclusões por ProfileId; desligar coleta não apaga silenciosamente dados antigos. Desligar persistência mantém aprendizado transitório e deixa explícito que dados já gravados exigem Limpar. Capturar política e conferir revisão novamente antes do commit; opt-out durante análise impede gravação.
+`SchemaLearningEnabled` e `SchemaLearningPersistenceEnabled` são true por padrão para esta funcionalidade, com exclusões por ProfileId; desligar coleta não apaga silenciosamente dados antigos. Desligar persistência permite a análise limitada do lote, mas não publica nem mantém um snapshot transitório: o resultado é contabilizado como não persistido e dados já gravados exigem o comando Limpar. Capturar política e conferir revisão novamente antes do commit; opt-out durante análise impede gravação.
 
 ## Merge e persistência incremental
 
@@ -92,7 +94,7 @@ Coleções propostas:
 
 Atualizar apenas campos/totais tocados; não regravar schema inteiro a cada consulta. Transação curta por lote. Política inicial: flush em até 2 s ou lote limitado de 128 deltas, limite de escrita medido para não atrasar autosave/consulta de histórico. Não usar o lock LiteDB enquanto extrai schema; não aguardar flush no caminho dos resultados.
 
-Prefixos do autocomplete consultam `NameTable` em memória, não LiteDB por tecla. Hidratar somente namespace demandado no background, com LRU de snapshots e limite de bytes; índice NamespaceId/ParentLookupKey evita scan de todas as conexões. Atualizar ramos tocados e reconstruir apenas suas tabelas fora da UI; revisão publicada atomicamente após commit. Persistência desligada publica revisão transitória; falha marca não salvo, conserva delta limitado para retry, informa status discreto e nunca afirma durabilidade.
+Prefixos do autocomplete consultam `NameTable` em memória, não LiteDB por tecla. Hidratar somente namespace demandado no background, com LRU de snapshots e limite de bytes; índice NamespaceId/ParentLookupKey evita scan de todas as conexões. Atualizar ramos tocados e reconstruir apenas suas tabelas fora da UI; revisão publicada atomicamente após commit. Persistência desligada ou falha de commit não publica revisão: o lote é contado como não persistido/falho, nunca é anunciado como durável e não altera o catálogo servido.
 
 FormatVersion=1 próprio do learned schema; migrações aditivas versionadas no proprietário já registrado. Schema futuro/ilegível é isolado como indisponível, preservado sem sobrescrever vazio. Campos contadores usam inteiros 64-bit com saturação/flag, datas UTC. Limites iniciais: 64 MiB em memória, 128 MiB de cache persistido global, retenção de evidência por 90 dias com LastSeen e indicação stale; a calibrar. Evicção/limpeza em pequenos lotes, jamais dentro de render/tecla. Retenção de BatchId deve superar a janela máxima de retry; retries mais velhos são descartados, não reaplicados sem prova.
 
@@ -106,7 +108,7 @@ Revisão do aprendido invalida contexto/ranking/AI facts da coleção, não todo
 
 ## Testes, benchmarks e agentes
 
-Knowledge é dono de analyzer, deltas, serviço/fonte e persistência no proprietário existente; Architecture revisa contratos/lifetime; Testing mantém fixtures; Performance mede impacto desde primeiro hook. Tarefas **L11–L16** em [execution-plan.md](execution-plan.md). **L11 entregue**: contratos puros em `src/EsilvaSoft.SlopStudio.Application/SchemaLearning/` (`LearnedSchemaKey`, `LearnedFieldPath`, `SchemaLearningEnvelope`, `SchemaLearningAdmissionPolicy`, `SchemaObservationDelta`, `LearnedSchemaSnapshot`, `ILearnedSchemaRepository`), cobertos por `tests/EsilvaSoft.SlopStudio.UnitTests/SchemaLearningContractsTests.cs`; L12–L16 seguem sem implementação.
+Knowledge é dono de analyzer, deltas, serviço/fonte e persistência no proprietário existente; Architecture revisa contratos/lifetime; Testing mantém fixtures; Performance mede impacto desde primeiro hook. Tarefas **L11–L16** em [execution-plan.md](execution-plan.md). **L11–L16 implementados no escopo automatizado**: contratos, analyzer, admissão, persistência no LiteDB já registrado, fonte de catálogo, integração no fluxo de resultado e invalidação/retention têm cobertura unitária e de integração. Permanecem como ampliação mais corpus de metadata/schema, cenários de restart/erro e homologação real, todos fora dos gates de performance desta meta.
 
 Aceite mínimo: resultado entregue com analyzer/repositório bloqueados; fila cheia não bloqueia UI; zero queries adicionais; isolamento de 3 namespaces homônimos; projeção não polui schema; BSON/UUID/array/missing/null; repetição BatchId; observações repetidas declaradas; envelope não retém `StructuredResultSet` (teste de WeakReference/limite de bytes); concorrência, disconnect/opt-out/drop/rename durante commit; recuperação após restart; corrupção/migração/erro de disco visíveis; mesmo proprietário LiteDB; arquivo/snapshot sem valores de fixtures.
 

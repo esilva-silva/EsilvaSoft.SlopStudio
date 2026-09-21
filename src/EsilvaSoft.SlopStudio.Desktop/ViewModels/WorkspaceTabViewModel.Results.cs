@@ -28,6 +28,7 @@ public sealed partial class WorkspaceTabViewModel
     [ObservableProperty] private UuidDisplayPolicy _uuidPolicy = UuidDisplayPolicy.Default;
     private UuidDisplayPolicy _resultPolicy = UuidDisplayPolicy.Default;
     private Guid? _resultProfileId;
+    private Guid? _resultSourceGenerationId;
     private bool _resultIsConsole;
     private bool _resultRenderable;
     private string? _resultEmptyText;
@@ -214,7 +215,7 @@ public sealed partial class WorkspaceTabViewModel
     {
         if (_workspace.SchemaLearning is not { } schemaLearning || sets.Length == 0) return;
         var executionId = Guid.NewGuid();
-        foreach (var set in sets) schemaLearning.NotifyResultDelivered(set, executionId, set.Number, 0);
+        foreach (var set in sets) schemaLearning.NotifyResultDelivered(set, executionId, set.Number, 0, observedGenerationId: _resultSourceGenerationId);
     }
 
     private void ClearResults(string state)
