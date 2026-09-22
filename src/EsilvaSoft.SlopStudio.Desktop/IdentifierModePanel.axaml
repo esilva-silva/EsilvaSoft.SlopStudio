@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" x:Class="EsilvaSoft.SlopStudio.Desktop.IdentifierModePanel" x:DataType="vm:IdentifierPreferenceViewModel">
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" x:Class="EsilvaSoft.SlopStudio.Desktop.IdentifierModePanel" x:DataType="vm:IdentifierPreferenceViewModel">
   <UserControl.Styles>
     <Style Selector="TextBlock.identifier-code">
       <Setter Property="FontFamily" Value="{DynamicResource CodeFont}" />
@@ -19,12 +19,12 @@
       </ComboBox.ItemTemplate>
     </ComboBox>
     <TextBlock x:Name="ModeDescription" Text="{Binding Description}" TextWrapping="Wrap" />
-    <TextBlock Text="Prévia do modo selecionado" Classes="metadata" />
+    <TextBlock Text="{local:Loc Key=selectedModePreview}" Classes="metadata" />
     <Border Classes="card" Padding="10,6">
       <StackPanel Spacing="4">
         <StackPanel x:Name="ObjectIdSection" Spacing="2" IsVisible="{Binding IsObjectIdPreviewVisible}">
           <TextBlock Text="ObjectId" FontWeight="SemiBold" Margin="0,4,0,0" />
-          <ItemsControl ItemsSource="{Binding ObjectIdPreview}" AutomationProperties.Name="Prévia de ObjectId">
+          <ItemsControl ItemsSource="{Binding ObjectIdPreview}" AutomationProperties.Name="{local:Loc Key=objectIdPreview}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:IdentifierPreviewRow">
                 <StackPanel Margin="0,3">
@@ -38,7 +38,7 @@
         </StackPanel>
         <StackPanel x:Name="UuidSection" Spacing="2" IsVisible="{Binding IsUuidPreviewVisible}">
           <TextBlock Text="UUID" FontWeight="SemiBold" Margin="0,4,0,0" />
-          <ItemsControl ItemsSource="{Binding UuidPreview}" AutomationProperties.Name="Prévia de UUID">
+          <ItemsControl ItemsSource="{Binding UuidPreview}" AutomationProperties.Name="{local:Loc Key=uuidPreview}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:IdentifierPreviewRow">
                 <StackPanel Margin="0,3">
@@ -52,7 +52,7 @@
         </StackPanel>
       </StackPanel>
     </Border>
-    <TextBlock Text="O modo não converte nem regrava dados: ObjectId continua ObjectId e UUID continua Binary. Construtores explícitos são aceitos em todos os modos." Classes="metadata" TextWrapping="Wrap" />
+    <TextBlock Text="{local:Loc Key=identifierInvariant}" Classes="metadata" TextWrapping="Wrap" />
     <TextBlock x:Name="IdentifierStatus" Text="{Binding Status}" Classes="identifier-status" Classes.error="{Binding HasError}" TextWrapping="Wrap" IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
   </StackPanel>
 </UserControl>

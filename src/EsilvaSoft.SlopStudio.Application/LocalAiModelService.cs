@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.LocalAi.Core;
@@ -32,6 +33,7 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
     private CancellationTokenSource? _activePreemption;
     private AiRequestPriority _activePriority;
     private LocalModelDefinition? _loadedDefinition;
+    private Func<string, string>? _localize;
     private LocalModelStatus _status = new(LocalModelState.NotLoaded, "Nenhum modelo carregado; autocomplete básico disponível.");
     private bool _disposed;
 
@@ -39,6 +41,16 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
     public LocalModelStatus Status => Volatile.Read(ref _status);
     public LocalModelDefinition? LoadedModel => Volatile.Read(ref _loadedDefinition);
     public event EventHandler? StatusChanged;
+
+    public void SetLocalization(Func<string, string> localize)
+    {
+        _localize = localize ?? throw new ArgumentNullException(nameof(localize));
+        _loaded?.Runtime.SetLocalization(localize);
+    }
+
+    private string L(string key, string fallback) => _localize?.Invoke(key) ?? fallback;
+    private string F(string key, string fallback, params object?[] arguments) =>
+        string.Format(CultureInfo.InvariantCulture, L(key, fallback), arguments);
 
     public Task<IReadOnlyList<LocalModelValidation>> DiscoverModelsAsync(string? directory = null, CancellationToken cancellationToken = default) =>
         catalog.DiscoverAsync(string.IsNullOrWhiteSpace(directory) ? DefaultDirectory : directory, cancellationToken);
@@ -72,7 +84,7 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
         {
             await UnloadCoreAsync().ConfigureAwait(false);
             ClearRetry();
-            SetStatus(new(LocalModelState.NotLoaded, "Modelo ainda não carregado; será validado sob demanda.") { ModelName = Status.ModelName, RequestedHardware = Status.RequestedHardware });
+            SetStatus(new(LocalModelState.NotLoaded, L("aiModelNotLoadedDemand", "Modelo ainda não carregado; será validado sob demanda.")) { ModelName = Status.ModelName, RequestedHardware = Status.RequestedHardware });
         }
         finally { _gate.Release(); }
     }
@@ -275,14 +287,15 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
             case ObjectDisposedException:
                 return exception;
             case AiProviderUnavailableException provider:
-                await FailGenerationAsync(key, provider, provider.Message).ConfigureAwait(false);
-                return provider;
+                var localizedProvider = provider.Localize(_localize);
+                await FailGenerationAsync(key, localizedProvider, localizedProvider.Message).ConfigureAwait(false);
+                return localizedProvider;
             case LocalModelUnavailableException:
                 return exception;
             case LocalModelContextException:
                 // The request is too large; the model stays loaded and usable for smaller requests. Motivo próprio: não é
                 // pacote inválido e não esfria nada — reduzir o orçamento e repetir é a resposta correta.
-                return new LocalModelUnavailableException("O contexto completo excede a janela do modelo. Reduza o conteúdo antes de solicitar à IA.", exception)
+                return new LocalModelUnavailableException(L("aiContextOverflow", "O contexto completo excede a janela do modelo. Reduza o conteúdo antes de solicitar à IA."), exception)
                 { UnavailableReason = LocalModelUnavailableReason.ContextOverflow };
             default:
                 AutocompleteMetrics.AiCompletionGenerated.Add(1, roleTag, new KeyValuePair<string, object?>("outcome", "failed"));
@@ -300,7 +313,7 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
         var steps = new List<LocalModelTestStep>();
         var name = ModelName(key.Path);
         if (key.Path.Length == 0)
-            return new(false, "Nenhum modelo selecionado. Escolha um modelo da lista ou uma pasta externa.", steps) { Hardware = settings.Acceleration };
+            return new(false, L("aiTestNoModel", "Nenhum modelo selecionado. Escolha um modelo da lista ou uma pasta externa."), steps) { Hardware = settings.Acceleration };
         CancelGeneration();
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdown.Token);
         var token = linked.Token;
@@ -315,27 +328,27 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
             var validation = await catalog.ValidateAsync(key.Path, token).ConfigureAwait(false);
             if (validation.Model is not { } model)
             {
-                steps.Add(new("Pasta e arquivos", false, validation.Status.Message));
+                steps.Add(new(L("aiStepFiles", "Pasta e arquivos"), false, validation.Status.Message));
                 SetStatus(validation.Status with { ModelName = name, RequestedHardware = key.Hardware });
                 return Fail(validation.Status.Message);
             }
             name = model.Name;
-            steps.Add(new("Pasta e arquivos", true, "genai_config.json, decoder ONNX e tokenizer encontrados."));
+            steps.Add(new(L("aiStepFiles", "Pasta e arquivos"), true, L("aiFilesFound", "genai_config.json, decoder ONNX e tokenizer encontrados.")));
             ActiveModel loaded;
             try { loaded = await EnsureLoadedAsync(key, settings, token).ConfigureAwait(false); }
             catch (LocalModelUnavailableException ex) when (ex.InnerException is LocalModelLoadException { Stage: LocalModelLoadStage.Tokenizer })
             {
-                steps.Add(new("Tokenizer", false, ex.Message));
+                steps.Add(new(L("aiStepTokenizer", "Tokenizer"), false, ex.Message));
                 return Fail(ex.Message);
             }
             catch (LocalModelUnavailableException ex) when (!token.IsCancellationRequested)
             {
-                steps.Add(new("Sessão ONNX e provider", false, ex is AiProviderUnavailableException provider ? provider.Reason : ex.Message));
+                steps.Add(new(L("aiStepSession", "Sessão ONNX e provider"), false, ex is AiProviderUnavailableException provider ? provider.Reason : ex.Message));
                 return Fail(ex.Message);
             }
             var info = loaded.Runtime.RuntimeInfo ?? loaded.Info;
-            steps.Add(new("Tokenizer", true, "Carregado com o modelo."));
-            steps.Add(new("Sessão ONNX e provider", true, info is null ? "Sessão criada."
+            steps.Add(new(L("aiStepTokenizer", "Tokenizer"), true, L("aiTokenizerLoaded", "Carregado com o modelo.")));
+            steps.Add(new(L("aiStepSession", "Sessão ONNX e provider"), true, info is null ? L("aiSessionCreated", "Sessão criada.")
                 : $"{LocalAiStatusFormatter.HardwareLabel(info.Backend)} · {info.Provider}{(info.Device is null ? "" : " · " + info.Device)}"));
             // Sonda do teste de modelo. Ela é deliberadamente construída aqui, e não pedida ao IModelAdapter: o texto é
             // MongoDB, e o motor ONNX (adaptadores inclusos) é agnóstico de domínio — pedir um "prompt de teste" ao
@@ -353,16 +366,16 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
             catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
-                var message = ex is AiProviderUnavailableException provider ? provider.Message : "A geração falhou. Confira memória, provider e exportação ONNX.";
-                steps.Add(new("Geração", false, message));
+                var message = ex is AiProviderUnavailableException provider ? provider.Message : L("aiGenerationFailed", "A geração falhou. Confira memória, provider e exportação ONNX.");
+                steps.Add(new(L("aiStepGeneration", "Geração"), false, message));
                 await FailGenerationAsync(key, ex, message).ConfigureAwait(false);
                 return Fail(message) with { Backend = info?.Backend, Provider = info?.Provider, Device = info?.Device, LoadTime = info?.LoadTime };
             }
             info = loaded.Runtime.RuntimeInfo ?? info;
             var succeeded = generated.GeneratedTokens > 0;
-            steps.Add(new("Geração", succeeded, succeeded ? $"{generated.GeneratedTokens} token(s) gerado(s)." : "Nenhum token válido: o modelo parou imediatamente."));
+            steps.Add(new(L("aiStepGeneration", "Geração"), succeeded, succeeded ? F("aiTokensGenerated", "{0} token(s) gerado(s).", generated.GeneratedTokens) : L("aiNoValidTokens", "Nenhum token válido: o modelo parou imediatamente.")));
             SetStatus(GenerationStatus(loaded, key, generated));
-            return new(succeeded, succeeded ? "Modelo carregado com sucesso." : "O modelo carregou, mas não gerou tokens válidos.", steps.ToArray())
+            return new(succeeded, succeeded ? L("aiTestSucceeded", "Modelo carregado com sucesso.") : L("aiTestNoValidTokens", "O modelo carregou, mas não gerou tokens válidos."), steps.ToArray())
             {
                 ModelName = loaded.Model.Name, Hardware = settings.Acceleration, Backend = info?.Backend, Provider = info?.Provider, Device = info?.Device,
                 LoadTime = info?.LoadTime, FirstToken = generated.TimeToFirstToken, TokensPerSecond = TokensPerSecond(generated),
@@ -445,15 +458,15 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
         if (CooldownRefusal(key) is { } cooling) throw cooling;
         var different = _loaded is not null || _loading is not null;
         throw new LocalModelUnavailableException(different
-            ? "O modelo carregado é de outra configuração; a sugestão automática não troca de modelo."
-            : "Nenhum modelo carregado; a sugestão automática não carrega modelo por digitação.")
+            ? L("aiDifferentConfiguration", "O modelo carregado é de outra configuração; a sugestão automática não troca de modelo.")
+            : L("aiAutomaticDoesNotLoad", "Nenhum modelo carregado; a sugestão automática não carrega modelo por digitação."))
         {
             UnavailableReason = different ? LocalModelUnavailableReason.DifferentConfiguration : LocalModelUnavailableReason.NotLoaded
         };
     }
 
-    private static LocalModelUnavailableException NoModelConfigured() =>
-        new("Nenhum modelo selecionado. Escolha um modelo em Preferências para usar a IA local.")
+    private LocalModelUnavailableException NoModelConfigured() =>
+        new(L("aiNoModelSelectedPreferences", "Nenhum modelo selecionado. Escolha um modelo em Preferências para usar a IA local."))
         { UnavailableReason = LocalModelUnavailableReason.NoModelConfigured };
 
     /// <summary>
@@ -531,10 +544,10 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
     private async Task<ActiveModel> LoadCoreAsync(ModelKey key, AutocompleteSettings settings, CancellationToken cancellationToken)
     {
         var name = ModelName(key.Path);
-        using var operation = operations?.Begin($"Validando modelo {name}…", ApplicationOperationPriority.Low, canCancel: true, cancellationToken);
+        using var operation = operations?.Begin(F("aiValidating", "Validando modelo {0}…", name), ApplicationOperationPriority.Low, canCancel: true, cancellationToken);
         var token = operation?.Token ?? cancellationToken;
         ILocalModelRuntime? runtime = null;
-        SetStatus(new(LocalModelState.Loading, $"Validando modelo {name}…") { ModelName = name, RequestedHardware = key.Hardware });
+        SetStatus(new(LocalModelState.Loading, F("aiValidating", "Validando modelo {0}…", name)) { ModelName = name, RequestedHardware = key.Hardware });
         try
         {
             await Task.Yield();
@@ -543,17 +556,18 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
             {
                 MarkFailed(key, validation.Status with { ModelName = name, RequestedHardware = key.Hardware },
                     key.Path.Length == 0 ? LocalModelUnavailableReason.NoModelConfigured : LocalModelUnavailableReason.ModelInvalid);
-                operation?.Complete(ApplicationOperationStatus.Warning, $"Modelo {name} indisponível: {LocalAiStatusFormatter.ValidityLabel(validation.Validity)}");
+                operation?.Complete(ApplicationOperationStatus.Warning, F("aiModelUnavailable", "Modelo {0} indisponível: {1}", name, LocalAiStatusFormatter.ValidityLabel(validation.Validity, _localize)));
                 // Sem seleção não há pacote a acusar; com seleção, toda reprovação estrutural do catálogo (arquivos
                 // ausentes, arquitetura, tokenizer e contrato de contexto declarado e desconhecido) é "modelo inválido".
                 if (key.Path.Length == 0) throw NoModelConfigured();
                 throw new LocalModelUnavailableException(validation.Status.Message) { UnavailableReason = LocalModelUnavailableReason.ModelInvalid };
             }
             name = model.Name;
-            operation?.Report(0, 0, $"Carregando {name}…");
-            SetStatus(new(LocalModelState.Loading, $"Carregando {name}…") { ModelName = name, RequestedHardware = key.Hardware });
+            operation?.Report(0, 0, F("aiLoading", "Carregando {0}…", name));
+            SetStatus(new(LocalModelState.Loading, F("aiLoading", "Carregando {0}…", name)) { ModelName = name, RequestedHardware = key.Hardware });
             diagnostics?.Record("model.load", model.Id + " | " + model.Path);
             runtime = runtimeFactory();
+            runtime.SetLocalization(_localize ?? (static key => key));
             var watch = Stopwatch.StartNew();
             await runtime.InitializeAsync(model, settings, new InlineProgress(stage =>
             {
@@ -565,18 +579,19 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
             var loaded = new ActiveModel(model, runtime, info);
             ClearRetry();
             SetStatus(LoadedStatus(loaded, key, watch.Elapsed));
-            operation?.Complete(ApplicationOperationStatus.Success, info is null ? $"Modelo carregado — {name}"
-                : $"Modelo carregado — {LocalAiStatusFormatter.HardwareLabel(info.Backend)}");
+            operation?.Complete(ApplicationOperationStatus.Success, info is null ? F("aiLoaded", "Modelo carregado — {0}", name)
+                : F("aiLoadedHardware", "Modelo carregado — {0}", LocalAiStatusFormatter.HardwareLabel(info.Backend, _localize)));
             diagnostics?.Record("model.ready", model.Id + " | " + (info?.Provider ?? "?"), watch.Elapsed);
             return loaded;
         }
         catch (AiProviderUnavailableException ex)
         {
             await DisposeQuietlyAsync(runtime).ConfigureAwait(false);
+            var localized = ex.Localize(_localize);
             diagnostics?.Record("provider.unavailable", LocalAiStatusFormatter.HardwareLabel(ex.Hardware));
-            MarkFailed(key, new(LocalModelState.Failed, ex.Message) { ModelName = name, RequestedHardware = key.Hardware }, LocalModelUnavailableReason.ProviderUnavailable);
-            operation?.Complete(ApplicationOperationStatus.Error, $"Falha ao carregar {name} — {LocalAiStatusFormatter.HardwareLabel(ex.Hardware)}");
-            throw;
+            MarkFailed(key, new(LocalModelState.Failed, localized.Message) { ModelName = name, RequestedHardware = key.Hardware }, LocalModelUnavailableReason.ProviderUnavailable);
+            operation?.Complete(ApplicationOperationStatus.Error, F("aiLoadFailedHardware", "Falha ao carregar {0} — {1}", name, LocalAiStatusFormatter.HardwareLabel(ex.Hardware, _localize)));
+            throw localized;
         }
         catch (LocalModelUnavailableException)
         {
@@ -586,9 +601,9 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             await DisposeQuietlyAsync(runtime).ConfigureAwait(false);
-            SetStatus(new(LocalModelState.NotLoaded, "Carregamento cancelado; o modelo será carregado sob demanda.") { ModelName = name, RequestedHardware = key.Hardware });
-            operation?.Complete(ApplicationOperationStatus.Cancelled, $"Carregamento de {name} cancelado");
-            throw new LocalModelUnavailableException("Carregamento do modelo cancelado.");
+            SetStatus(new(LocalModelState.NotLoaded, L("aiLoadCancelledDemand", "Carregamento cancelado; o modelo será carregado sob demanda.")) { ModelName = name, RequestedHardware = key.Hardware });
+            operation?.Complete(ApplicationOperationStatus.Cancelled, F("aiLoadCancelled", "Carregamento de {0} cancelado", name));
+            throw new LocalModelUnavailableException(L("aiLoadCancelledException", "Carregamento do modelo cancelado."));
         }
         catch (Exception ex)
         {
@@ -597,15 +612,15 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
             diagnostics?.Record("model.load.failure", ex.GetType().Name);
             var message = ex switch
             {
-                NotSupportedException => "Arquitetura não suportada por este runtime. Autocomplete básico ativo.",
-                LocalModelLoadException { Stage: LocalModelLoadStage.Tokenizer } => "Falha ao carregar o tokenizer. Use tokenizer.json e tokenizer_config.json da mesma exportação do modelo.",
-                _ => "Falha ao inicializar o modelo. Confira arquivos ONNX, memória e provider. Autocomplete básico ativo."
+                NotSupportedException => L("aiUnsupportedArchitecture", "Arquitetura não suportada por este runtime. Autocomplete básico ativo."),
+                LocalModelLoadException { Stage: LocalModelLoadStage.Tokenizer } => L("aiTokenizerFailure", "Falha ao carregar o tokenizer. Use tokenizer.json e tokenizer_config.json da mesma exportação do modelo."),
+                _ => L("aiInitializationFailure", "Falha ao inicializar o modelo. Confira arquivos ONNX, memória e provider. Autocomplete básico ativo.")
             };
             // Arquitetura e tokenizer descrevem o pacote; o resto é falha do runtime nativo.
             var cause = ex is NotSupportedException or LocalModelLoadException { Stage: LocalModelLoadStage.Tokenizer }
                 ? LocalModelUnavailableReason.ModelInvalid : LocalModelUnavailableReason.RuntimeFailure;
             MarkFailed(key, new(ex is NotSupportedException ? LocalModelState.Unsupported : LocalModelState.Failed, message) { ModelName = name, RequestedHardware = key.Hardware }, cause);
-            operation?.Complete(ApplicationOperationStatus.Error, $"Falha ao carregar {name}");
+            operation?.Complete(ApplicationOperationStatus.Error, F("aiLoadFailed", "Falha ao carregar {0}", name));
             throw new LocalModelUnavailableException(message, ex) { UnavailableReason = cause, RetryAfter = CooldownUntil(key) };
         }
     }
@@ -615,7 +630,7 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
         // Exception messages from native/model code can include input or secrets; log only the type.
         diagnostics?.Record("autocomplete.ai.failure", exception.GetType().Name);
         MarkFailed(key, new(exception is NotSupportedException ? LocalModelState.Unsupported : LocalModelState.Failed,
-            message ?? "Falha ao inicializar ou gerar. Confira modelo, tokenizer, memória e provider. Autocomplete básico ativo.")
+            message ?? L("aiGenerationFailure", "Falha ao inicializar ou gerar. Confira modelo, tokenizer, memória e provider. Autocomplete básico ativo."))
         { ModelName = LoadedModel?.Name ?? ModelName(key.Path), RequestedHardware = key.Hardware },
             exception switch
             {
@@ -675,15 +690,16 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
     {
         var path = settings.ResolveModelPath(LocalModelRole.Autocomplete, DefaultDirectory);
         return path.Length == 0
-            ? new(LocalModelState.NotLoaded, "Nenhum modelo selecionado; autocomplete básico disponível.") { RequestedHardware = settings.Acceleration }
-            : new(LocalModelState.NotLoaded, "Modelo ainda não carregado; será validado sob demanda.") { ModelName = ModelName(path), RequestedHardware = settings.Acceleration };
+            ? new(LocalModelState.NotLoaded, L("aiNoModelLoadedBasic", "Nenhum modelo selecionado; autocomplete básico disponível.")) { RequestedHardware = settings.Acceleration }
+            : new(LocalModelState.NotLoaded, L("aiModelNotLoadedDemand", "Modelo ainda não carregado; será validado sob demanda.")) { ModelName = ModelName(path), RequestedHardware = settings.Acceleration };
     }
 
-    private static LocalModelStatus LoadedStatus(ActiveModel loaded, ModelKey key, TimeSpan elapsed)
+    private LocalModelStatus LoadedStatus(ActiveModel loaded, ModelKey key, TimeSpan elapsed)
     {
         var info = loaded.Info;
-        var message = info is null ? "Modelo carregado."
-            : $"Modelo carregado — {LocalAiStatusFormatter.HardwareLabel(info.Backend)} ({info.Provider})" + (info.UsedFallback ? "; aceleração preferida indisponível." : ".");
+        var message = info is null ? L("aiLoadedPlain", "Modelo carregado.")
+            : F("aiLoadedProvider", "Modelo carregado — {0} ({1})", LocalAiStatusFormatter.HardwareLabel(info.Backend, _localize), info.Provider)
+                + (info.UsedFallback ? L("aiPreferredAccelerationUnavailableSuffix", "; aceleração preferida indisponível.") : ".");
         return new(LocalModelState.Ready, message, info?.Provider)
         {
             ModelName = loaded.Model.Name, RequestedHardware = key.Hardware, Backend = info?.Backend, Device = info?.Device,
@@ -691,11 +707,12 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
         };
     }
 
-    private static LocalModelStatus GenerationStatus(ActiveModel loaded, ModelKey key, ModelGenerationResult generated)
+    private LocalModelStatus GenerationStatus(ActiveModel loaded, ModelKey key, ModelGenerationResult generated)
     {
         var info = loaded.Runtime.RuntimeInfo ?? loaded.Info;
         var fallback = generated.UsedCpuFallback || info?.UsedFallback == true;
-        return new(LocalModelState.Ready, $"Pronto · {generated.Provider}{(fallback ? " (aceleração incompatível/indisponível → CPU)" : "")} · {generated.GeneratedTokens} token(s) em {generated.Elapsed.TotalMilliseconds:F0} ms",
+        var fallbackText = fallback ? L("aiCpuFallbackSuffix", " (aceleração incompatível/indisponível → CPU)") : "";
+        return new(LocalModelState.Ready, F("aiReadyMetrics", "Pronto · {0}{1} · {2} token(s) em {3:F0} ms", generated.Provider, fallbackText, generated.GeneratedTokens, generated.Elapsed.TotalMilliseconds),
             info?.Provider ?? generated.Provider)
         {
             ModelName = loaded.Model.Name, RequestedHardware = key.Hardware, Backend = info?.Backend, Device = info?.Device, LoadTime = info?.LoadTime,

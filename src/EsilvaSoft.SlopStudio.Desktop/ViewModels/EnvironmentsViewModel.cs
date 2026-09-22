@@ -8,6 +8,8 @@ namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 public sealed partial class EnvironmentsViewModel : ObservableObject
 {
+    private static string T(string key) => LocalizationViewModel.Current.Resolve(key);
+    private static string F(string key, params object?[] args) => LocalizationViewModel.Current.Format(key, args);
     private readonly WorkspaceService _workspace;
     private bool _loaded;
     public ObservableCollection<EnvironmentDefinition> Environments { get; } = [];
@@ -28,10 +30,10 @@ public sealed partial class EnvironmentsViewModel : ObservableObject
             var vault = workspace.LoadEnvironments();
             foreach (var environment in vault.Environments) Environments.Add(environment);
             SelectedEnvironment = Environments.Single(e => e.Name == vault.ActiveEnvironment);
-            Status = "Ambiente ativo: " + vault.ActiveEnvironment;
+            Status = F("environmentActive", vault.ActiveEnvironment);
             _loaded = true;
         }
-        catch (Exception ex) { Status = "Não foi possível carregar os ambientes: " + ex.Message; }
+        catch (Exception ex) { Status = F("loadEnvironmentsFailed", ex.Message); }
     }
 
     partial void OnSelectedEnvironmentChanged(EnvironmentDefinition? value)
@@ -51,21 +53,21 @@ public sealed partial class EnvironmentsViewModel : ObservableObject
     {
         var name = EnvironmentName.Trim();
         if (!_loaded || name.Length is 0 or > 60 || Environments.Any(e => string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase)))
-        { Status = "Informe um nome único de ambiente, com até 60 caracteres."; return; }
+        { Status = T("environmentNameRequired"); return; }
         var environment = new EnvironmentDefinition(name, []);
         Environments.Add(environment); SelectedEnvironment = environment; EnvironmentName = "";
-        Status = "Ambiente adicionado ao formulário. Salve para aplicar.";
+        Status = T("environmentAdded");
     }
 
     [RelayCommand]
     private void SetValue()
     {
-        if (SelectedEnvironment is null || string.IsNullOrWhiteSpace(Key)) { Status = "Selecione um ambiente e informe uma chave."; return; }
+        if (SelectedEnvironment is null || string.IsNullOrWhiteSpace(Key)) { Status = T("environmentAndKeyRequired"); return; }
         var key = Key.Trim();
         SelectedEnvironment.Values[key] = Value;
         if (!Keys.Contains(key)) Keys.Add(key);
         Key = ""; Value = ""; SelectedKey = null;
-        Status = "Variável atualizada no formulário. Salve para aplicar.";
+        Status = T("environmentVariableUpdated");
     }
 
     [RelayCommand]
@@ -75,7 +77,7 @@ public sealed partial class EnvironmentsViewModel : ObservableObject
         var key = SelectedKey;
         SelectedEnvironment.Values.Remove(key); Keys.Remove(key);
         Key = ""; Value = ""; SelectedKey = null;
-        Status = "Variável removida do formulário. Salve para aplicar.";
+        Status = T("environmentVariableRemoved");
     }
 
     [RelayCommand]
@@ -83,15 +85,15 @@ public sealed partial class EnvironmentsViewModel : ObservableObject
     {
         if (!_loaded || SelectedEnvironment is null) return;
         if (!string.IsNullOrEmpty(Key) || !string.IsNullOrEmpty(Value))
-        { Status = "Adicione a variável em edição antes de salvar."; return; }
+        { Status = T("environmentPendingVariable"); return; }
         try
         {
             var selectedName = SelectedEnvironment.Name;
             var snapshot = new EnvironmentVault(1, selectedName, Environments.Select(environment => new EnvironmentDefinition(environment.Name, new(environment.Values))).ToArray());
             await _workspace.SaveEnvironmentsAsync(snapshot);
-            Status = "Ambiente ativo: " + selectedName + ". Reabra as conexões para atualizar o destino.";
+            Status = F("environmentReopenConnections", selectedName);
             Saved?.Invoke(this, EventArgs.Empty);
         }
-        catch (Exception ex) { Status = "Ambientes não salvos: " + ex.Message; }
+        catch (Exception ex) { Status = F("environmentsNotSaved", ex.Message); }
     }
 }

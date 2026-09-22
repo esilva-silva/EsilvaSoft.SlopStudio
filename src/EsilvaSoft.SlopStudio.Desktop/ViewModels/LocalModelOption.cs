@@ -24,18 +24,26 @@ public sealed partial class LocalModelOption(string reference, bool isExternal, 
         get
         {
             var state = Validation is null || Model is not null ? ""
-                : Validation.Status.State == LocalModelState.NotInstalled ? " — não encontrado"
-                : " — " + LocalAiStatusFormatter.ValidityLabel(Validation.Validity);
+                : Validation.Status.State == LocalModelState.NotInstalled ? " — " + LocalizationViewModel.Current.Resolve("notFound")
+                : " — " + LocalAiStatusFormatter.ValidityLabel(Validation.Validity, LocalizationViewModel.Current.Resolve);
             var name = ModelDisplayNames.ForInstalled(FolderName, Model?.Metadata) ?? Model?.Name ?? FolderName;
-            return name + (IsExternal ? " — externo" : "") + state;
+            return name + (IsExternal ? " — " + LocalizationViewModel.Current.Resolve("external") : "") + state;
         }
     }
 
     /// <summary>Parameters, architecture and the folder that identifies the model.</summary>
     public string Subtitle => Model is not { } model ? ""
-        : string.Join(" · ", new[] { model.Metadata?.Parameters, model.Architecture, "pasta " + FolderName }.Where(part => !string.IsNullOrEmpty(part)));
+        : string.Join(" · ", new[] { model.Metadata?.Parameters, model.Architecture, LocalizationViewModel.Current.Format("modelFolder", FolderName) }.Where(part => !string.IsNullOrEmpty(part)));
 
     public bool HasSubtitle => Subtitle.Length > 0;
     public string Display => Title;
     public override string ToString() => Display;
+
+    public void RefreshLanguage()
+    {
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(Subtitle));
+        OnPropertyChanged(nameof(HasSubtitle));
+        OnPropertyChanged(nameof(Display));
+    }
 }

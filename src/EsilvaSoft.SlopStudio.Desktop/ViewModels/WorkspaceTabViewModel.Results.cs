@@ -50,8 +50,8 @@ public sealed partial class WorkspaceTabViewModel
     public bool HasResultTree => ResultTree.Count > 0;
     public bool HasSelectedDocument => SelectedDocument is not null;
     public string CopyJsonHint => SelectedDocument is { } document
-        ? "Copiar o JSON formatado de " + document.Summary
-        : "Selecione um documento nos resultados para copiar.";
+        ? LocalizationViewModel.Current.Format("copySelectedJsonHint", document.Summary)
+        : LocalizationViewModel.Current.Resolve("selectDocumentToCopy");
     public bool CanExport => Documents.Count > 0 && !IsRunning;
 
     private void ChooseResultView(bool chosen, ResultViewMode mode)
@@ -107,14 +107,14 @@ public sealed partial class WorkspaceTabViewModel
     {
         ArgumentNullException.ThrowIfNull(document);
         var set = document.Document.Set;
-        if (!document.Document.IsValid) return new(false, "JSON inválido: não há documento para editar.");
-        if (!set.Origin.HasCollection) return new(false, "Resultado sem coleção de origem conhecida. Consulte a coleção no Console para editar.");
-        if (document.IdentityFilter is null) return new(false, "Documento sem _id: não há identidade segura para gravar. Refaça a consulta sem excluir _id.");
+        if (!document.Document.IsValid) return new(false, LocalizationViewModel.Current.Resolve("invalidJsonNoEdit"));
+        if (!set.Origin.HasCollection) return new(false, LocalizationViewModel.Current.Resolve("resultNoCollection"));
+        if (document.IdentityFilter is null) return new(false, LocalizationViewModel.Current.Resolve("resultNoIdentity"));
         return set.Completeness switch
         {
-            ResultCompleteness.PartialProjection => new(false, "Projeção parcial: a cópia não contém o documento completo. Execute a consulta sem projeção para editar."),
-            ResultCompleteness.Derived => new(false, "Resultado de agregação: pode não corresponder a um documento armazenado. Use find para editar."),
-            ResultCompleteness.Unknown => new(false, "Origem sem identidade segura. Use find na coleção para editar."),
+            ResultCompleteness.PartialProjection => new(false, LocalizationViewModel.Current.Resolve("partialProjectionEdit")),
+            ResultCompleteness.Derived => new(false, LocalizationViewModel.Current.Resolve("derivedResultEdit")),
+            ResultCompleteness.Unknown => new(false, LocalizationViewModel.Current.Resolve("unknownOriginEdit")),
             _ => new(true, "")
         };
     }
@@ -129,7 +129,7 @@ public sealed partial class WorkspaceTabViewModel
         if (!availability.CanOpen) throw new InvalidOperationException(availability.Reason);
         var origin = document.Document.Set.Origin;
         return new(_workspace, origin.Profile!, origin.Database!, origin.Collection!, document, "Editar", rereadBeforeWrite: true,
-            writeBlockReason: () => IsRunning ? "Aguarde a execução desta aba terminar." : !IsConnected ? "Conexão desta aba fechada: abra a conexão antes de salvar." : null);
+            writeBlockReason: () => IsRunning ? LocalizationViewModel.Current.Resolve("waitExecutionBeforeSave") : !IsConnected ? LocalizationViewModel.Current.Resolve("connectionClosedBeforeSave") : null);
     }
 
     private void ShowSetDocuments(StructuredResultSet? set)
@@ -197,8 +197,13 @@ public sealed partial class WorkspaceTabViewModel
         if (console is not null)
             for (var i = 0; i < console.Count; i++) _consoleSets[console[i]] = _resultSets[i];
         ConsoleResults.Clear();
+        LocalizedConsoleResults.Clear();
         if (console is not null)
-            foreach (var set in console) ConsoleResults.Add(set);
+            foreach (var set in console)
+            {
+                ConsoleResults.Add(set);
+                LocalizedConsoleResults.Add(new(set));
+            }
         _resultRenderable = true;
         ApplyPresentation(prepared.Presentation);
         NotifySchemaLearning(prepared.Sets);
@@ -226,7 +231,9 @@ public sealed partial class WorkspaceTabViewModel
         _documentViews.Clear();
         _treeState = new();
         ConsoleResults.Clear();
+        LocalizedConsoleResults.Clear();
         SelectedConsoleResult = null;
+        SelectedLocalizedConsoleResult = null;
         var previous = _syncingSelection;
         _syncingSelection = true;
         try
@@ -268,7 +275,7 @@ public sealed partial class WorkspaceTabViewModel
             {
                 var views = documents.Select(document => { token.ThrowIfCancellationRequested(); return new ResultDocumentViewModel(document, representation); }).ToArray();
                 documentViews[set] = views;
-                if (views.Length == 0 && isConsole) text.Append("// Nenhum documento neste resultado.");
+                if (views.Length == 0 && isConsole) text.Append("// ").Append(LocalizationViewModel.Current.Resolve("noDocumentInResult"));
                 for (var i = 0; i < views.Length; i++)
                 {
                     var view = views[i];
@@ -301,7 +308,7 @@ public sealed partial class WorkspaceTabViewModel
     private async Task RenderLargeResultsAsync()
     {
         var sets = _resultSets; var policy = _resultPolicy; var profileId = _resultProfileId; var isConsole = _resultIsConsole;
-        using var operation = Operations.Begin("Atualizando apresentação BSON", ApplicationOperationPriority.Normal);
+        using var operation = Operations.Begin(LocalizationViewModel.Current.Resolve("updatingBsonPresentation"), ApplicationOperationPriority.Normal);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(operation.Token);
         _presentationCancellation = cancellation;
         try
@@ -310,10 +317,10 @@ public sealed partial class WorkspaceTabViewModel
             cancellation.Token.ThrowIfCancellationRequested();
             if (!ReferenceEquals(sets, _resultSets) || !ReferenceEquals(policy, _resultPolicy)) return;
             ApplyPresentation(presentation);
-            operation.Complete(ApplicationOperationStatus.Success, "Apresentação BSON atualizada");
+            operation.Complete(ApplicationOperationStatus.Success, LocalizationViewModel.Current.Resolve("bsonPresentationUpdated"));
         }
-        catch (OperationCanceledException) { operation.Complete(ApplicationOperationStatus.Cancelled, "Atualização da apresentação cancelada"); }
-        catch (Exception ex) { Errors = OperationErrorMessages.Describe(ex); operation.Complete(ApplicationOperationStatus.Error, "Falha na apresentação BSON"); }
+        catch (OperationCanceledException) { operation.Complete(ApplicationOperationStatus.Cancelled, LocalizationViewModel.Current.Resolve("bsonPresentationCancelled")); }
+        catch (Exception ex) { Errors = DesktopOperationErrorMessages.Describe(ex); operation.Complete(ApplicationOperationStatus.Error, LocalizationViewModel.Current.Resolve("bsonPresentationFailed")); }
         finally { if (ReferenceEquals(_presentationCancellation, cancellation)) _presentationCancellation = null; }
     }
 
@@ -325,7 +332,7 @@ public sealed partial class WorkspaceTabViewModel
         ResultSegments = presentation.Segments;
         Results = _resultEmptyText ?? presentation.Text;
         Metrics = _resultMetrics + " · IDs " + IdentifierRepresentationService.DisplayName(_resultPolicy.Mode) + " · UUID " + UuidCodec.DisplayName(presentation.Primary)
-            + (presentation.Unknown == 0 ? "" : $" · {presentation.Unknown} UUID(s) legado(s) de origem desconhecida");
+            + (presentation.Unknown == 0 ? "" : LocalizationViewModel.Current.Format("legacyUuidSuffix", presentation.Unknown));
         BuildResultTree();
         var target = previous is { } key ? _documentViews.FirstOrDefault(pair => pair.Key.Number == key.Set).Value?.ElementAtOrDefault(key.Position) : null;
         RestoreSelection(target);
@@ -333,9 +340,9 @@ public sealed partial class WorkspaceTabViewModel
 
     private static string SetHeader(StructuredResultSet set, UuidRepresentation? distinctRepresentation) =>
         set.Label + (set.Method is null ? "" : " · " + set.Method)
-        + (set.Documents is { } documents ? " · " + documents.Count.ToString(CultureInfo.InvariantCulture) + " documento(s)" : "")
-        + (set.IsTruncated ? " · limitado" : "")
-        + (set.Completeness == ResultCompleteness.PartialProjection ? " · projeção parcial" : "")
+        + (set.Documents is { } documents ? " · " + LocalizationViewModel.Current.Format("documentCountSuffix", documents.Count) : "")
+        + (set.IsTruncated ? LocalizationViewModel.Current.Resolve("truncatedSuffix") : "")
+        + (set.Completeness == ResultCompleteness.PartialProjection ? LocalizationViewModel.Current.Resolve("partialProjectionSuffix") : "")
         + (distinctRepresentation is { } representation ? " · UUID " + UuidCodec.DisplayName(representation) : "");
 
     private void BuildResultTree()
@@ -365,7 +372,7 @@ public sealed partial class WorkspaceTabViewModel
             var documents = (_resultIsConsole ? first?.Children ?? [] : ResultTree).Where(node => node.IsDocument).ToArray();
             if (documents.Length == 1) documents[0].IsExpanded = true;
         }
-        ResultTreeStatus = ResultTree.Count == 0 ? _resultEmptyText ?? "Nenhum resultado." : "";
+        ResultTreeStatus = ResultTree.Count == 0 ? _resultEmptyText ?? LocalizationViewModel.Current.Resolve("noResults") : "";
         OnPropertyChanged(nameof(HasResultTree));
     }
 
@@ -390,19 +397,19 @@ public sealed partial class WorkspaceTabViewModel
 
     public async Task<DocumentMutationViewModel> CreateDocumentMutationAsync(string operation)
     {
-        if (Profile is null || !IsConnected || IsRunning) throw new InvalidOperationException("Abra uma coleção conectada e aguarde a consulta.");
+        if (Profile is null || !IsConnected || IsRunning) throw new InvalidOperationException(LocalizationViewModel.Current.Resolve("editNeedsConnectedCollection"));
         var profile = IsConsole ? SelectedConsoleResult?.SourceProfile : Profile;
         var database = IsConsole ? SelectedConsoleResult?.Database : Database;
         var collection = IsConsole ? SelectedConsoleResult?.Collection : Collection;
-        if (profile is null || string.IsNullOrWhiteSpace(database) || string.IsNullOrWhiteSpace(collection)) throw new InvalidOperationException("Selecione um resultado de coleção antes de editar documentos.");
+        if (profile is null || string.IsNullOrWhiteSpace(database) || string.IsNullOrWhiteSpace(collection)) throw new InvalidOperationException(LocalizationViewModel.Current.Resolve("editResultNeedsCollection"));
         var selected = SelectedDocument;
         var representation = UuidPolicy.ResolveOptions(profile.Id);
         profile.EnsureWriteAllowed();
         if (operation == "Inserir") return new(_workspace, profile, database, collection, null, operation);
-        if (selected?.IdentityFilter is null) throw new InvalidOperationException("Selecione um documento com _id; não exclua esse campo da projeção.");
+        if (selected?.IdentityFilter is null) throw new InvalidOperationException(LocalizationViewModel.Current.Resolve("editDocumentNeedsId"));
         // Fetch the complete document explicitly before editing a potentially projected result.
         var page = await _workspace.QueryAsync(profile, new MongoQuery(database, collection, selected.IdentityFilter, Limit: 1));
-        if (page.Documents.Count != 1) throw new InvalidOperationException("O documento não está mais disponível. Atualize a página.");
+        if (page.Documents.Count != 1) throw new InvalidOperationException(LocalizationViewModel.Current.Resolve("editDocumentUnavailable"));
         return new(_workspace, profile, database, collection, new ResultDocumentViewModel(page.Documents[0], 0, representation), operation);
     }
 }

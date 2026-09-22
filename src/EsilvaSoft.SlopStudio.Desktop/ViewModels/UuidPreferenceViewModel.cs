@@ -7,6 +7,8 @@ namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 /// <summary>Global or per-connection UUID choice, previewing one fixed UUID in the four IDE forms.</summary>
 public sealed partial class UuidPreferenceViewModel : ObservableObject
 {
+    private static string T(string key) => LocalizationViewModel.Current.Resolve(key);
+    private static string F(string key, params object?[] args) => LocalizationViewModel.Current.Format(key, args);
     public static Guid SampleUuid { get; } = Guid.Parse("00112233-4455-6677-8899-aabbccddeeff");
     private readonly Func<UuidRepresentation> _inherited;
     private readonly Func<UuidRepresentation?, Task>? _apply;
@@ -69,11 +71,11 @@ public sealed partial class UuidPreferenceViewModel : ObservableObject
         try
         {
             await _apply!(value);
-            HasError = false; Status = "Preferência de UUID salva. Resultados abertos foram atualizados.";
+            HasError = false; Status = T("uuidPreferenceSaved");
         }
         catch (Exception exception)
         {
-            HasError = true; Status = "Preferência aplicada nesta sessão, mas não salva: " + exception.Message;
+            HasError = true; Status = F("uuidPreferenceSessionOnly", exception.Message);
         }
     }
 }

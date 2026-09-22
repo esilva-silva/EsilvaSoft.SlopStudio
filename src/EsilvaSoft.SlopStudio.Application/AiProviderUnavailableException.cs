@@ -23,8 +23,23 @@ public sealed class AiProviderUnavailableException : LocalModelUnavailableExcept
     public AiAccelerationMode Hardware { get; }
     public string Reason { get; } = "";
 
-    private static string Format(AiAccelerationMode hardware, string reason) => hardware == AiAccelerationMode.Auto
-        ? $"Nenhum hardware disponível pode executar este modelo.\nMotivo: {reason}"
-        : $"Não foi possível executar este modelo utilizando {LocalAiStatusFormatter.HardwareLabel(hardware)}.\nMotivo: {reason}\n"
-          + (hardware == AiAccelerationMode.Cpu ? "Você pode selecionar: Automático." : "Você pode selecionar: Automático ou CPU.");
+    internal AiProviderUnavailableException Localize(Func<string, string>? localize)
+    {
+        if (localize is null) return this;
+        return new AiProviderUnavailableException(Hardware, Reason, this, localize);
+    }
+
+    private AiProviderUnavailableException(AiAccelerationMode hardware, string reason, Exception innerException, Func<string, string> localize)
+        : base(Format(hardware, reason, localize), innerException)
+    {
+        Hardware = hardware;
+        Reason = reason;
+        UnavailableReason = LocalModelUnavailableReason.ProviderUnavailable;
+    }
+
+    private static string Format(AiAccelerationMode hardware, string reason, Func<string, string>? localize = null) => hardware == AiAccelerationMode.Auto
+        ? (localize?.Invoke("aiNoHardware") ?? "Nenhum hardware disponível pode executar este modelo.") + "\n" + (localize?.Invoke("aiReasonPrefix") ?? "Motivo:") + " " + reason
+        : (localize?.Invoke("aiProviderUnavailableHardware") ?? $"Não foi possível executar este modelo utilizando {LocalAiStatusFormatter.HardwareLabel(hardware)}.").Replace("{0}", LocalAiStatusFormatter.HardwareLabel(hardware), StringComparison.Ordinal)
+          + "\n" + (localize?.Invoke("aiReasonPrefix") ?? "Motivo:") + " " + reason + "\n"
+          + (hardware == AiAccelerationMode.Cpu ? (localize?.Invoke("aiSelectAutomatic") ?? "Você pode selecionar: Automático.") : (localize?.Invoke("aiSelectAutomaticCpu") ?? "Você pode selecionar: Automático ou CPU."));
 }

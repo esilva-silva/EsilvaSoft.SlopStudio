@@ -17,17 +17,17 @@ public sealed partial class AutocompleteSettingsViewModel
     private ReadOnlyObservableCollection<AiHardwareProfileSettings>? _hardwareProfilesView;
     private bool _hardwareProfileLocked;
     private bool _selectingDetectedProfile;
+    private bool _tokenBudgetIsConservative;
 
     public ObservableCollection<string> ContextTokenSuggestions { get; } = [];
     public ObservableCollection<string> MaximumTokenSuggestions { get; } = [];
     public ReadOnlyObservableCollection<AiHardwareProfileSettings> HardwareProfiles => _hardwareProfilesView ??= new(_hardwareProfiles);
     public bool HasSelectedHardwareProfile => SelectedHardwareProfile is not null;
     public bool HasTokenBudgetWarning => TokenBudgetWarning.Length > 0;
-    public bool HasTokenBudgetError => TokenBudgetWarning.Length > 0
-        && !TokenBudgetWarning.StartsWith("A janela do modelo não foi declarada", StringComparison.Ordinal);
+    public bool HasTokenBudgetError => TokenBudgetWarning.Length > 0 && !_tokenBudgetIsConservative;
     public string HardwareProfileSummary => SelectedHardwareProfile is { } profile
-        ? $"Perfil selecionado: {profile.Vendor} {profile.Name} · {profile.MemoryBytes / 1024d / 1024d / 1024d:0.#} GiB · {AiHardwareTiers.Label(AiHardwareTiers.For(profile.MemoryBytes))}"
-        : "Aguardando detecção do hardware. Perfis manuais servem somente para planejamento.";
+        ? F("hardwareProfileSummary", profile.Vendor, profile.Name, profile.MemoryBytes / 1024d / 1024d / 1024d, AiHardwareTiers.Label(AiHardwareTiers.For(profile.MemoryBytes)))
+        : T("hardwareDetectionWaiting");
 
     [ObservableProperty] private string _contextTokensText = "2048";
     [ObservableProperty] private string _maximumTokensText = "32";
@@ -82,7 +82,7 @@ public sealed partial class AutocompleteSettingsViewModel
     {
         if (string.IsNullOrWhiteSpace(HardwareProfileName) || !double.TryParse(HardwareProfileMemoryGiB, out var gib) || gib <= 0 || gib > 1024)
         {
-            OperationStatus = "Informe nome e memória da GPU em GiB para criar o perfil.";
+            OperationStatus = T("hardwareProfileRequired");
             return;
         }
         var profile = new AiHardwareProfileSettings(
@@ -93,7 +93,7 @@ public sealed partial class AutocompleteSettingsViewModel
         _hardwareProfiles.Add(profile);
         SelectedHardwareProfile = profile;
         HardwareProfileVendor = HardwareProfileName = HardwareProfileMemoryGiB = "";
-        OperationStatus = $"Perfil {profile.Vendor} {profile.Name} adicionado para estimativas.";
+        OperationStatus = F("hardwareProfileAdded", profile.Vendor, profile.Name);
     }
 
     [RelayCommand]
@@ -103,7 +103,7 @@ public sealed partial class AutocompleteSettingsViewModel
         _hardwareProfiles.Remove(profile);
         _hardwareProfileLocked = false;
         SelectedHardwareProfile = null;
-        OperationStatus = "Perfil manual removido. O hardware detectado voltou a ser usado.";
+        OperationStatus = T("hardwareProfileRemoved");
     }
 
     private void LoadBudgetSettings(AutocompleteSettings settings)
@@ -174,19 +174,26 @@ public sealed partial class AutocompleteSettingsViewModel
         var effectiveContext = modelLimit ?? UnknownModelContextMaximum;
         var maximumContext = Math.Min(ProductContextMaximum, effectiveContext);
         var maximumCompletion = Math.Min(ProductCompletionMaximum, SelectedModelOption?.Model?.AutocompleteMaximumTokens ?? UnknownModelCompletionMaximum);
+        _tokenBudgetIsConservative = false;
         TokenBudgetWarning = !contextIsValid
-            ? "Tokens de contexto devem conter somente dígitos, sem ponto ou vírgula."
+            ? T("contextTokensDigitsOnly")
             : !completionIsValid
-                ? "Tokens gerados devem conter somente dígitos, sem ponto ou vírgula."
+                ? T("completionTokensDigitsOnly")
                 : context < 64 || context > maximumContext
-                    ? $"Tokens de contexto devem ficar entre 64 e {AutocompleteTokenBudget.Format(maximumContext)}."
+                    ? F("contextTokensRange", AutocompleteTokenBudget.Format(maximumContext))
                     : completion < 1 || completion > maximumCompletion
-                        ? $"Tokens gerados devem ficar entre 1 e {AutocompleteTokenBudget.Format(maximumCompletion)}."
+                        ? F("completionTokensRange", AutocompleteTokenBudget.Format(maximumCompletion))
                             : (long)context + completion + AutocompleteTokenBudget.PromptOverheadTokens > effectiveContext
-                            ? $"Contexto + saída + overhead excedem a janela do modelo ({AutocompleteTokenBudget.Format(effectiveContext)} tokens)."
+                            ? F("tokenWindowExceeded", AutocompleteTokenBudget.Format(effectiveContext))
                             : SelectedModelOption?.Model?.ContextLength is null
-                                ? "A janela do modelo não foi declarada; o teto conservador de 8192 tokens será aplicado."
+                                ? SetConservativeWarning()
                                 : "";
+    }
+
+    private string SetConservativeWarning()
+    {
+        _tokenBudgetIsConservative = true;
+        return F("conservativeTokenWindow", UnknownModelContextMaximum);
     }
 
     private (IReadOnlyList<string> Context, IReadOnlyList<string> Completion) BuildSuggestions()

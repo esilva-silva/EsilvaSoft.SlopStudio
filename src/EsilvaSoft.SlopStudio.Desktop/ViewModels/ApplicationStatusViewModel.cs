@@ -12,9 +12,9 @@ public sealed partial class ApplicationStatusViewModel : ObservableObject, IDisp
     private Guid? _selectedId;
     private Guid? _lastTerminalId;
     private bool _disposed;
-    [ObservableProperty] private string _description = "Pronto";
+    [ObservableProperty] private string _description = LocalizationViewModel.Current.Resolve("statusReady");
     [ObservableProperty] private string _additional = "";
-    [ObservableProperty] private string _state = "Pronto";
+    [ObservableProperty] private string _state = LocalizationViewModel.Current.Resolve("statusReady");
     [ObservableProperty] private bool _isRunning;
     [ObservableProperty] private bool _isIndeterminate;
     [ObservableProperty] private bool _canCancel;
@@ -37,7 +37,7 @@ public sealed partial class ApplicationStatusViewModel : ObservableObject, IDisp
         var active = _operations.ActiveOperations;
         var current = active.Count == 0 ? null : active[0];
         IsRunning = current is not null;
-        Additional = active.Count > 1 ? $"+{active.Count - 1} operações" : "";
+        Additional = active.Count > 1 ? LocalizationViewModel.Current.Format("additionalOperations", active.Count - 1) : "";
         CanCancel = current?.CanCancel == true;
         _selectedId = current?.Id;
         IsIndeterminate = current?.IsIndeterminate == true;
@@ -45,20 +45,22 @@ public sealed partial class ApplicationStatusViewModel : ObservableObject, IDisp
         ProgressLabel = current?.Progress is { } percentValue ? $"{percentValue:F0}%" : "";
         if (current is not null)
         {
-            _expiry.Change(Timeout.Infinite, Timeout.Infinite); State = "Em andamento"; Description = current.Description;
+            _expiry.Change(Timeout.Infinite, Timeout.Infinite); State = LocalizationViewModel.Current.Resolve("statusRunning"); Description = current.Description;
         }
         else if (_operations.LastCompleted is { } terminal && terminal.Id != _lastTerminalId)
         {
             _lastTerminalId = terminal.Id;
             State = terminal.Status switch {
-                ApplicationOperationStatus.Success => "Concluído", ApplicationOperationStatus.Error => "Erro",
-                ApplicationOperationStatus.Cancelled => "Cancelado", _ => "Aviso" };
+                ApplicationOperationStatus.Success => LocalizationViewModel.Current.Resolve("statusSuccess"),
+                ApplicationOperationStatus.Error => LocalizationViewModel.Current.Resolve("statusError"),
+                ApplicationOperationStatus.Cancelled => LocalizationViewModel.Current.Resolve("statusCancelled"),
+                _ => LocalizationViewModel.Current.Resolve("statusWarning") };
             Description = terminal.Description;
             _expiry.Change(TimeSpan.FromSeconds(6), Timeout.InfiniteTimeSpan);
         }
     }
 
-    private void Expire() { _expiry.Change(Timeout.Infinite, Timeout.Infinite); if (!IsRunning) { State = "Pronto"; Description = "Pronto"; } }
+    private void Expire() { _expiry.Change(Timeout.Infinite, Timeout.Infinite); if (!IsRunning) { State = LocalizationViewModel.Current.Resolve("statusReady"); Description = LocalizationViewModel.Current.Resolve("statusReady"); } }
     [RelayCommand] private void Cancel() { if (_selectedId is { } id) _operations.Cancel(id); }
     public void Dispose() { _disposed = true; _operations.Changed -= Changed; _expiry.Change(Timeout.Infinite, Timeout.Infinite); _expiry.Dispose(); }
 }

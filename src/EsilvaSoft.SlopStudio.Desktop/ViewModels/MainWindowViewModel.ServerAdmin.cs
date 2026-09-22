@@ -20,7 +20,7 @@ public sealed partial class MainWindowViewModel
     private string _operationKillConfirmation = string.Empty;
 
     [ObservableProperty]
-    private string _administrationResults = "Carregue o status do servidor ou as estatísticas do banco selecionado.";
+    private string _administrationResults = T("adminInitial");
 
     public bool CanKillOperation => SelectedProfile is not null
         && !SelectedProfile.IsReadOnly
@@ -37,7 +37,7 @@ public sealed partial class MainWindowViewModel
         await RunAsync(async cancellationToken =>
         {
             AdministrationResults = await _workspace.GetServerStatusAsync(SelectedProfile, cancellationToken);
-            StatusMessage = "Status do servidor carregado.";
+            StatusMessage = T("serverStatusLoaded");
         });
     }
 
@@ -52,7 +52,7 @@ public sealed partial class MainWindowViewModel
         await RunAsync(async cancellationToken =>
         {
             AdministrationResults = await _workspace.GetCurrentOperationsAsync(SelectedProfile, cancellationToken);
-            StatusMessage = "Operações correntes carregadas.";
+            StatusMessage = T("currentOperationsLoaded");
         });
     }
 
@@ -67,7 +67,7 @@ public sealed partial class MainWindowViewModel
         await RunAsync(async cancellationToken =>
         {
             AdministrationResults = await _workspace.GetProfilerStatusAsync(SelectedProfile, SelectedDatabase, cancellationToken);
-            StatusMessage = "Configuração atual do profiler carregada.";
+            StatusMessage = T("profilerLoaded");
         });
     }
 
@@ -82,7 +82,7 @@ public sealed partial class MainWindowViewModel
         await RunAsync(async cancellationToken =>
         {
             AdministrationResults = await _workspace.GetTopologyAsync(SelectedProfile, cancellationToken);
-            StatusMessage = "Topologia MongoDB carregada.";
+            StatusMessage = T("topologyLoaded");
         });
     }
 
@@ -103,7 +103,7 @@ public sealed partial class MainWindowViewModel
         var operationId = request.GetOperationId();
         OperationIdToKill = string.Empty;
         OperationKillConfirmation = string.Empty;
-        await RecordAuditAsync("operation.kill", SelectedProfile, "admin", null, $"Interrupção solicitada para a operação {operationId}.");
-        StatusMessage = $"Interrupção solicitada para a operação {operationId}.";
+        await RecordAuditAsync("operation.kill", SelectedProfile, "admin", null, F("killRequested", operationId));
+        StatusMessage = F("killRequested", operationId);
     }
 }

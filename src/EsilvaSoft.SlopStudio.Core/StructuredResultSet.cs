@@ -22,7 +22,11 @@ public sealed class StructuredResultSet
 
     public string Label => "[" + Number.ToString(CultureInfo.InvariantCulture) + "] " + (Origin.Profile is null && Origin.Database is null ? "valor" : Origin.Destination);
 
-    public static StructuredResultSet FromConsole(ConsoleResultSet set)
+    public static StructuredResultSet FromConsole(ConsoleResultSet set) => FromConsole(set, null);
+
+    public static StructuredResultSet FromConsoleLocalized(ConsoleResultSet set, Func<string, string> localize) => FromConsole(set, localize);
+
+    private static StructuredResultSet FromConsole(ConsoleResultSet set, Func<string, string>? localize)
     {
         ArgumentNullException.ThrowIfNull(set);
         var completeness = set.Method switch
@@ -31,7 +35,7 @@ public sealed class StructuredResultSet
             "aggregate" => ResultCompleteness.Derived,
             _ => ResultCompleteness.Unknown
         };
-        var origin = new ResultOrigin("Console · expressão [" + set.Number.ToString(CultureInfo.InvariantCulture) + "]" + (set.Method is null ? "" : " · " + set.Method),
+        var origin = new ResultOrigin((localize?.Invoke("consoleExpression") ?? "Console · expressão") + " [" + set.Number.ToString(CultureInfo.InvariantCulture) + "]" + (set.Method is null ? "" : " · " + set.Method),
             set.ProfileId, set.SourceProfile, set.Database, string.IsNullOrEmpty(set.Collection) ? null : set.Collection);
         var result = new StructuredResultSet(set.Number, origin, set.Json, set.IsTruncated, completeness, set.Method);
         if (set.Documents is { } documents) result.Documents = documents.Select((json, index) => new StructuredResultDocument(result, index, json)).ToArray();

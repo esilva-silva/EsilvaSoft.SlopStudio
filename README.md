@@ -11,6 +11,15 @@ EsilvaSoft.SlopStudio is an open-source desktop IDE for MongoDB, built with **.N
 >
 > **Version 1.0.0 will receive a full review** of code, architecture, security, tests, and documentation before it is declared stable. Until then, every release is a pre-release.
 
+## Current implementation status (21 September 2026)
+
+- **v0.5.0** is archived because its defined functional scope is implemented; it is **not homologated**. Real Windows/Linux, accessibility, native-dialog, topology and real-editing gates remain open.
+- **v0.6.0** is the active phase. The deterministic autocomplete implementation, isolated cores and automated language/ranking coverage are present, but its formal acceptance and real-environment validation remain open.
+- **v0.9.0** local AI is available only as an experimental capability. **v0.10.0** administration and maintenance code is preserved as an early implementation, without a current UI entry point. The remaining phases are planned.
+- The desktop UI supports **Portuguese (Brazil), English, Spanish and Simplified Chinese**. `pt-BR` is the initial language and **English (`en`) is the deterministic fallback**. This does not translate repository documents under `docs/`, which remain in Portuguese.
+
+Latest automated evidence for this checkout: solution build with 0 warnings/errors and **2,639 unit tests passed, 0 failed, 20 ignored**. Benchmarks were intentionally not used as an acceptance gate. Automated and Headless evidence does not replace the open homologation gates.
+
 ## Support the project
 
 If Slop Studio is useful to you, please consider [sponsoring esilva-silva on GitHub Sponsors](https://github.com/sponsors/esilva-silva). Sponsorship helps sustain development, testing, and documentation for this open-source project.
@@ -47,7 +56,7 @@ Concretely: save and test connection profiles, browse databases and collections,
 
 ### Phase 2 delivered milestones
 
-Phase 2 remains active, but its deterministic autocomplete work already includes a parser and context engine, contextual ranking, snippets, configurable keyboard shortcuts, and traditional preemptive suggestions. These are implementation milestones, not phase closure or formal acceptance; the remaining scope and evidence are tracked in the [Phase 2 documentation](docs/phases/phase-02-v0.6.0/README.md), [autocomplete execution plan](docs/auto-complite/execution-plan.md), and [implementation tracking](docs/12-acompanhamento-da-implementacao.md).
+Phase 2 remains active, but its deterministic autocomplete work already includes isolated cores, a parser and context engine, contextual ranking, snippets, configurable keyboard shortcuts, and traditional suggestions. The automated language corpus reports 675 fixtures plus one ranking gate (MRR 1.000; top-1/top-5 44/44). These are implementation milestones, not phase closure or formal acceptance; the remaining scope and evidence are tracked in the [Phase 2 documentation](docs/phases/phase-02-v0.6.0/README.md), [autocomplete execution plan](docs/auto-complite/execution-plan.md), and [implementation tracking](docs/12-acompanhamento-da-implementacao.md).
 
 No phase has passed its formal acceptance gate yet: automated tests (including headless UI rendering) do not replace validation against real MongoDB servers, both operating systems, screen readers, and native dialogs. See the [phase index](docs/phases/README.md), [roadmap](docs/09-plano-de-implementacao.md), [validation matrix](docs/15-matriz-de-validacao.md), and [implementation inventory](docs/24-inventario-roadmap.md) (Portuguese).
 

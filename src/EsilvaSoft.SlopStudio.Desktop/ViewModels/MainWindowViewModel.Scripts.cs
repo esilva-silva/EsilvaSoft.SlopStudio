@@ -17,7 +17,7 @@ public sealed partial class MainWindowViewModel
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSaveScript))]
     [NotifyCanExecuteChangedFor(nameof(SaveScriptCommand))]
-    private string _scriptText = "// db começa no banco selecionado da conexão\nconst filtro = EJSON.parse('{ \"ativo\": true }');\nconst cursor = db.getCollection(\"clientes\").find(filtro).limit(100);\nawait slop.results.stream(cursor);";
+    private string _scriptText = T("scriptTextInitial");
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSaveScript))]
@@ -27,7 +27,7 @@ public sealed partial class MainWindowViewModel
     private string _scriptFilePath = string.Empty;
 
     [ObservableProperty]
-    private string _scriptResults = "O resultado estruturado e o console do mongosh aparecem aqui.";
+    private string _scriptResults = T("scriptResultsPlaceholder");
 
     [ObservableProperty]
     private ScriptHistoryEntry? _selectedScriptHistory;
@@ -52,7 +52,7 @@ public sealed partial class MainWindowViewModel
                 ScriptInput = value.InputJson;
             }
 
-            StatusMessage = "Caminho de script carregado do histórico local.";
+            StatusMessage = T("scriptPathLoaded");
         }
     }
 
@@ -101,8 +101,8 @@ public sealed partial class MainWindowViewModel
             var result = await _workspace.ExecuteScriptAsync(SelectedProfile, ScriptText, ScriptInput, SelectedDatabase, cancellationToken);
             ScriptResults = BuildScriptOutput(result);
             StatusMessage = result.ExitCode == 0
-                ? $"Script concluído em {result.Duration.TotalMilliseconds:F0} ms."
-                : $"Script concluído com código {result.ExitCode}.";
+                ? F("scriptCompleted", result.Duration.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture))
+                : F("scriptExitCode", result.ExitCode);
         });
     }
 
@@ -118,7 +118,7 @@ public sealed partial class MainWindowViewModel
             return;
         }
 
-        StatusMessage = $"Script salvo em {Path.GetFullPath(ScriptFilePath)}.";
+        StatusMessage = F("scriptSaved", Path.GetFullPath(ScriptFilePath));
     }
 
     [RelayCommand(CanExecute = nameof(CanLoadScript))]
@@ -135,7 +135,7 @@ public sealed partial class MainWindowViewModel
         }
 
         ScriptText = loaded;
-        StatusMessage = $"Script carregado de {Path.GetFullPath(ScriptFilePath)}.";
+        StatusMessage = F("scriptLoaded", Path.GetFullPath(ScriptFilePath));
     }
 
     private async Task RememberScriptAsync(CancellationToken cancellationToken)
@@ -166,19 +166,19 @@ public sealed partial class MainWindowViewModel
 
         if (result.Results.Count > 0)
         {
-            sections.Add("RESULTADOS EJSON" + Environment.NewLine + string.Join(Environment.NewLine, result.Results));
+            sections.Add(T("scriptResultsHeader") + Environment.NewLine + string.Join(Environment.NewLine, result.Results));
         }
 
         if (!string.IsNullOrWhiteSpace(result.StandardOutput))
         {
-            sections.Add("CONSOLE" + Environment.NewLine + result.StandardOutput);
+            sections.Add(T("scriptConsoleHeader") + Environment.NewLine + result.StandardOutput);
         }
 
         if (!string.IsNullOrWhiteSpace(result.StandardError))
         {
-            sections.Add("ERROS" + Environment.NewLine + result.StandardError);
+            sections.Add(T("scriptErrorsHeader") + Environment.NewLine + result.StandardError);
         }
 
-        return sections.Count == 0 ? "O script não retornou resultados nem mensagens." : string.Join(Environment.NewLine + Environment.NewLine, sections);
+        return sections.Count == 0 ? LocalizationViewModel.Current.Resolve("scriptNoOutput") : string.Join(Environment.NewLine + Environment.NewLine, sections);
     }
 }

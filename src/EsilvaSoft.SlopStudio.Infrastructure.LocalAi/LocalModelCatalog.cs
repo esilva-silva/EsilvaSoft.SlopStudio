@@ -1,5 +1,6 @@
 using EsilvaSoft.SlopStudio.LocalAi.Core;
 using System.Text.Json;
+using System.Globalization;
 using EsilvaSoft.SlopStudio.Application;
 using EsilvaSoft.SlopStudio.Core;
 
@@ -10,7 +11,13 @@ public sealed class LocalModelCatalog(string? defaultDirectory = null, IReadOnly
 {
     private const int MaximumCandidates = 100;
     private readonly IReadOnlyList<IModelAdapter> _adapters = adapters ?? ModelAdapters.Default;
+    private Func<string, string>? _localize;
     public string DefaultDirectory { get; } = defaultDirectory ?? LocalWorkspacePaths.GetModelsDirectory();
+
+    public void SetLocalization(Func<string, string> localize) => _localize = localize ?? throw new ArgumentNullException(nameof(localize));
+    private string L(string key, string fallback) => _localize?.Invoke(key) ?? fallback;
+    private string F(string key, string fallback, params object?[] arguments) =>
+        string.Format(CultureInfo.InvariantCulture, L(key, fallback), arguments);
 
     public Task<IReadOnlyList<LocalModelValidation>> DiscoverAsync(CancellationToken cancellationToken = default) => DiscoverAsync(DefaultDirectory, cancellationToken);
 
@@ -31,7 +38,7 @@ public sealed class LocalModelCatalog(string? defaultDirectory = null, IReadOnly
     {
         token.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
-            return new(null, new(LocalModelState.NotInstalled, "Modelo não instalado. Selecione um modelo do diretório ou uma pasta ONNX GenAI externa. Autocomplete básico ativo.")) { Path = path ?? "" };
+            return new(null, new(LocalModelState.NotInstalled, L("aiCatalogNotInstalled", "Modelo não instalado. Selecione um modelo do diretório ou uma pasta ONNX GenAI externa. Autocomplete básico ativo."))) { Path = path ?? "" };
         var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
         var folder = new DirectoryInfo(root).Name;
         LocalModelValidation Rejected(LocalModelState state, string message) => new(null, new(state, message) { ModelName = folder }) { Path = root };
@@ -39,7 +46,7 @@ public sealed class LocalModelCatalog(string? defaultDirectory = null, IReadOnly
         {
             var configPath = Path.Combine(root, "genai_config.json");
             if (!File.Exists(configPath))
-                return Rejected(LocalModelState.MissingFiles, "Arquivos ausentes: genai_config.json. Selecione a pasta de uma exportação ONNX Runtime GenAI.");
+                return Rejected(LocalModelState.MissingFiles, L("aiCatalogMissingConfig", "Arquivos ausentes: genai_config.json. Selecione a pasta de uma exportação ONNX Runtime GenAI."));
             using var config = ReadJson(configPath);
             var model = config.RootElement.GetProperty("model");
             var type = model.GetProperty("type").GetString() ?? "";
@@ -54,22 +61,21 @@ public sealed class LocalModelCatalog(string? defaultDirectory = null, IReadOnly
                 throw new InvalidDataException();
             var missing = new[] { decoderPath, Path.Combine(root, "tokenizer.json"), Path.Combine(root, "tokenizer_config.json") }
                 .Where(file => !File.Exists(file) || new FileInfo(file).Length == 0).Select(Path.GetFileName).ToArray();
-            if (missing.Length > 0) return Rejected(LocalModelState.MissingFiles, "Arquivos ausentes ou vazios: " + string.Join(", ", missing) + ".");
+            if (missing.Length > 0) return Rejected(LocalModelState.MissingFiles, F("aiCatalogMissingFiles", "Arquivos ausentes ou vazios: {0}.", string.Join(", ", missing)));
             var adapter = _adapters.FirstOrDefault(candidate => candidate.CanHandle(type, root));
             if (adapter is null)
-                return Rejected(LocalModelState.Unsupported, $"Arquitetura \"{type[..Math.Min(type.Length, 64)]}\" não suportada. Suportadas: {string.Join("; ", _adapters.Select(a => a.Description))}.");
+                return Rejected(LocalModelState.Unsupported, F("aiCatalogUnsupportedArchitecture", "Arquitetura \"{0}\" não suportada. Suportadas: {1}.", type[..Math.Min(type.Length, 64)], string.Join("; ", _adapters.Select(a => a.Description))));
             LocalModelMetadata? metadata;
             try { metadata = LocalModelMetadataReader.Read(root); }
             catch (Exception ex) when (ex is JsonException or InvalidDataException or InvalidOperationException or FormatException)
             {
-                return Rejected(LocalModelState.Invalid, $"{LocalModelMetadata.FileName} inválido: confira nomes, tipos e limites dos campos.");
+                return Rejected(LocalModelState.Invalid, F("aiCatalogMetadataInvalid", "{0} inválido: confira nomes, tipos e limites dos campos.", LocalModelMetadata.FileName));
             }
             // Compatibilidade de contrato de prompt: decidida só com o metadata já em memória, sem I/O extra e sem
             // carregar pesos. Ausência de declaração nunca é incompatibilidade (pacotes antigos continuam válidos).
             if (metadata?.ContextContract is { } contract && !LocalModelContextContracts.IsSupported(contract))
                 return Rejected(LocalModelState.Invalid,
-                    $"Modelo requer contrato de contexto \"{contract}\", não suportado por esta versão do SlopStudio. " +
-                    $"Contratos suportados: {string.Join(", ", LocalModelContextContracts.Supported)}.");
+                    F("aiCatalogContextContract", "Modelo requer contrato de contexto \"{0}\", não suportado por esta versão do SlopStudio. Contratos suportados: {1}.", contract, string.Join(", ", LocalModelContextContracts.Supported)));
             using var tokenizer = ReadJson(Path.Combine(root, "tokenizer.json"));
             using (ReadJson(Path.Combine(root, "tokenizer_config.json"))) { }
             if (adapter.Validate(new(root, type, decoderPath, tokenizer.RootElement)) is { } failure) return Rejected(failure.State, failure.Message);
@@ -83,11 +89,11 @@ public sealed class LocalModelCatalog(string? defaultDirectory = null, IReadOnly
                     .Where(file => file.EndsWith(".onnx", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".data", StringComparison.OrdinalIgnoreCase))
                     .Select(file => new FileInfo(file).Length).Sum()
             };
-            return new(definition, new(LocalModelState.Available, "Arquivos encontrados. Use Testar modelo para validar inferência e provider.") { ModelName = name }) { Path = root };
+            return new(definition, new(LocalModelState.Available, L("aiCatalogAvailable", "Arquivos encontrados. Use Testar modelo para validar inferência e provider.")) { ModelName = name }) { Path = root };
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or KeyNotFoundException or InvalidOperationException or ArgumentException)
         {
-            return Rejected(LocalModelState.Invalid, "Modelo inválido: confira genai_config.json, decoder ONNX, tokenizer.json e tokenizer_config.json.");
+            return Rejected(LocalModelState.Invalid, L("aiCatalogInvalid", "Modelo inválido: confira genai_config.json, decoder ONNX, tokenizer.json e tokenizer_config.json."));
         }
     }
 

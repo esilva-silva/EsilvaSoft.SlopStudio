@@ -2,6 +2,8 @@
 
 **Situação:** Experimental.
 
+A camada de IA local já participa do catálogo de localização nos quatro idiomas (`pt-BR`, `en`, `es`, `zh-CN`), com fallback em inglês. Isso encerra a meta transversal de tradução, mas não altera o status experimental nem substitui a homologação de modelos e hardware reais.
+
 ## Objetivo
 
 Assistência técnica local integrada à IDE, mantendo o autocomplete determinístico como base.
@@ -21,7 +23,7 @@ Existem `LocalModelAiChatService`, `OnnxLocalModelRuntime`, ghost text e propost
 
 ## Critério de aceite
 
-Casos pt-BR/en para cada ação sem alterações extras não solicitadas; Tab/Escape/undo e descarte de resposta obsoleta; funcionamento sem modelo instalado; opt-out impedindo contexto indevido; cancelamento isolado entre chat e autocomplete; latência e memória documentadas por hardware e modelo.
+Casos nos quatro idiomas para cada ação sem alterações extras não solicitadas; Tab/Escape/undo e descarte de resposta obsoleta; funcionamento sem modelo instalado; opt-out impedindo contexto indevido; cancelamento isolado entre chat e autocomplete; latência e memória documentadas por hardware e modelo.
 
 ## Dependências
 
@@ -33,4 +35,4 @@ Fase 4 aceita, modelo compatível externo, contexto determinístico, política d
 
 ## Pendências de homologação real
 
-GPU/NPU, fidelidade pt-BR/en de todas as ações e medições de latência em hardware real continuam abertas.
+GPU/NPU, revisão linguística de domínio, fidelidade de todas as ações e medições de latência em hardware real continuam abertas.

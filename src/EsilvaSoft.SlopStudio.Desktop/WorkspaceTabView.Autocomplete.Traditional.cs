@@ -18,11 +18,11 @@ namespace EsilvaSoft.SlopStudio.Desktop;
 public partial class WorkspaceTabView
 {
     /// <summary>Status shown while a request is in flight; distinct from every other status text below.</summary>
-    private const string TraditionalCompletionLoadingText = "Carregando sugestões…";
+    private static string TraditionalCompletionLoadingText => T("traditionalLoading");
     /// <summary>Status shown when the provider fails; distinct from "no suggestions" (which means it succeeded with zero matches).</summary>
-    private const string TraditionalCompletionErrorText = "Não foi possível carregar sugestões agora.";
+    private static string TraditionalCompletionErrorText => T("traditionalSuggestionsError");
     /// <summary>Status shown when there is no completion provider for this tab at all (feature unavailable, not "no matches").</summary>
-    private const string TraditionalCompletionUnavailableText = "Sugestões tradicionais indisponíveis nesta aba.";
+    private static string TraditionalCompletionUnavailableText => T("traditionalUnavailable");
 
     private void ShowTraditionalCompletion(IEnumerable<CompletionItem> items, bool isIncomplete = false, CompletionContext? context = null)
     {
@@ -97,8 +97,8 @@ public partial class WorkspaceTabView
         TraditionalCompletionList.ItemsSource = _traditionalPresenter.Items.ToArray();
         TraditionalCompletionList.SelectedItem = desired;
         var summary = _traditionalPresenter.Items.Count == 0
-            ? "Nenhuma sugestão corresponde ao texto atual"
-            : $"{_traditionalPresenter.Items.Count} itens{(_traditionalCompletionIncomplete ? " · dados ainda carregando" : "")} · {TraditionalCompletionShortcutsText()}";
+            ? T("noSuggestionsMatch")
+            : F("traditionalItemsStatus", _traditionalPresenter.Items.Count, _traditionalCompletionIncomplete ? T("traditionalDataLoading") : "", TraditionalCompletionShortcutsText());
         TraditionalCompletionStatus.Text = _traditionalCompletionReason is { Length: > 0 } reason ? $"{reason} · {summary}" : summary;
         ResolveTraditionalDocumentation(desired);
     }
@@ -114,14 +114,14 @@ public partial class WorkspaceTabView
         var move = JoinGestures(tab.GestureText(EditorCommandIds.CompletionPrevious), tab.GestureText(EditorCommandIds.CompletionNext));
         var accept = JoinGestures(tab.GestureText(EditorCommandIds.CompletionAcceptEnter), tab.GestureText(EditorCommandIds.CompletionAccept));
         var close = JoinGestures(tab.GestureText(EditorCommandIds.CompletionClose));
-        return $"{move} mover · {accept} aceita · {close} fecha";
+        return $"{move} {T("moveVerb")} · {accept} {T("acceptVerb")} · {close} {T("closeVerb")}";
     }
 
     /// <summary>Distinct, non-empty gesture texts joined by "/"; "atalho não configurado" when every one is unbound.</summary>
     private static string JoinGestures(params string?[] gestures)
     {
         var distinct = gestures.Where(gesture => !string.IsNullOrEmpty(gesture)).Distinct().ToArray();
-        return distinct.Length == 0 ? "atalho não configurado" : string.Join("/", distinct);
+        return distinct.Length == 0 ? T("shortcutUnconfigured") : string.Join("/", distinct);
     }
 
     /// <summary>Immediately before the caret: the two characters this editor treats as automatic-open triggers.
@@ -246,7 +246,7 @@ public partial class WorkspaceTabView
         var document = _traditionalCompletionDocument;
         var cancellation = new CancellationTokenSource();
         _traditionalDocumentationCancellation = cancellation;
-        TraditionalCompletionDocumentation.Text = "Carregando detalhes…";
+        TraditionalCompletionDocumentation.Text = T("loadingDetails");
         try
         {
             var resolved = await Task.Run(() => CompletionDocumentationResolver.Resolve(item, cancellation.Token), cancellation.Token);
@@ -317,7 +317,7 @@ public partial class WorkspaceTabView
         catch (OperationCanceledException) { if (IsCurrent()) CloseTraditionalCompletion(); }
         catch (Exception)
         {
-            tab.Messages = "Sugestões tradicionais indisponíveis nesta solicitação.";
+            tab.Messages = T("traditionalUnavailable");
             if (IsCurrent()) ShowTraditionalCompletionMessage(TraditionalCompletionErrorText);
         }
     }

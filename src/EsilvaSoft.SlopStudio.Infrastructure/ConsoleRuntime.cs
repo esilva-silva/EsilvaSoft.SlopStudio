@@ -15,10 +15,17 @@ public sealed class ConsoleRuntime(IConnectionProfileRepository profiles, IEnvir
     IConnectionSecretStore secrets, IConsoleDatabaseSessionFactory sessions, IConsoleHistoryRepository history,
     IAuditRepository audit, IMetadataInvalidationBus? metadata = null) : IConsoleRuntime
 {
+    private Func<string, string>? _localize;
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly HashSet<string> ReadMethods = ["find", "findOne", "aggregate", "countDocuments", "estimatedDocumentCount", "distinct", "stats", "databaseStats"];
     private static readonly HashSet<string> WriteMethods = ["insertOne", "insertMany", "updateOne", "updateMany", "replaceOne", "deleteOne", "deleteMany", "drop", "dropDatabase", "createIndex", "dropIndex", "createCollection"];
     private static readonly string Bootstrap = ReadBootstrap();
+    public void SetLocalization(Func<string, string> localize)
+    {
+        _localize = localize ?? throw new ArgumentNullException(nameof(localize));
+        sessions.SetLocalization(localize);
+    }
+    private string L(string key, string fallback) => _localize?.Invoke(key) ?? fallback;
     public ConsoleStatement GetStatement(string script, int caret)
     {
         var program = new Parser().ParseScript(script);
@@ -30,8 +37,8 @@ public sealed class ConsoleRuntime(IConnectionProfileRepository profiles, IEnvir
         Func<ConsoleWriteConfirmation, CancellationToken, Task<bool>> confirmWrite, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Script.Length > 1_000_000 || string.IsNullOrWhiteSpace(request.Database)) throw new ArgumentException("Informe banco e script de até 1 MB.");
-        if (request.DocumentLimit is < 1 or > 1000 || request.TimeoutMs is < 1 or > 300000) throw new ArgumentException("Limite: 1–1000 documentos; timeout: 1–300000 ms.");
+        if (request.Script.Length > 1_000_000 || string.IsNullOrWhiteSpace(request.Database)) throw new ArgumentException(L("consoleDatabaseAndScriptLimit", "Informe banco e script de até 1 MB."));
+        if (request.DocumentLimit is < 1 or > 1000 || request.TimeoutMs is < 1 or > 300000) throw new ArgumentException(L("consoleDocumentLimit", "Limite: 1–1000 documentos; timeout: 1–300000 ms."));
         // Capture the environment and process values before the first await; additional profiles use this same snapshot.
         var environment = new OperationEnvironment(environments, null, request.Primary.Id);
         var values = environment.ScriptValues.ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
@@ -75,18 +82,18 @@ public sealed class ConsoleRuntime(IConnectionProfileRepository profiles, IEnvir
                     token.ThrowIfCancellationRequested();
                     try
                     {
-                        var operation = JsonSerializer.Deserialize<ConsoleOperation>(payload, JsonOptions) ?? throw new InvalidOperationException("Operação inválida.");
+                        var operation = JsonSerializer.Deserialize<ConsoleOperation>(payload, JsonOptions) ?? throw new InvalidOperationException(L("consoleInvalidOperation", "Operação inválida."));
                         var profile = resolved.Single(p => p.Id == operation.ProfileId);
                         if (resolutionErrors.TryGetValue(profile.Id, out var resolutionError)) throw new InvalidOperationException(resolutionError);
-                        if (!ReadMethods.Contains(operation.Method) && !WriteMethods.Contains(operation.Method)) throw new InvalidOperationException("Método não suportado.");
+                        if (!ReadMethods.Contains(operation.Method) && !WriteMethods.Contains(operation.Method)) throw new InvalidOperationException(L("consoleUnsupportedMethod", "Método não suportado."));
                         used.Add(profile.Id);
                         var write = WriteMethods.Contains(operation.Method);
-                        ConsoleDatabaseSession.Validate(operation, MongoDB.Bson.Serialization.BsonSerializer.Deserialize<MongoDB.Bson.BsonArray>(operation.ArgumentsJson), profile);
+                        ConsoleDatabaseSession.Validate(operation, MongoDB.Bson.Serialization.BsonSerializer.Deserialize<MongoDB.Bson.BsonArray>(operation.ArgumentsJson), profile, _localize);
                         if (write)
                         {
                             profile.EnsureWriteAllowed();
                             if (!confirmWrite(new(profile, operation.Database, operation.Collection, operation.Method, operation.Method is "deleteOne" or "deleteMany" ? MongoDB.Bson.Serialization.BsonSerializer.Deserialize<MongoDB.Bson.BsonArray>(operation.ArgumentsJson)[0].ToJson() : null), token).WaitAsync(token).GetAwaiter().GetResult())
-                                throw new InvalidOperationException("Operação de escrita não confirmada.");
+                                throw new InvalidOperationException(L("consoleWriteNotConfirmed", "Operação de escrita não confirmada."));
                             audit.SaveAsync(AuditEntry.Create("console." + operation.Method, profile.Id, operation.Database, operation.Collection, "Envio confirmado; conclusão ainda não conhecida."), token).GetAwaiter().GetResult();
                         }
                         var result = session.ExecuteAsync(operation, token).GetAwaiter().GetResult();
@@ -95,20 +102,20 @@ public sealed class ConsoleRuntime(IConnectionProfileRepository profiles, IEnvir
                             audit.SaveAsync(AuditEntry.Create("console." + operation.Method, profile.Id, operation.Database, operation.Collection, "Operação concluída."), token).GetAwaiter().GetResult();
                             foreach (var invalidation in MetadataInvalidations(profile.Id, operation)) metadata?.Publish(invalidation);
                         }
-                        if (result.Length > 8_000_000) throw new InvalidOperationException("Resultado excede 8 MB.");
+                        if (result.Length > 8_000_000) throw new InvalidOperationException(L("consoleResultTooLarge", "Resultado excede 8 MB."));
                         var keep = operation.Method is "find" or "findOne" or "aggregate" && retained + result.Length <= 8_000_000;
                         if (keep) retained += result.Length;
                         replies.Add(keep ? result : null);
                         return "{\"reply\":" + (replies.Count - 1).ToString(System.Globalization.CultureInfo.InvariantCulture) + ",\"result\":" + result + "}";
                     }
                     catch (OperationCanceledException) { throw; }
-                    catch (Exception ex) { return JsonSerializer.Serialize(new { error = OperationErrorMessages.Describe(ex) }); }
+                    catch (Exception ex) { return JsonSerializer.Serialize(new { error = OperationErrorMessages.Describe(ex, localize: _localize) }); }
                 }));
                 var size = 0;
                 engine.SetValue("__hostOutput", new Action<string>(json =>
                 {
                     size += json.Length;
-                    if (size > 8_000_000 || output.Count >= 100) throw new InvalidOperationException("Saída limitada a 100 resultados / 8 MB.");
+                    if (size > 8_000_000 || output.Count >= 100) throw new InvalidOperationException(L("consoleOutputLimit", "Saída limitada a 100 resultados / 8 MB."));
                     using var document = JsonDocument.Parse(json);
                     var root = document.RootElement; var value = root.GetProperty("value");
                     Guid? id = null; string? db = null, collection = null, method = null; var truncated = false; var projected = false; string? rawReply = null;
@@ -130,16 +137,16 @@ public sealed class ConsoleRuntime(IConnectionProfileRepository profiles, IEnvir
                     output.Add(new(output.Count + 1, value.GetRawText(), id, db, collection, documents, truncated)
                         { SourceProfile = captured.FirstOrDefault(p => p.Id == id), Method = method, IsProjected = projected });
                 }));
-                engine.SetValue("__hostMessage", new Action<string>(message => { if (messages.Length + message.Length > 1_000_000) throw new InvalidOperationException("Mensagens excedem 1 MB."); messages.AppendLine(message); }));
+                engine.SetValue("__hostMessage", new Action<string>(message => { if (messages.Length + message.Length > 1_000_000) throw new InvalidOperationException(L("consoleMessagesTooLarge", "Mensagens excedem 1 MB.")); messages.AppendLine(message); }));
                 engine.SetValue("__hostEnvironment", new Func<string, string>(key => values.TryGetValue(key, out var value)
-                    ? JsonSerializer.Serialize(new { value }) : JsonSerializer.Serialize(new { error = "Chave não definida: " + key })));
+                    ? JsonSerializer.Serialize(new { value }) : JsonSerializer.Serialize(new { error = L("consoleEnvironmentKeyMissing", "Chave não definida: ") + key })));
                 engine.SetValue("__hostUuid", new Func<string, string, string>((name, text) =>
                 {
                     try
                     {
                         return UuidCodec.TryParseConstructor(name, out var representation)
                             ? "{\"value\":" + UuidCodec.ToExtendedJson(UuidCodec.ParseText(name, text), representation) + "}"
-                            : JsonSerializer.Serialize(new { error = "Construtor UUID desconhecido." });
+                            : JsonSerializer.Serialize(new { error = L("consoleUnknownUuidConstructor", "Construtor UUID desconhecido.") });
                     }
                     catch (FormatException ex) { return JsonSerializer.Serialize(new { error = ex.Message }); }
                 }));
@@ -159,8 +166,8 @@ public sealed class ConsoleRuntime(IConnectionProfileRepository profiles, IEnvir
         {
             canceled = cancellationToken.IsCancellationRequested;
             timedOut = !canceled && (token.IsCancellationRequested || ex is TimeoutException || ex.GetType().Name == "TimeoutException");
-            error = canceled ? "Execução interrompida; efeitos no servidor não são revertidos." : timedOut
-                ? "Tempo limite excedido; efeitos enviados ao servidor não são revertidos." : ex.Message;
+            error = canceled ? L("consoleExecutionCancelled", "Execução interrompida; efeitos no servidor não são revertidos.") : timedOut
+                ? L("consoleExecutionTimedOut", "Tempo limite excedido; efeitos enviados ao servidor não são revertidos.") : ex.Message;
         }
         var duration = Stopwatch.GetElapsedTime(started);
         if (request.SaveHistory)
@@ -171,7 +178,7 @@ public sealed class ConsoleRuntime(IConnectionProfileRepository profiles, IEnvir
                     request.Database, environment.Vault.Name, request.Script, duration.TotalMilliseconds,
                     canceled ? "Cancelado" : timedOut ? "Tempo limite" : error is null ? "Concluído" : "Erro", used.ToArray()) { TargetHost = request.Primary.TargetHost, DocumentLimit = request.DocumentLimit }, CancellationToken.None).ConfigureAwait(false);
             }
-            catch (Exception ex) { messages.AppendLine("Histórico não salvo: " + ex.Message); }
+            catch (Exception ex) { messages.AppendLine(L("consoleHistoryNotSaved", "Histórico não salvo: ") + ex.Message); }
         }
         return new(output, messages.ToString(), error, duration, canceled, used.ToArray(), environment.Vault.Name) { IsTimedOut = timedOut };
     }

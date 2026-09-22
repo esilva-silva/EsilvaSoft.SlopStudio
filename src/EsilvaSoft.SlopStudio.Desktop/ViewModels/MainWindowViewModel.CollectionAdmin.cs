@@ -168,8 +168,8 @@ public sealed partial class MainWindowViewModel
             SelectedProfile,
             SelectedDatabase,
             name,
-            isView ? "View criada." : "Coleção criada.");
-        StatusMessage = isView ? $"View {name} criada." : $"Coleção {name} criada.";
+            isView ? T("viewCreatedAudit") : T("collectionCreatedAudit"));
+        StatusMessage = isView ? F("viewCreated", name) : F("collectionCreated", name);
     }
 
     [RelayCommand(CanExecute = nameof(CanRenameCollection))]
@@ -193,8 +193,8 @@ public sealed partial class MainWindowViewModel
         RenameDropTarget = false;
         await LoadCollectionsAsync(database);
         SelectedCollection = Collections.FirstOrDefault(collection => string.Equals(collection, targetCollection, StringComparison.Ordinal));
-        await RecordAuditAsync("collection.rename", profile, database, targetCollection, $"Coleção renomeada de {sourceCollection} para {targetCollection}.");
-        StatusMessage = $"Coleção {sourceCollection} renomeada para {targetCollection}.";
+        await RecordAuditAsync("collection.rename", profile, database, targetCollection, F("collectionRenamedAudit", sourceCollection, targetCollection));
+        StatusMessage = F("collectionRenamed", sourceCollection, targetCollection);
     }
 
     [RelayCommand(CanExecute = nameof(CanUpdateView))]
@@ -214,8 +214,8 @@ public sealed partial class MainWindowViewModel
         }
 
         ViewUpdateConfirmation = string.Empty;
-        await RecordAuditAsync("view.update", profile, database, view, "Pipeline da view atualizado.");
-        StatusMessage = $"Pipeline da view {view} atualizado.";
+        await RecordAuditAsync("view.update", profile, database, view, T("viewPipelineUpdatedAudit"));
+        StatusMessage = F("viewPipelineUpdated", view);
     }
 
     [RelayCommand(CanExecute = nameof(CanConfigureCollectionValidation))]
@@ -246,8 +246,8 @@ public sealed partial class MainWindowViewModel
             profile,
             database,
             collection,
-            $"Validação configurada: nível {CollectionValidationLevel}, ação {CollectionValidationAction}.");
-        StatusMessage = $"Validação da coleção {collection} atualizada.";
+            F("validationConfiguredAudit", CollectionValidationLevel, CollectionValidationAction));
+        StatusMessage = F("collectionValidationUpdated", collection);
     }
 
     [RelayCommand(CanExecute = nameof(CanExecuteQuery))]
@@ -270,7 +270,7 @@ public sealed partial class MainWindowViewModel
         CollectionValidatorJson = validation!.ValidatorJson;
         CollectionValidationLevel = validation.ValidationLevel;
         CollectionValidationAction = validation.ValidationAction;
-        StatusMessage = $"Validação atual da coleção {collection} carregada.";
+        StatusMessage = F("collectionValidationLoaded", collection);
     }
 
     [RelayCommand(CanExecute = nameof(CanDropCollection))]
@@ -292,8 +292,8 @@ public sealed partial class MainWindowViewModel
         DropCollectionConfirmation = string.Empty;
         await LoadCollectionsAsync(database);
         SelectedCollection = null;
-        await RecordAuditAsync("collection.drop", profile, database, collection, "Coleção removida.");
-        StatusMessage = $"Coleção {collection} removida.";
+        await RecordAuditAsync("collection.drop", profile, database, collection, T("collectionRemovedAudit"));
+        StatusMessage = F("collectionRemoved", collection);
     }
 
     [RelayCommand(CanExecute = nameof(CanValidateCollectionIntegrity))]
@@ -308,14 +308,14 @@ public sealed partial class MainWindowViewModel
         if (!await RunAsync(async cancellationToken =>
             {
                 AdministrationResults = await _workspace.ValidateCollectionIntegrityAsync(profile, request, cancellationToken);
-                StatusMessage = $"Validação da coleção {collection} concluída.";
+                StatusMessage = F("collectionValidationDone", collection);
             }))
         {
             return;
         }
 
         CollectionIntegrityConfirmation = string.Empty;
-        await RecordAuditAsync("collection.validate", profile, database, collection, "Integridade da coleção verificada.");
+        await RecordAuditAsync("collection.validate", profile, database, collection, T("collectionIntegrityAudit"));
     }
 
     [RelayCommand(CanExecute = nameof(CanCompactCollection))]
@@ -330,7 +330,7 @@ public sealed partial class MainWindowViewModel
         if (!await RunAsync(async cancellationToken =>
             {
                 AdministrationResults = await _workspace.CompactCollectionAsync(profile, request, cancellationToken);
-                StatusMessage = $"Compactação da coleção {collection} concluída.";
+                StatusMessage = F("collectionCompacted", collection);
             }))
         {
             return;
@@ -338,7 +338,7 @@ public sealed partial class MainWindowViewModel
 
         CollectionCompactConfirmation = string.Empty;
         CollectionCompactForce = false;
-        await RecordAuditAsync("collection.compact", profile, database, collection, "Compactação solicitada.");
+        await RecordAuditAsync("collection.compact", profile, database, collection, T("compactionRequested"));
     }
 
     [RelayCommand(CanExecute = nameof(CanLoadCollectionStats))]
@@ -352,7 +352,7 @@ public sealed partial class MainWindowViewModel
         await RunAsync(async cancellationToken =>
         {
             AdministrationResults = await _workspace.GetCollectionStatsAsync(profile, database, collection, cancellationToken);
-            StatusMessage = $"Estatísticas da coleção {collection} carregadas.";
+            StatusMessage = F("collectionStatsLoaded", collection);
         });
     }
 }

@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Channels;
 using System.Text.Json;
+using System.Globalization;
 using EsilvaSoft.SlopStudio.Application;
 using EsilvaSoft.SlopStudio.Core;
 using Microsoft.ML.OnnxRuntime;
@@ -28,8 +29,17 @@ public sealed class OnnxLocalModelRuntime(IAutocompleteDiagnostics? diagnostics 
     private AutocompleteSettings? _settings;
     private bool _fellBack;
     private LocalModelRuntimeInfo? _info;
+    private Func<string, string> _localize = static key => key;
 
     public LocalModelRuntimeInfo? RuntimeInfo => _info;
+
+    public void SetLocalization(Func<string, string> localize) => _localize = localize ?? throw new ArgumentNullException(nameof(localize));
+
+    private string L(string key, string fallback, params object?[] args)
+    {
+        var format = _localize(key);
+        return string.Format(CultureInfo.CurrentCulture, string.Equals(format, key, StringComparison.Ordinal) ? fallback : format, args);
+    }
 
     public Task InitializeAsync(LocalModelDefinition model, AutocompleteSettings settings, CancellationToken cancellationToken = default) =>
         InitializeAsync(model, settings, null, cancellationToken);
@@ -66,8 +76,8 @@ public sealed class OnnxLocalModelRuntime(IAutocompleteDiagnostics? diagnostics 
         {
             var candidate = plan.Candidates[index];
             cancellationToken.ThrowIfCancellationRequested();
-            progress?.Report(candidate.Kind == AiAccelerationMode.Cpu ? $"Inicializando CPU — {model.Name}…"
-                : $"Inicializando {LocalAiStatusFormatter.HardwareLabel(candidate.Kind)} ({candidate.Provider}) — {model.Name}…");
+            progress?.Report(candidate.Kind == AiAccelerationMode.Cpu ? L("aiInitializingCpu", "Inicializando CPU — {0}…", model.Name)
+                : L("aiInitializingHardware", "Inicializando {0} ({1}) — {2}…", LocalAiStatusFormatter.HardwareLabel(candidate.Kind, _localize), candidate.Provider, model.Name));
             var watch = Stopwatch.StartNew();
             try
             {
@@ -151,7 +161,7 @@ public sealed class OnnxLocalModelRuntime(IAutocompleteDiagnostics? diagnostics 
             text.Append(chunk.Text);
             last = chunk;
         }
-        var final = last ?? throw new InvalidOperationException("Geração encerrada sem pedaço final.");
+        var final = last ?? throw new InvalidOperationException(L("aiGenerationWithoutFinalChunk", "Geração encerrada sem pedaço final."));
         return new ModelGenerationResult(text.ToString(), final.GeneratedTokens, final.Elapsed, final.Provider, final.IsComplete, final.UsedCpuFallback)
             { TimeToFirstToken = final.TimeToFirstToken };
     }
@@ -159,8 +169,8 @@ public sealed class OnnxLocalModelRuntime(IAutocompleteDiagnostics? diagnostics 
     /// <summary>Recarrega na CPU depois de uma falha do provider acelerado, ou converte a falha quando não há fallback.</summary>
     private async Task RecoverOnCpuAsync(OnnxRuntimeGenAIException exception, CancellationToken cancellationToken)
     {
-        var definition = _definition ?? throw new InvalidOperationException("Modelo não inicializado.");
-        var settings = _settings ?? throw new InvalidOperationException("Modelo não inicializado.");
+        var definition = _definition ?? throw new InvalidOperationException(L("aiModelNotInitialized", "Modelo não inicializado."));
+        var settings = _settings ?? throw new InvalidOperationException(L("aiModelNotInitialized", "Modelo não inicializado."));
         var failed = _provider;
         if (_plan is not { AllowFallback: true } plan || !plan.Candidates.Any(candidate => candidate.Kind == AiAccelerationMode.Cpu))
         {
@@ -193,7 +203,7 @@ public sealed class OnnxLocalModelRuntime(IAutocompleteDiagnostics? diagnostics 
         catch (Exception ex)
         {
             diagnostics?.Record("tokenizer.load.failed", ex.GetType().Name);
-            throw new LocalModelLoadException(LocalModelLoadStage.Tokenizer, "Tokenizer incompatível com este modelo.", ex);
+            throw new LocalModelLoadException(LocalModelLoadStage.Tokenizer, L("aiTokenizerIncompatible", "Tokenizer incompatível com este modelo."), ex);
         }
     }
 
@@ -205,8 +215,8 @@ public sealed class OnnxLocalModelRuntime(IAutocompleteDiagnostics? diagnostics 
     {
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
-        var model = _model ?? throw new InvalidOperationException("Modelo não inicializado.");
-        var tokenizer = _tokenizer ?? throw new InvalidOperationException("Tokenizer não inicializado.");
+        var model = _model ?? throw new InvalidOperationException(L("aiModelNotInitialized", "Modelo não inicializado."));
+        var tokenizer = _tokenizer ?? throw new InvalidOperationException(L("aiTokenizerNotInitialized", "Tokenizer não inicializado."));
         var input = BuildPrompt(request, tokenizer);
         var channel = Channel.CreateUnbounded<GeneratedChunk>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -235,17 +245,17 @@ public sealed class OnnxLocalModelRuntime(IAutocompleteDiagnostics? diagnostics 
     /// <summary>Prompt exato: ids fornecidos pelo chamador quando existirem, senão o formato FIM do adapter.</summary>
     private int[] BuildPrompt(ModelGenerationRequest request, ITokenizer tokenizer)
     {
-        if (request.MaximumTokens < 1) throw new LocalModelContextException("Janela de contexto insuficiente.");
+        if (request.MaximumTokens < 1) throw new LocalModelContextException(L("aiContextWindowInsufficient", "Janela de contexto insuficiente."));
         if (request.PromptTokens is { Count: > 0 } supplied)
         {
             var tokens = supplied.ToArray();
-            if (tokens.Length + request.MaximumTokens > _contextLength) throw new LocalModelContextException("O contexto completo excede a janela do modelo.");
+            if (tokens.Length + request.MaximumTokens > _contextLength) throw new LocalModelContextException(L("aiContextExceedsWindow", "O contexto completo excede a janela do modelo."));
             return tokens;
         }
         var context = Math.Min(request.ContextTokens, _contextLength - request.MaximumTokens);
-        if (context < 4) throw new LocalModelContextException("Janela de contexto insuficiente.");
+        if (context < 4) throw new LocalModelContextException(L("aiContextWindowInsufficient", "Janela de contexto insuficiente."));
         if (request.RequireFullContext && tokenizer.Encode(request.Prefix).Count + tokenizer.Encode(request.Suffix).Count + 4 > context)
-            throw new LocalModelContextException("O contexto completo excede a janela do modelo.");
+            throw new LocalModelContextException(L("aiContextExceedsWindow", "O contexto completo excede a janela do modelo."));
         return _promptBuilder.Build(request.Prefix, request.Suffix, context, tokenizer).ToArray();
     }
 
@@ -317,13 +327,13 @@ public sealed class OnnxLocalModelRuntime(IAutocompleteDiagnostics? diagnostics 
     }
 
     /// <summary>Load and execution errors describe providers and devices, never editor text; keep one bounded line.</summary>
-    private static string Reason(AiProviderCandidate candidate, Exception exception)
+    private string Reason(AiProviderCandidate candidate, Exception exception)
     {
         var line = exception is OnnxRuntimeGenAIException ? exception.Message.Split('\n', 2)[0].Trim() : exception.GetType().Name;
         // The native status message continues with the runtime's build path, which is noise for the user.
         if (line.IndexOf(" Status Message:", StringComparison.Ordinal) is > 0 and var status) line = line[..status].Trim();
         if (line.Length > 200) line = line[..200] + "…";
-        return $"falha do provider {candidate.Provider}: {line}";
+        return L("aiProviderFailure", "Falha do provider {0}: {1}", candidate.Provider, line);
     }
 
     private void Release() { (_tokenizer as IDisposable)?.Dispose(); _tokenizer = null; _model?.Dispose(); _model = null; }

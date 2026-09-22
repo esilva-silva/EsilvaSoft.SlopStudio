@@ -18,22 +18,24 @@ namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 public sealed partial class DocumentMutationViewModel(WorkspaceService workspace, ConnectionProfile profile, string database, string collection, ResultDocumentViewModel? original, string operation,
     bool rereadBeforeWrite = false, Func<string?>? writeBlockReason = null) : ObservableObject, IDisposable
 {
+    private static string T(string key) => LocalizationViewModel.Current.Resolve(key);
+    private static string F(string key, params object?[] args) => LocalizationViewModel.Current.Format(key, args);
     private CancellationTokenSource? _cancellation;
     public string Context => $"{profile.Name} › {database} › {collection} · {profile.RoutingLabel}";
     public string Operation => operation;
-    public string ApplyLabel => operation switch { "Editar" => "Salvar…", "Excluir" => "Excluir…", _ => operation + "…" };
-    public string Identity => original?.IdentityFilter ?? "Novo documento";
+    public string ApplyLabel => operation switch { "Editar" => T("mutationEditLabel"), "Excluir" => T("mutationDeleteLabel"), _ => operation + "…" };
+    public string Identity => original?.IdentityFilter ?? T("newDocument");
     public string Policy => profile.IsReadOnly
-        ? "Somente leitura: esta conexão bloqueia gravações. A cópia pode ser revisada, mas não salva."
+        ? T("mutationReadOnlyPolicy")
         : rereadBeforeWrite
-            ? "Cópia editável do resultado; nada foi lido ou gravado ao abrir. Salvar exige confirmação, relê o documento por _id e usa precondição contra alterações concorrentes."
-            : "Gravação exige confirmação; a precondição rejeita um documento alterado ou removido após a leitura.";
+            ? T("mutationRereadPolicy")
+            : T("mutationWritePolicy");
     public bool IsDelete => Operation == "Excluir";
-    public string? WriteBlockReason => profile.IsReadOnly ? "Conexão somente leitura: gravação bloqueada." : writeBlockReason?.Invoke();
+    public string? WriteBlockReason => profile.IsReadOnly ? T("mutationReadOnlyBlocked") : writeBlockReason?.Invoke();
     public bool CanApply => !IsRunning && WriteBlockReason is null;
     // The editable text uses the UUID constructors; the precondition below keeps the canonical snapshot.
     [ObservableProperty] private string _text = original?.FormattedJson ?? "{}";
-    [ObservableProperty] private string _status = (profile.IsReadOnly ? "Conexão somente leitura: gravação bloqueada." : writeBlockReason?.Invoke()) ?? "Revise o documento e o destino antes de confirmar.";
+    [ObservableProperty] private string _status = (profile.IsReadOnly ? T("mutationReadOnlyBlocked") : writeBlockReason?.Invoke()) ?? T("mutationReviewConfirm");
     [ObservableProperty, NotifyPropertyChangedFor(nameof(CanApply))] private bool _isRunning;
     public bool Succeeded { get; private set; }
     public DocumentWriteConflict Conflict { get; private set; }
@@ -43,9 +45,10 @@ public sealed partial class DocumentMutationViewModel(WorkspaceService workspace
         if (IsRunning) return;
         profile.EnsureWriteAllowed();
         if (writeBlockReason?.Invoke() is { } blocked) { Status = blocked; return; }
-        if (operation != "Inserir" && original?.IdentityFilter is null) throw new InvalidOperationException("O documento precisa incluir _id. Refaça a consulta sem excluir esse campo da projeção.");
+        if (operation != "Inserir" && original?.IdentityFilter is null) throw new InvalidOperationException(T("mutationIdRequired"));
         var text = Text;
-        using var globalOperation = workspace.Operations.Begin($"{operation} documento — {Context}", ApplicationOperationPriority.High);
+        var operationLabel = operation switch { "Inserir" => T("insert"), "Editar" => T("edit"), "Excluir" => T("remove"), _ => operation };
+        using var globalOperation = workspace.Operations.Begin(F("documentOperationContext", operationLabel, Context), ApplicationOperationPriority.High);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(globalOperation.Token); _cancellation = cancellation;
         Succeeded = false; Conflict = DocumentWriteConflict.None; IsRunning = true;
         try
@@ -53,18 +56,18 @@ public sealed partial class DocumentMutationViewModel(WorkspaceService workspace
             var snapshot = original?.Json;
             if (rereadBeforeWrite && original is not null && operation != "Inserir")
             {
-                Status = "Relendo o documento antes de gravar…";
+                Status = T("mutationRereading");
                 var page = await workspace.QueryAsync(profile, new MongoQuery(database, collection, original.IdentityFilter!, Limit: 1), cancellation.Token);
                 if (page.Documents.Count == 0)
                 {
                     Conflict = DocumentWriteConflict.Removed;
-                    Status = "O documento foi removido depois da leitura. Nada foi gravado; execute a consulta novamente.";
+                    Status = T("mutationRemovedAfterRead");
                     return;
                 }
                 if (!await Task.Run(() => ExtendedJsonComparer.AreEquivalent(page.Documents[0], original.Json), cancellation.Token))
                 {
                     Conflict = DocumentWriteConflict.Changed;
-                    Status = "O documento foi alterado no servidor depois da leitura. Nada foi gravado; execute a consulta novamente e revise a cópia.";
+                    Status = T("mutationChangedAfterRead");
                     return;
                 }
                 snapshot = page.Documents[0];
@@ -75,12 +78,12 @@ public sealed partial class DocumentMutationViewModel(WorkspaceService workspace
                 "Inserir" => await workspace.InsertAsync(profile, database, collection, text, cancellation.Token),
                 "Editar" => await workspace.ReplaceAsync(profile, database, collection, filter, text, cancellation.Token),
                 "Excluir" => await workspace.DeleteAsync(profile, database, collection, filter, cancellation.Token),
-                _ => throw new InvalidOperationException("Operação de documento desconhecida.")
+                _ => throw new InvalidOperationException(T("unknownDocumentOperation"))
             };
-            Succeeded = result.MatchedCount > 0; Status = Succeeded ? "Operação concluída. Atualize a página para consultar o estado atual." : "O documento mudou ou foi removido após a leitura. Atualize a página antes de tentar novamente.";
+            Succeeded = result.MatchedCount > 0; Status = Succeeded ? T("mutationCompletedRefresh") : T("mutationConflict");
         }
-        catch (OperationCanceledException) { Status = "Cancelado. Efeitos enviados ao servidor não são revertidos; confira o resultado."; }
-        catch (Exception ex) { Status = "Falha: " + OperationErrorMessages.Describe(ex); }
+        catch (OperationCanceledException) { Status = T("mutationCancelled"); }
+        catch (Exception ex) { Status = F("failurePrefix", DesktopOperationErrorMessages.Describe(ex)); }
         finally { globalOperation.Complete(cancellation.IsCancellationRequested ? ApplicationOperationStatus.Cancelled : Succeeded ? ApplicationOperationStatus.Success : Conflict != DocumentWriteConflict.None ? ApplicationOperationStatus.Warning : ApplicationOperationStatus.Error, Status); IsRunning = false; _cancellation = null; }
     }
     public void Cancel() => _cancellation?.Cancel();

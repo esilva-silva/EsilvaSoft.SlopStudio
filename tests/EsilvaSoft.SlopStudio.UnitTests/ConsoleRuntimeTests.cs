@@ -1,6 +1,7 @@
 using EsilvaSoft.SlopStudio.Application;
 using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Infrastructure;
+using EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 namespace EsilvaSoft.SlopStudio.UnitTests;
 
@@ -26,6 +27,18 @@ public sealed class ConsoleRuntimeTests : IDisposable
     public void Dispose() { _repository?.Dispose(); _session?.Dispose(); }
     private Task<ConsoleExecutionResult> Run(string script, CancellationToken token = default) =>
         _runtime.ExecuteAsync(new(_primary, "CakeShop", script), (_, _) => Task.FromResult(true), token);
+
+    [Test]
+    public async Task ConsoleRuntimeUsesTheConfiguredLanguageForFixedDiagnostics()
+    {
+        var localization = new LocalizationViewModel { Language = "en" };
+        _runtime.SetLocalization(localization.Resolve);
+
+        var exception = Assert.ThrowsAsync<ArgumentException>(async () =>
+            await _runtime.ExecuteAsync(new(_primary, "", "{}"), (_, _) => Task.FromResult(true)));
+
+        Assert.That(exception!.Message, Is.EqualTo("Provide a database and a script up to 1 MB."));
+    }
 
     [Test] public async Task ExecutesRealJavaScriptWithMultipleConnectionsAndIndexedNames()
     {

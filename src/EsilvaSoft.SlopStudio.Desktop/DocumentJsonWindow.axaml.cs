@@ -25,11 +25,11 @@ public partial class DocumentJsonWindow : Window
         if (DataContext is not DocumentJsonViewModel model) return;
         try
         {
-            if (Clipboard is not { } clipboard) { model.Status = "Área de transferência indisponível."; return; }
+            if (Clipboard is not { } clipboard) { model.Status = LocalizationViewModel.Current.Resolve("clipboardUnavailable"); return; }
             await clipboard.SetTextAsync(model.Json);
-            model.Status = "JSON formatado copiado para a área de transferência.";
+            model.Status = LocalizationViewModel.Current.Resolve("jsonCopied");
         }
-        catch (Exception ex) { model.Status = "Não foi possível copiar: " + ex.Message; }
+        catch (Exception ex) { model.Status = LocalizationViewModel.Current.Format("copyFailed", ex.Message); }
     }
 
     private void CloseDialog(object? sender, RoutedEventArgs e) => Close();

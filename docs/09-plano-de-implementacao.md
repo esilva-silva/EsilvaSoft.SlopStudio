@@ -1,6 +1,6 @@
 # Roadmap de evolução do Slop Studio
 
-Referência: **18/09/2026**. Este plano substitui o cronograma antigo F0–F7 e a numeração anterior de seis fases. As fases são compromissos de consolidação, não a ordem em que todo código foi escrito. Recursos antecipados continuam disponíveis com seus limites; sua existência não encerra uma fase.
+Referência: **21/09/2026**. Este plano substitui o cronograma antigo F0–F7 e a numeração anterior de seis fases. As fases são compromissos de consolidação, não a ordem em que todo código foi escrito. Recursos antecipados continuam disponíveis com seus limites; sua existência não encerra uma fase.
 
 **Versão atual identificável:** última tag alpha local `v0.1.1-alpha` (também existe `v0.1.0.alpha`); o checkout contém alterações posteriores. Não foi verificada publicação remota. Os projetos não fixam versão de produto; o workflow de release recebe a versão da tag. A v0.5.0 teve o escopo funcional fechado e está [arquivada](done/release_v0.5.0/README.md), sem homologação. **Versão em execução: v0.6.0.** Esta revisão não altera tags ou binários.
 
@@ -13,12 +13,18 @@ Referência: **18/09/2026**. Este plano substitui o cronograma antigo F0–F7 e 
 
 O [catálogo](03-catalogo-funcional.md) mantém IDs e status do requisito completo; o [inventário de código](24-inventario-roadmap.md) discrimina recortes existentes e lacunas. A [matriz](15-matriz-de-validacao.md) registra testes executados e o [checklist](16-checklist-homologacao.md) mantém verificações externas. Nenhuma validação textual equivale à publicação de uma release ou ao encerramento dos requisitos amplos do catálogo.
 
+## Meta transversal — internacionalização da interface — concluída no recorte automatizado
+
+A interface desktop suporta `pt-BR`, `en`, `es` e `zh-CN`. `pt-BR` permanece o idioma inicial para preservar a experiência existente; valores ausentes ou inválidos e chaves sem tradução resolvem para `en`, e uma chave também ausente no inglês aparece como `[[chave]]`. A preferência é persistida de forma aditiva na sessão, sem regravar rascunhos, resultados ou credenciais. Os arquivos `docs/**/*.md` continuam deliberadamente em português.
+
+O incremento cobre catálogo, barra principal, Explorer, editor/resultados, ferramentas, conexões, ambientes, histórico, autocomplete/IA, acessibilidade, mensagens de operação e inicialização com restauração do idioma antes das operações do workspace. A matriz visual gera 64 PNGs reais nos quatro idiomas e nos dois temas. A meta de implementação e tradução está concluída: os testes unitários e a evidência visual estão verdes. Revisão linguística de domínio e validação integrada oficial com MongoDB permanecem como homologação externa das fases, não como bloqueio do catálogo de idiomas.
+
 | Fase | Versão | Objetivo | Situação |
 | --- | --- | --- | --- |
 | 1 | v0.5.0 | MVP: conectar → navegar → consultar → visualizar → editar → exportar | [Escopo funcional implementado](phases/phase-01-v0.5.0/README.md); aguardam-se validações de aceitação para Windows/Linux e demais [pendências registradas](done/release_v0.5.0/pendencias-de-homologacao.md) |
-| 2 | v0.6.0 | Organização dos projetos e autocomplete básico | [**Em execução**](phases/phase-02-v0.6.0/README.md). Separação dos núcleos, regras de negócio e autocomplete determinístico simples |
+| 2 | v0.6.0 | Organização dos projetos e autocomplete básico | [**Em execução**](phases/phase-02-v0.6.0/README.md). Núcleos separados e autocomplete determinístico implementados no recorte automatizado; aceite e homologação ainda pendentes |
 | 3 | v0.7.0 | Autocomplete com IA | [Planejada](phases/phase-03-v0.7.0/README.md). Sugestões assistidas por modelo local, sempre revisáveis e sem aplicação automática |
-| 4 | v0.8.0 | Abertura e salvamento de arquivos de texto | [Planejada](phases/phase-04-v0.8.0/README.md). Abrir arquivos no editor como texto simples, salvar o conteúdo atual e "Salvar como" |
+| 4 | v0.8.0 | Abertura e salvamento de arquivos de texto | [Planejada](phases/phase-04-v0.8.0/README.md). Há antecipação de Abrir/Salvar/Salvar como; faltam aceite integrado e homologação de diálogos nativos |
 | 5 | v0.9.0 | IA local e produtividade contextual | [Experimental](phases/phase-05-v0.9.0/README.md). Modelos ONNX, ghost text, propostas de chat revisáveis, catálogo multimodelo e seleção de CPU/GPU/NPU |
 | 6 | v0.10.0 | Administração e manutenção | [Em desenvolvimento](phases/phase-06-v0.10.0/README.md). Coleções, views, validação, índices, estatísticas, usuários, papéis e exportação/importação lógica |
 | 7 | v0.11.0 | Chat simples com IA baseado em workflow | [Planejada](phases/phase-07-v0.11.0/README.md). Fluxo predefinido, escopo limitado e ações controladas |

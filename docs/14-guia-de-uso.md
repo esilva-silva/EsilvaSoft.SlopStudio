@@ -13,6 +13,12 @@ A fase em execução é a [v0.6.0](phases/phase-02-v0.6.0/README.md). Alguns flu
 
 O seletor de modos deixou de ser exibido: **Console** é o único modo do editor. As seções abaixo que descrevem esses fluxos são mantidas como documentação do comportamento implementado, não como passos executáveis hoje.
 
+## Idioma da interface
+
+Use o seletor de idioma na barra superior para escolher **Português (Brasil)**, **English**, **Español** ou **简体中文**. A escolha é salva junto das preferências da sessão e é aplicada também às janelas abertas. `pt-BR` é o idioma inicial; quando a sessão contém um código inválido ou uma chave não possui tradução no idioma escolhido, o produto usa `en`. Se a chave também não existir em inglês, a interface mostra `[[chave]]` para tornar a lacuna observável.
+
+Esta regra vale para a interface, mensagens, acessibilidade e exemplos gerados pelo produto. Os arquivos Markdown em `docs/` permanecem em português e não são traduzidos por esta meta.
+
 ## Consultas avançadas — incremento de 14/09/2026
 
 Depois de um `$group` que cria `total`, Ctrl+Espaço oferece `$total` nas expressões seguintes. Projeções e `$unset` retiram campos das sugestões; `$lookup` distingue `localField` e `foreignField` quando existem resultados conhecidos da coleção relacionada. As sugestões acompanham os ramos de `$facet` e podem ser inseridas/desfeitas no editor sem execução. [Escopo validado e limites](backlog/27-consultas-avancadas.md).

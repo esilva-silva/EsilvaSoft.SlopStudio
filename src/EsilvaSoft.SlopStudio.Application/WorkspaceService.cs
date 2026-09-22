@@ -6,6 +6,9 @@ namespace EsilvaSoft.SlopStudio.Application;
 
 public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQueryHistoryRepository queryHistory, IScriptHistoryRepository scriptHistory, ISavedQueryRepository savedQueries, IAuditRepository audit, IMongoWorkspaceService mongo, IScriptExecutionService scripts, IScriptFileService scriptFiles, IConnectionSecretStore secrets, IEnvironmentVaultRepository? environments = null, IExplorerMetadataService? explorer = null, IConsoleRuntime? console = null, IConsoleHistoryRepository? consoleHistory = null, IApplicationOperationService? operations = null, ICodeFormatter? formatter = null, IResultPageExportService? resultExports = null, ICodeValidator? validator = null, IMetadataInvalidationBus? metadataInvalidation = null, SchemaLearningService? schemaLearning = null, LearnedSchemaCatalogSource? learnedSchemaCatalog = null, ILearnedSchemaRepository? learnedSchemaRepository = null)
 {
+    /// <summary>Optional desktop localizer for operation descriptions; null keeps the application-layer default text.</summary>
+    public Func<string, string>? OperationLocalizer { get; set; }
+
     /// <summary>
     /// Producer-side entry point of schema learning (L13; schema-learning.md § Fluxo e isolamento). Null when the
     /// feature is not wired (L14's repository does not exist yet, or a test does not configure it): callers must
@@ -29,19 +32,24 @@ public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQue
 
     private async Task<T> TrackAsync<T>(string description, Func<CancellationToken, Task<T>> action, ApplicationOperationPriority priority = ApplicationOperationPriority.Normal, CancellationToken token = default)
     {
-        using var operation = Operations.Begin(description, priority, cancellationToken: token);
+        var localizedDescription = OperationLocalizer?.Invoke(description) ?? description;
+        using var operation = Operations.Begin(localizedDescription, priority, cancellationToken: token);
         try
         {
             var result = await action(operation.Token).ConfigureAwait(false);
             operation.Complete(result is ConnectionTestResult { IsSuccess: false } ? ApplicationOperationStatus.Error : ApplicationOperationStatus.Success,
-                description + (result is ConnectionTestResult { IsSuccess: false } ? " — falha; consulte o diagnóstico da conexão" : " — concluído"));
+                localizedDescription + (result is ConnectionTestResult { IsSuccess: false }
+                    ? Localize(" — falha; consulte o diagnóstico da conexão")
+                    : Localize(" — concluído")));
             return result;
         }
         catch (OperationCanceledException) when (operation.Token.IsCancellationRequested)
-        { operation.Complete(ApplicationOperationStatus.Cancelled, description + " — cancelado"); throw; }
+        { operation.Complete(ApplicationOperationStatus.Cancelled, localizedDescription + Localize(" — cancelado")); throw; }
         catch
-        { operation.Complete(ApplicationOperationStatus.Error, description + " — falha; consulte os detalhes da operação"); throw; }
+        { operation.Complete(ApplicationOperationStatus.Error, localizedDescription + Localize(" — falha; consulte os detalhes da operação")); throw; }
     }
+
+    private string Localize(string text) => OperationLocalizer?.Invoke(text) ?? text;
 
     private Task<bool> TrackAsync(string description, Func<CancellationToken, Task> action, ApplicationOperationPriority priority = ApplicationOperationPriority.Normal, CancellationToken token = default) =>
         TrackAsync(description, async cancellation => { await action(cancellation).ConfigureAwait(false); return true; }, priority, token: token);
@@ -61,6 +69,12 @@ public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQue
     public Task<string> GetExplorerCollectionDetailsAsync(ConnectionProfile profile, string database, string collection, CancellationToken token = default) =>
         TrackAsync("Carregando detalhes da coleção", operationToken => ExplorerMetadata.GetCollectionDetailsAsync(profile, database, collection, operationToken), token: token);
     private IExplorerMetadataService ExplorerMetadata => explorer ?? throw new InvalidOperationException("Serviço de metadados do explorer indisponível.");
+
+    public void SetLocalization(Func<string, string> localize)
+    {
+        explorer?.SetLocalization(localize);
+        console?.SetLocalization(localize);
+    }
 
     public EnvironmentVault LoadEnvironments() => environments?.LoadEnvironments() ?? EnvironmentVault.CreateDefault();
     public Task SaveEnvironmentsAsync(EnvironmentVault vault, CancellationToken cancellationToken = default) =>

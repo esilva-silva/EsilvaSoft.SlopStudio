@@ -2,6 +2,8 @@
 
 **Situação:** Arquivada por escopo funcional. Homologação Windows/Linux **pendente**.
 
+A meta transversal de internacionalização associada ao `UX-01` foi concluída no recorte automatizado: `pt-BR`, `en`, `es` e `zh-CN`, fallback em inglês, acessibilidade localizada, troca em execução e persistência segura. A homologação de plataforma desta fase continua independente.
+
 O escopo funcional desta fase foi implementado e está arquivado em [`../../done/release_v0.5.0`](../../done/release_v0.5.0/README.md). Esta página permanece como ponto de entrada da fase e mantém visíveis as pendências que impedem declarar a versão homologada.
 
 ## Objetivo

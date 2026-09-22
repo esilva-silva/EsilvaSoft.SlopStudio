@@ -55,7 +55,7 @@ public sealed partial class WorkspaceViewModel
         var tab = CreateTab();
         tab.Restore(new WorkspaceDraft { ProfileId = entry.ProfileId, TargetHost = entry.TargetHost, Database = entry.Database, Collection = entry.Collection, Mode = entry.Mode, Limit = entry.DocumentLimit, Text = entry.Script, HistoryEnabled = true }, root?.Profile is { } profile ? profile with { TargetHost = entry.TargetHost } : null);
         tab.IsConnected = tab.Profile is not null && IsProfileConnected(tab.Profile);
-        tab.Messages = $"Histórico de {entry.Environment}; uma nova execução usará o ambiente ativo atual.";
+        tab.Messages = F("historyEnvironment", entry.Environment);
         Register(tab); ActiveTab = tab; ScheduleSave();
     }
 
@@ -69,8 +69,8 @@ public sealed partial class WorkspaceViewModel
         var node = new ExplorerNodeViewModel(_workspace, profile, collection, database, collection);
         var tab = OpenScript(node, ExplorerScriptOperation.Shell);
         tab.ContainsResultData = true;
-        tab.Messages = "Documento no editor; recuperação automática desativada para esta aba. Use Salvar para gravar um arquivo explicitamente.";
-        tab.Text = "// Documento da página carregada; nada foi executado.\nconst document = EJSON.parse(" + System.Text.Json.JsonSerializer.Serialize(json) + ");\ndocument;\n";
+        tab.Messages = T("editorDocumentRecoveryOff");
+        tab.Text = "// " + T("documentEditorIntro") + "\nconst document = EJSON.parse(" + System.Text.Json.JsonSerializer.Serialize(json) + ");\ndocument;\n";
     }
 
     public void BindActiveTab(ConnectionProfile profile, string database, string collection)
@@ -86,7 +86,7 @@ public sealed partial class WorkspaceViewModel
     {
         var node = SelectedNode;
         var tab = CreateTab();
-        tab.Restore(new WorkspaceDraft { ProfileId = node?.Profile.Id, Database = node?.Database ?? "", Text = "// Console JavaScript: db representa o banco selecionado.\n", Mode = "Console", HistoryEnabled = true }, node?.Profile);
+        tab.Restore(new WorkspaceDraft { ProfileId = node?.Profile.Id, Database = node?.Database ?? "", Text = "// " + T("consoleDraftText") + "\n", Mode = "Console", HistoryEnabled = true }, node?.Profile);
         tab.IsConnected = node is not null && IsProfileConnected(node.Profile);
         Register(tab); ActiveTab = tab; ScheduleSave();
     }
@@ -104,7 +104,7 @@ public sealed partial class WorkspaceViewModel
 
     public void RemoveTab(WorkspaceTabViewModel tab)
     {
-        if (tab.IsRunning) throw new InvalidOperationException("Aguarde o encerramento da operação antes de fechar a aba.");
+        if (tab.IsRunning) throw new InvalidOperationException(T("waitOperationClose"));
         tab.DraftChanged -= OnDraftChanged;
         Tabs.Remove(tab);
         if (ActiveTab == tab) ActiveTab = Tabs.LastOrDefault();

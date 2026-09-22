@@ -5,6 +5,9 @@ namespace EsilvaSoft.SlopStudio.LocalAi.Core;
 
 public interface ILocalModelRuntime : IAsyncDisposable
 {
+    /// <summary>Provides product-language text for runtime progress and validation messages.</summary>
+    void SetLocalization(Func<string, string> localize) { }
+
     Task InitializeAsync(LocalModelDefinition model, AutocompleteSettings settings, CancellationToken cancellationToken = default);
     /// <summary>Progress receives short user-facing stages such as "Inicializando GPU…".</summary>
     Task InitializeAsync(LocalModelDefinition model, AutocompleteSettings settings, IProgress<string>? progress, CancellationToken cancellationToken = default) =>

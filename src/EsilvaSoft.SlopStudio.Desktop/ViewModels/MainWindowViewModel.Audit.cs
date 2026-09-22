@@ -27,9 +27,9 @@ public sealed partial class MainWindowViewModel
             }
 
             AdministrationResults = entries.Count == 0
-                ? "Nenhuma ação auditada no workspace local."
+                ? T("auditInitialNone")
                 : string.Join(Environment.NewLine, entries.Select(entry => entry.DisplayText));
-            StatusMessage = $"{entries.Count} ação(ões) locais de auditoria carregada(s).";
+            StatusMessage = F("auditLoaded", entries.Count);
         });
     }
 
@@ -38,13 +38,13 @@ public sealed partial class MainWindowViewModel
     {
         if (string.IsNullOrWhiteSpace(AuditExportPath))
         {
-            SetError("Informe o caminho do arquivo JSON da auditoria.");
+            SetError(T("auditPathRequired"));
             return;
         }
 
         if (!string.Equals(Path.GetExtension(AuditExportPath), ".json", StringComparison.OrdinalIgnoreCase))
         {
-            SetError("O arquivo de auditoria precisa usar a extensão .json.");
+            SetError(T("auditExtension"));
             return;
         }
 
@@ -67,13 +67,13 @@ public sealed partial class MainWindowViewModel
                 useAsync: true);
             await using var writer = new StreamWriter(stream);
             await writer.WriteAsync(json);
-            StatusMessage = $"Auditoria exportada para {AuditExportPath}.";
+            StatusMessage = F("auditExported", AuditExportPath);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
         {
             SetError(File.Exists(AuditExportPath)
-                ? "O arquivo de auditoria já existe. Escolha outro caminho para não sobrescrever a evidência anterior."
-                : $"Falha ao exportar auditoria: {exception.Message}");
+                ? T("auditAlreadyExists")
+                : F("auditExportFailed", exception.Message));
         }
     }
 }

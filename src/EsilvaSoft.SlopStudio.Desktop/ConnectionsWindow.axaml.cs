@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -22,7 +23,7 @@ public partial class ConnectionsWindow : Window
         if (_workspace is null || DataContext is not ConnectionsViewModel { SelectedChoice: not null, IsOpening: false } vm) return;
         vm.IsOpening = true; vm.Error = "";
         try { await _workspace.OpenConnectionAsync(vm.SelectedChoice.Profile); vm.IsOpening = false; Close(true); }
-        catch (Exception ex) { vm.Error = ex.Message; }
+        catch (Exception ex) { vm.Error = DesktopOperationErrorMessages.Describe(ex); }
         finally { vm.IsOpening = false; }
     }
     private void CloseDialog(object? sender, RoutedEventArgs e) { if (DataContext is not ConnectionsViewModel { IsOpening: true }) Close(false); }
@@ -39,7 +40,15 @@ public partial class ConnectionsWindow : Window
     private async void DeleteProfile(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not ConnectionsViewModel { SelectedChoice: not null } vm) return;
-        if (await Dialogs.ChooseAsync(this, "Remover perfil local", $"Remover o perfil {vm.SelectedChoice.Profile.Name}? Os bancos não serão alterados.", "Remover", "Cancelar") == "Remover")
+        var localization = LocalizationViewModel.Current;
+        var remove = localization.Resolve("remove");
+        var answer = await Dialogs.ChooseAsync(
+            this,
+            localization.Resolve("removeLocalProfile"),
+            string.Format(CultureInfo.InvariantCulture, localization.Resolve("removeProfilePrompt"), vm.SelectedChoice.Profile.Name),
+            remove,
+            localization.Resolve("cancel"));
+        if (answer == remove)
             await vm.Editor.DeleteSelectedProfileCommand.ExecuteAsync(null);
     }
 }

@@ -24,17 +24,17 @@ public sealed class HuggingFaceModelSource : IRemoteModelSource, IDisposable
     [
         new("esilva/SlopCoder-Mongo-0.5B-ONNX", "esilva/SlopCoder-Mongo-0.5B",
         [
-            new("int4", "padrão em CPU: menor e mais rápido"),
-            new("int8", "CPU: autocomplete um pouco melhor, mais memória"),
-            new("dml-fp16", "padrão com GPU: melhor qualidade e menor latência"),
-            new("dml-int4", "GPU com pouca memória livre")
+            new("int4", "padrão em CPU: menor e mais rápido", "remoteHintCpuCompact"),
+            new("int8", "CPU: autocomplete um pouco melhor, mais memória", "remoteHintCpuQuality"),
+            new("dml-fp16", "padrão com GPU: melhor qualidade e menor latência", "remoteHintGpuQuality"),
+            new("dml-int4", "GPU com pouca memória livre", "remoteHintGpuLimited")
         ]),
         new("esilva/SlopCoder-Mongo-1.5B-full-ONNX", "esilva/SlopCoder-Mongo-1.5B-full",
         [
-            new("int8", "recomendado em CPU: melhor no Assistente IA, cerca de 3,8 GB de RAM"),
-            new("int4", "CPU com pouca memória: perde precisão em pedidos livres"),
-            new("dml-fp16", "recomendado com GPU: precisão do modelo original e baixa latência"),
-            new("dml-int4", "GPU com menos memória livre: mais tokens por segundo")
+            new("int8", "recomendado em CPU: melhor no Assistente IA, cerca de 3,8 GB de RAM", "remoteHintRecommendedCpuRam"),
+            new("int4", "CPU com pouca memória: perde precisão em pedidos livres", "remoteHintCpuMemory"),
+            new("dml-fp16", "recomendado com GPU: precisão do modelo original e baixa latência", "remoteHintRecommendedGpu"),
+            new("dml-int4", "GPU com menos memória livre: mais tokens por segundo", "remoteHintGpuMemory")
         ])
     ];
 
@@ -45,6 +45,7 @@ public sealed class HuggingFaceModelSource : IRemoteModelSource, IDisposable
     private readonly IReadOnlyList<RemoteModelRepository> _repositories;
     private readonly Uri _baseAddress;
     private readonly HttpClient _http;
+    private Func<string, string> _localize = static key => key;
 
     public HuggingFaceModelSource(IReadOnlyList<RemoteModelRepository>? repositories = null, HttpMessageHandler? handler = null, Uri? baseAddress = null)
     {
@@ -60,6 +61,14 @@ public sealed class HuggingFaceModelSource : IRemoteModelSource, IDisposable
     }
 
     public IReadOnlyList<Uri> RepositoryUrls { get; }
+
+    public void SetLocalization(Func<string, string> localize) => _localize = localize ?? throw new ArgumentNullException(nameof(localize));
+
+    private string L(string key, string fallback, params object?[] args)
+    {
+        var format = _localize(key);
+        return string.Equals(format, key, StringComparison.Ordinal) ? string.Format(CultureInfo.CurrentCulture, fallback, args) : string.Format(CultureInfo.CurrentCulture, format, args);
+    }
 
     public async Task<IReadOnlyList<RemoteModelVariant>> ListAsync(CancellationToken cancellationToken)
     {
@@ -85,10 +94,10 @@ public sealed class HuggingFaceModelSource : IRemoteModelSource, IDisposable
         if (_repositories.All(repository => repository.Repository != variant.Repository) || !IsHex(variant.Revision, 40)
             || !IsSafeRelativePath(variant.Variant) || !IsSafeRelativePath(variant.FolderName) || variant.FolderName.Contains('/')
             || variant.Files.Any(file => !file.Path.StartsWith(variant.Variant + "/", StringComparison.Ordinal) || !IsSafeRelativePath(file.Path)))
-            throw new InvalidDataException("Descrição de modelo inválida.");
+            throw new InvalidDataException(L("remoteInvalidModelDescription", "Descrição de modelo inválida."));
         var root = Path.GetFullPath(modelsDirectory);
         var target = Path.Combine(root, variant.FolderName);
-        if (Directory.Exists(target)) throw new IOException($"O modelo já está instalado em {target}. Remova a pasta para baixar novamente.");
+        if (Directory.Exists(target)) throw new IOException(L("remoteModelAlreadyInstalled", "O modelo já está instalado em {0}. Remova a pasta para baixar novamente.", target));
         // Dot-prefixed, so the catalog ignores it; verified files survive a failed or cancelled attempt and the next one resumes.
         var staging = Path.Combine(root, "." + variant.FolderName + ".download");
         Directory.CreateDirectory(staging);
@@ -125,7 +134,7 @@ public sealed class HuggingFaceModelSource : IRemoteModelSource, IDisposable
         {
             using var info = await GetJsonAsync($"api/models/{repository.Repository}", timeout.Token);
             var revision = TryString(info.RootElement, "sha");
-            if (!IsHex(revision, 40)) throw new InvalidDataException("O repositório não informou uma revisão válida.");
+            if (!IsHex(revision, 40)) throw new InvalidDataException(L("remoteInvalidRevision", "O repositório não informou uma revisão válida."));
             var license = info.RootElement.TryGetProperty("cardData", out var card) && card.ValueKind == JsonValueKind.Object
                 ? TryString(card, "license_name") ?? TryString(card, "license") : null;
             using var tree = await GetJsonAsync($"api/models/{repository.Repository}/tree/{revision}?recursive=true", timeout.Token);
@@ -133,11 +142,11 @@ public sealed class HuggingFaceModelSource : IRemoteModelSource, IDisposable
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            throw new TimeoutException($"O Hugging Face não respondeu a tempo para {repository.Repository}.");
+            throw new TimeoutException(L("remoteListTimedOut", "O Hugging Face não respondeu a tempo para {0}.", repository.Repository));
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or FormatException)
         {
-            throw new InvalidDataException($"Resposta inesperada do Hugging Face para {repository.Repository}.", ex);
+            throw new InvalidDataException(L("remoteUnexpectedResponse", "Resposta inesperada do Hugging Face para {0}.", repository.Repository), ex);
         }
     }
 
@@ -152,9 +161,9 @@ public sealed class HuggingFaceModelSource : IRemoteModelSource, IDisposable
             if (separator <= 0 || !IsSafeRelativePath(path)) continue;
             var oid = TryString(entry, "oid");
             var sha256 = entry.TryGetProperty("lfs", out var lfs) && lfs.ValueKind == JsonValueKind.Object ? TryString(lfs, "oid") : null;
-            if (!IsHex(oid, 40) || sha256 is not null && !IsHex(sha256, 64)) throw new InvalidDataException($"Hash inválido para {path}.");
+            if (!IsHex(oid, 40) || sha256 is not null && !IsHex(sha256, 64)) throw new InvalidDataException(L("remoteInvalidHash", "Hash inválido para {0}.", path));
             var size = entry.GetProperty("size").GetInt64();
-            if (size < 0) throw new InvalidDataException($"Tamanho inválido para {path}.");
+            if (size < 0) throw new InvalidDataException(L("remoteInvalidFileSize", "Tamanho inválido para {0}.", path));
             files.Add((path[..separator], new RemoteModelFile(path, size, sha256?.ToLowerInvariant(), oid!.ToLowerInvariant())));
         }
         var repositoryName = NameOf(repository.Repository);
@@ -176,6 +185,7 @@ public sealed class HuggingFaceModelSource : IRemoteModelSource, IDisposable
             {
                 Family = family,
                 Hint = repository.Variants.FirstOrDefault(hint => hint.Folder == group.Key)?.Hint,
+                HintKey = repository.Variants.FirstOrDefault(hint => hint.Folder == group.Key)?.LocalizationKey,
                 BaseModelUrl = baseModelUrl
             })
             .ToArray();
@@ -212,18 +222,18 @@ public sealed class HuggingFaceModelSource : IRemoteModelSource, IDisposable
                     try { read = await source.ReadAsync(buffer, stall.Token); }
                     catch (OperationCanceledException) when (!token.IsCancellationRequested)
                     {
-                        throw new TimeoutException($"O download de {relative} parou de responder.");
+                        throw new TimeoutException(L("remoteDownloadTimedOut", "O download de {0} parou de responder.", relative));
                     }
                     if (read == 0) break;
                     received += read;
-                    if (received > file.Size) throw new InvalidDataException($"{relative} é maior que o tamanho publicado e foi descartado.");
+                    if (received > file.Size) throw new InvalidDataException(L("remoteFileTooLarge", "{0} é maior que o tamanho publicado e foi descartado.", relative));
                     hash.AppendData(buffer, 0, read);
                     await output.WriteAsync(buffer.AsMemory(0, read), token);
                     reporter.Report(completed + received, relative);
                 }
             }
             if (received != file.Size || !string.Equals(Convert.ToHexStringLower(hash.GetHashAndReset()), Expected(file), StringComparison.Ordinal))
-                throw new InvalidDataException($"{relative} não confere com o hash publicado no repositório e foi descartado.");
+                throw new InvalidDataException(L("remoteFileHashMismatch", "{0} não confere com o hash publicado no repositório e foi descartado.", relative));
             File.Move(part, destination);
             return completed + received;
         }
@@ -256,14 +266,14 @@ public sealed class HuggingFaceModelSource : IRemoteModelSource, IDisposable
 
     private static string Expected(RemoteModelFile file) => file.Sha256 ?? file.GitBlobSha1;
 
-    private static void EnsureFreeSpace(string root, string staging, long totalBytes)
+    private void EnsureFreeSpace(string root, string staging, long totalBytes)
     {
         var required = totalBytes - Directory.EnumerateFiles(staging, "*", SearchOption.AllDirectories).Sum(file => new FileInfo(file).Length);
         long available;
         try { available = new DriveInfo(Path.GetPathRoot(root)!).AvailableFreeSpace; }
         catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException) { return; }
         if (available < required)
-            throw new IOException(string.Create(CultureInfo.CurrentCulture, $"Espaço insuficiente em {root}: são necessários {required / 1_000_000:N0} MB."));
+            throw new IOException(L("remoteInsufficientSpace", "Insufficient space in {0}: {1:N0} MB are required.", root, required / 1_000_000d));
     }
 
     private static string NameOf(string repository) => repository[(repository.LastIndexOf('/') + 1)..];

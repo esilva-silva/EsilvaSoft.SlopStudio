@@ -146,28 +146,28 @@ public partial class WorkspaceTabView
         if (document is not null)
         {
             menu.Items.Add(Caption(document.Summary + " · " + document.IdentityText));
-            var view = new MenuItem { Header = "Visualizar documento em JSON", Tag = "view" };
+            var view = new MenuItem { Header = T("viewDocumentJson"), Tag = "view" };
             view.Click += (_, _) => ResultActionTask = ShowResultDocumentJsonAsync(tab, document);
             menu.Items.Add(first = view);
             var availability = WorkspaceTabViewModel.GetEditAvailability(document);
-            var edit = new MenuItem { Header = "Abrir documento para edição", Tag = "edit", IsEnabled = availability.CanOpen };
+            var edit = new MenuItem { Header = T("editDocument"), Tag = "edit", IsEnabled = availability.CanOpen };
             edit.Click += (_, _) => ResultActionTask = OpenResultDocumentEditorAsync(tab, document);
             menu.Items.Add(edit);
-            if (!availability.CanOpen) menu.Items.Add(Caption("Edição indisponível: " + availability.Reason));
+            if (!availability.CanOpen) menu.Items.Add(Caption(F("editUnavailable", availability.Reason)));
             menu.Items.Add(new Separator());
-            var copy = new MenuItem { Header = "Copiar JSON", Tag = "copy" };
+            var copy = new MenuItem { Header = T("copyJson"), Tag = "copy" };
             copy.Click += (_, _) => ResultActionTask = CopyResultTextAsync(tab, document.FormattedJson);
             menu.Items.Add(copy);
             // Identifier copies keep the stored BSON type; the UUID alternative of an ObjectId is offered only in UUID v4 mode.
-            AddCopy(menu, tab, "Copiar _id", "copy-id", document.IdentityValueText);
-            AddCopy(menu, tab, "Copiar consulta por _id", "copy-id-script", document.IdentityScript);
-            AddCopy(menu, tab, "Copiar UUID equivalente do _id", "copy-id-uuid", document.IdentityUuidEquivalent);
+            AddCopy(menu, tab, T("copyId"), "copy-id", document.IdentityValueText);
+            AddCopy(menu, tab, T("copyIdQuery"), "copy-id-script", document.IdentityScript);
+            AddCopy(menu, tab, T("copyUuidId"), "copy-id-uuid", document.IdentityUuidEquivalent);
         }
-        else menu.Items.Add(Caption("Nenhum documento no cursor. Posicione o cursor dentro de um documento."));
+        else menu.Items.Add(Caption(T("noDocumentCursor")));
         if (includeTextCopy)
         {
             var selection = ResultJson.SelectedText;
-            var copyText = new MenuItem { Header = "Copiar texto selecionado", Tag = "copy-selection", IsEnabled = !string.IsNullOrEmpty(selection) };
+            var copyText = new MenuItem { Header = T("copySelectedText"), Tag = "copy-selection", IsEnabled = !string.IsNullOrEmpty(selection) };
             copyText.Click += (_, _) => ResultActionTask = CopyResultTextAsync(tab, selection);
             if (document is null) menu.Items.Add(new Separator());
             menu.Items.Add(copyText);
@@ -206,14 +206,14 @@ public partial class WorkspaceTabView
     private async Task CopyResultTextAsync(WorkspaceTabViewModel tab, string text)
     {
         try { if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard) await clipboard.SetTextAsync(text); }
-        catch (Exception ex) { tab.Messages = "Não foi possível copiar: " + ex.Message; }
+        catch (Exception ex) { tab.Messages = F("copyFailed", ex.Message); }
     }
 
     private async Task ShowResultDocumentJsonAsync(WorkspaceTabViewModel tab, ResultDocumentViewModel document)
     {
         if (TopLevel.GetTopLevel(this) is not Window owner) return;
         try { await new DocumentJsonWindow { DataContext = new DocumentJsonViewModel(document, tab.CodeFontSize) }.ShowDialog(owner); }
-        catch (Exception ex) { tab.Messages = "Não foi possível abrir o documento: " + ex.Message; }
+        catch (Exception ex) { tab.Messages = F("openDocumentFailed", ex.Message); }
     }
 
     private async Task OpenResultDocumentEditorAsync(WorkspaceTabViewModel tab, ResultDocumentViewModel document)
@@ -222,9 +222,9 @@ public partial class WorkspaceTabView
         try
         {
             using var model = tab.CreateResultDocumentEditor(document);
-            await new DocumentMutationWindow { DataContext = model, Title = "Editar documento · " + document.Summary }.ShowDialog(owner);
+            await new DocumentMutationWindow { DataContext = model, Title = F("editDocumentTitle", document.Summary) }.ShowDialog(owner);
             if (model.Succeeded) tab.Messages = model.Status;
         }
-        catch (Exception ex) { tab.Messages = ex.Message; }
+        catch (Exception ex) { tab.Messages = DesktopOperationErrorMessages.Describe(ex); }
     }
 }

@@ -7,7 +7,6 @@ namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposable
 {
-    private const string NotExecutedText = "Execute para visualizar os resultados em Extended JSON.";
     private readonly WorkspaceService _workspace;
     public IApplicationOperationService Operations => _workspace.Operations;
     public Task ExportResultPageAsync(string path, IReadOnlyList<string> documents, bool csv, Action<int, int> progress, CancellationToken cancellationToken) =>
@@ -44,10 +43,10 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     [ObservableProperty] private string _filePath = "";
     [ObservableProperty] private bool _isDirty;
     [ObservableProperty] private bool _isRunning;
-    [ObservableProperty] private string _results = NotExecutedText;
+    [ObservableProperty] private string _results = "";
     [ObservableProperty] private string _messages = "";
     [ObservableProperty] private string _errors = "";
-    [ObservableProperty] private string _status = "Pronto";
+    [ObservableProperty] private string _status = "";
     [ObservableProperty] private string _metrics = "";
     [ObservableProperty] private int _resultTabIndex;
     [ObservableProperty] private double _codeFontSize = 14;
@@ -61,9 +60,13 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     [ObservableProperty] private int _batchSize = 100;
     [ObservableProperty] private int _maxTimeMs = 30000;
 
-    public string Title => (string.IsNullOrEmpty(FilePath) ? Mode == "Script" ? "Sem título.js" : string.IsNullOrEmpty(Collection) ? Mode : Collection : Path.GetFileName(FilePath)) + (IsDirty ? " •" : "");
-    public string Context => $"{Profile?.Name ?? "Sem conexão"} › {(string.IsNullOrWhiteSpace(Database) ? "Escolha um banco" : Database)}{(IsConsole || string.IsNullOrWhiteSpace(Collection) ? "" : " › " + Collection)}";
-    public string AccessHint => Profile is null ? "Escolha uma conexão para esta aba." : !IsConnected ? "Desconectado — abra a conexão para executar." : Profile.IsReadOnly ? "Somente leitura · " + Profile.RoutingLabel : "Destino fixo desta aba · " + Profile.RoutingLabel;
+    private static string T(string key) => LocalizationViewModel.Current.Resolve(key);
+    private static string F(string key, params object?[] arguments) => LocalizationViewModel.Current.Format(key, arguments);
+    private static string NotExecutedText => T("notExecuted");
+
+    public string Title => (string.IsNullOrEmpty(FilePath) ? Mode == "Script" ? T("untitledScript") : string.IsNullOrEmpty(Collection) ? Mode : Collection : Path.GetFileName(FilePath)) + (IsDirty ? " •" : "");
+    public string Context => $"{Profile?.Name ?? T("noConnection")} › {(string.IsNullOrWhiteSpace(Database) ? T("chooseDatabase") : Database)}{(IsConsole || string.IsNullOrWhiteSpace(Collection) ? "" : " › " + Collection)}";
+    public string AccessHint => Profile is null ? T("chooseConnectionForTab") : !IsConnected ? T("disconnectedOpenConnection") : Profile.IsReadOnly ? T("readOnlyPrefix") + Profile.RoutingLabel : T("fixedTargetPrefix") + Profile.RoutingLabel;
     public bool IsScript => Mode == "Script";
     public bool IsAggregation => Mode == "Agregação";
     public bool CanExplainAggregation => IsAggregation && CanExecute;
@@ -94,6 +97,8 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     public WorkspaceTabViewModel(WorkspaceService workspace)
     {
         _workspace = workspace;
+        Results = NotExecutedText;
+        Status = T("statusReady");
         PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(Text) or nameof(InputJson) or nameof(PersistInput) or nameof(Database) or nameof(Collection) or nameof(Mode) or nameof(Profile) or nameof(FilePath) or nameof(Projection) or nameof(Sort) or nameof(Limit) or nameof(Skip) or nameof(Hint) or nameof(Comment) or nameof(Collation) or nameof(BatchSize) or nameof(MaxTimeMs) or nameof(HistoryEnabled) or nameof(ScriptHistoryEnabled))
@@ -123,6 +128,21 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         };
     }
 
+    public void RefreshLanguage()
+    {
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(Context));
+        OnPropertyChanged(nameof(AccessHint));
+        OnPropertyChanged(nameof(CopyJsonHint));
+        OnPropertyChanged(nameof(AiProposalTitle));
+        OnPropertyChanged(nameof(AiProposalHint));
+        OnPropertyChanged(nameof(IsJsonResultView));
+        OnPropertyChanged(nameof(IsTreeResultView));
+        OnPropertyChanged(nameof(HasSelectedDocument));
+        OnPropertyChanged(nameof(HasResultTree));
+        if (_resultRenderable) RenderResults();
+    }
+
     [RelayCommand(CanExecute = nameof(CanExecute))]
     private async Task ExecuteAsync(string? selection)
     {
@@ -141,7 +161,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         var uuidPolicy = UuidPolicy;
         var executedAt = DateTimeOffset.UtcNow;
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
-        using var operation = Operations.Begin($"Executando consulta em {profile.Name} › {database}", ApplicationOperationPriority.High);
+        using var operation = Operations.Begin(F("executingQuery", profile.Name, database), ApplicationOperationPriority.High);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(operation.Token);
         _cancellation = cancellation;
         IsRunning = true;
@@ -149,29 +169,29 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         Messages = "";
         Metrics = "";
         _resultRenderable = false; _resultPolicy = uuidPolicy; _resultProfileId = profile.Id; _resultSourceGenerationId = profile.SourceGenerationId; _resultIsConsole = mode == "Console"; _resultEmptyText = null;
-        ClearResults("Executando…");
-        Status = "Executando…";
+        ClearResults(T("executing"));
+        Status = T("executing");
         try
         {
             if (mode == "Console")
             {
                 var result = await _workspace.ExecuteConsoleAsync(new(profile, database, text, Math.Clamp(limit, 1, 1000), Math.Clamp(maxTimeMs, 1, 300000), historyEnabled), ConfirmConsoleWrite, cancellation.Token);
-                _resultEmptyText = result.Results.Count == 0 ? "Nenhuma expressão retornou resultado. Consulte Mensagens." : null;
-                _resultMetrics = $"{result.Results.Count} resultado(s) · {result.Duration.TotalMilliseconds:F0} ms · {result.Environment} · máximo {Math.Clamp(limit, 1, 1000)} documentos por cursor";
-                await SetResultsAsync(() => result.Results.Select(StructuredResultSet.FromConsole).ToArray(), result.Results, cancellation.Token);
+                _resultEmptyText = result.Results.Count == 0 ? T("consoleNoResult") : null;
+                _resultMetrics = F("consoleMetrics", result.Results.Count, result.Duration.TotalMilliseconds.ToString("F0", System.Globalization.CultureInfo.InvariantCulture), result.Environment, Math.Clamp(limit, 1, 1000));
+                await SetResultsAsync(() => result.Results.Select(item => StructuredResultSet.FromConsoleLocalized(item, LocalizationViewModel.Current.Resolve)).ToArray(), result.Results, cancellation.Token);
                 Messages = result.Messages; Errors = result.Error ?? "";
-                Status = result.IsCanceled ? "Cancelado" : result.IsTimedOut ? "Tempo limite excedido" : result.Error is null ? "Concluído" : "Erro";
+                Status = result.IsCanceled ? T("statusCancelled") : result.IsTimedOut ? T("timedOut") : result.Error is null ? T("statusSuccess") : T("statusError");
                 ResultTabIndex = result.Error is null ? 0 : 2;
             }
             else if (mode == "Script")
             {
                 var result = await _workspace.ExecuteScriptAsync(profile, text, input, database, cancellation.Token);
-                _resultEmptyText = result.Results.Count == 0 ? "O script não emitiu documentos. Consulte Mensagens." : null;
-                _resultMetrics = $"{result.Results.Count} documento(s) · {result.Duration.TotalMilliseconds:F0} ms";
-                await SetResultsAsync(() => [StructuredResultSet.FromDocuments(1, new ResultOrigin("Script mongosh", profile.Id, profile, database, null), result.Results, false, ResultCompleteness.Unknown)], null, cancellation.Token);
+                _resultEmptyText = result.Results.Count == 0 ? T("scriptNoDocuments") : null;
+                _resultMetrics = F("scriptMetrics", result.Results.Count, result.Duration.TotalMilliseconds.ToString("F0", System.Globalization.CultureInfo.InvariantCulture));
+                await SetResultsAsync(() => [StructuredResultSet.FromDocuments(1, new ResultOrigin(T("scriptMongosh"), profile.Id, profile, database, null), result.Results, false, ResultCompleteness.Unknown)], null, cancellation.Token);
                 Messages = result.StandardOutput;
                 Errors = result.StandardError;
-                Status = result.ExitCode == 0 ? "Concluído" : $"Falha — código {result.ExitCode}";
+                Status = result.ExitCode == 0 ? T("statusSuccess") : F("scriptFailed", result.ExitCode);
                 ResultTabIndex = result.ExitCode != 0 || Errors.Length > 0 ? 2 : Documents.Count == 0 ? 1 : 0;
             }
             else
@@ -182,11 +202,11 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
                     : await _workspace.QueryAsync(profile, query, cancellation.Token);
                 var completeness = aggregation ? ResultCompleteness.Derived
                     : query.ProjectionJson is null || ExtendedJsonComparer.AreEquivalent(query.ProjectionJson, "{}") ? ResultCompleteness.Complete : ResultCompleteness.PartialProjection;
-                _resultEmptyText = result.Documents.Count == 0 ? "Nenhum documento encontrado." : null;
-                _resultMetrics = $"{result.Documents.Count} documento(s) · limite {query.Limit} · {result.Duration.TotalMilliseconds:F0} ms{(result.IsTruncated ? " · resultado limitado" : "")}";
-                await SetResultsAsync(() => [StructuredResultSet.FromDocuments(1, new ResultOrigin(aggregation ? "Agregação" : "Consulta", profile.Id, profile, database, collection),
+                _resultEmptyText = result.Documents.Count == 0 ? T("noDocumentsFound") : null;
+                _resultMetrics = F("documentsMetrics", result.Documents.Count, query.Limit, result.Duration.TotalMilliseconds.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)) + (result.IsTruncated ? T("resultLimited") : "");
+                await SetResultsAsync(() => [StructuredResultSet.FromDocuments(1, new ResultOrigin(aggregation ? T("resultAggregation") : T("resultQuery"), profile.Id, profile, database, collection),
                     result.Documents, result.IsTruncated, completeness, aggregation ? "aggregate" : "find")], null, cancellation.Token);
-                Status = "Concluído";
+                Status = T("statusSuccess");
                 ResultTabIndex = 0;
                 if (historyEnabled && mode == "Consulta JSON")
                 {
@@ -197,22 +217,22 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
                         History.Insert(0, entry);
                         while (History.Count > 50) History.RemoveAt(History.Count - 1);
                     }
-                    catch (Exception ex) when (ex is not OperationCanceledException) { Messages = "Consulta concluída; histórico não salvo: " + OperationErrorMessages.Describe(ex); }
+                    catch (Exception ex) when (ex is not OperationCanceledException) { Messages = F("queryCompletedHistoryNotSaved", DesktopOperationErrorMessages.Describe(ex)); }
                 }
             }
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
-            Status = "Cancelado";
-            if (!_resultRenderable) SetResultState("Execução interrompida.");
-            Messages = "Efeitos já enviados ao MongoDB não são revertidos automaticamente. O resultado no servidor pode ser incerto.";
+            Status = T("statusCancelled");
+            if (!_resultRenderable) SetResultState(T("queryInterrupted"));
+            Messages = T("writeEffectsNotReverted");
             ResultTabIndex = 1;
         }
         catch (Exception ex)
         {
-            Status = "Falha na execução";
-            Errors = OperationErrorMessages.Describe(ex);
-            if (!_resultRenderable) SetResultState("Não foi possível concluir a execução.");
+            Status = T("executionFailed");
+            Errors = DesktopOperationErrorMessages.Describe(ex);
+            if (!_resultRenderable) SetResultState(T("executionIncomplete"));
             ResultTabIndex = 2;
         }
         finally
@@ -228,11 +248,11 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
                 }
                 catch (Exception ex)
                 {
-                    Messages += "\nHistórico não salvo: " + OperationErrorMessages.Describe(ex);
+                    Messages += "\n" + F("historyNotSaved", DesktopOperationErrorMessages.Describe(ex));
                     if (Errors.Length == 0) ResultTabIndex = 1;
                 }
             }
-            operation.Complete(Status == "Cancelado" ? ApplicationOperationStatus.Cancelled : Errors.Length > 0 || Status.StartsWith("Falha", StringComparison.Ordinal) ? ApplicationOperationStatus.Error : ApplicationOperationStatus.Success,
+            operation.Complete(Status == T("statusCancelled") ? ApplicationOperationStatus.Cancelled : Errors.Length > 0 || Status == T("executionFailed") ? ApplicationOperationStatus.Error : ApplicationOperationStatus.Success,
                 $"{Status} — {profile.Name} › {database}");
             _cancellation = null; IsRunning = false; ApplyPendingUuidPolicy();
         }
@@ -248,12 +268,12 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         FilePath = path;
         _savedText = text;
         IsDirty = Text != _savedText;
-        Status = "Arquivo salvo";
+        Status = T("savedFile");
         DraftChanged?.Invoke(this, EventArgs.Empty);
         if (historyEnabled)
         {
             try { await _workspace.SaveScriptHistoryAsync(ScriptHistoryEntry.Create(path, inputJson: persistInput ? input : null)); }
-            catch (Exception ex) { Messages = "Arquivo salvo; histórico não salvo: " + OperationErrorMessages.Describe(ex); }
+            catch (Exception ex) { Messages = F("savedFileHistoryNotSaved", DesktopOperationErrorMessages.Describe(ex)); }
         }
     }
 

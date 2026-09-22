@@ -1,15 +1,15 @@
-<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" x:Class="EsilvaSoft.SlopStudio.Desktop.ConnectionsWindow" x:DataType="vm:ConnectionsViewModel" Title="Conexões" Width="800" Height="560" MinWidth="600" MinHeight="420" WindowStartupLocation="CenterOwner">
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" x:Class="EsilvaSoft.SlopStudio.Desktop.ConnectionsWindow" x:DataType="vm:ConnectionsViewModel" Title="{local:Loc Key=connectionsTitle}" Width="800" Height="560" MinWidth="600" MinHeight="420" WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="Auto,*,Auto" Margin="20" RowSpacing="12">
     <Grid ColumnDefinitions="*,Auto">
       <StackPanel Spacing="4">
-        <TextBlock Text="Conexões" Classes="section-title"/>
-        <TextBlock Text="Escolha uma origem para explorar seus bancos." Classes="muted"/>
+        <TextBlock Text="{local:Loc Key=connectionsTitle}" Classes="section-title"/>
+        <TextBlock Text="{local:Loc Key=chooseOrigin}" Classes="muted"/>
       </StackPanel>
-      <Button Grid.Column="1" Content="Nova conexão" IsVisible="{Binding !Editor.IsProfileEditorVisible}" Command="{Binding Editor.ShowProfileEditorCommand}"/>
+      <Button Grid.Column="1" Content="{local:Loc Key=newConnection}" IsVisible="{Binding !Editor.IsProfileEditorVisible}" Command="{Binding Editor.ShowProfileEditorCommand}"/>
     </Grid>
     <Grid Grid.Row="1">
       <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8" IsVisible="{Binding !Editor.IsProfileEditorVisible}" IsEnabled="{Binding !IsOpening}">
-        <TextBox x:Name="SearchBox" Text="{Binding Search}" PlaceholderText="Buscar nome, host, pasta ou ambiente" AutomationProperties.Name="Buscar conexões"/>
+        <TextBox x:Name="SearchBox" Text="{Binding Search}" PlaceholderText="{local:Loc Key=searchConnections}" AutomationProperties.Name="{local:Loc Key=connectionSearch}"/>
         <Grid Grid.Row="1"><ListBox ItemsSource="{Binding Choices}" SelectedItem="{Binding SelectedChoice}" DoubleTapped="OpenSelected">
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:ConnectionChoice">
@@ -20,45 +20,45 @@
               </Grid>
             </DataTemplate>
           </ListBox.ItemTemplate>
-        </ListBox><TextBlock IsVisible="{Binding HasNoMatches}" Text="Nenhuma conexão encontrada. Ajuste a busca ou crie uma conexão." Classes="muted" TextWrapping="Wrap" Margin="12,24" VerticalAlignment="Top"/></Grid>
+        </ListBox><TextBlock IsVisible="{Binding HasNoMatches}" Text="{local:Loc Key=noConnections}" Classes="muted" TextWrapping="Wrap" Margin="12,24" VerticalAlignment="Top"/></Grid>
         <WrapPanel Grid.Row="2">
-          <Button Content="Editar" Command="{Binding Editor.EditSelectedProfileCommand}" Margin="0,0,8,0"/>
-          <Button Content="Duplicar" Command="{Binding Editor.DuplicateSelectedProfileCommand}" Margin="0,0,8,0"/>
-          <Button Content="Remover perfil…" Classes="danger" Click="DeleteProfile"/>
-          <TextBlock Text="Remove apenas o perfil local." Classes="metadata" VerticalAlignment="Center" Margin="8,0"/>
+          <Button Content="{local:Loc Key=edit}" Command="{Binding Editor.EditSelectedProfileCommand}" Margin="0,0,8,0"/>
+          <Button Content="{local:Loc Key=duplicate}" Command="{Binding Editor.DuplicateSelectedProfileCommand}" Margin="0,0,8,0"/>
+          <Button Content="{local:Loc Key=removeProfile}" Classes="danger" Click="DeleteProfile"/>
+          <TextBlock Text="{local:Loc Key=removeLocalOnly}" Classes="metadata" VerticalAlignment="Center" Margin="8,0"/>
         </WrapPanel>
       </Grid>
       <ScrollViewer IsVisible="{Binding Editor.IsProfileEditorVisible}" VerticalScrollBarVisibility="Auto">
         <StackPanel DataContext="{Binding Editor}" x:DataType="vm:MainWindowViewModel" Spacing="8">
-          <TextBlock Text="Preencher a partir de uma URI" FontWeight="SemiBold"/>
+          <TextBlock Text="{local:Loc Key=fillFromUri}" FontWeight="SemiBold"/>
           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-            <TextBox Text="{Binding QuickConnectionString}" PlaceholderText="mongodb://servidor:27017/banco" AutomationProperties.Name="URI rápida"/>
-            <Button Grid.Column="1" Content="Preencher" Command="{Binding StartProfileFromConnectionStringCommand}"/>
+            <TextBox Text="{Binding QuickConnectionString}" PlaceholderText="mongodb://servidor:27017/banco" AutomationProperties.Name="{local:Loc Key=quickUri}"/>
+            <Button Grid.Column="1" Content="{local:Loc Key=fill}" Command="{Binding StartProfileFromConnectionStringCommand}"/>
           </Grid>
           <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="6">
-            <TextBlock Text="Nome"/>
-            <TextBlock Grid.Column="1" Text="Banco padrão"/>
-            <TextBox Grid.Row="1" Text="{Binding NewProfileName}" AutomationProperties.Name="Nome da conexão"/>
-            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding NewProfileDatabase}" AutomationProperties.Name="Banco padrão"/>
-            <TextBlock Grid.Row="2" Text="URI MongoDB"/>
-            <TextBox Grid.Row="3" Grid.ColumnSpan="2" Text="{Binding NewProfileConnectionString}" AutomationProperties.Name="URI MongoDB"/>
-            <TextBlock Grid.Row="4" Text="Usuário"/>
-            <TextBlock Grid.Row="4" Grid.Column="1" Text="Senha na conexão"/>
-            <TextBox Grid.Row="5" Text="{Binding NewProfileUsername}" AutomationProperties.Name="Usuário MongoDB"/>
-            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding NewProfilePassword}" AutomationProperties.Name="Senha na conexão" PasswordChar="●"/>
-            <TextBlock Grid.Row="6" Text="Rótulo de ambiente"/>
-            <TextBlock Grid.Row="6" Grid.Column="1" Text="Pasta"/>
-            <TextBox Grid.Row="7" Text="{Binding NewProfileEnvironment}" AutomationProperties.Name="Ambiente"/>
-            <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding NewProfileFolder}" AutomationProperties.Name="Pasta"/>
-            <TextBlock Grid.Row="8" Text="Cor do ambiente (#RRGGBB)"/>
-            <TextBlock Grid.Row="8" Grid.Column="1" Text="Tags"/>
-            <TextBox Grid.Row="9" Text="{Binding NewProfileColor}" AutomationProperties.Name="Cor do ambiente"/>
-            <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding NewProfileTags}" AutomationProperties.Name="Tags"/>
+            <TextBlock Text="{local:Loc Key=name}"/>
+            <TextBlock Grid.Column="1" Text="{local:Loc Key=defaultDatabase}"/>
+            <TextBox Grid.Row="1" Text="{Binding NewProfileName}" AutomationProperties.Name="{local:Loc Key=connectionName}"/>
+            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding NewProfileDatabase}" AutomationProperties.Name="{local:Loc Key=defaultDatabase}"/>
+            <TextBlock Grid.Row="2" Text="{local:Loc Key=mongodbUri}"/>
+            <TextBox Grid.Row="3" Grid.ColumnSpan="2" Text="{Binding NewProfileConnectionString}" AutomationProperties.Name="{local:Loc Key=mongodbUri}"/>
+            <TextBlock Grid.Row="4" Text="{local:Loc Key=user}"/>
+            <TextBlock Grid.Row="4" Grid.Column="1" Text="{local:Loc Key=passwordInConnection}"/>
+            <TextBox Grid.Row="5" Text="{Binding NewProfileUsername}" AutomationProperties.Name="{local:Loc Key=user}"/>
+            <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding NewProfilePassword}" AutomationProperties.Name="{local:Loc Key=passwordInConnection}" PasswordChar="●"/>
+            <TextBlock Grid.Row="6" Text="{local:Loc Key=environmentLabel}"/>
+            <TextBlock Grid.Row="6" Grid.Column="1" Text="{local:Loc Key=folder}"/>
+            <TextBox Grid.Row="7" Text="{Binding NewProfileEnvironment}" AutomationProperties.Name="{local:Loc Key=environment}"/>
+            <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding NewProfileFolder}" AutomationProperties.Name="{local:Loc Key=environmentFolder}"/>
+            <TextBlock Grid.Row="8" Text="{local:Loc Key=environmentColor}"/>
+            <TextBlock Grid.Row="8" Grid.Column="1" Text="{local:Loc Key=tags}"/>
+            <TextBox Grid.Row="9" Text="{Binding NewProfileColor}" AutomationProperties.Name="{local:Loc Key=environmentColor}"/>
+            <TextBox Grid.Row="9" Grid.Column="1" Text="{Binding NewProfileTags}" AutomationProperties.Name="{local:Loc Key=tags}"/>
           </Grid>
-          <TextBlock Text="A URI pode conter credenciais diretas ou ${ENV.get(&quot;MONGO_PASSWORD&quot;)}. Os campos usuário/senha são opcionais e gravam a senha na URI local. Sem senha preenchida, o usuário usa o marcador legado ${MONGODB_PASSWORD}." Classes="metadata" TextWrapping="Wrap"/>
+          <TextBlock Text="{local:Loc Key=connectionUriNote}" Classes="metadata" TextWrapping="Wrap"/>
           <WrapPanel>
-            <CheckBox Content="Favorita" IsChecked="{Binding NewProfileIsFavorite}" Margin="0,0,20,0"/>
-            <CheckBox Content="Somente leitura" IsChecked="{Binding NewProfileIsReadOnly}"/>
+            <CheckBox Content="{local:Loc Key=favorite}" IsChecked="{Binding NewProfileIsFavorite}" Margin="0,0,20,0"/>
+            <CheckBox Content="{local:Loc Key=readOnly}" IsChecked="{Binding NewProfileIsReadOnly}"/>
           </WrapPanel>
           <local:UuidRepresentationPanel x:Name="ProfileUuidPanel" IsVisible="False" Margin="0,8,0,0"/>
           
@@ -66,15 +66,15 @@
       </ScrollViewer>
     </Grid>
     <StackPanel Grid.Row="2" Spacing="6">
-      <TextBlock Text="Abrindo conexão…" IsVisible="{Binding IsOpening}" Foreground="{DynamicResource AccentBrush}"/>
+      <TextBlock Text="{local:Loc Key=openingConnection}" IsVisible="{Binding IsOpening}" Foreground="{DynamicResource AccentBrush}"/>
       <TextBlock Text="{Binding Error}" Foreground="{DynamicResource ErrorBrush}" TextWrapping="Wrap"/>
       <TextBlock Text="{Binding Editor.StatusMessage}" Classes="metadata" TextWrapping="Wrap" MaxHeight="48"/>
       <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="8" IsEnabled="{Binding !IsOpening}">
-        <Button Content="Testar conexão" Command="{Binding Editor.TestSelectedConnectionCommand}" IsVisible="{Binding !Editor.IsProfileEditorVisible}"/>
-        <Button Grid.Column="2" Content="Voltar" Command="{Binding Editor.HideProfileEditorCommand}" IsVisible="{Binding Editor.IsProfileEditorVisible}"/>
-        <Button Grid.Column="3" Content="Fechar" Click="CloseDialog"/>
-        <Button Grid.Column="4" x:Name="SaveProfileButton" Content="Salvar perfil" Classes="primary" Command="{Binding Editor.SaveProfileCommand}" IsVisible="{Binding Editor.IsProfileEditorVisible}"/>
-        <Button Grid.Column="4" Content="Abrir conexão" Classes="primary" Click="OpenSelected" IsVisible="{Binding !Editor.IsProfileEditorVisible}"/>
+        <Button Content="{local:Loc Key=testConnection}" Command="{Binding Editor.TestSelectedConnectionCommand}" IsVisible="{Binding !Editor.IsProfileEditorVisible}"/>
+        <Button Grid.Column="2" Content="{local:Loc Key=back}" Command="{Binding Editor.HideProfileEditorCommand}" IsVisible="{Binding Editor.IsProfileEditorVisible}"/>
+        <Button Grid.Column="3" Content="{local:Loc Key=close}" Click="CloseDialog"/>
+        <Button Grid.Column="4" x:Name="SaveProfileButton" Content="{local:Loc Key=saveProfile}" Classes="primary" Command="{Binding Editor.SaveProfileCommand}" IsVisible="{Binding Editor.IsProfileEditorVisible}"/>
+        <Button Grid.Column="4" Content="{local:Loc Key=openConnection}" Classes="primary" Click="OpenSelected" IsVisible="{Binding !Editor.IsProfileEditorVisible}"/>
       </Grid>
     </StackPanel>
   </Grid>

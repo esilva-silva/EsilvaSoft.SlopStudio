@@ -26,6 +26,8 @@ public interface ILocalAiModelService : IAsyncDisposable
     LocalModelStatus Status { get; }
     LocalModelDefinition? LoadedModel { get; }
     event EventHandler? StatusChanged;
+    /// <summary>Provides product-language text for status and operation messages; optional for headless callers.</summary>
+    void SetLocalization(Func<string, string> localize) { }
     Task<IReadOnlyList<LocalModelValidation>> DiscoverModelsAsync(string? directory = null, CancellationToken cancellationToken = default);
     Task<LocalModelValidation> ValidateModelAsync(string path, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<AiHardwareDevice>> GetAvailableHardwareAsync(CancellationToken cancellationToken = default);

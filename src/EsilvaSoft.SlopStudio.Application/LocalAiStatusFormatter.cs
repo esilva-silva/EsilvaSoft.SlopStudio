@@ -9,33 +9,33 @@ public static class LocalAiStatusFormatter
 {
     private static readonly CultureInfo Culture = CultureInfo.GetCultureInfo("pt-BR");
 
-    public static string HardwareLabel(AiAccelerationMode mode) => mode switch
+    public static string HardwareLabel(AiAccelerationMode mode, Func<string, string>? localize = null) => mode switch
     {
         AiAccelerationMode.Cpu => "CPU",
         AiAccelerationMode.Gpu => "GPU",
         AiAccelerationMode.Npu => "NPU",
-        _ => "Automático"
+        _ => localize?.Invoke("hardwareAuto") ?? "Automático"
     };
 
-    public static string StateLabel(LocalModelState state) => state switch
+    public static string StateLabel(LocalModelState state, Func<string, string>? localize = null) => state switch
     {
-        LocalModelState.NotInstalled => "Não instalado",
-        LocalModelState.NotLoaded => "Não carregado",
-        LocalModelState.Available => "Arquivos encontrados",
-        LocalModelState.Loading => "Carregando",
-        LocalModelState.Ready => "Carregado",
-        LocalModelState.Invalid => "Inválido",
-        LocalModelState.Unsupported => "Não suportado",
-        LocalModelState.MissingFiles => "Arquivos ausentes",
-        _ => "Falha"
+        LocalModelState.NotInstalled => localize?.Invoke("modelStateNotInstalled") ?? "Não instalado",
+        LocalModelState.NotLoaded => localize?.Invoke("modelStateNotLoaded") ?? "Não carregado",
+        LocalModelState.Available => localize?.Invoke("modelStateAvailable") ?? "Arquivos encontrados",
+        LocalModelState.Loading => localize?.Invoke("modelStateLoading") ?? "Carregando",
+        LocalModelState.Ready => localize?.Invoke("modelStateReady") ?? "Carregado",
+        LocalModelState.Invalid => localize?.Invoke("modelStateInvalid") ?? "Inválido",
+        LocalModelState.Unsupported => localize?.Invoke("modelStateUnsupported") ?? "Não suportado",
+        LocalModelState.MissingFiles => localize?.Invoke("modelStateMissingFiles") ?? "Arquivos ausentes",
+        _ => localize?.Invoke("modelStateFailed") ?? "Falha"
     };
 
-    public static string ValidityLabel(LocalModelValidity validity) => validity switch
+    public static string ValidityLabel(LocalModelValidity validity, Func<string, string>? localize = null) => validity switch
     {
-        LocalModelValidity.Valid => "válido",
-        LocalModelValidity.Unsupported => "não suportado",
-        LocalModelValidity.MissingFiles => "arquivos ausentes",
-        _ => "inválido"
+        LocalModelValidity.Valid => localize?.Invoke("modelValidityValid") ?? "válido",
+        LocalModelValidity.Unsupported => localize?.Invoke("modelValidityUnsupported") ?? "não suportado",
+        LocalModelValidity.MissingFiles => localize?.Invoke("modelValidityMissingFiles") ?? "arquivos ausentes",
+        _ => localize?.Invoke("modelValidityInvalid") ?? "inválido"
     };
 
     /// <summary>Automatic considers NPU, GPU and CPU in this order among reported devices; model compatibility is checked at load.</summary>
@@ -49,64 +49,78 @@ public static class LocalAiStatusFormatter
         return null;
     }
 
-    public static string DeviceLine(AiHardwareDevice device)
+    public static string DeviceLine(AiHardwareDevice device, Func<string, string>? localize = null)
     {
         ArgumentNullException.ThrowIfNull(device);
-        if (!device.IsAvailable) return HardwareLabel(device.Kind) + " — indisponível";
+        if (!device.IsAvailable)
+        {
+            var unavailable = HardwareLabel(device.Kind, localize) + " — " + (localize?.Invoke("unavailable") ?? "indisponível");
+            return localize is null || string.IsNullOrWhiteSpace(device.Reason)
+                ? unavailable
+                : unavailable + ": " + LocalizeHardwareReason(device.Reason, localize);
+        }
         var details = new[] { device.Kind == AiAccelerationMode.Cpu ? null : device.Provider, device.MemoryBytes is { } memory ? Bytes(memory) : null }
             .Where(value => !string.IsNullOrEmpty(value)).ToArray();
-        return $"{HardwareLabel(device.Kind)} — {device.Name}" + (details.Length == 0 ? "" : $" ({string.Join(", ", details)})");
+        return $"{HardwareLabel(device.Kind, localize)} — {device.Name}" + (details.Length == 0 ? "" : $" ({string.Join(", ", details)})");
     }
 
-    public static string Format(LocalModelStatus status, string? selectedModel, AiAccelerationMode requested, IReadOnlyList<AiHardwareDevice> hardware)
+    private static string LocalizeHardwareReason(string reason, Func<string, string>? localize) => reason switch
+    {
+        "ONNX Runtime não foi carregado neste processo." => localize?.Invoke("hardwareRuntimeNotLoaded") ?? reason,
+        "Nenhum provider de GPU (DirectML ou CUDA) disponível nesta distribuição ou máquina." => localize?.Invoke("hardwareGpuProviderUnavailable") ?? reason,
+        "Nenhum provider de NPU (QNN, OpenVINO ou VitisAI) disponível nesta distribuição ou máquina." => localize?.Invoke("hardwareNpuProviderUnavailable") ?? reason,
+        _ => reason
+    };
+
+    public static string Format(LocalModelStatus status, string? selectedModel, AiAccelerationMode requested, IReadOnlyList<AiHardwareDevice> hardware, Func<string, string>? localize = null)
     {
         ArgumentNullException.ThrowIfNull(status);
         ArgumentNullException.ThrowIfNull(hardware);
         var lines = new List<string>
         {
-            "Modelo selecionado: " + (string.IsNullOrWhiteSpace(selectedModel) ? "nenhum" : selectedModel),
-            "Estado: " + StateLabel(status.State),
-            "Hardware: " + HardwareLabel(requested)
+            (localize?.Invoke("selectedModel") ?? "Modelo selecionado") + ": " + (string.IsNullOrWhiteSpace(selectedModel) ? localize?.Invoke("none") ?? "nenhum" : selectedModel),
+            (localize?.Invoke("modelState") ?? "Estado") + ": " + StateLabel(status.State, localize),
+            (localize?.Invoke("hardware") ?? "Hardware") + ": " + HardwareLabel(requested, localize)
         };
         // Preferences may show a new, unsaved selection while another model is still loaded.
         if (status.State is LocalModelState.Ready or LocalModelState.Loading && !string.IsNullOrEmpty(status.ModelName) && status.ModelName != selectedModel)
-            lines.Insert(1, "Modelo em uso: " + status.ModelName);
+            lines.Insert(1, (localize?.Invoke("modelInUse") ?? "Modelo em uso") + ": " + status.ModelName);
         if (status.Backend is { } backend)
         {
-            lines.Add("Backend: " + HardwareLabel(backend) + (status.UsedFallback ? " (aceleração preferida indisponível)" : ""));
-            if (!string.IsNullOrEmpty(status.Provider)) lines.Add("Provider: " + status.Provider);
-            if (!string.IsNullOrEmpty(status.Device)) lines.Add("Dispositivo: " + status.Device);
-            if (status.LoadTime is { } load) lines.Add("Tempo de carregamento: " + Milliseconds(load));
-            if (status.ProcessMemoryBytes is { } memory) lines.Add("Memória do processo: " + Bytes(memory));
-            if (status.FirstToken is { } first) lines.Add("Primeiro token: " + Milliseconds(first));
-            if (status.TokensPerSecond is { } rate) lines.Add("Geração: " + Rate(rate));
+            lines.Add((localize?.Invoke("backend") ?? "Backend") + ": " + HardwareLabel(backend, localize) + (status.UsedFallback ? " (" + (localize?.Invoke("preferredAccelerationUnavailable") ?? "aceleração preferida indisponível") + ")" : ""));
+            if (!string.IsNullOrEmpty(status.Provider)) lines.Add((localize?.Invoke("provider") ?? "Provider") + ": " + status.Provider);
+            if (!string.IsNullOrEmpty(status.Device)) lines.Add((localize?.Invoke("device") ?? "Dispositivo") + ": " + status.Device);
+            if (status.LoadTime is { } load) lines.Add((localize?.Invoke("loadTime") ?? "Tempo de carregamento") + ": " + Milliseconds(load));
+            if (status.ProcessMemoryBytes is { } memory) lines.Add((localize?.Invoke("processMemory") ?? "Memória do processo") + ": " + Bytes(memory));
+            if (status.FirstToken is { } first) lines.Add((localize?.Invoke("firstToken") ?? "Primeiro token") + ": " + Milliseconds(first));
+            if (status.TokensPerSecond is { } rate) lines.Add((localize?.Invoke("generation") ?? "Geração") + ": " + Rate(rate));
         }
         else if (hardware.Count > 0)
         {
             var predicted = PredictDevice(requested, hardware);
-            lines.Add("Provider detectado: " + (predicted?.Provider ?? "indisponível"));
-            if (predicted is not null) lines.Add("Dispositivo: " + predicted.Name);
+            lines.Add((localize?.Invoke("detectedProvider") ?? "Provider detectado") + ": " + (predicted?.Provider ?? localize?.Invoke("unavailable") ?? "indisponível"));
+            if (predicted is not null) lines.Add((localize?.Invoke("device") ?? "Dispositivo") + ": " + predicted.Name);
         }
         if (!string.IsNullOrWhiteSpace(status.Message)) lines.Add(status.Message);
         return string.Join('\n', lines);
     }
 
-    public static string FormatReport(LocalModelTestReport report)
+    public static string FormatReport(LocalModelTestReport report, Func<string, string>? localize = null)
     {
         ArgumentNullException.ThrowIfNull(report);
         var lines = new List<string> { report.Message };
-        if (!string.IsNullOrEmpty(report.ModelName)) lines.Add("Modelo: " + report.ModelName);
+        if (!string.IsNullOrEmpty(report.ModelName)) lines.Add((localize?.Invoke("model") ?? "Modelo") + ": " + report.ModelName);
         if (report.Backend is { } backend)
-            lines.Add("Hardware: " + HardwareLabel(backend) + (report.Hardware == AiAccelerationMode.Auto ? " (Automático)" : "")
-                + (report.UsedFallback ? " — aceleração preferida indisponível" : ""));
-        else if (report.Hardware is { } hardware) lines.Add("Hardware solicitado: " + HardwareLabel(hardware));
-        if (!string.IsNullOrEmpty(report.Provider)) lines.Add("Provider: " + report.Provider);
-        if (!string.IsNullOrEmpty(report.Device)) lines.Add("Dispositivo: " + report.Device);
-        if (report.LoadTime is { } load) lines.Add("Carregamento: " + Milliseconds(load));
-        if (report.FirstToken is { } first) lines.Add("Primeiro token: " + Milliseconds(first));
-        if (report.TokensPerSecond is { } rate) lines.Add("Geração: " + Rate(rate));
+            lines.Add((localize?.Invoke("hardware") ?? "Hardware") + ": " + HardwareLabel(backend, localize) + (report.Hardware == AiAccelerationMode.Auto ? " (" + (localize?.Invoke("hardwareAuto") ?? "Automático") + ")" : "")
+                + (report.UsedFallback ? " — " + (localize?.Invoke("preferredAccelerationUnavailable") ?? "aceleração preferida indisponível") : ""));
+        else if (report.Hardware is { } hardware) lines.Add((localize?.Invoke("requestedHardware") ?? "Hardware solicitado") + ": " + HardwareLabel(hardware, localize));
+        if (!string.IsNullOrEmpty(report.Provider)) lines.Add((localize?.Invoke("provider") ?? "Provider") + ": " + report.Provider);
+        if (!string.IsNullOrEmpty(report.Device)) lines.Add((localize?.Invoke("device") ?? "Dispositivo") + ": " + report.Device);
+        if (report.LoadTime is { } load) lines.Add((localize?.Invoke("loadingTime") ?? "Carregamento") + ": " + Milliseconds(load));
+        if (report.FirstToken is { } first) lines.Add((localize?.Invoke("firstToken") ?? "Primeiro token") + ": " + Milliseconds(first));
+        if (report.TokensPerSecond is { } rate) lines.Add((localize?.Invoke("generation") ?? "Geração") + ": " + Rate(rate));
         if (report.Steps.Count > 0)
-            lines.Add("Etapas: " + string.Join(" · ", report.Steps.Select(step => $"{step.Name}: {(step.Succeeded ? "OK" : "falhou")}")));
+            lines.Add((localize?.Invoke("steps") ?? "Etapas") + ": " + string.Join(" · ", report.Steps.Select(step => $"{step.Name}: {(step.Succeeded ? "OK" : localize?.Invoke("failed") ?? "falhou")}")));
         return string.Join('\n', lines);
     }
 

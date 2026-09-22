@@ -10,7 +10,7 @@ namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 public sealed partial class MainWindowViewModel
 {
     [ObservableProperty]
-    private string _identifierSnippet = "Gere um identificador no modo e na representação UUID desta conexão.";
+    private string _identifierSnippet = LocalizationViewModel.Current.Resolve("identifierSnippetInitial");
 
     [ObservableProperty]
     private string _identifierExtendedJsonSnippet = "";
@@ -23,13 +23,13 @@ public sealed partial class MainWindowViewModel
     [NotifyPropertyChangedFor(nameof(IdentifierLabel))]
     private IdentifierRepresentationMode _identifierMode = IdentifierRepresentationMode.Standard;
 
-    public string IdentifierLabel => $"Identificadores {IdentifierRepresentationService.DisplayName(IdentifierMode)} · UUID {UuidCodec.DisplayName(UuidRepresentation)} · subtype {UuidCodec.SubType(UuidRepresentation)} · Extended JSON canônico abaixo";
+    public string IdentifierLabel => LocalizationViewModel.Current.Format("identifierLabel", IdentifierRepresentationService.DisplayName(IdentifierMode), UuidCodec.DisplayName(UuidRepresentation), UuidCodec.SubType(UuidRepresentation));
 
     [ObservableProperty]
     private string _identifierInput = "";
 
     [ObservableProperty]
-    private string _identifierInterpretation = "Cole ObjectId(\"…\"), 24 dígitos hexadecimais, UUID(\"…\")/CGUUID/JUUID/GUUID ou um UUID.";
+    private string _identifierInterpretation = LocalizationViewModel.Current.Resolve("identifierInterpretationInitial");
 
     /// <summary>ObjectId mode generates an ObjectId, UUID v4 mode a UUID v4 and Standard one of each; both lines write the same values.</summary>
     [RelayCommand]
@@ -38,7 +38,7 @@ public sealed partial class MainWindowViewModel
         var generated = IdentifierRepresentationService.Generate(new(IdentifierMode, UuidRepresentation));
         IdentifierSnippet = string.Join("\n", generated.Select(value => value.Script));
         IdentifierExtendedJsonSnippet = string.Join("\n", generated.Select(value => value.ExtendedJson));
-        StatusMessage = $"Identificador gerado no modo {IdentifierRepresentationService.DisplayName(IdentifierMode)}; construtor e Extended JSON gravam os mesmos valores.";
+        StatusMessage = LocalizationViewModel.Current.Format("identifierGenerated", IdentifierRepresentationService.DisplayName(IdentifierMode));
     }
 
     /// <summary>Interprets pasted text with the central parser; wrappers and constructors keep their explicit BSON type.</summary>
@@ -50,18 +50,18 @@ public sealed partial class MainWindowViewModel
             var value = IdentifierRepresentationService.ParseIdentifier(IdentifierInput, new(IdentifierMode, UuidRepresentation));
             var kind = value.Kind switch
             {
-                IdentifierKind.ObjectId => "ObjectId",
-                IdentifierKind.Uuid => "UUID · Binary subtype " + (value.ExtendedJson.Contains("\"subType\":\"03\"", StringComparison.Ordinal) ? "3" : "4"),
-                _ => "Binary subtype 3 · UUID legado de origem desconhecida"
+                IdentifierKind.ObjectId => LocalizationViewModel.Current.Resolve("identifierObjectIdType"),
+                IdentifierKind.Uuid => LocalizationViewModel.Current.Format("identifierUuidType", value.ExtendedJson.Contains("\"subType\":\"03\"", StringComparison.Ordinal) ? "3" : "4"),
+                _ => LocalizationViewModel.Current.Resolve("unknownLegacyUuidValue")
             };
             var lines = new List<string>
             {
-                "Tipo: " + kind + (value.IsExplicitType ? " (explícito)" : " (inferido do texto)"),
-                "Valor: " + value.Text,
-                "Extended JSON canônico: " + value.ExtendedJson
+                LocalizationViewModel.Current.Format("identifierTypeLine", kind, value.IsExplicitType ? LocalizationViewModel.Current.Resolve("identifierExplicit") : LocalizationViewModel.Current.Resolve("identifierInferred")),
+                LocalizationViewModel.Current.Format("identifierValueLine", value.Text),
+                LocalizationViewModel.Current.Format("identifierCanonicalLine", value.ExtendedJson)
             };
-            if (value.UuidEquivalent is { } uuid) lines.Add("UUID equivalente: " + uuid + " (representação alternativa; o ObjectId não é alterado)");
-            lines.Add("Filtro: { _id: " + value.Text + " }");
+            if (value.UuidEquivalent is { } uuid) lines.Add(LocalizationViewModel.Current.Format("equivalentUuidNote", uuid));
+            lines.Add(LocalizationViewModel.Current.Format("identifierFilterLine", value.Text));
             IdentifierInterpretation = string.Join("\n", lines);
         }
         catch (FormatException exception)

@@ -27,10 +27,14 @@ public sealed partial class WorkspaceTabViewModel
         var profile = Profile;
         try
         {
-            History.Clear(); SavedQueries.Clear(); ScriptHistory.Clear(); ConsoleHistory.Clear();
+            History.Clear(); SavedQueries.Clear(); ScriptHistory.Clear(); ConsoleHistory.Clear(); LocalizedConsoleHistory.Clear();
             var consoleEntries = await _workspace.GetConsoleHistoryAsync();
             if (generation != _historyGeneration) return;
-            foreach (var entry in consoleEntries) ConsoleHistory.Add(entry);
+            foreach (var entry in consoleEntries)
+            {
+                ConsoleHistory.Add(entry);
+                LocalizedConsoleHistory.Add(new(entry));
+            }
             if (profile is not null)
             {
                 var history = HistoryEnabled ? await _workspace.GetRecentQueryHistoryAsync(profile.Id) : [];
@@ -43,7 +47,7 @@ public sealed partial class WorkspaceTabViewModel
             if (generation != _historyGeneration) return;
             foreach (var entry in scripts) ScriptHistory.Add(entry);
         }
-        catch (Exception ex) { Errors = OperationErrorMessages.Describe(ex); ResultTabIndex = 2; }
+        catch (Exception ex) { Errors = DesktopOperationErrorMessages.Describe(ex); ResultTabIndex = 2; }
     }
 
     [RelayCommand]
@@ -71,7 +75,7 @@ public sealed partial class WorkspaceTabViewModel
             await _workspace.SaveSavedQueryAsync(saved);
             await LoadHistoryAsync();
         }
-        catch (Exception ex) { Errors = OperationErrorMessages.Describe(ex); ResultTabIndex = 2; }
+        catch (Exception ex) { Errors = DesktopOperationErrorMessages.Describe(ex); ResultTabIndex = 2; }
     }
 
     partial void OnSelectedSavedQueryChanged(SavedQuery? value)
@@ -84,6 +88,6 @@ public sealed partial class WorkspaceTabViewModel
     {
         if (SelectedSavedQuery is null) return;
         try { await _workspace.DeleteSavedQueryAsync(SelectedSavedQuery.Id); NewSavedQuery(); await LoadHistoryAsync(); }
-        catch (Exception ex) { Errors = OperationErrorMessages.Describe(ex); }
+        catch (Exception ex) { Errors = DesktopOperationErrorMessages.Describe(ex); }
     }
 }

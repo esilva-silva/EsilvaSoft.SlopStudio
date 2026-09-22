@@ -11,8 +11,10 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
     Func<AutocompleteSettings, Task> save, ILocalAiModelService? models = null, IRemoteModelSource? remote = null,
     IApplicationOperationService? operations = null) : ObservableObject
 {
+    private static string T(string key) => LocalizationViewModel.Current.Resolve(key);
+    private static string F(string key, params object?[] args) => LocalizationViewModel.Current.Format(key, args);
     private static readonly StringComparison PathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-    private readonly IRemoteModelSource? _remote = remote;
+    private readonly IRemoteModelSource? _remote = ConfigureLocalization(remote);
     private readonly IApplicationOperationService? _operations = operations;
     private IReadOnlyList<AiHardwareDevice> _hardware = [];
     private AiExecutionProvider _executionProvider;
@@ -21,18 +23,48 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
     private AutocompleteSettings _loaded = new();
     private long _refreshGeneration;
 
-    public IReadOnlyList<string> Modes { get; } = ["Automático (recomendado)", "Básico", "IA local"];
-    public ObservableCollection<HardwareOption> HardwareOptions { get; } =
-    [
-        new(AiAccelerationMode.Auto, "Automático"), new(AiAccelerationMode.Cpu, "CPU"),
-        new(AiAccelerationMode.Gpu, "GPU"), new(AiAccelerationMode.Npu, "NPU")
-    ];
+    private readonly ILocalAiModelService? _localizedModels = ConfigureLocalization(models);
+    private readonly ILocalModelCatalog? _localizedCatalog = ConfigureLocalization(catalog);
+
+    private static ILocalAiModelService? ConfigureLocalization(ILocalAiModelService? value)
+    {
+        value?.SetLocalization(LocalizationViewModel.Current.Resolve);
+        return value;
+    }
+
+    private static ILocalModelCatalog? ConfigureLocalization(ILocalModelCatalog? value)
+    {
+        value?.SetLocalization(LocalizationViewModel.Current.Resolve);
+        return value;
+    }
+
+    private static IRemoteModelSource? ConfigureLocalization(IRemoteModelSource? value)
+    {
+        value?.SetLocalization(LocalizationViewModel.Current.Resolve);
+        return value;
+    }
+
+    public IReadOnlyList<string> Modes
+    {
+        get
+        {
+            _ = _loaded;
+            return [T("autocompleteModeAuto"), T("autocompleteModeBasic"), T("autocompleteModeLocalAi")];
+        }
+    }
+    public ObservableCollection<HardwareOption> HardwareOptions { get; } = CreateHardwareOptions();
     public ObservableCollection<LocalModelOption> Models { get; } = [];
     public string DefaultDirectory => catalog?.DefaultDirectory ?? models?.DefaultDirectory ?? "";
     public string EffectiveModelDirectory => string.IsNullOrWhiteSpace(ModelDirectory) ? DefaultDirectory : ModelDirectory.Trim();
     public bool HasModelDetails => ModelDetails.Length > 0;
     public bool HasModelDiagnostics => ModelDiagnostics.Length > 0;
     public bool HasTestReport => TestReport.Length > 0;
+
+    private static ObservableCollection<HardwareOption> CreateHardwareOptions() =>
+    [
+        new(AiAccelerationMode.Auto, T("hardwareAuto")), new(AiAccelerationMode.Cpu, "CPU"),
+        new(AiAccelerationMode.Gpu, "GPU"), new(AiAccelerationMode.Npu, "NPU")
+    ];
 
     [ObservableProperty] private bool _enabled = true;
     [ObservableProperty] private int _modeIndex;
@@ -66,9 +98,9 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
     [ObservableProperty] private bool _inlineUseAiIsOverridden;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasModelDetails))] private string _modelDetails = "";
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasModelDiagnostics))] private string _modelDiagnostics = "";
-    [ObservableProperty] private string _detectedHardware = "Hardware ainda não consultado.";
+    [ObservableProperty] private string _detectedHardware = T("modelHardwareNotQueried");
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasTestReport))] private string _testReport = "";
-    [ObservableProperty] private string _status = "Nenhum modelo carregado. Autocomplete básico disponível.";
+    [ObservableProperty] private string _status = T("noModelBasicAvailable");
     [ObservableProperty] private string _operationStatus = "";
     [ObservableProperty] private bool _isBusy;
 
@@ -196,7 +228,7 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
     public void RefreshStatus()
     {
         var hardware = Enum.IsDefined((AiAccelerationMode)HardwareIndex) ? (AiAccelerationMode)HardwareIndex : AiAccelerationMode.Auto;
-        Status = LocalAiStatusFormatter.Format(service.Status, SelectedModelOption is { } option ? option.Model?.Name ?? option.FolderName : null, hardware, _hardware);
+        Status = LocalAiStatusFormatter.Format(service.Status, SelectedModelOption is { } option ? option.Model?.Name ?? option.FolderName : null, hardware, _hardware, LocalizationViewModel.Current.Resolve);
     }
 
     public AutocompleteSettings Snapshot()
@@ -226,12 +258,24 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
     /// <summary>Scans the directory and detects hardware when the window opens; the loaded model is not touched.</summary>
     public Task OpenedAsync() => Task.WhenAll(RefreshModelsCommand.ExecuteAsync(null), DetectHardwareCommand.ExecuteAsync(null));
 
+    public void RefreshLanguage()
+    {
+        foreach (var option in Models) option.RefreshLanguage();
+        foreach (var option in RemoteModels) option.RefreshLanguage();
+        OnPropertyChanged(nameof(Modes));
+        OnPropertyChanged(nameof(HardwareOptions));
+        OnPropertyChanged(nameof(ModelDetails));
+        OnPropertyChanged(nameof(Status));
+        OnPropertyChanged(nameof(OperationStatus));
+        OnPropertyChanged(nameof(DetectedHardware));
+    }
+
     /// <summary>A folder directly inside the models directory is stored by name; any other folder stays external.</summary>
     public async Task SelectExternalModelAsync(string path)
     {
         string full;
         try { full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)); }
-        catch (Exception) { OperationStatus = "Caminho de modelo inválido."; return; }
+        catch (Exception) { OperationStatus = T("invalidModelPath"); return; }
         var directory = EffectiveModelDirectory;
         if (directory.Length > 0 && string.Equals(Path.GetDirectoryName(full), Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory)), PathComparison))
         {
@@ -247,10 +291,10 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
             external.Validation = await validation;
             UpdateModelDetails();
             RefreshStatus();
-            OperationStatus = external.Model is { } model ? $"Modelo externo válido: {model.Name}. Salve para usar."
-                : "Pasta externa não utilizável: " + external.Validation.Status.Message;
+            OperationStatus = external.Model is { } model ? F("externalModelValid", model.Name)
+                : F("externalFolderInvalid", external.Validation.Status.Message);
         }
-        catch (Exception) { OperationStatus = "Não foi possível validar a pasta externa."; }
+        catch (Exception) { OperationStatus = T("validateExternalFailed"); }
     }
 
     [RelayCommand]
@@ -259,7 +303,7 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
         if (catalog is null && models is null) return;
         var generation = ++_refreshGeneration;
         var directory = EffectiveModelDirectory;
-        OperationStatus = $"Procurando modelos em {directory}…";
+        OperationStatus = F("searchingModels", directory);
         try
         {
             var found = catalog is not null ? await catalog.DiscoverAsync(directory, cancellationToken) : await models!.DiscoverModelsAsync(directory, cancellationToken);
@@ -276,7 +320,7 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
                 else if (selected is not null)
                     restored = Models.FirstOrDefault(option => string.Equals(option.Reference, selected.Reference, PathComparison))
                         ?? Add(new(selected.Reference, false, found.FirstOrDefault(candidate => string.Equals(FolderOf(candidate.Path), selected.Reference, PathComparison))
-                            ?? new LocalModelValidation(null, new(LocalModelState.NotInstalled, $"Modelo {selected.Reference} não encontrado em {directory}."))));
+                            ?? new LocalModelValidation(null, new(LocalModelState.NotInstalled, F("modelNotFound", selected.Reference, directory)))));
                 SelectedModelOption = restored;
             }
             finally { _loading = false; }
@@ -285,30 +329,30 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
             ApplyRecommendedBudget();
             RefreshTokenBudget();
             var invalid = found.Where(candidate => candidate.Model is null).ToArray();
-            ModelDiagnostics = invalid.Length == 0 ? ""
-                : "Pastas ignoradas: " + string.Join("; ", invalid.Select(candidate => $"{FolderOf(candidate.Path)} — {LocalAiStatusFormatter.ValidityLabel(candidate.Validity)}"));
-            OperationStatus = found.Count == 0 && !Directory.Exists(directory) ? $"Diretório de modelos não encontrado: {directory}"
-                : $"{found.Count - invalid.Length} modelo(s) encontrado(s)" + (invalid.Length > 0 ? $"; {invalid.Length} pasta(s) ignorada(s)." : ".");
+            ModelDiagnostics = invalid.Length == 0 ? string.Empty
+                : F("ignoredFolders", string.Join("; ", invalid.Select(candidate => $"{FolderOf(candidate.Path)} — {LocalAiStatusFormatter.ValidityLabel(candidate.Validity, LocalizationViewModel.Current.Resolve)}")));
+            OperationStatus = found.Count == 0 && !Directory.Exists(directory) ? F("modelsDirectoryMissing", directory)
+                : F("modelsFound", found.Count - invalid.Length) + (invalid.Length > 0 ? F("ignoredFoldersCount", invalid.Length) : ".");
         }
         catch (OperationCanceledException) { }
-        catch (Exception) { OperationStatus = "Não foi possível ler o diretório de modelos. Confira permissões e caminho."; }
+        catch (Exception) { OperationStatus = T("readModelsFailed"); }
     }
 
     [RelayCommand]
     private async Task DetectHardwareAsync(CancellationToken cancellationToken)
     {
-        if (models is null) { DetectedHardware = "Detecção de hardware indisponível nesta composição."; return; }
-        DetectedHardware = "Consultando ONNX Runtime…";
+        if (models is null) { DetectedHardware = T("hardwareDetectionUnavailable"); return; }
+        DetectedHardware = T("queryingOnnx");
         try { _hardware = await models.GetAvailableHardwareAsync(cancellationToken); }
         catch (OperationCanceledException) { return; }
-        catch (Exception) { DetectedHardware = "Não foi possível consultar o ONNX Runtime. CPU permanece disponível."; return; }
+        catch (Exception) { DetectedHardware = T("onnxRuntimeFailed"); return; }
         foreach (var option in HardwareOptions.Where(option => option.Mode != AiAccelerationMode.Auto))
         {
             var device = _hardware.FirstOrDefault(device => device.Kind == option.Mode && device.IsAvailable);
             option.IsAvailable = device is not null;
-            option.Label = device is null ? LocalAiStatusFormatter.HardwareLabel(option.Mode) + " — indisponível" : LocalAiStatusFormatter.DeviceLine(device);
+            option.Label = device is null ? LocalAiStatusFormatter.HardwareLabel(option.Mode, LocalizationViewModel.Current.Resolve) + " — " + T("unavailable") : LocalAiStatusFormatter.DeviceLine(device, LocalizationViewModel.Current.Resolve);
         }
-        DetectedHardware = string.Join("\n", _hardware.Select(LocalAiStatusFormatter.DeviceLine));
+        DetectedHardware = string.Join("\n", _hardware.Select(device => LocalAiStatusFormatter.DeviceLine(device, LocalizationViewModel.Current.Resolve)));
         SelectDetectedProfile();
         // GPU exports are marked only after the runtime reported which devices exist.
         RefreshInstalledRemoteModels();
@@ -319,9 +363,9 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
     private async Task ApplyAsync()
     {
         IsBusy = true;
-        try { await save(Snapshot()); OperationStatus = "Preferências de autocomplete salvas."; RefreshStatus(); }
+        try { await save(Snapshot()); OperationStatus = T("autocompleteSaved"); RefreshStatus(); }
         catch (ArgumentException ex) { OperationStatus = ex.Message; }
-        catch (Exception) { OperationStatus = "Preferências não salvas. Confira os valores e o estado da sessão local."; }
+        catch (Exception) { OperationStatus = T("autocompleteNotSaved"); }
         finally { IsBusy = false; }
     }
 
@@ -332,17 +376,17 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
         try
         {
             await save(Snapshot());
-            OperationStatus = "Testando modelo: pasta, tokenizer, sessão ONNX, provider e geração…";
+            OperationStatus = T("testingModel");
             TestReport = "";
             var report = await service.RunModelTestAsync(cancellationToken);
-            TestReport = LocalAiStatusFormatter.FormatReport(report);
+            TestReport = LocalAiStatusFormatter.FormatReport(report, LocalizationViewModel.Current.Resolve);
             OperationStatus = report.Message;
             RefreshStatus();
         }
-        catch (OperationCanceledException) { OperationStatus = "Teste cancelado."; }
+        catch (OperationCanceledException) { OperationStatus = T("testCancelled"); }
         catch (ArgumentException ex) { OperationStatus = ex.Message; }
         catch (LocalModelUnavailableException ex) { OperationStatus = ex.Message; }
-        catch (Exception) { OperationStatus = "Teste não concluído. Confira a configuração e a persistência da sessão."; }
+        catch (Exception) { OperationStatus = T("testIncomplete"); }
         finally { IsBusy = false; }
     }
 
@@ -367,10 +411,10 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
         var metadata = model.Metadata;
         var parts = new List<string> { model.Architecture };
         if (metadata?.Parameters is { } parameters) parts.Add(parameters);
-        if (metadata?.Version is { } version) parts.Add("versão " + version);
-        parts.Add("capacidades: " + CapabilityText(model.Capabilities));
-        if (metadata is { Domain.Count: > 0 }) parts.Add("domínio: " + string.Join(", ", metadata.Domain));
-        if (metadata?.Hardware is { } hardware) parts.Add("hardware declarado: " + string.Join(", ", hardware.Select(LocalAiStatusFormatter.HardwareLabel)));
+        if (metadata?.Version is { } version) parts.Add(F("modelVersion", version));
+        parts.Add(F("modelCapabilities", CapabilityText(model.Capabilities)));
+        if (metadata is { Domain.Count: > 0 }) parts.Add(F("modelDomain", string.Join(", ", metadata.Domain)));
+        if (metadata?.Hardware is { } hardware) parts.Add(F("declaredHardware", string.Join(", ", hardware.Select(mode => LocalAiStatusFormatter.HardwareLabel(mode, LocalizationViewModel.Current.Resolve)))));
         parts.Add(model.Path);
         ModelDetails = string.Join(" · ", parts);
     }
@@ -382,6 +426,6 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
             (LocalModelCapabilities.Autocomplete, "autocomplete"), (LocalModelCapabilities.Chat, "chat"),
             (LocalModelCapabilities.Fim, "FIM"), (LocalModelCapabilities.Embeddings, "embeddings")
         }.Where(entry => capabilities.HasFlag(entry.Flag)).Select(entry => entry.Name).ToArray();
-        return names.Length == 0 ? "nenhuma" : string.Join(", ", names);
+        return names.Length == 0 ? T("none") : string.Join(", ", names);
     }
 }

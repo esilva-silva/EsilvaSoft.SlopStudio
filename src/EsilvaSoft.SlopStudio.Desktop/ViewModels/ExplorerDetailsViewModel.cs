@@ -7,12 +7,14 @@ namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 public sealed partial class ExplorerDetailsViewModel(WorkspaceService workspace) : ObservableObject
 {
+    private static string T(string key) => LocalizationViewModel.Current.Resolve(key);
+    private static string F(string key, params object?[] args) => LocalizationViewModel.Current.Format(key, args);
     private CancellationTokenSource? _cancellation;
     private int _generation;
     public ObservableCollection<InstanceInfo> Instances { get; } = [];
     [ObservableProperty] private InstanceInfo? _selectedInstance;
-    [ObservableProperty] private string _title = "Detalhes";
-    [ObservableProperty] private string _text = "Selecione um item da árvore.";
+    [ObservableProperty] private string _title = T("detailsTitle");
+    [ObservableProperty] private string _text = T("selectTreeItem");
     [ObservableProperty] private bool _isLoading;
     [ObservableProperty] private bool _isConnection;
     public ExplorerNodeViewModel? Node { get; private set; }
@@ -31,10 +33,10 @@ public sealed partial class ExplorerDetailsViewModel(WorkspaceService workspace)
         if (node.IsIndex)
         {
             var index = node.Index!;
-            Text += $"\nNome: {index.Name}\nCampos / direção:\n{index.Keys}\nUnique: {(index.Unique ? "Sim" : "Não")}\nSparse: {(index.Sparse ? "Sim" : "Não")}\nTTL: {index.Ttl}\nFiltro parcial: {index.PartialFilter}\n\nDefinição completa:\n{index.Definition}";
+            Text += "\n" + F("indexDetailText", index.Name, index.Keys, index.Unique ? T("yes") : T("no"), index.Sparse ? T("yes") : T("no"), index.Ttl, index.PartialFilter, index.Definition);
             return;
         }
-        if (!node.Root.IsConnected) { Text += "\nDesconectada. Conecte para carregar metadados."; return; }
+        if (!node.Root.IsConnected) { Text += "\n" + T("disconnectedMetadata"); return; }
         IsLoading = true;
         using var cancellation = new CancellationTokenSource(); _cancellation = cancellation;
         try
@@ -45,7 +47,7 @@ public sealed partial class ExplorerDetailsViewModel(WorkspaceService workspace)
             else if (node.IsConnection)
             {
                 topology = await workspace.GetExplorerTopologyAsync(node.Profile, cancellation.Token);
-                details = $"Servidor(es): {node.Profile.Endpoint}\nBanco padrão: {node.Profile.DefaultDatabase ?? "não definido"}\nSomente leitura: {node.Profile.IsReadOnly}\n{topology.Kind} · {topology.ReplicaSet ?? "sem replica set"} · {topology.Server}\n{topology.Definition}";
+                details = F("serverDetails", node.Profile.Endpoint, node.Profile.DefaultDatabase ?? T("notDefined"), node.Profile.IsReadOnly ? T("yes") : T("no"), topology.Kind, topology.ReplicaSet ?? T("noReplicaSet"), topology.Server, topology.Definition);
             }
             else if (node.IsDatabase) details = await workspace.GetDatabaseStatsAsync(node.Profile, node.Database, cancellation.Token);
             else if (node.HasCollection) details = await workspace.GetExplorerCollectionDetailsAsync(node.Profile, node.Database, node.Collection!, cancellation.Token);
@@ -55,7 +57,7 @@ public sealed partial class ExplorerDetailsViewModel(WorkspaceService workspace)
             if (topology is not null) foreach (var instance in topology.Instances) Instances.Add(instance);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
-        catch (Exception ex) { if (generation == _generation) Text = node.Context + "\nNão foi possível carregar os detalhes: " + OperationErrorMessages.Describe(ex); }
+        catch (Exception ex) { if (generation == _generation) Text = node.Context + "\n" + F("loadDetailsFailed", DesktopOperationErrorMessages.Describe(ex)); }
         finally
         {
             if (generation == _generation) { IsLoading = false; _cancellation = null; }
@@ -66,6 +68,15 @@ public sealed partial class ExplorerDetailsViewModel(WorkspaceService workspace)
     {
         _generation++; _cancellation?.Cancel(); _cancellation = null;
         Instances.Clear(); SelectedInstance = null; IsLoading = false; IsConnection = false;
-        Node = null; Title = "Detalhes"; Text = "Selecione um item da árvore.";
+        Node = null; Title = T("detailsTitle"); Text = T("selectTreeItem");
+    }
+
+    public void RefreshLanguage()
+    {
+        if (Node is null)
+        {
+            Title = T("detailsTitle");
+            Text = T("selectTreeItem");
+        }
     }
 }

@@ -52,5 +52,5 @@ public static class AiProviderSelector
         new(kind, $"O modelo declara suporte apenas a {Labels(declared)} em {LocalModelMetadata.FileName}.");
 
     private static string Labels(IReadOnlyList<AiAccelerationMode> modes) => modes.Count == 0 ? "nenhum hardware"
-        : string.Join(", ", modes.Select(LocalAiStatusFormatter.HardwareLabel));
+        : string.Join(", ", modes.Select(mode => LocalAiStatusFormatter.HardwareLabel(mode)));
 }

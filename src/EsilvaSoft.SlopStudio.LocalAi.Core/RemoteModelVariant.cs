@@ -10,6 +10,9 @@ public sealed record RemoteModelVariant(string Repository, string Revision, stri
     /// <summary>When to choose this variant, as stated by the publisher.</summary>
     public string? Hint { get; init; }
 
+    /// <summary>Optional catalog key for a built-in publisher hint; custom sources may leave this empty.</summary>
+    public string? HintKey { get; init; }
+
     /// <summary>Card of the source transformers model: prompt format, training data and limitations.</summary>
     public Uri? BaseModelUrl { get; init; }
 

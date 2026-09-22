@@ -36,11 +36,11 @@ O recurso atual não exporta nem restaura índices, validadores, views, usuário
 
 Consulte [07-dados-seguranca-e-administracao.md](07-dados-seguranca-e-administracao.md), [09-plano-de-implementacao.md](09-plano-de-implementacao.md) e [12-acompanhamento-da-implementacao.md](12-acompanhamento-da-implementacao.md) para escopo e acompanhamento.
 
-## Relação com o roadmap — 13/09/2026
+## Relação com o roadmap — atualizada em 21/09/2026
 
-✅ Exportação de resultados em array Extended JSON da página carregada existe (TRF-01). 📋 CSV ainda não está disponível: seu contrato de serialização de objetos/arrays dentro das células está na [v0.5.0](09-plano-de-implementacao.md#fase-1--v050-mvp), onde é obrigatório para o aceite. Não há flattening implementado a anunciar.
+✅ A exportação de resultados da página carregada em Extended JSON e CSV existe (TRF-01). O contrato de serialização de objetos/arrays dentro das células está na [v0.5.0](09-plano-de-implementacao.md#fase-1--v050-mvp): não há flattening implícito nem promessa de round-trip BSON em CSV.
 
-🚧 O pacote lógico de banco descrito neste documento já possui exportação/importação limitada com manifesto (TRF-02/03), como antecipação de manutenção v0.7.0. 📋 Backup/restauração com Database Tools (TRF-04) fica no backlog sem versão comprometida. Exportar uma página, exportar um pacote lógico e produzir backup operacional são contratos diferentes.
+🚧 O pacote lógico de banco descrito neste documento já possui exportação/importação limitada com manifesto (TRF-02/03), como antecipação de manutenção v0.10.0. 📋 Backup/restauração com Database Tools (TRF-04) fica no backlog sem versão comprometida. Exportar uma página, exportar um pacote lógico e produzir backup operacional são contratos diferentes.
 
 
 ## Exportação de resultados do MVP — JSON/CSV

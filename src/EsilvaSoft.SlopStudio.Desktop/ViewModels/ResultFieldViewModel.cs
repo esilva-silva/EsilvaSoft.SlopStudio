@@ -28,13 +28,13 @@ public sealed class ResultFieldViewModel
     public string Label => _pageOffset is not null ? _name : _name + ": " + (_isObjectId ? IdentifierRepresentationService.DescribeObjectId(_objectId, _options) : _uuid.Kind switch
     {
         UuidDisplayKind.Uuid => _uuid.Text,
-        UuidDisplayKind.UnknownLegacy => "Binary subtype 3 · UUID legado de origem desconhecida",
+        UuidDisplayKind.UnknownLegacy => LocalizationViewModel.Current.Resolve("unknownLegacyUuidValue"),
         _ => _value.ValueKind is JsonValueKind.Object ? "{…}" : _value.ValueKind is JsonValueKind.Array ? $"[{_value.GetArrayLength()}]" : _value.GetRawText()
     });
     public string Json => _value.GetRawText();
     private ResultFieldViewModel(JsonElement value, IdentifierDisplayOptions options, int offset)
     {
-        _name = $"Próximos campos… (a partir de {offset})"; _value = value; _options = options; _pageOffset = offset; _objectId = "";
+        _name = LocalizationViewModel.Current.Format("nextFields", offset); _value = value; _options = options; _pageOffset = offset; _objectId = "";
     }
     public IReadOnlyList<ResultFieldViewModel> Children => _children ??= _isObjectId || _uuid.Kind != UuidDisplayKind.NotUuid ? [] : CreateChildren(_value, _options, _pageOffset ?? 0);
 

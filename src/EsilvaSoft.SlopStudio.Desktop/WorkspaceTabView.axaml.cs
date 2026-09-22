@@ -14,6 +14,8 @@ namespace EsilvaSoft.SlopStudio.Desktop;
 
 public partial class WorkspaceTabView : UserControl
 {
+    private static string T(string key) => LocalizationViewModel.Current.Resolve(key);
+    private static string F(string key, params object?[] args) => LocalizationViewModel.Current.Format(key, args);
     public string? SelectedCode => CodeEditor.SelectedText;
     public string? ExecutionCode(bool partial)
     {
@@ -22,7 +24,7 @@ public partial class WorkspaceTabView : UserControl
         if (DataContext is WorkspaceTabViewModel { IsConsole: true } tab)
         {
             var statement = tab.GetConsoleStatement(CodeEditor.CaretIndex);
-            return statement.Length == 0 ? "// Nenhum statement no cursor." : tab.Text.Substring(statement.Start, statement.Length);
+            return statement.Length == 0 ? T("noStatementAtCursor") : tab.Text.Substring(statement.Start, statement.Length);
         }
         return null;
     }
@@ -37,7 +39,7 @@ public partial class WorkspaceTabView : UserControl
                 await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
                 {
                     if (TopLevel.GetTopLevel(this) is not Window owner) return false;
-                    return await Dialogs.ChooseCancelableAsync(owner, "Confirmar escrita no Console", request.Context + "\n\nConfirmar o envio desta operação?", token, "Executar", "Cancelar") == "Executar";
+                    return await Dialogs.ChooseCancelableAsync(owner, T("confirmConsoleWrite"), request.Context + "\n\n" + T("confirmSendOperation"), token, T("execute"), T("cancel")) == T("execute");
                 });
         };
         DetachedFromVisualTree += (_, _) => { _completionTab?.CancelTraditionalCompletion(); _formatCancellation?.Cancel(); };
@@ -64,7 +66,7 @@ public partial class WorkspaceTabView : UserControl
     {
         if (DataContext is not WorkspaceTabViewModel { IsRunning: false } tab) return;
         _validationCancellation?.Cancel();
-        using var operation = tab.Operations.Begin("Validando sintaxe local", ApplicationOperationPriority.Normal);
+        using var operation = tab.Operations.Begin(T("validatingSyntaxOperation"), ApplicationOperationPriority.Normal);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(operation.Token);
         _validationCancellation = cancellation;
         var document = CodeEditor.Document;
@@ -79,8 +81,8 @@ public partial class WorkspaceTabView : UserControl
             cancellation.Token.ThrowIfCancellationRequested();
             if (DataContext != tab || CodeEditor.Document != document || document.Text != original || tab.IsRunning || tab.Mode != mode ||
                 tab.Profile != profile || tab.Database != database || tab.Collection != collection)
-            { operation.Complete(ApplicationOperationStatus.Warning, "Texto ou contexto alterado; diagnóstico descartado."); return; }
-            var message = (length == original.Length ? "Editor: " : "Seleção: ") + result.Message;
+            { operation.Complete(ApplicationOperationStatus.Warning, T("textContextChangedDiscarded")); return; }
+            var message = (length == original.Length ? T("editorPrefix") : T("selectionPrefix")) + result.Message;
             if (result.IsValid) { tab.Messages = message; tab.Errors = ""; tab.ResultTabIndex = 1; }
             else
             {
@@ -91,12 +93,12 @@ public partial class WorkspaceTabView : UserControl
                 CodeEditor.Focus();
             }
             operation.Complete(result.IsValid ? ApplicationOperationStatus.Success : ApplicationOperationStatus.Warning,
-                result.IsValid ? "Sintaxe válida localmente" : "Diagnóstico disponível em Erros");
+                result.IsValid ? T("validSyntax") : T("errorsAvailable"));
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
-        { operation.Complete(ApplicationOperationStatus.Cancelled, "Validação cancelada"); }
+        { operation.Complete(ApplicationOperationStatus.Cancelled, T("validationCancelled")); }
         catch (Exception ex)
-        { tab.Errors = "Validação não concluída: " + OperationErrorMessages.Describe(ex); tab.ResultTabIndex = 2; operation.Complete(ApplicationOperationStatus.Error); }
+            { tab.Errors = F("validationIncomplete", DesktopOperationErrorMessages.Describe(ex)); tab.ResultTabIndex = 2; operation.Complete(ApplicationOperationStatus.Error); }
         finally { if (ReferenceEquals(_validationCancellation, cancellation)) _validationCancellation = null; }
     }
     public Task FormattingTask { get; private set; } = Task.CompletedTask;
@@ -105,7 +107,7 @@ public partial class WorkspaceTabView : UserControl
     {
         if (DataContext is not WorkspaceTabViewModel tab) return;
         _formatCancellation?.Cancel();
-        using var operation = tab.Operations.Begin("Formatando query/script", ApplicationOperationPriority.High);
+        using var operation = tab.Operations.Begin(T("formattingQuery"), ApplicationOperationPriority.High);
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(operation.Token);
         _formatCancellation = cancellation;
         var document = CodeEditor.Document;
@@ -117,14 +119,14 @@ public partial class WorkspaceTabView : UserControl
             var formatted = await tab.FormatCodeAsync(original.Substring(start, length), cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             if (DataContext != tab || CodeEditor.Document != document || document.Text != original)
-            { operation.Complete(ApplicationOperationStatus.Warning, "Texto alterado durante a formatação; resultado descartado."); return; }
+            { operation.Complete(ApplicationOperationStatus.Warning, T("formatChangedDiscarded")); return; }
             using (document.RunUpdate()) document.Replace(start, length, formatted);
-            operation.Complete(ApplicationOperationStatus.Success, "Formatação concluída — Ctrl+Z para desfazer");
+            operation.Complete(ApplicationOperationStatus.Success, T("formatCompleted"));
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
-        { operation.Complete(ApplicationOperationStatus.Cancelled, "Formatação cancelada"); }
+        { operation.Complete(ApplicationOperationStatus.Cancelled, T("formatCancelled")); }
         catch (Exception ex)
-        { tab.Errors = "Não foi possível formatar: " + ex.Message; tab.ResultTabIndex = 2; operation.Complete(ApplicationOperationStatus.Error, "Formatação não concluída; consulte Erros."); }
+        { tab.Errors = F("formatFailed", ex.Message); tab.ResultTabIndex = 2; operation.Complete(ApplicationOperationStatus.Error, T("formatIncomplete")); }
         finally { if (ReferenceEquals(_formatCancellation, cancellation)) _formatCancellation = null; }
     }
 
@@ -135,43 +137,43 @@ public partial class WorkspaceTabView : UserControl
         try
         {
             var selection = await owner.StorageProvider.SaveFilePickerWithResultAsync(new FilePickerSaveOptions {
-                Title = "Exportar página carregada — JSON ou CSV", SuggestedFileName = "resultados.json", DefaultExtension = "json",
+                Title = T("exportLoadedPage"), SuggestedFileName = "resultados.json", DefaultExtension = "json",
                 FileTypeChoices = [new FilePickerFileType("Extended JSON") { Patterns = ["*.json"] }, new FilePickerFileType("CSV · proteção de fórmulas") { Patterns = ["*.csv"] }] });
             if (selection.File is not { } file) return;
             // O nome digitado pelo usuário deve prevalecer sobre o filtro inicial
             // do diálogo quando a extensão indicar explicitamente CSV.
             var csv = string.Equals(Path.GetExtension(file.Path.LocalPath), ".csv", StringComparison.OrdinalIgnoreCase)
                 || (selection.SelectedFileType is { } selectedType && selectedType.Patterns?.Contains("*.csv") == true);
-            using var operation = tab.Operations.Begin($"Exportando página — {documents.Length} documentos", ApplicationOperationPriority.High);
+            using var operation = tab.Operations.Begin(F("exportingPage", documents.Length), ApplicationOperationPriority.High);
             try
             {
                 await tab.ExportResultPageAsync(file.Path.LocalPath, documents, csv,
-                    (done, total) => operation.Report(done, total, $"Exportando página — {done:N0} de {total:N0} documentos"), operation.Token);
-                tab.Messages = $"Página exportada — {documents.Length} documentos." + (csv ? " CSV: strings e cabeçalhos com prefixo de fórmula recebem apóstrofo; não há round-trip BSON garantido." : "");
+                    (done, total) => operation.Report(done, total, F("exportingPageProgress", done, total)), operation.Token);
+                tab.Messages = F("pageExported", documents.Length) + (csv ? T("csvExportNote") : string.Empty);
                 operation.Complete(ApplicationOperationStatus.Success, tab.Messages);
             }
             catch (OperationCanceledException) when (operation.Token.IsCancellationRequested)
-            { tab.Messages = "Exportação cancelada."; operation.Complete(ApplicationOperationStatus.Cancelled, tab.Messages); }
+            { tab.Messages = T("exportCancelled"); operation.Complete(ApplicationOperationStatus.Cancelled, tab.Messages); }
             catch
-            { operation.Complete(ApplicationOperationStatus.Error, "Exportação não concluída; verifique destino e permissão de escrita."); throw; }
+            { operation.Complete(ApplicationOperationStatus.Error, T("exportIncomplete")); throw; }
         }
-        catch (Exception ex) { await Dialogs.ChooseAsync(owner, "Exportação não concluída", OperationErrorMessages.Describe(ex, export: true), "Fechar"); }
+        catch (Exception ex) { await Dialogs.ChooseAsync(owner, T("exportFailed"), DesktopOperationErrorMessages.Describe(ex, export: true), T("close")); }
     }
 
     private async void ChooseTarget(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not WorkspaceTabViewModel { IsRunning: false } tab || TopLevel.GetTopLevel(this) is not MainWindow { WorkspaceModel: { } vm } owner) return;
-        var window = new Window { Title = "Destino desta aba", Width = 480, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        var window = new Window { Title = T("targetWindowTitle"), Width = 480, SizeToContent = SizeToContent.Height, WindowStartupLocation = WindowStartupLocation.CenterOwner };
         var stack = new StackPanel { Spacing = 8, Margin = new Thickness(20) };
-        stack.Children.Add(new TextBlock { Text = "Conexão aberta" });
+        stack.Children.Add(new TextBlock { Text = T("openConnectionLabel") });
         var connections = new ComboBox { ItemsSource = vm.Roots.Where(r => r.IsConnected).ToArray(), SelectedItem = vm.Roots.FirstOrDefault(r => r.Profile.Id == tab.Profile?.Id),
             ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<ExplorerNodeViewModel>((node, _) => new TextBlock { Text = node?.Profile.Name }) };
         stack.Children.Add(connections);
-        stack.Children.Add(new TextBlock { Text = "Banco" });
+        stack.Children.Add(new TextBlock { Text = T("databaseLabel") });
         var database = new ComboBox(); stack.Children.Add(database);
-        stack.Children.Add(new TextBlock { Text = "Coleção (agregação legada)", IsVisible = !tab.IsConsole });
+        stack.Children.Add(new TextBlock { Text = T("legacyAggregationCollection"), IsVisible = !tab.IsConsole });
         var collection = new TextBox { Text = tab.Collection, IsVisible = !tab.IsConsole }; stack.Children.Add(collection);
-        var info = new TextBlock { Text = "Abra uma conexão pelo botão Conexões antes de escolher o destino. A troca não executa o conteúdo.", TextWrapping = Avalonia.Media.TextWrapping.Wrap, Classes = { "muted" } }; stack.Children.Add(info);
+        var info = new TextBlock { Text = T("openConnectionTarget") + " " + T("notExecuted"), TextWrapping = Avalonia.Media.TextWrapping.Wrap, Classes = { "muted" } }; stack.Children.Add(info);
         void UpdateBanks()
         {
             var root = connections.SelectedItem as ExplorerNodeViewModel;
@@ -179,11 +181,11 @@ public partial class WorkspaceTabView : UserControl
             database.SelectedItem = root?.Children.FirstOrDefault(c => c.Database == tab.Database)?.Database ?? root?.Children.FirstOrDefault()?.Database;
         }
         connections.SelectionChanged += (_, _) => UpdateBanks(); UpdateBanks();
-        var apply = new Button { Content = "Aplicar destino", HorizontalAlignment = HorizontalAlignment.Right, Classes = { "primary" } };
+        var apply = new Button { Content = T("applyTarget"), HorizontalAlignment = HorizontalAlignment.Right, Classes = { "primary" } };
         apply.Click += (_, _) =>
         {
             var profile = (connections.SelectedItem as ExplorerNodeViewModel)?.Profile;
-            if (profile is null || database.SelectedItem is not string bank) { info.Text = "Escolha uma conexão aberta e um banco."; return; }
+            if (profile is null || database.SelectedItem is not string bank) { info.Text = T("chooseOpenConnectionDatabase"); return; }
             vm.BindActiveTab(profile, bank, collection.Text?.Trim() ?? "");
             window.Close();
         };
@@ -198,14 +200,14 @@ public partial class WorkspaceTabView : UserControl
         if (proposal.RequiresAdditionalConfirmation)
         {
             var warning = string.IsNullOrWhiteSpace(proposal.Warning)
-                ? "A proposta contém uma operação de escrita ou destrutiva. A aplicação não executará o código."
+                ? T("aiProposalSafety")
                 : proposal.Warning;
-            if (await Dialogs.ChooseCancelableAsync(owner, "Confirmar aplicação de proposta", warning + "\n\nDeseja inserir esta proposta no editor?", CancellationToken.None, "Aplicar", "Cancelar") != "Aplicar")
+            if (await Dialogs.ChooseCancelableAsync(owner, T("proposalConfirmTitle"), warning + "\n\n" + T("insertProposalPrompt"), CancellationToken.None, T("apply"), T("cancel")) != T("apply"))
                 return;
         }
         if (!tab.CanApplyAiProposal(proposal))
         {
-            tab.ChatStatusMessage = "A proposta ficou desatualizada porque o editor ou o destino mudou. Gere uma nova proposta.";
+            tab.ChatStatusMessage = T("proposalStaleEditorTarget");
             tab.AiProposal = null;
             return;
         }

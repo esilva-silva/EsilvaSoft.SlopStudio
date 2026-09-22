@@ -12,7 +12,7 @@ public sealed partial class WorkspaceTabViewModel
 {
     [ObservableProperty] private string _chatInput = "";
     [ObservableProperty] private AiChatStatus _chatStatus;
-    [ObservableProperty] private string _chatStatusMessage = "Faça uma pergunta sobre o código desta aba.";
+    [ObservableProperty] private string _chatStatusMessage = LocalizationViewModel.Current.Resolve("chatIntro");
     [ObservableProperty] private AiChangeProposal? _aiProposal;
     private CancellationTokenSource? _chatCancellation;
     private long _chatGeneration;
@@ -23,10 +23,10 @@ public sealed partial class WorkspaceTabViewModel
     public bool HasAiProposal => AiProposal is not null;
     public bool CanSendAiChat => !IsChatBusy && !string.IsNullOrWhiteSpace(ChatInput);
     public bool HasChatMessages => ChatMessages.Count > 0;
-    public string AiProposalTitle => AiProposal?.IsNoOp == true ? "Nenhuma alteração" : "Proposta para revisar";
+    public string AiProposalTitle => AiProposal?.IsNoOp == true ? LocalizationViewModel.Current.Resolve("noChanges") : LocalizationViewModel.Current.Resolve("proposalToReview");
     public string AiProposalHint => AiProposal is { RequiresAdditionalConfirmation: true }
-        ? "Esta proposta contém escrita ou operação destrutiva. A aplicação exigirá uma confirmação adicional e não executará o código."
-        : "Revise a proposta. Ela só será inserida no editor depois da sua confirmação.";
+        ? LocalizationViewModel.Current.Resolve("aiProposalSafety")
+        : LocalizationViewModel.Current.Resolve("aiProposalReviewHint");
 
     partial void OnChatInputChanged(string value) => OnPropertyChanged(nameof(CanSendAiChat));
     partial void OnChatStatusChanged(AiChatStatus value)
@@ -48,10 +48,10 @@ public sealed partial class WorkspaceTabViewModel
             Results.Substring(segment.Start, Math.Min(segment.Length, 8192)))).Take(128).ToArray();
         var extra = string.Join("\n", new[]
         {
-            string.IsNullOrWhiteSpace(Profile?.Name) ? null : "conexão: " + Profile.Name,
-            string.IsNullOrWhiteSpace(Context) ? null : "destino visual: " + Context,
-            fields.Length == 0 ? null : "campos conhecidos nos resultados: " + string.Join(", ", fields),
-            "não executar consultas nem alterar o Explorer durante a revisão"
+            string.IsNullOrWhiteSpace(Profile?.Name) ? null : LocalizationViewModel.Current.Format("aiContextConnection", Profile.Name),
+            string.IsNullOrWhiteSpace(Context) ? null : LocalizationViewModel.Current.Format("aiContextTarget", Context),
+            fields.Length == 0 ? null : LocalizationViewModel.Current.Format("aiContextFields", string.Join(", ", fields)),
+            LocalizationViewModel.Current.Resolve("aiContextSafety")
         }.Where(value => value is not null));
         return new AiEditorContext(instruction, Title, Text, "javascript", "mongosh",
             Database, Collection, operation, extra).Bounded();
@@ -66,7 +66,7 @@ public sealed partial class WorkspaceTabViewModel
         if (!context.HasContext)
         {
             ChatStatus = AiChatStatus.NoContext;
-            ChatStatusMessage = "Escolha um banco ou escreva conteúdo no editor para fornecer contexto à IA.";
+            ChatStatusMessage = LocalizationViewModel.Current.Resolve("aiNoContext");
             return;
         }
 
@@ -84,20 +84,20 @@ public sealed partial class WorkspaceTabViewModel
         ChatInput = "";
         AiProposal = null;
         ChatStatus = AiChatStatus.Loading;
-        ChatStatusMessage = "Analisando a instrução e o contexto da aba…";
+        ChatStatusMessage = LocalizationViewModel.Current.Resolve("aiAnalyzing");
         try
         {
             var response = await AiChat.AskAsync(new AiChatRequest(context), cancellation.Token).ConfigureAwait(true);
             if (generation != _chatGeneration || !ReferenceEquals(Profile, profile) || Database != database || Collection != collection || Mode != mode || Text != original)
             {
                 ChatStatus = AiChatStatus.Error;
-                ChatStatusMessage = "O editor ou o destino mudou enquanto a IA respondia. A proposta antiga foi descartada.";
+                ChatStatusMessage = LocalizationViewModel.Current.Resolve("aiStaleResponse");
                 return;
             }
             if (response is null || response.IsEmpty || string.IsNullOrWhiteSpace(response.ProposedCode))
             {
                 ChatStatus = AiChatStatus.Empty;
-                ChatStatusMessage = "A IA não retornou uma proposta para esta instrução.";
+                ChatStatusMessage = LocalizationViewModel.Current.Resolve("aiEmptyResponse");
                 return;
             }
             ChatMessages.Add(new AiChatMessage("assistant", response.Explanation, DateTimeOffset.Now));
@@ -106,18 +106,18 @@ public sealed partial class WorkspaceTabViewModel
                 response.RequiresAdditionalConfirmation, response.Warning, context);
             ChatStatus = AiChatStatus.Ready;
             ChatStatusMessage = response.RequiresAdditionalConfirmation
-                ? "Proposta pronta. Leia o alerta e confirme novamente antes de aplicar."
-                : "Proposta pronta para revisão. Nada foi alterado no editor.";
+                ? LocalizationViewModel.Current.Resolve("aiProposalReadyConfirm")
+                : LocalizationViewModel.Current.Resolve("aiProposalReady");
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
             ChatStatus = AiChatStatus.Canceled;
-            ChatStatusMessage = "Análise cancelada. O editor não foi alterado.";
+            ChatStatusMessage = LocalizationViewModel.Current.Resolve("aiAnalysisCancelled");
         }
         catch (Exception ex)
         {
             ChatStatus = AiChatStatus.Error;
-            ChatStatusMessage = "Não foi possível consultar a IA: " + ex.Message;
+            ChatStatusMessage = LocalizationViewModel.Current.Format("aiQueryFailed", ex.Message);
         }
         finally
         {
@@ -132,7 +132,7 @@ public sealed partial class WorkspaceTabViewModel
         _chatGeneration++;
         _chatCancellation?.Cancel();
         ChatStatus = AiChatStatus.Canceled;
-        ChatStatusMessage = "Cancelando a análise… o editor permanece intacto.";
+        ChatStatusMessage = LocalizationViewModel.Current.Resolve("aiCanceling");
     }
 
     public bool CanApplyAiProposal(AiChangeProposal proposal) =>
@@ -144,15 +144,15 @@ public sealed partial class WorkspaceTabViewModel
         if (!CanApplyAiProposal(proposal) && !(AiProposal?.Id == proposal.Id && Text == proposal.ProposedContent))
         {
             ChatStatus = AiChatStatus.Error;
-            ChatStatusMessage = "A proposta ficou desatualizada porque o editor mudou. Gere uma nova proposta.";
+            ChatStatusMessage = LocalizationViewModel.Current.Resolve("aiProposalStale");
             AiProposal = null;
             return false;
         }
         Text = proposal.ProposedContent;
         AiProposal = null;
         ChatStatus = AiChatStatus.Ready;
-        ChatStatusMessage = "Proposta aplicada ao editor. Use Ctrl+Z para desfazer.";
-        Status = "Proposta de IA aplicada";
+        ChatStatusMessage = LocalizationViewModel.Current.Resolve("aiProposalApplied");
+        Status = LocalizationViewModel.Current.Resolve("aiStatusApplied");
         return true;
     }
 
@@ -161,7 +161,7 @@ public sealed partial class WorkspaceTabViewModel
         if (proposal.RequiresAdditionalConfirmation && !additionalConfirmation)
         {
             ChatStatus = AiChatStatus.Ready;
-            ChatStatusMessage = "Esta proposta exige uma confirmação adicional porque contém escrita ou operação destrutiva.";
+            ChatStatusMessage = LocalizationViewModel.Current.Resolve("aiAdditionalConfirmation");
             return false;
         }
         return CommitAiProposal(proposal);
@@ -172,7 +172,7 @@ public sealed partial class WorkspaceTabViewModel
     {
         AiProposal = null;
         ChatStatus = AiChatStatus.Idle;
-        ChatStatusMessage = "Proposta descartada. O editor não foi alterado.";
+        ChatStatusMessage = LocalizationViewModel.Current.Resolve("aiProposalDismissed");
     }
 
     private static string InferOperationType(string text, string mode)

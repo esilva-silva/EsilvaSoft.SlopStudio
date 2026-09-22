@@ -28,7 +28,7 @@ public sealed partial class ConnectionsViewModel : ObservableObject
         };
         if (owner is not null)
         {
-            var uuid = new UuidPreferenceViewModel("Representação UUID desta conexão", allowInherit: true, () => owner.UuidRepresentation);
+            var uuid = new UuidPreferenceViewModel(LocalizationViewModel.Current.Resolve("connectionUuidTitle"), allowInherit: true, () => owner.UuidRepresentation);
             Uuid = uuid;
             Editor.PropertyChanged += (_, e) =>
             {

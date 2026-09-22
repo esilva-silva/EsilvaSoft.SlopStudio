@@ -9,6 +9,8 @@ namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 public sealed partial class MainWindowViewModel : ObservableObject
 {
+    private static string T(string key) => LocalizationViewModel.Current.Resolve(key);
+    private static string F(string key, params object?[] arguments) => LocalizationViewModel.Current.Format(key, arguments);
     private readonly WorkspaceService _workspace;
 
     private readonly HashSet<string> _knownFields = new(StringComparer.Ordinal);
@@ -19,8 +21,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public MainWindowViewModel(WorkspaceService workspace, bool autoLoadCollections = true)
     {
+        workspace.OperationLocalizer = LocalizationViewModel.Current.ResolveOperationText;
         _workspace = workspace;
         _autoLoadCollections = autoLoadCollections;
+        ExportResults = T("exportDatabaseInitial");
+        ImportResults = T("importDatabaseInitial");
+        IndexResults = T("indexesInitial");
+        AutocompleteSuggestions = T("autocompleteFieldsNote");
+        ScriptResults = T("scriptNoOutput");
         LoadProfilesCommand.Execute(null);
         _ = LoadScriptHistoryAsync();
     }
@@ -183,10 +191,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private string? _selectedCollection;
 
     [ObservableProperty]
-    private string _statusMessage = "Pronto.";
+    private string _statusMessage = T("readyPeriod");
 
     [ObservableProperty]
-    private string _footerMessage = "Workspace local: LiteDB. Credenciais persistidas serão adicionadas com cofre do sistema.";
+    private string _footerMessage = T("localWorkspaceFooter");
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanCancelOperation))]
@@ -198,12 +206,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public bool HasNoSelectedProfile => SelectedProfile is null;
 
     public string CollectionContextHint => SelectedProfile is null
-        ? "Selecione uma conexão para começar."
+        ? T("selectConnectionToStart")
         : string.IsNullOrWhiteSpace(SelectedDatabase)
-            ? "1. Clique em Carregar bancos."
+            ? T("clickLoadDatabases")
             : string.IsNullOrWhiteSpace(SelectedCollection)
-                ? "2. Escolha uma coleção para habilitar a consulta."
-                : $"Pronto: {SelectedDatabase}.{SelectedCollection}. Ajuste o filtro e execute.";
+                ? T("chooseCollectionQuery")
+                : F("readyContext", SelectedDatabase, SelectedCollection);
 
     public bool CanExecuteQuery => SelectedProfile is not null && !string.IsNullOrWhiteSpace(SelectedDatabase) && !string.IsNullOrWhiteSpace(SelectedCollection);
 
@@ -213,8 +221,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private void CancelOperation() => _operationCancellation?.Cancel();
 
     public string SelectedProfileDetails => SelectedProfile is null
-        ? "Nenhuma conexão selecionada."
-        : $"Pasta: {SelectedProfile.Folder ?? "sem pasta"} · Banco padrão: {SelectedProfile.DefaultDatabase ?? "não definido"} · {SelectedProfile.Environment ?? "sem ambiente"} · Última conexão: {(SelectedProfile.LastConnectedAt?.ToLocalTime().ToString("g", CultureInfo.CurrentCulture) ?? "nunca")}";
+        ? T("noConnectionSelected")
+        : string.Join(" · ",
+            F("folderValue", SelectedProfile.Folder ?? T("noFolder")),
+            F("defaultDatabaseValue", SelectedProfile.DefaultDatabase ?? T("notDefined")),
+            SelectedProfile.Environment ?? T("noEnvironment"),
+            F("lastConnectionValue", SelectedProfile.LastConnectedAt?.ToLocalTime().ToString("g", CultureInfo.CurrentCulture) ?? T("never")));
 
     partial void OnSelectedProfileChanged(ConnectionProfile? value)
     {
@@ -252,7 +264,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _knownFields.Clear();
         QuerySuggestions.Clear();
         SelectedQuerySuggestion = null;
-        AutocompleteSuggestions = "Carregue uma amostra ou execute uma consulta para sugerir campos desta coleção.";
+        AutocompleteSuggestions = T("autocompleteFieldsNote");
     }
 
     [RelayCommand(CanExecute = nameof(HasSelectedProfile))]
@@ -274,7 +286,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             }
 
             SelectedDatabase ??= Databases.FirstOrDefault();
-            StatusMessage = $"{Databases.Count} banco(s) carregado(s).";
+            StatusMessage = F("databasesLoaded", Databases.Count);
         });
     }
 
@@ -286,7 +298,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            StatusMessage = $"Ação concluída, mas a auditoria local não foi registrada: {exception.Message}";
+            StatusMessage = F("auditNotRecorded", exception.Message);
         }
     }
 
@@ -307,7 +319,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 Collections.Add(collection);
             }
 
-            StatusMessage = $"{Collections.Count} coleção(ões) carregada(s) em {database}.";
+            StatusMessage = F("collectionsLoaded", Collections.Count, database);
         });
     }
 
@@ -328,7 +340,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             _operationCancellation = cancellation;
             IsOperationRunning = true;
-            FooterMessage = "Operação em andamento…";
+            FooterMessage = T("operationInProgress");
         }
 
         var keepTerminalFooter = false;
@@ -339,14 +351,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
-            StatusMessage = "Operação cancelada pelo usuário.";
-            FooterMessage = "Efeitos já enviados ao MongoDB não são revertidos automaticamente.";
+            StatusMessage = T("operationCancelledByUser");
+            FooterMessage = T("operationNotReverted");
             keepTerminalFooter = true;
             return false;
         }
         catch (Exception exception)
         {
-            SetError(exception.Message);
+            SetError(DesktopOperationErrorMessages.Describe(exception));
             keepTerminalFooter = true;
             return false;
         }
@@ -359,7 +371,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 cancellation.Dispose();
                 if (!keepTerminalFooter)
                 {
-                    FooterMessage = "Workspace local: LiteDB. Credenciais persistidas serão adicionadas com cofre do sistema.";
+                    FooterMessage = T("localWorkspaceFooter");
                 }
             }
         }
@@ -367,7 +379,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private void SetError(string message)
     {
-        StatusMessage = $"Erro: {message}";
-        FooterMessage = "A operação não foi concluída. Consulte a mensagem acima.";
+        StatusMessage = F("errorPrefix", message);
+        FooterMessage = T("operationNotCompleted");
     }
 }

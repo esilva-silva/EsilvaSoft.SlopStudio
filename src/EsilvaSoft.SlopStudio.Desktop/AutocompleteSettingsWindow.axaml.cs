@@ -35,12 +35,12 @@ public partial class AutocompleteSettingsWindow : Window
         if (DataContext is not AutocompleteSettingsViewModel model) return;
         try
         {
-            var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Diretório de modelos", AllowMultiple = false });
+            var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = LocalizationViewModel.Current.Resolve("modelDirectoryPicker"), AllowMultiple = false });
             if (folders.Count == 0 || folders[0].TryGetLocalPath() is not { } path) return;
             model.ModelDirectory = path;
             await model.RefreshModelsCommand.ExecuteAsync(null);
         }
-        catch (Exception) { model.OperationStatus = "Não foi possível abrir o seletor. Digite o caminho do diretório."; }
+        catch (Exception) { model.OperationStatus = LocalizationViewModel.Current.Resolve("openFailed") + ": " + LocalizationViewModel.Current.Resolve("modelsDirectoryUndefined"); }
     }
 
     private async void ChooseExternalModel(object? sender, RoutedEventArgs e)
@@ -48,10 +48,10 @@ public partial class AutocompleteSettingsWindow : Window
         if (DataContext is not AutocompleteSettingsViewModel model) return;
         try
         {
-            var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Pasta de um modelo ONNX GenAI", AllowMultiple = false });
+            var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = LocalizationViewModel.Current.Resolve("onnxModelFolderPicker"), AllowMultiple = false });
             if (folders.Count > 0 && folders[0].TryGetLocalPath() is { } path) await model.SelectExternalModelAsync(path);
         }
-        catch (Exception) { model.OperationStatus = "Não foi possível abrir o seletor de pasta."; }
+        catch (Exception) { model.OperationStatus = LocalizationViewModel.Current.Resolve("openFailed") + ": " + LocalizationViewModel.Current.Resolve("modelsDirectoryUndefined"); }
     }
 
     private async void OpenModelsDirectory(object? sender, RoutedEventArgs e)
@@ -59,9 +59,9 @@ public partial class AutocompleteSettingsWindow : Window
         if (DataContext is not AutocompleteSettingsViewModel model || model.EnsureModelsDirectory() is not { } directory) return;
         try
         {
-            if (!await Launcher.LaunchDirectoryInfoAsync(new DirectoryInfo(directory))) model.OperationStatus = $"Não foi possível abrir a pasta. Caminho: {directory}";
+            if (!await Launcher.LaunchDirectoryInfoAsync(new DirectoryInfo(directory))) model.OperationStatus = LocalizationViewModel.Current.Format("createDirectoryFailed", directory, "");
         }
-        catch (Exception) { model.OperationStatus = $"Não foi possível abrir a pasta. Caminho: {directory}"; }
+        catch (Exception ex) { model.OperationStatus = LocalizationViewModel.Current.Format("createDirectoryFailed", directory, ex.Message); }
     }
 
     private void CloseDialog(object? sender, RoutedEventArgs e) => Close();

@@ -28,7 +28,7 @@ public sealed partial class MainWindowViewModel
     private string _newDatabaseConfirmation = string.Empty;
 
     [ObservableProperty]
-    private string _exportResults = "Selecione um banco para exportá-lo em Extended JSON.";
+    private string _exportResults = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanImportDatabase))]
@@ -36,7 +36,7 @@ public sealed partial class MainWindowViewModel
     private string _importSourceDirectory = string.Empty;
 
     [ObservableProperty]
-    private string _importResults = "Informe a pasta da exportação e escolha o banco de destino.";
+    private string _importResults = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanDropDatabase))]
@@ -56,7 +56,7 @@ public sealed partial class MainWindowViewModel
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanCreateDatabaseUser))]
     [NotifyCanExecuteChangedFor(nameof(CreateDatabaseUserCommand))]
-    private string _newDatabaseUserRoles = "[{ \"role\": \"readWrite\", \"db\": \"banco-selecionado\" }]";
+    private string _newDatabaseUserRoles = "[{ \"role\": \"readWrite\", \"db\": \"selected_database\" }]";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanCreateDatabaseUser))]
@@ -81,7 +81,7 @@ public sealed partial class MainWindowViewModel
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanUpdateDatabaseUserRoles))]
     [NotifyCanExecuteChangedFor(nameof(UpdateDatabaseUserRolesCommand))]
-    private string _databaseRolePayload = "[{ \"role\": \"read\", \"db\": \"banco-selecionado\" }]";
+    private string _databaseRolePayload = "[{ \"role\": \"read\", \"db\": \"selected_database\" }]";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanUpdateDatabaseUserRoles))]
@@ -138,10 +138,10 @@ public sealed partial class MainWindowViewModel
         {
             var request = new DatabaseExportRequest(SelectedDatabase, decimal.ToInt32(ExportDocumentsPerCollectionLimit ?? 100_000));
             var result = await _workspace.ExportDatabaseAsync(SelectedProfile, request, cancellationToken);
-            ExportResults = $"{result.CollectionCount} coleção(ões), {result.DocumentCount} documento(s)." + Environment.NewLine
-                + $"Pasta: {result.OutputDirectory}" + Environment.NewLine
-                + "Manifesto: manifest.json" + (result.IsTruncated ? Environment.NewLine + "Atenção: ao menos uma coleção atingiu o limite configurado." : string.Empty);
-            StatusMessage = $"Exportação concluída: {result.DocumentCount} documento(s).";
+            ExportResults = F("databaseExportSummary", result.CollectionCount, result.DocumentCount) + Environment.NewLine
+                + F("folderLine", result.OutputDirectory) + Environment.NewLine
+                + T("manifestLine") + (result.IsTruncated ? Environment.NewLine + T("exportLimitWarning") : string.Empty);
+            StatusMessage = F("databaseExported", result.DocumentCount);
         });
     }
 
@@ -157,10 +157,8 @@ public sealed partial class MainWindowViewModel
             {
                 var request = new DatabaseImportRequest(ImportSourceDirectory, SelectedDatabase);
                 var result = await _workspace.ImportDatabaseAsync(SelectedProfile, request, cancellationToken);
-                ImportResults = $"{result.CollectionCount} coleção(ões), {result.DocumentCount} documento(s) importado(s) por upsert de _id." + Environment.NewLine
-                    + $"Origem: {result.SourceDirectory}" + Environment.NewLine
-                    + $"Destino: {result.TargetDatabase}";
-                StatusMessage = $"Importação concluída: {result.DocumentCount} documento(s).";
+                ImportResults = F("databaseImportSummary", result.CollectionCount, result.DocumentCount, result.SourceDirectory, result.TargetDatabase);
+                StatusMessage = F("databaseImported", result.DocumentCount);
             }))
         {
             return;
@@ -180,7 +178,7 @@ public sealed partial class MainWindowViewModel
         await RunAsync(async cancellationToken =>
         {
             AdministrationResults = await _workspace.GetUsersAsync(SelectedProfile, cancellationToken);
-            StatusMessage = "Usuários MongoDB carregados.";
+            StatusMessage = T("usersLoaded");
         });
     }
 
@@ -195,7 +193,7 @@ public sealed partial class MainWindowViewModel
         await RunAsync(async cancellationToken =>
         {
             AdministrationResults = await _workspace.GetRolesAsync(SelectedProfile, cancellationToken);
-            StatusMessage = "Papéis MongoDB carregados.";
+            StatusMessage = T("rolesLoaded");
         });
     }
 
@@ -221,10 +219,10 @@ public sealed partial class MainWindowViewModel
         var username = request.Username.Trim();
         NewDatabaseUsername = string.Empty;
         NewDatabaseUserPassword = string.Empty;
-        NewDatabaseUserRoles = "[{ \"role\": \"readWrite\", \"db\": \"banco-selecionado\" }]";
+        NewDatabaseUserRoles = "[{ \"role\": \"readWrite\", \"db\": \"selected_database\" }]";
         NewDatabaseUserConfirmation = string.Empty;
-        await RecordAuditAsync("user.create", SelectedProfile, SelectedDatabase, null, $"Usuário {username} criado.");
-        StatusMessage = $"Usuário {username} criado no banco {SelectedDatabase}.";
+        await RecordAuditAsync("user.create", SelectedProfile, SelectedDatabase, null, F("userCreatedAudit", username));
+        StatusMessage = F("userCreated", username, SelectedDatabase);
     }
 
     [RelayCommand(CanExecute = nameof(CanDropDatabaseUser))]
@@ -244,8 +242,8 @@ public sealed partial class MainWindowViewModel
         var username = request.Username.Trim();
         DatabaseUsernameToDrop = string.Empty;
         DatabaseUserDropConfirmation = string.Empty;
-        await RecordAuditAsync("user.drop", SelectedProfile, SelectedDatabase, null, $"Usuário {username} removido.");
-        StatusMessage = $"Usuário {username} removido do banco {SelectedDatabase}.";
+        await RecordAuditAsync("user.drop", SelectedProfile, SelectedDatabase, null, F("userRemovedAudit", username));
+        StatusMessage = F("userRemoved", username, SelectedDatabase);
     }
 
     [RelayCommand(CanExecute = nameof(CanUpdateDatabaseUserRoles))]
@@ -270,10 +268,10 @@ public sealed partial class MainWindowViewModel
         var username = request.Username.Trim();
         var action = request.Revoke ? "user.roles.revoke" : "user.roles.grant";
         DatabaseRoleUsername = string.Empty;
-        DatabaseRolePayload = "[{ \"role\": \"read\", \"db\": \"banco-selecionado\" }]";
+        DatabaseRolePayload = "[{ \"role\": \"read\", \"db\": \"selected_database\" }]";
         DatabaseRoleConfirmation = string.Empty;
-        await RecordAuditAsync(action, SelectedProfile, SelectedDatabase, null, $"Papéis do usuário {username} atualizados.");
-        StatusMessage = $"Papéis do usuário {username} atualizados.";
+        await RecordAuditAsync(action, SelectedProfile, SelectedDatabase, null, F("rolesUpdated", username));
+        StatusMessage = F("rolesUpdated", username);
     }
 
     [RelayCommand(CanExecute = nameof(CanLoadDatabaseStats))]
@@ -287,7 +285,7 @@ public sealed partial class MainWindowViewModel
         await RunAsync(async cancellationToken =>
         {
             AdministrationResults = await _workspace.GetDatabaseStatsAsync(SelectedProfile, SelectedDatabase, cancellationToken);
-            StatusMessage = $"Estatísticas de {SelectedDatabase} carregadas.";
+            StatusMessage = F("databaseStatsLoaded", SelectedDatabase);
         });
     }
 
@@ -313,8 +311,8 @@ public sealed partial class MainWindowViewModel
         SelectedCollection = null;
         SelectedDatabase = null;
         await LoadDatabasesAsync();
-        await RecordAuditAsync("database.drop", SelectedProfile, database, null, "Banco removido.");
-        StatusMessage = $"Banco {database} removido.";
+        await RecordAuditAsync("database.drop", SelectedProfile, database, null, T("databaseRemoved").Replace("{0}", database, StringComparison.Ordinal));
+        StatusMessage = F("databaseRemoved", database);
     }
 
     [RelayCommand(CanExecute = nameof(CanCreateDatabase))]
@@ -338,7 +336,7 @@ public sealed partial class MainWindowViewModel
         NewDatabaseConfirmation = string.Empty;
         await LoadDatabasesAsync();
         SelectedDatabase = database;
-        await RecordAuditAsync("database.create", SelectedProfile, database, collection, "Banco criado com coleção inicial.");
-        StatusMessage = $"Banco {database} criado com a coleção {collection}.";
+        await RecordAuditAsync("database.create", SelectedProfile, database, collection, F("databaseCreated", database, collection));
+        StatusMessage = F("databaseCreated", database, collection);
     }
 }

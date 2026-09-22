@@ -52,7 +52,7 @@ public sealed class AiProviderSelectionTests
             new("DmlExecutionProvider", AiAccelerationMode.Gpu, "Integrated", 485L << 20, 1),
             new("DmlExecutionProvider", AiAccelerationMode.Gpu, "RX 7800 XT", 16177L << 20, 0)
         ]);
-        Assert.That(devices.Select(LocalAiStatusFormatter.DeviceLine), Is.EqualTo(ProbeLines));
+        Assert.That(devices.Select(device => LocalAiStatusFormatter.DeviceLine(device)), Is.EqualTo(ProbeLines));
         var cpuBuild = OnnxHardwareProbe.Describe(["CPUExecutionProvider"], []);
         Assert.That(cpuBuild.Single(device => device.Kind == AiAccelerationMode.Cpu).IsAvailable, Is.True);
         Assert.That(cpuBuild.Single(device => device.Kind == AiAccelerationMode.Gpu).Reason, Does.Contain("DirectML ou CUDA"));

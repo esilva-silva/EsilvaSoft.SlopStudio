@@ -26,14 +26,14 @@ public sealed class ResultDocumentViewModel
         DisplayJson = display.Text;
         UnknownLegacyUuidCount = display.UnknownLegacyCount;
         FormattedJson = ExtendedJsonFormatter.TryFormat(document.Json, out var formatted, out _) ? IdentifierRepresentationService.FormatForDisplay(formatted, options).Text : document.Json;
-        Label = "Documento " + (document.Position + 1).ToString(CultureInfo.InvariantCulture);
+        Label = LocalizationViewModel.Current.Format("documentLabel", (document.Position + 1).ToString(CultureInfo.InvariantCulture));
         if (document.Root is { ValueKind: JsonValueKind.Object } root && root.TryGetProperty("_id", out var id))
         {
             IdentityText = "_id: " + DescribeIdentity(id, options);
             Identity = IdentifierRepresentationService.Describe(id, options);
             IdentityValueText = IdentifierRepresentationService.FormatForDisplay(id.GetRawText(), options).Text;
         }
-        else IdentityText = document.IsValid ? "Sem _id" : "JSON inválido";
+        else IdentityText = document.IsValid ? LocalizationViewModel.Current.Resolve("missingId") : LocalizationViewModel.Current.Resolve("invalidJson");
     }
 
     public StructuredResultDocument Document { get; }
@@ -64,9 +64,9 @@ public sealed class ResultDocumentViewModel
     public string Summary => Label + " · " + Document.Set.Label;
     public string FlagsText => string.Join(" · ", new[]
     {
-        Document.IsTruncated ? "resultado limitado" : null,
-        Document.Set.Completeness switch { ResultCompleteness.PartialProjection => "projeção parcial", ResultCompleteness.Derived => "agregação", _ => null },
-        Document.IsValid ? null : "JSON inválido"
+        Document.IsTruncated ? LocalizationViewModel.Current.Resolve("limitedNotice").ToLowerInvariant() : null,
+        Document.Set.Completeness switch { ResultCompleteness.PartialProjection => LocalizationViewModel.Current.Resolve("partialProjection").ToLowerInvariant(), ResultCompleteness.Derived => LocalizationViewModel.Current.Resolve("derivedAggregation"), _ => null },
+        Document.IsValid ? null : LocalizationViewModel.Current.Resolve("invalidJson")
     }.OfType<string>());
     public IReadOnlyList<ResultFieldViewModel> Fields => _fields ??= Document.Root is { } root ? new ResultFieldViewModel("documento", root, Options).Children : [];
 

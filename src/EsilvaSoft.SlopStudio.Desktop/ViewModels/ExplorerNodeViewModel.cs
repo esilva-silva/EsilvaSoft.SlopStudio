@@ -8,6 +8,7 @@ namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 public sealed partial class ExplorerNodeViewModel : ObservableObject
 {
+    private static string T(string key) => LocalizationViewModel.Current.Resolve(key);
     private readonly WorkspaceService _workspace;
     private readonly IMetadataCache? _metadata;
     private bool _loaded;
@@ -37,14 +38,14 @@ public sealed partial class ExplorerNodeViewModel : ObservableObject
     [ObservableProperty] private bool _isVisible = true;
     [ObservableProperty] private bool _isLoading;
     [ObservableProperty] private string _message = "";
-    public string Label => Name + (IsLoading ? " …" : Message.Length > 0 ? " ⚠" : IsConnection ? IsConnected ? " · conectada" : " · desconectada" : "");
+    public string Label => Name + (IsLoading ? " …" : Message.Length > 0 ? " ⚠" : IsConnection ? IsConnected ? " · " + T("connected") : " · " + T("disconnected") : "");
 
     public ExplorerNodeViewModel(WorkspaceService workspace, ConnectionProfile profile, string name, string database = "", string? collection = null, bool isDatabase = false,
         ExplorerNodeKind? kind = null, ExplorerNodeViewModel? parent = null, IndexInfo? index = null, IMetadataCache? metadata = null)
     {
         _workspace = workspace; _metadata = metadata; Profile = profile; Name = name; Database = database; Collection = collection; Parent = parent; Index = index;
         Kind = kind ?? (isDatabase ? ExplorerNodeKind.Database : collection is not null ? ExplorerNodeKind.Collection : ExplorerNodeKind.Connection);
-        if (CanExpand) Children.Add(new ExplorerNodeViewModel(workspace, profile, "Expandir para carregar", database, collection, kind: ExplorerNodeKind.Placeholder, parent: this, metadata: metadata));
+        if (CanExpand) Children.Add(new ExplorerNodeViewModel(workspace, profile, T("expandToLoad"), database, collection, kind: ExplorerNodeKind.Placeholder, parent: this, metadata: metadata));
     }
 
     partial void OnIsExpandedChanged(bool value) { if (value && CanExpand && !_loaded) _ = LoadAsync(); }
@@ -61,7 +62,7 @@ public sealed partial class ExplorerNodeViewModel : ObservableObject
     private async Task LoadCoreAsync()
     {
         if (!CanExpand) return;
-        if (!IsConnection && !Root.IsConnected && Parent is not null) { Message = "Conecte a origem antes de expandir."; return; }
+        if (!IsConnection && !Root.IsConnected && Parent is not null) { Message = T("connectBeforeExpand"); return; }
         var generation = _generation;
         using var cancellation = new CancellationTokenSource(); _cancellation = cancellation;
         IsLoading = true; Message = "";
@@ -74,8 +75,8 @@ public sealed partial class ExplorerNodeViewModel : ObservableObject
                 foreach (var name in await _workspace.GetCollectionsAsync(Profile, Database, cancellation.Token)) entries.Add((name, ExplorerNodeKind.Collection, Database, name, null));
             else if (Kind == ExplorerNodeKind.Collection)
             {
-                entries.Add(("Documentos", ExplorerNodeKind.Documents, Database, Collection, null));
-                entries.Add(("Índices", ExplorerNodeKind.Indexes, Database, Collection, null));
+                entries.Add((LocalizationViewModel.Current.Resolve("documentsNode"), ExplorerNodeKind.Documents, Database, Collection, null));
+                entries.Add((LocalizationViewModel.Current.Resolve("indexesNode"), ExplorerNodeKind.Indexes, Database, Collection, null));
             }
             else if (Kind == ExplorerNodeKind.Indexes)
                 foreach (var index in await _workspace.GetExplorerIndexesAsync(Profile, Database, Collection!, cancellation.Token)) entries.Add((index.Name, ExplorerNodeKind.Index, Database, Collection, index));
@@ -96,10 +97,10 @@ public sealed partial class ExplorerNodeViewModel : ObservableObject
             foreach (var removed in previous.Except(Children)) removed.Invalidate();
             _loaded = true;
             if (IsConnection) IsConnected = true;
-            Message = entries.Count == 0 ? "Nenhum item visível." : "";
+            Message = entries.Count == 0 ? LocalizationViewModel.Current.Resolve("noVisibleItems") : "";
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
-        catch (Exception ex) { if (generation == _generation) { Message = OperationErrorMessages.Describe(ex); _loaded = false; } }
+        catch (Exception ex) { if (generation == _generation) { Message = DesktopOperationErrorMessages.Describe(ex); _loaded = false; } }
         finally { if (ReferenceEquals(_cancellation, cancellation)) _cancellation = null; if (generation == _generation) { IsLoading = false; Filter(_filter); } }
     }
 
@@ -108,7 +109,7 @@ public sealed partial class ExplorerNodeViewModel : ObservableObject
         _generation++; _cancellation?.Cancel(); _loadTask = null; IsLoading = false; _loaded = false;
         foreach (var child in Children) child.Invalidate();
         Children.Clear(); IsConnected = false; IsExpanded = false;
-        if (CanExpand) Children.Add(new ExplorerNodeViewModel(_workspace, Profile, "Expandir para carregar", kind: ExplorerNodeKind.Placeholder, parent: this, metadata: _metadata));
+        if (CanExpand) Children.Add(new ExplorerNodeViewModel(_workspace, Profile, T("expandToLoad"), kind: ExplorerNodeKind.Placeholder, parent: this, metadata: _metadata));
     }
 
     public bool Filter(string search)

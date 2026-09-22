@@ -1,6 +1,8 @@
 # Fase 2 — v0.6.0: organização dos projetos e autocomplete básico
 
-**Situação:** **Em execução.** É a fase ativa.
+**Situação:** **Em execução.** É a fase ativa; o recorte técnico possui implementação e evidência automatizada, mas ainda não alcançou aceite formal.
+
+A meta transversal de internacionalização que atravessa o autocomplete foi concluída no recorte automatizado; esta fase continua em execução apenas pelo seu escopo próprio de separação de núcleos e autocomplete determinístico.
 
 ## Objetivo
 
@@ -37,4 +39,4 @@ Escopo funcional da v0.5.0 ([Fase 1](../phase-01-v0.5.0/README.md)).
 
 ## Pendências de homologação real
 
-Corpus MRR/top-K, matriz visual do autocomplete e integração real de metadata permanecem abertos. Nenhum item é encerrado por execução Headless.
+O corpus automatizado e o gate de ranking estão concluídos (675 fixtures mais um gate; MRR 1,000; top-1/top-5 44/44). Permanecem abertos os gates de desempenho p95/p99, matriz visual em plataforma real, integração de metadata com MongoDB real, Linux gráfico e acessibilidade. Nenhum item é encerrado por execução Headless.

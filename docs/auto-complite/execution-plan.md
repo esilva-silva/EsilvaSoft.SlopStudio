@@ -4,7 +4,7 @@ Revisado originalmente em 15/09/2026. O quadro abaixo preserva o plano e seus re
 
 ## Estado corrente da meta — 21/09/2026
 
-O núcleo determinístico do autocomplete, o aprendizado de schema, a integração do catálogo aprendido e o contexto de pipeline estão implementados com cobertura automatizada. O corpus de linguagem executado tem **675 fixtures + 1 gate agregado de ranking aprovados**; a suíte UnitTests completa tem **2.593 aprovados, 0 falhas e 20 ignorados**; o build passa sem warnings/erros. O contexto agora cobre também saída de `$facet` por ramo, `$count`, `$unwind`, `$replaceRoot`/`$replaceWith` e schema estrangeiro de `$lookup`. O gate publicado registra MRR 1,000, top-1 44/44 e top-5 44/44.
+O núcleo determinístico do autocomplete, o aprendizado de schema, a integração do catálogo aprendido e o contexto de pipeline estão implementados com cobertura automatizada. O corpus de linguagem executado tem **675 fixtures + 1 gate agregado de ranking aprovados**; a suíte UnitTests completa tem **2.639 aprovados, 0 falhas e 20 ignorados**; o build passa sem warnings/erros. O contexto agora cobre também saída de `$facet` por ramo, `$count`, `$unwind`, `$replaceRoot`/`$replaceWith` e schema estrangeiro de `$lookup`. O gate publicado registra MRR 1,000, top-1 44/44 e top-5 44/44.
 
 Este fechamento não inclui gates de performance, validação multiplataforma, MongoDB real, modelos reais, leitor de tela ou homologação nativa. A matriz MRR/top-K publicada, a integração de namespaces metadata/schema learning e a resolução de `$lookup` com schema estrangeiro foram fechadas com testes automatizados; extensões futuras de corpus não alteram este aceite.
 

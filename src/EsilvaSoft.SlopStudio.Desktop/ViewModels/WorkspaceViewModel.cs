@@ -30,6 +30,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     private readonly Dictionary<Guid, UuidRepresentation> _profileUuidRepresentations = [];
     private readonly SynchronizationContext? _context = SynchronizationContext.Current;
     private readonly bool _ownsMetadata;
+    private readonly LocalizationViewModel _localization = LocalizationViewModel.Current;
     public WorkspaceService Workspace => _workspace;
     /// <summary>Autocomplete metadata; explorer loads write into it and connected roots allow refreshes.</summary>
     public IMetadataCache Metadata { get; }
@@ -63,8 +64,11 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     /// </summary>
     public EditorCommandDispatcher Commands { get; private set; } = new(EditorKeyBindings.Resolve(null));
     public ExplorerDetailsViewModel Details { get; }
+    public LocalizationViewModel Localization => _localization;
     public IReadOnlyList<string> Themes { get; } = ["Sistema", "Claro", "Escuro"];
+    public IReadOnlyList<ApplicationLanguage> Languages { get; } = ApplicationLanguages.All;
     [ObservableProperty] private string _theme = "Sistema";
+    [ObservableProperty] private string _language = ApplicationLanguages.DefaultCode;
     [ObservableProperty] private double _codeFontSize = 14;
     [ObservableProperty] private double _explorerWidth = 260;
     [ObservableProperty] private double _editorRatio = .6;
@@ -72,6 +76,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _recoverActiveProfile = true;
     [ObservableProperty] private string _sessionStatus = "";
     public event EventHandler? ThemeChanged;
+    public event EventHandler? LanguageChanged;
     public event EventHandler? LayoutChanged;
 
     public WorkspaceViewModel(WorkspaceService workspace, IWorkspaceSessionRepository sessions, IAutocompleteService? autocomplete = null, ILocalModelCatalog? modelCatalog = null, IAiChatService? aiChat = null,
@@ -79,15 +84,20 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         ILocalAiModelService? localModels = null, IAppUpdateService? updates = null, IRemoteModelSource? remoteModels = null, IMetadataCache? metadata = null,
         ILearnedSchemaOptOut? learnedSchemaOptOut = null, IAiCompletionProvider? aiCompletion = null)
     {
+        _workspace = workspace;
+        _workspace.OperationLocalizer = LocalizationViewModel.Current.ResolveOperationText;
+        _workspace.SetLocalization(LocalizationViewModel.Current.Resolve);
+        _localization.Language = _language;
         // Provider da IA explícita (Ctrl+;), opcional: sem ele — e é o caso enquanto o registro do pipeline ONNX não
         // existir na composição — o atalho continua reconhecido e cai no fallback da lista tradicional com o motivo,
         // nunca em silêncio e nunca inserindo texto.
         AiCompletion = aiCompletion;
-        _workspace = workspace; _sessions = sessions; Operations = new(workspace.Operations); Details = new ExplorerDetailsViewModel(workspace);
+        _sessions = sessions; Operations = new(workspace.Operations); Details = new ExplorerDetailsViewModel(workspace);
         _learnedSchemaOptOut = learnedSchemaOptOut;
         // Without a registered driver source, explorer write-through still feeds highlighting and names; remote loads stay unavailable.
         _ownsMetadata = metadata is null;
         Metadata = metadata ?? new MetadataCache(UnavailableMetadataSource.Instance);
+        Metadata.SetLocalization(LocalizationViewModel.Current.Resolve);
         Metadata.Changed += OnMetadataChanged;
         Updates = new(updates, workspace.Operations);
         AutocompleteService = autocomplete ?? new AutocompleteService();
@@ -100,6 +110,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         TraditionalCompletion = new TraditionalCompletionProvider(completionService);
         InlinePreemptiveCompletion = new TraditionalPreemptiveCompletionProvider(completionService);
         AiChatService = aiChat ?? new AiChatService();
+        AiChatService.SetLocalization(LocalizationViewModel.Current.Resolve);
         AutocompletePreferences = new(AutocompleteService, modelCatalog, async settings =>
         {
             var previous = _autocompleteSettings;
@@ -109,7 +120,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
             await AutocompleteService.ConfigureAsync(settings);
         }, localModels, remoteModels, workspace.Operations);
         Roots.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasNoConnections));
-        UuidPreferences = new("Representação UUID · Binary BSON", allowInherit: false, () => UuidRepresentation, value => SetUuidRepresentationAsync(value ?? UuidRepresentation.Standard));
+        UuidPreferences = new(LocalizationViewModel.Current.Resolve("uuidBsonTitle"), allowInherit: false, () => UuidRepresentation, value => SetUuidRepresentationAsync(value ?? UuidRepresentation.Standard));
         IdentifierPreferences = new(() => UuidRepresentation, SetIdentifierModeAsync);
     }
 
@@ -117,8 +128,20 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     {
         try
         {
+            WorkspaceSession session;
+            try
+            {
+                session = await _sessions.LoadSessionAsync();
+            }
+            catch
+            {
+                // Keep the explorer usable even when the session snapshot is unreadable, but do not start
+                // profile-loading operations under an unknown language before the valid preference is restored.
+                await ReloadProfilesAsync();
+                throw;
+            }
+            Language = ApplicationLanguages.Normalize(session.Preferences.Language);
             await ReloadProfilesAsync();
-            var session = await _sessions.LoadSessionAsync();
             _autocompleteSettings = session.Preferences.Autocomplete.Validate();
             // Invalid shortcuts fail here too, before _initialized, so no save path can replace the snapshot.
             KeyBindings = EditorKeyBindings.Resolve(session.Preferences.EditorKeyBindings);
@@ -150,18 +173,39 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
             ActiveTab = Tabs.FirstOrDefault(t => t.Id == session.ActiveTabId) ?? Tabs.FirstOrDefault();
             _initialized = true;
             if (Tabs.Count == 0) NewTab();
-            SessionStatus = session.Tabs.Length > 0 ? "Rascunhos recuperados; conexões permanecem fechadas." : "";
+            SessionStatus = session.Tabs.Length > 0 ? LocalizationViewModel.Current.Resolve("draftsRecovered") : string.Empty;
             LayoutChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
             // Keep the unreadable snapshot intact; never silently overwrite it with an empty session.
-            SessionStatus = "Não foi possível recuperar a sessão: " + ex.Message;
+            SessionStatus = LocalizationViewModel.Current.Format("sessionRestoreFailed", ex.Message);
             if (Tabs.Count == 0) NewTab();
         }
     }
 
     partial void OnThemeChanged(string value) { ThemeChanged?.Invoke(this, EventArgs.Empty); ScheduleSave(); }
+    partial void OnLanguageChanged(string value)
+    {
+        var normalized = ApplicationLanguages.Normalize(value);
+        if (!string.Equals(value, normalized, StringComparison.Ordinal))
+        {
+            Language = normalized;
+            return;
+        }
+        Localization.Language = normalized;
+        Details.RefreshLanguage();
+        foreach (var tab in Tabs) tab.RefreshLanguage();
+        foreach (var tab in Tabs)
+        {
+            foreach (var item in tab.LocalizedConsoleHistory) item.RefreshLanguage();
+            foreach (var item in tab.LocalizedConsoleResults) item.RefreshLanguage();
+        }
+        AutocompletePreferences.RefreshLanguage();
+        if (SelectedNode is null) ExplorerStatus = Roots.Count == 0 ? T("explorerOpenConnection") : T("expandDatabaseCollections");
+        LanguageChanged?.Invoke(this, EventArgs.Empty);
+        ScheduleSave();
+    }
     partial void OnCodeFontSizeChanged(double value) { foreach (var tab in Tabs) tab.CodeFontSize = value; ScheduleSave(); }
     partial void OnExplorerWidthChanged(double value) => ScheduleSave();
     partial void OnEditorRatioChanged(double value) => ScheduleSave();
@@ -179,28 +223,28 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     {
         try { await Task.Delay(750, cancellationToken); await SaveSessionAsync(); }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        catch (Exception ex) { SessionStatus = "Rascunho não salvo: " + ex.Message; }
+        catch (Exception ex) { SessionStatus = LocalizationViewModel.Current.Format("draftNotSaved", ex.Message); }
     }
 
     public async Task SaveSessionAsync()
     {
-        if (!_initialized) throw new InvalidOperationException("A sessão anterior não foi carregada. Ela será preservada; salve seus scripts em arquivos.");
+        if (!_initialized) throw new InvalidOperationException(LocalizationViewModel.Current.Resolve("sessionNotLoaded"));
         await _saveGate.WaitAsync();
         try
         {
             var session = new WorkspaceSession
             {
                 ActiveTabId = ActiveTab?.Id,
-                Preferences = new WorkspacePreferences { Autocomplete = _autocompleteSettings, Theme = Theme, CodeFontSize = CodeFontSize, ExplorerWidth = ExplorerWidth, EditorRatio = EditorRatio, RecoverDrafts = RecoverDrafts, ExcludedProfileIds = _excludedProfiles.ToArray(),
+                Preferences = new WorkspacePreferences { Autocomplete = _autocompleteSettings, Theme = Theme, Language = ApplicationLanguages.Normalize(Language), CodeFontSize = CodeFontSize, ExplorerWidth = ExplorerWidth, EditorRatio = EditorRatio, RecoverDrafts = RecoverDrafts, ExcludedProfileIds = _excludedProfiles.ToArray(),
                     UuidRepresentation = UuidRepresentation, ProfileUuidRepresentations = new(_profileUuidRepresentations), IdentifierMode = IdentifierMode,
                     SchemaSamplingProfileIds = Metadata.SchemaSamplingProfiles.ToArray(),
                     LearnedSchemaExcludedProfileIds = _learnedSchemaOptOut?.ExcludedProfiles.ToArray() ?? [], EditorKeyBindings = _keyBindings },
                 Tabs = Tabs.Select(t => t.Snapshot()).ToArray()
             };
             await _sessions.SaveSessionAsync(session);
-            SessionStatus = RecoverDrafts ? "Rascunhos locais atualizados" : "Recuperação de rascunhos desativada";
+            SessionStatus = RecoverDrafts ? LocalizationViewModel.Current.Resolve("draftsUpdated") : LocalizationViewModel.Current.Resolve("draftRecoveryDisabled");
         }
-        catch (Exception ex) { SessionStatus = "Rascunho não salvo: " + ex.Message; throw; }
+        catch (Exception ex) { SessionStatus = LocalizationViewModel.Current.Format("draftNotSaved", ex.Message); throw; }
         finally { _saveGate.Release(); }
     }
 

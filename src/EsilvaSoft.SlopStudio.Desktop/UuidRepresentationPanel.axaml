@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" x:Class="EsilvaSoft.SlopStudio.Desktop.UuidRepresentationPanel" x:DataType="vm:UuidPreferenceViewModel">
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" x:Class="EsilvaSoft.SlopStudio.Desktop.UuidRepresentationPanel" x:DataType="vm:UuidPreferenceViewModel">
   <UserControl.Styles>
     <Style Selector="TextBlock.uuid-code">
       <Setter Property="FontFamily" Value="{DynamicResource CodeFont}" />
@@ -21,10 +21,10 @@
         </DataTemplate>
       </ComboBox.ItemTemplate>
     </ComboBox>
-    <TextBlock Text="Prévia do mesmo UUID nas quatro formas" Classes="metadata" IsVisible="{Binding IsPreviewVisible}" />
-    <TextBlock x:Name="HiddenPreviewHint" Text="UUIDs existentes continuam exibidos nesta representação. A comparação das quatro formas aparece nos modos Standard e UUID v4." Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding !IsPreviewVisible}" />
+    <TextBlock Text="{local:Loc Key=uuidFourForms}" Classes="metadata" IsVisible="{Binding IsPreviewVisible}" />
+    <TextBlock x:Name="HiddenPreviewHint" Text="{local:Loc Key=existingUuidHint}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding !IsPreviewVisible}" />
     <Border Classes="card" Padding="10,6" IsVisible="{Binding IsPreviewVisible}">
-      <ItemsControl x:Name="PreviewRows" ItemsSource="{Binding Preview}" AutomationProperties.Name="Prévia das representações UUID">
+      <ItemsControl x:Name="PreviewRows" ItemsSource="{Binding Preview}" AutomationProperties.Name="{local:Loc Key=uuidRepresentationsPreview}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:UuidPreviewRow">
             <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8" Margin="0,4">
@@ -36,7 +36,7 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
     </Border>
-    <TextBlock Text="Standard e Go/Standard exibem subtype 3 como binário legado de origem desconhecida. A escolha não altera dados gravados nem a exportação Extended JSON canônica; UUID escrito como string continua string." Classes="metadata" TextWrapping="Wrap" />
+    <TextBlock Text="{local:Loc Key=uuidInvariant}" Classes="metadata" TextWrapping="Wrap" />
     <TextBlock x:Name="UuidStatus" Text="{Binding Status}" Classes="uuid-status" Classes.error="{Binding HasError}" TextWrapping="Wrap" IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
   </StackPanel>
 </UserControl>

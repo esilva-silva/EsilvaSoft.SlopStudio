@@ -11,7 +11,7 @@ public partial class WorkspaceTabView
     {
         if (DataContext is not WorkspaceTabViewModel { SelectedDocument: not null } tab) return;
         try { if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard) await clipboard.SetTextAsync(tab.SelectedDocument.DisplayJson); }
-        catch (Exception ex) { tab.Messages = "Não foi possível copiar: " + ex.Message; }
+        catch (Exception ex) { tab.Messages = F("copyFailed", ex.Message); }
     }
     private void OpenSelectedDocument(object? sender, RoutedEventArgs e)
     {
@@ -24,10 +24,11 @@ public partial class WorkspaceTabView
         try
         {
             using var model = await tab.CreateDocumentMutationAsync(operation);
-            var window = new DocumentMutationWindow { DataContext = model, Title = operation + " documento" };
+            var operationLabel = operation switch { "Inserir" => T("insert"), "Editar" => T("edit"), "Excluir" => T("remove"), _ => operation };
+            var window = new DocumentMutationWindow { DataContext = model, Title = F("documentMutationTitle", operationLabel) };
             await window.ShowDialog(owner);
             if (model.Succeeded) tab.Messages = model.Status;
         }
-        catch (Exception ex) { tab.Messages = ex.Message; }
+        catch (Exception ex) { tab.Messages = DesktopOperationErrorMessages.Describe(ex); }
     }
 }

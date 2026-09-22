@@ -1,50 +1,50 @@
-<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" x:Class="EsilvaSoft.SlopStudio.Desktop.AutocompleteSettingsWindow" x:DataType="vm:AutocompleteSettingsViewModel" Title="Preferências · Autocomplete e IA local" Width="660" Height="680" MinWidth="520" MinHeight="420" WindowStartupLocation="CenterOwner">
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" x:Class="EsilvaSoft.SlopStudio.Desktop.AutocompleteSettingsWindow" x:DataType="vm:AutocompleteSettingsViewModel" Title="{local:Loc Key=autocompleteTitle}" Width="660" Height="680" MinWidth="520" MinHeight="420" WindowStartupLocation="CenterOwner">
   <Grid Margin="20" RowDefinitions="Auto,*,Auto" RowSpacing="12">
     <StackPanel Spacing="4">
-      <TextBlock Text="Autocomplete e IA local" Classes="section-title"/>
-      <TextBlock Text="Processamento local. Código e consultas não são enviados a serviços de IA." Classes="muted" TextWrapping="Wrap"/>
+      <TextBlock Text="{local:Loc Key=autocompleteTitle}" Classes="section-title"/>
+      <TextBlock Text="{local:Loc Key=localProcessingNote}" Classes="muted" TextWrapping="Wrap"/>
     </StackPanel>
     <ScrollViewer Grid.Row="1">
       <StackPanel Spacing="8" Margin="0,0,16,0" IsEnabled="{Binding !IsBusy}">
-        <CheckBox x:Name="EnableAutocomplete" Content="Habilitar autocomplete" IsChecked="{Binding Enabled}"/>
-        <CheckBox Content="Usar dicionário local" IsChecked="{Binding UseDictionary}"/>
-        <CheckBox Content="Usar contexto do Input" IsChecked="{Binding UseInputPanelContext}"/>
-        <CheckBox Content="Usar campos dos Resultados" IsChecked="{Binding UseResultPanelContext}"/>
-        <CheckBox Content="Usar contexto ampliado do editor e histórico" IsChecked="{Binding UseEditorContext}"/>
-        <CheckBox Content="Aceitar sugestão em partes com Tab" IsChecked="{Binding IncrementalTab}"/>
-        <CheckBox Content="Usar o modelo local no Assistente IA" IsChecked="{Binding ChatEnabled}"/>
+        <CheckBox x:Name="EnableAutocomplete" Content="{local:Loc Key=enableAutocomplete}" IsChecked="{Binding Enabled}"/>
+        <CheckBox Content="{local:Loc Key=useLocalDictionary}" IsChecked="{Binding UseDictionary}"/>
+        <CheckBox Content="{local:Loc Key=useInputContext}" IsChecked="{Binding UseInputPanelContext}"/>
+        <CheckBox Content="{local:Loc Key=useResultFields}" IsChecked="{Binding UseResultPanelContext}"/>
+        <CheckBox Content="{local:Loc Key=useEditorHistoryContext}" IsChecked="{Binding UseEditorContext}"/>
+        <CheckBox Content="{local:Loc Key=acceptPartialTab}" IsChecked="{Binding IncrementalTab}"/>
+        <CheckBox Content="{local:Loc Key=useLocalModelAssistant}" IsChecked="{Binding ChatEnabled}"/>
 
-        <TextBlock Text="Sugestão automática (inline)" Classes="section-title"/>
+        <TextBlock Text="{local:Loc Key=inlineSuggestion}" Classes="section-title"/>
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-          <CheckBox Content="Sugerir automaticamente após uma pausa na digitação" IsChecked="{Binding InlineEnabledEffective}" AutomationProperties.Name="Sugerir automaticamente após uma pausa na digitação"/>
-          <Button Grid.Column="1" Content="Usar padrão" Command="{Binding ResetInlineEnabledCommand}" IsVisible="{Binding InlineEnabledIsOverridden}" ToolTip.Tip="Volta a acompanhar o padrão do produto (ligado) em vez do valor salvo nesta sessão." AutomationProperties.Name="Usar padrão para sugerir automaticamente"/>
+          <CheckBox Content="{local:Loc Key=suggestAfterPause}" IsChecked="{Binding InlineEnabledEffective}" AutomationProperties.Name="{local:Loc Key=suggestAfterPause}"/>
+          <Button Grid.Column="1" Content="{local:Loc Key=useDefault}" Command="{Binding ResetInlineEnabledCommand}" IsVisible="{Binding InlineEnabledIsOverridden}" ToolTip.Tip="{local:Loc Key=resetInlineEnabledTip}" AutomationProperties.Name="{local:Loc Key=useDefault}"/>
         </Grid>
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsEnabled="{Binding InlineEnabledEffective}">
-          <CheckBox Content="Usar sugestões determinísticas (catálogo e schema)" IsChecked="{Binding InlineUseTraditionalEffective}" AutomationProperties.Name="Usar sugestões determinísticas na sugestão automática"/>
-          <Button Grid.Column="1" Content="Usar padrão" Command="{Binding ResetInlineUseTraditionalCommand}" IsVisible="{Binding InlineUseTraditionalIsOverridden}" ToolTip.Tip="Volta a seguir Usar dicionário local em vez do valor salvo nesta sessão." AutomationProperties.Name="Usar padrão para sugestões determinísticas na sugestão automática"/>
+          <CheckBox Content="{local:Loc Key=useDeterministicSuggestions}" IsChecked="{Binding InlineUseTraditionalEffective}" AutomationProperties.Name="{local:Loc Key=deterministicSuggestionsAccessible}"/>
+          <Button Grid.Column="1" Content="{local:Loc Key=useDefault}" Command="{Binding ResetInlineUseTraditionalCommand}" IsVisible="{Binding InlineUseTraditionalIsOverridden}" ToolTip.Tip="{local:Loc Key=resetDictionaryTip}" AutomationProperties.Name="{local:Loc Key=useDefault}"/>
         </Grid>
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsEnabled="{Binding InlineEnabledEffective}">
-          <CheckBox Content="Usar IA local nas sugestões automáticas" IsChecked="{Binding InlineUseAiEffective}" AutomationProperties.Name="Usar IA local nas sugestões automáticas"/>
-          <Button Grid.Column="1" Content="Usar padrão" Command="{Binding ResetInlineUseAiCommand}" IsVisible="{Binding InlineUseAiIsOverridden}" ToolTip.Tip="Volta a acompanhar o padrão do produto (desligado) em vez do valor salvo nesta sessão." AutomationProperties.Name="Usar padrão para IA local na sugestão automática"/>
+          <CheckBox Content="{local:Loc Key=useAiSuggestions}" IsChecked="{Binding InlineUseAiEffective}" AutomationProperties.Name="{local:Loc Key=aiSuggestionsAccessible}"/>
+          <Button Grid.Column="1" Content="{local:Loc Key=useDefault}" Command="{Binding ResetInlineUseAiCommand}" IsVisible="{Binding InlineUseAiIsOverridden}" ToolTip.Tip="{local:Loc Key=resetAiTip}" AutomationProperties.Name="{local:Loc Key=useDefault}"/>
         </Grid>
-        <TextBlock Text="As duas opções acima não têm efeito enquanto a sugestão automática estiver desligada." Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding !InlineEnabledEffective}"/>
-        <TextBlock Text="A IA local só entra na sugestão automática quando um modelo já estiver carregado; digitar nunca carrega o modelo sozinho." Classes="metadata" TextWrapping="Wrap"/>
+        <TextBlock Text="{local:Loc Key=inlineDisabledNote}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding !InlineEnabledEffective}"/>
+        <TextBlock Text="{local:Loc Key=inlineAiLoadNote}" Classes="metadata" TextWrapping="Wrap"/>
 
-        <TextBlock Text="Lista de sugestões (Ctrl+Espaço)" Classes="section-title"/>
-        <CheckBox Content="Abrir a lista ao digitar . ou $" IsChecked="{Binding CompletionAutoOpenOnTrigger}" AutomationProperties.Name="Abrir a lista ao digitar ponto ou cifrão"/>
-        <CheckBox Content="Enter também confirma a sugestão da lista" IsChecked="{Binding CompletionEnterAccepts}" AutomationProperties.Name="Enter também confirma a sugestão da lista"/>
-        <TextBlock Text="Modo"/>
-        <ComboBox ItemsSource="{Binding Modes}" SelectedIndex="{Binding ModeIndex}" HorizontalAlignment="Stretch" AutomationProperties.Name="Modo de autocomplete"/>
-        <TextBlock Text="Diretório de modelos"/>
+        <TextBlock Text="{local:Loc Key=suggestionList}" Classes="section-title"/>
+        <CheckBox Content="{local:Loc Key=openOnTrigger}" IsChecked="{Binding CompletionAutoOpenOnTrigger}" AutomationProperties.Name="{local:Loc Key=openOnTriggerAccessible}"/>
+        <CheckBox Content="{local:Loc Key=enterAccepts}" IsChecked="{Binding CompletionEnterAccepts}" AutomationProperties.Name="{local:Loc Key=enterAccepts}"/>
+        <TextBlock Text="{local:Loc Key=mode}"/>
+        <ComboBox ItemsSource="{Binding Modes}" SelectedIndex="{Binding ModeIndex}" HorizontalAlignment="Stretch" AutomationProperties.Name="{local:Loc Key=autocompleteMode}"/>
+        <TextBlock Text="{local:Loc Key=modelsDirectory}"/>
         <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-          <TextBox Text="{Binding ModelDirectory}" PlaceholderText="{Binding DefaultDirectory}" AutomationProperties.Name="Diretório de modelos"/>
-          <Button Grid.Column="1" Content="Procurar…" Click="ChooseModelsDirectory"/>
-          <Button Grid.Column="2" Content="Abrir pasta" Click="OpenModelsDirectory" ToolTip.Tip="Abre o diretório de modelos no gerenciador de arquivos. Os downloads são salvos nele." AutomationProperties.Name="Abrir diretório de modelos"/>
+          <TextBox Text="{Binding ModelDirectory}" PlaceholderText="{Binding DefaultDirectory}" AutomationProperties.Name="{local:Loc Key=modelsDirectory}"/>
+          <Button Grid.Column="1" Content="{local:Loc Key=browse}" Click="ChooseModelsDirectory"/>
+          <Button Grid.Column="2" Content="{local:Loc Key=openFolder}" Click="OpenModelsDirectory" ToolTip.Tip="{local:Loc Key=openModelsFolderTip}" AutomationProperties.Name="{local:Loc Key=openModelsDirectoryAccessible}"/>
         </Grid>
-        <TextBlock Text="Cada subpasta é um modelo. Vazio usa o diretório padrão indicado no campo." Classes="metadata" TextWrapping="Wrap"/>
-        <TextBlock Text="Modelo"/>
+        <TextBlock Text="{local:Loc Key=modelsDirectoryNote}" Classes="metadata" TextWrapping="Wrap"/>
+        <TextBlock Text="{local:Loc Key=model}"/>
         <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-          <ComboBox ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModelOption}" PlaceholderText="Nenhum modelo selecionado" HorizontalAlignment="Stretch" ToolTip.Tip="{Binding SelectedModelOption.Title, FallbackValue={x:Null}}" AutomationProperties.Name="Modelo">
+          <ComboBox ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModelOption}" PlaceholderText="{local:Loc Key=noModelSelected}" HorizontalAlignment="Stretch" ToolTip.Tip="{Binding SelectedModelOption.Title, FallbackValue={x:Null}}" AutomationProperties.Name="{local:Loc Key=model}">
             <ComboBox.ItemTemplate>
               <DataTemplate x:DataType="vm:LocalModelOption">
                 <StackPanel Spacing="1">
@@ -59,14 +59,14 @@
               </DataTemplate>
             </ComboBox.SelectionBoxItemTemplate>
           </ComboBox>
-          <Button Grid.Column="1" Content="Atualizar" Command="{Binding RefreshModelsCommand}"/>
-          <Button Grid.Column="2" Content="Outra pasta…" Click="ChooseExternalModel" AutomationProperties.Name="Usar pasta de modelo externa"/>
+          <Button Grid.Column="1" Content="{local:Loc Key=update}" Command="{Binding RefreshModelsCommand}"/>
+          <Button Grid.Column="2" Content="{local:Loc Key=otherFolder}" Click="ChooseExternalModel" AutomationProperties.Name="{local:Loc Key=externalModelFolder}"/>
         </Grid>
         <TextBlock Text="{Binding ModelDetails}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding HasModelDetails}"/>
         <TextBlock Text="{Binding ModelDiagnostics}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding HasModelDiagnostics}"/>
-        <TextBlock Text="Baixar modelo" IsVisible="{Binding HasRemoteSource}"/>
+        <TextBlock Text="{local:Loc Key=downloadModel}" IsVisible="{Binding HasRemoteSource}"/>
         <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" IsVisible="{Binding HasRemoteSource}">
-          <ComboBox ItemsSource="{Binding RemoteModels}" SelectedItem="{Binding SelectedRemoteModel}" PlaceholderText="{Binding RemoteModelsPlaceholder}" HorizontalAlignment="Stretch" ToolTip.Tip="{Binding SelectedRemoteModel.Title, FallbackValue={x:Null}}" AutomationProperties.Name="Modelo para baixar">
+          <ComboBox ItemsSource="{Binding RemoteModels}" SelectedItem="{Binding SelectedRemoteModel}" PlaceholderText="{Binding RemoteModelsPlaceholder}" HorizontalAlignment="Stretch" ToolTip.Tip="{Binding SelectedRemoteModel.Title, FallbackValue={x:Null}}" AutomationProperties.Name="{local:Loc Key=downloadModel}">
             <ComboBox.ItemTemplate>
               <DataTemplate x:DataType="vm:RemoteModelOption">
                 <StackPanel Spacing="1">
@@ -81,21 +81,21 @@
               </DataTemplate>
             </ComboBox.SelectionBoxItemTemplate>
           </ComboBox>
-          <Button Grid.Column="1" Content="Baixar" Command="{Binding DownloadModelCommand}" IsVisible="{Binding !IsDownloadingModel}" ToolTip.Tip="Baixa o modelo escolhido para o diretório de modelos" AutomationProperties.Name="Baixar modelo"/>
-          <Button Grid.Column="1" Content="Cancelar" Command="{Binding DownloadModelCancelCommand}" IsVisible="{Binding IsDownloadingModel}" AutomationProperties.Name="Cancelar download do modelo"/>
-          <Button Grid.Column="2" Content="Atualizar lista" Command="{Binding LoadRemoteModelsCommand}" IsEnabled="{Binding !IsDownloadingModel}" AutomationProperties.Name="Atualizar lista de modelos para baixar"/>
+          <Button Grid.Column="1" Content="{local:Loc Key=download}" Command="{Binding DownloadModelCommand}" IsVisible="{Binding !IsDownloadingModel}" ToolTip.Tip="{local:Loc Key=downloadTip}" AutomationProperties.Name="{local:Loc Key=downloadModel}"/>
+          <Button Grid.Column="1" Content="{local:Loc Key=cancel}" Command="{Binding DownloadModelCancelCommand}" IsVisible="{Binding IsDownloadingModel}" AutomationProperties.Name="{local:Loc Key=cancelDownload}"/>
+          <Button Grid.Column="2" Content="{local:Loc Key=updateList}" Command="{Binding LoadRemoteModelsCommand}" IsEnabled="{Binding !IsDownloadingModel}" AutomationProperties.Name="{local:Loc Key=refreshDownloadModels}"/>
         </Grid>
         <TextBlock Text="{Binding SelectedRemoteModel.Subtitle, FallbackValue=''}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding HasSelectedRemoteModel}"/>
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" IsVisible="{Binding IsDownloadingModel}">
-          <ProgressBar MinWidth="0" Height="6" Minimum="0" Maximum="100" Value="{Binding DownloadProgress}" VerticalAlignment="Center" AutomationProperties.Name="Progresso do download do modelo"/>
+          <ProgressBar MinWidth="0" Height="6" Minimum="0" Maximum="100" Value="{Binding DownloadProgress}" VerticalAlignment="Center" AutomationProperties.Name="{local:Loc Key=downloadProgress}"/>
           <TextBlock Grid.Column="1" Text="{Binding DownloadPercent}" Classes="metadata" VerticalAlignment="Center"/>
         </Grid>
         <TextBlock Text="{Binding RemoteModelDetails}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding HasRemoteModelDetails}"/>
-        <HyperlinkButton Content="Ver detalhes do modelo no Hugging Face" NavigateUri="{Binding SelectedRemoteModelCardUrl}" IsVisible="{Binding HasSelectedRemoteModel}" Padding="0" AutomationProperties.Name="Ver detalhes do modelo no Hugging Face"/>
-        <TextBlock Text="{Binding DownloadStatus}" TextWrapping="Wrap" IsVisible="{Binding HasDownloadStatus}" AutomationProperties.Name="Estado do download do modelo"/>
+        <HyperlinkButton Content="{local:Loc Key=modelDetailsHuggingFace}" NavigateUri="{Binding SelectedRemoteModelCardUrl}" IsVisible="{Binding HasSelectedRemoteModel}" Padding="0" AutomationProperties.Name="{local:Loc Key=modelDetailsHuggingFace}"/>
+        <TextBlock Text="{Binding DownloadStatus}" TextWrapping="Wrap" IsVisible="{Binding HasDownloadStatus}" AutomationProperties.Name="{local:Loc Key=modelDownloadStatus}"/>
         <TextBlock Text="{Binding RemoteSourceNotice}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding HasRemoteSource}"/>
-        <TextBlock Text="Hardware"/>
-        <ComboBox ItemsSource="{Binding HardwareOptions}" SelectedIndex="{Binding HardwareIndex}" HorizontalAlignment="Stretch" AutomationProperties.Name="Hardware da IA local">
+        <TextBlock Text="{local:Loc Key=hardware}"/>
+        <ComboBox ItemsSource="{Binding HardwareOptions}" SelectedIndex="{Binding HardwareIndex}" HorizontalAlignment="Stretch" AutomationProperties.Name="{local:Loc Key=localAiHardware}">
           <ComboBox.ItemTemplate>
             <DataTemplate x:DataType="vm:HardwareOption">
               <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis"/>
@@ -107,43 +107,43 @@
             </Style>
           </ComboBox.Styles>
         </ComboBox>
-        <TextBlock Text="Detectado"/>
+        <TextBlock Text="{local:Loc Key=detected}"/>
         <TextBlock Text="{Binding DetectedHardware}" Classes="metadata" TextWrapping="Wrap"/>
-        <TextBlock Text="Automático tenta NPU, GPU e CPU, nessa ordem, entre os disponíveis e compatíveis com o modelo, e registra o provider usado. CPU, GPU ou NPU escolhidos explicitamente não recorrem a outro hardware: uma falha é informada. Sem modelo válido, as sugestões básicas continuam disponíveis." Classes="metadata" TextWrapping="Wrap"/>
-        <TextBlock Text="Perfil de estimativa"/>
-        <ComboBox ItemsSource="{Binding HardwareProfiles}" SelectedItem="{Binding SelectedHardwareProfile}" PlaceholderText="Usar hardware detectado" AutomationProperties.Name="Perfil manual de hardware">
+        <TextBlock Text="{local:Loc Key=hardwareDetectionNote}" Classes="metadata" TextWrapping="Wrap"/>
+        <TextBlock Text="{local:Loc Key=estimationProfile}"/>
+        <ComboBox ItemsSource="{Binding HardwareProfiles}" SelectedItem="{Binding SelectedHardwareProfile}" PlaceholderText="{local:Loc Key=useDetectedHardware}" AutomationProperties.Name="{local:Loc Key=hardwareProfile}">
         </ComboBox>
         <TextBlock Text="{Binding HardwareProfileSummary}" Classes="metadata" TextWrapping="Wrap"/>
         <Grid ColumnDefinitions="*,*,Auto,Auto" ColumnSpacing="8">
-          <TextBox Text="{Binding HardwareProfileVendor}" PlaceholderText="Fabricante" AutomationProperties.Name="Fabricante do perfil de hardware"/>
-          <TextBox Grid.Column="1" Text="{Binding HardwareProfileName}" PlaceholderText="GPU / perfil" AutomationProperties.Name="Nome da GPU do perfil"/>
-          <TextBox Grid.Column="2" Text="{Binding HardwareProfileMemoryGiB}" PlaceholderText="GiB" Width="70" AutomationProperties.Name="Memória da GPU em GiB"/>
-          <Button Grid.Column="3" Content="Adicionar" Command="{Binding AddHardwareProfileCommand}" AutomationProperties.Name="Adicionar perfil de hardware"/>
+          <TextBox Text="{Binding HardwareProfileVendor}" PlaceholderText="{local:Loc Key=vendor}" AutomationProperties.Name="{local:Loc Key=vendor}"/>
+          <TextBox Grid.Column="1" Text="{Binding HardwareProfileName}" PlaceholderText="{local:Loc Key=gpuProfile}" AutomationProperties.Name="{local:Loc Key=gpuProfile}"/>
+          <TextBox Grid.Column="2" Text="{Binding HardwareProfileMemoryGiB}" PlaceholderText="GiB" Width="70" AutomationProperties.Name="{local:Loc Key=gpuMemory}"/>
+          <Button Grid.Column="3" Content="{local:Loc Key=add}" Command="{Binding AddHardwareProfileCommand}" AutomationProperties.Name="{local:Loc Key=addHardwareProfile}"/>
         </Grid>
-        <Button Content="Remover perfil selecionado" Command="{Binding RemoveHardwareProfileCommand}" IsVisible="{Binding HasSelectedHardwareProfile}" HorizontalAlignment="Left"/>
-        <TextBlock Text="A memória utilizável reserva margem para sistema, driver e runtime. Perfis manuais servem para estimativa e não alteram o provider real." Classes="metadata" TextWrapping="Wrap"/>
+        <Button Content="{local:Loc Key=removeSelectedProfile}" Command="{Binding RemoveHardwareProfileCommand}" IsVisible="{Binding HasSelectedHardwareProfile}" HorizontalAlignment="Left"/>
+        <TextBlock Text="{local:Loc Key=hardwareMemoryNote}" Classes="metadata" TextWrapping="Wrap"/>
         <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="4">
-          <TextBlock Text="Tokens de contexto"/>
-          <TextBlock Grid.Column="1" Text="Máximo de tokens gerados"/>
-          <ComboBox x:Name="ContextTokenBox" Grid.Row="1" ItemsSource="{Binding ContextTokenSuggestions}" Text="{Binding ContextTokensText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True" PlaceholderText="Digite ou selecione" SelectionChanged="TokenSuggestionChanged" LostFocus="TokenEditorLostFocus" AutomationProperties.Name="Tokens de contexto"/>
-          <ComboBox x:Name="MaximumTokenBox" Grid.Row="1" Grid.Column="1" ItemsSource="{Binding MaximumTokenSuggestions}" Text="{Binding MaximumTokensText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True" PlaceholderText="Digite ou selecione" SelectionChanged="TokenSuggestionChanged" LostFocus="TokenEditorLostFocus" AutomationProperties.Name="Máximo de tokens gerados"/>
-          <TextBlock Grid.Row="2" Text="Pausa até a sugestão automática (ms)" TextWrapping="Wrap"/>
-          <NumericUpDown Grid.Row="3" Minimum="50" Maximum="2000" Value="{Binding DelayMilliseconds}" ToolTip.Tip="Tempo sem digitar até a sugestão automática (inline) aparecer no cursor." AutomationProperties.Name="Pausa até a sugestão automática"/>
+          <TextBlock Text="{local:Loc Key=contextTokens}"/>
+          <TextBlock Grid.Column="1" Text="{local:Loc Key=maximumGeneratedTokens}"/>
+          <ComboBox x:Name="ContextTokenBox" Grid.Row="1" ItemsSource="{Binding ContextTokenSuggestions}" Text="{Binding ContextTokensText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True" PlaceholderText="{local:Loc Key=typeOrSelect}" SelectionChanged="TokenSuggestionChanged" LostFocus="TokenEditorLostFocus" AutomationProperties.Name="{local:Loc Key=contextTokens}"/>
+          <ComboBox x:Name="MaximumTokenBox" Grid.Row="1" Grid.Column="1" ItemsSource="{Binding MaximumTokenSuggestions}" Text="{Binding MaximumTokensText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEditable="True" PlaceholderText="{local:Loc Key=typeOrSelect}" SelectionChanged="TokenSuggestionChanged" LostFocus="TokenEditorLostFocus" AutomationProperties.Name="{local:Loc Key=maximumGeneratedTokens}"/>
+          <TextBlock Grid.Row="2" Text="{local:Loc Key=inlineDelay}" TextWrapping="Wrap"/>
+          <NumericUpDown Grid.Row="3" Minimum="50" Maximum="2000" Value="{Binding DelayMilliseconds}" ToolTip.Tip="{local:Loc Key=inlineDelayTip}" AutomationProperties.Name="{local:Loc Key=inlineDelay}"/>
         </Grid>
-        <TextBlock Text="{Binding TokenBudgetWarning}" Classes="warning" TextWrapping="Wrap" IsVisible="{Binding HasTokenBudgetWarning}" AutomationProperties.Name="Validação do orçamento de tokens"/>
-        <TextBlock Text="A sugestão aparece no cursor. Tab avança; Esc descarta. Ctrl+Espaço mantém as sugestões de Console/MQL. Baixe um modelo acima ou copie uma exportação ONNX GenAI para o diretório de modelos." Classes="metadata" TextWrapping="Wrap"/>
-        <TextBlock Text="Estado do modelo" Classes="section-title"/>
-        <TextBlock Text="{Binding Status}" TextWrapping="Wrap" AutomationProperties.Name="Estado do modelo"/>
-        <TextBlock Text="Resultado do teste" Classes="section-title" IsVisible="{Binding HasTestReport}"/>
-        <SelectableTextBlock Text="{Binding TestReport}" TextWrapping="Wrap" IsVisible="{Binding HasTestReport}" AutomationProperties.Name="Resultado do teste do modelo"/>
+        <TextBlock Text="{Binding TokenBudgetWarning}" Classes="warning" TextWrapping="Wrap" IsVisible="{Binding HasTokenBudgetWarning}" AutomationProperties.Name="{local:Loc Key=tokenBudgetValidation}"/>
+        <TextBlock Text="{local:Loc Key=inlineHint}" Classes="metadata" TextWrapping="Wrap"/>
+        <TextBlock Text="{local:Loc Key=modelState}" Classes="section-title"/>
+        <TextBlock Text="{Binding Status}" TextWrapping="Wrap" AutomationProperties.Name="{local:Loc Key=modelState}"/>
+        <TextBlock Text="{local:Loc Key=testResult}" Classes="section-title" IsVisible="{Binding HasTestReport}"/>
+        <SelectableTextBlock Text="{Binding TestReport}" TextWrapping="Wrap" IsVisible="{Binding HasTestReport}" AutomationProperties.Name="{local:Loc Key=modelTestResult}"/>
       </StackPanel>
     </ScrollViewer>
     <StackPanel Grid.Row="2" Spacing="8">
       <TextBlock Text="{Binding OperationStatus}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis"/>
       <WrapPanel HorizontalAlignment="Right">
-        <Button Content="Fechar" Click="CloseDialog" Margin="0,0,8,0"/>
-        <Button Content="Testar modelo" Command="{Binding TestCommand}" IsEnabled="{Binding !IsBusy}" Margin="0,0,8,0"/>
-        <Button Content="Salvar" Classes="primary" Command="{Binding ApplyCommand}" IsEnabled="{Binding !IsBusy}"/>
+        <Button Content="{local:Loc Key=closeWindow}" Click="CloseDialog" Margin="0,0,8,0"/>
+        <Button Content="{local:Loc Key=testModel}" Command="{Binding TestCommand}" IsEnabled="{Binding !IsBusy}" Margin="0,0,8,0"/>
+        <Button Content="{local:Loc Key=save}" Classes="primary" Command="{Binding ApplyCommand}" IsEnabled="{Binding !IsBusy}"/>
       </WrapPanel>
     </StackPanel>
   </Grid>

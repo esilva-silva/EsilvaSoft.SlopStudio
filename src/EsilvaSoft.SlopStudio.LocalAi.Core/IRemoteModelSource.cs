@@ -7,6 +7,9 @@ public interface IRemoteModelSource
 {
     IReadOnlyList<Uri> RepositoryUrls { get; }
 
+    /// <summary>Receives the current UI localizer for diagnostics emitted by the source.</summary>
+    void SetLocalization(Func<string, string> localize) { }
+
     /// <summary>Variants of every repository that answered; fails only when none could be listed.</summary>
     Task<IReadOnlyList<RemoteModelVariant>> ListAsync(CancellationToken cancellationToken);
 

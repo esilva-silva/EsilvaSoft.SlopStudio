@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.LogicalTree;
 using Avalonia.Platform.Storage;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
+using System.Globalization;
 
 namespace EsilvaSoft.SlopStudio.Desktop;
 
@@ -15,9 +16,13 @@ public partial class WorkspaceToolsWindow : Window
     private async void ConfirmDestructive(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel model || sender is not Button { Tag: string command }) return;
+        var localization = LocalizationViewModel.Current;
         var target = $"{model.SelectedProfile?.Name} › {model.SelectedDatabase} › {model.SelectedCollection} · {model.SelectedProfile?.RoutingLabel}";
-        var detail = command == "DropIndexCommand" ? "Índice: " + model.IndexNameToDrop : "Filtro: " + model.MutationFilter + (model.DeleteManyDocuments ? "\nTodos os documentos correspondentes serão afetados." : "");
-        if (await Dialogs.ChooseAsync(this, "Confirmar alteração", target + "\n" + detail + "\n" + (sender as Button)?.Content + "?", "Confirmar", "Cancelar") != "Confirmar") return;
+        var detail = command == "DropIndexCommand"
+            ? string.Format(CultureInfo.InvariantCulture, localization.Resolve("indexDetail"), model.IndexNameToDrop)
+            : string.Format(CultureInfo.InvariantCulture, localization.Resolve("filterDetail"), model.MutationFilter) + (model.DeleteManyDocuments ? "\n" + localization.Resolve("allMatchesAffected") : "");
+        var confirm = localization.Resolve("confirm");
+        if (await Dialogs.ChooseAsync(this, localization.Resolve("confirmChange"), target + "\n" + detail + "\n" + (sender as Button)?.Content + "?", confirm, localization.Resolve("cancel")) != confirm) return;
         var action = command switch
         {
             "ReplaceDocumentCommand" => model.ReplaceDocumentCommand,
@@ -25,7 +30,7 @@ public partial class WorkspaceToolsWindow : Window
             _ => model.DropIndexCommand
         };
         try { await action.ExecuteAsync(null); }
-        catch (Exception ex) { model.StatusMessage = ex.Message; }
+        catch (Exception ex) { model.StatusMessage = DesktopOperationErrorMessages.Describe(ex); }
     }
 
     public void SelectSection(string header)
@@ -42,11 +47,11 @@ public partial class WorkspaceToolsWindow : Window
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             AllowMultiple = false,
-            Title = "Abrir script JavaScript",
+            Title = LocalizationViewModel.Current.Resolve("openScriptTitle"),
             FileTypeFilter =
             [
-                new FilePickerFileType("JavaScript") { Patterns = ["*.js"] },
-                new FilePickerFileType("Todos os arquivos") { Patterns = ["*"] }
+                new FilePickerFileType(LocalizationViewModel.Current.Resolve("javascriptFileType")) { Patterns = ["*.js"] },
+                new FilePickerFileType(LocalizationViewModel.Current.Resolve("allFiles")) { Patterns = ["*"] }
             ]
         });
 
@@ -62,10 +67,10 @@ public partial class WorkspaceToolsWindow : Window
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             SuggestedFileName = "consulta.js",
-            Title = "Salvar script JavaScript",
+            Title = LocalizationViewModel.Current.Resolve("saveScriptTitle"),
             FileTypeChoices =
             [
-                new FilePickerFileType("JavaScript") { Patterns = ["*.js"] }
+                new FilePickerFileType(LocalizationViewModel.Current.Resolve("javascriptFileType")) { Patterns = ["*.js"] }
             ]
         });
 
@@ -81,7 +86,7 @@ public partial class WorkspaceToolsWindow : Window
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
             AllowMultiple = false,
-            Title = "Selecionar pasta de importação MongoDB"
+            Title = LocalizationViewModel.Current.Resolve("importMongoFolderTitle")
         });
 
         var path = folders.Count == 0 ? null : folders[0].Path.LocalPath;

@@ -5,6 +5,8 @@ namespace EsilvaSoft.SlopStudio.Autocomplete.Core;
 public interface IMetadataCache
 {
     event EventHandler<MetadataChangedEventArgs>? Changed;
+    /// <summary>Provides product-language text for background operation messages; optional for headless callers.</summary>
+    void SetLocalization(Func<string, string> localize) { }
     bool IsConnected(ConnectionIdentity connection);
     /// <summary>Only connected profiles are ever loaded remotely.</summary>
     void Connect(ConnectionProfile profile);

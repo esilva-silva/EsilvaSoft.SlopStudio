@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using EsilvaSoft.SlopStudio.Autocomplete.Core;
 using EsilvaSoft.SlopStudio.Core;
 
@@ -21,6 +22,7 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
     private readonly IMetadataInvalidationBus? _invalidations;
     private readonly MetadataCacheOptions _options;
     private readonly TimeProvider _clock;
+    private Func<string, string>? _localize;
     // Caps how many background loads (automatic or explicit RefreshAsync) reach the source at once across every
     // connection, on top of the per-connection cap in ConnectionState: a burst of distinct keys queues instead of
     // opening one call per key.
@@ -42,6 +44,12 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
     }
 
     public event EventHandler<MetadataChangedEventArgs>? Changed;
+
+    public void SetLocalization(Func<string, string> localize) => _localize = localize ?? throw new ArgumentNullException(nameof(localize));
+
+    private string L(string key, string fallback) => _localize?.Invoke(key) ?? fallback;
+    private string F(string key, string fallback, params object?[] arguments) =>
+        string.Format(CultureInfo.InvariantCulture, L(key, fallback), arguments);
 
     public IReadOnlyCollection<Guid> SchemaSamplingProfiles
     {
@@ -187,7 +195,7 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
             connectionToken = state?.Token ?? CancellationToken.None;
         }
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, connectionToken);
-        using var operation = _operations?.Begin($"Amostrando schema — {collection}", ApplicationOperationPriority.Normal, canCancel: true, linked.Token);
+        using var operation = _operations?.Begin(F("metadataSampling", "Amostrando schema — {0}", collection), ApplicationOperationPriority.Normal, canCancel: true, linked.Token);
         var token = operation?.Token ?? linked.Token;
         CollectionSchema schema;
         int documentCount;
@@ -200,13 +208,13 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             ReleaseEmpty(key, entry, generation);
-            operation?.Complete(ApplicationOperationStatus.Cancelled, "Amostragem de schema cancelada");
+            operation?.Complete(ApplicationOperationStatus.Cancelled, L("metadataSamplingCancelled", "Amostragem de schema cancelada"));
             throw;
         }
         catch
         {
             ReleaseEmpty(key, entry, generation);
-            operation?.Complete(ApplicationOperationStatus.Error, "Amostragem de schema indisponível");
+            operation?.Complete(ApplicationOperationStatus.Error, L("metadataSamplingUnavailable", "Amostragem de schema indisponível"));
             throw;
         }
         bool stored;
@@ -218,10 +226,10 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
         if (!stored)
         {
             ReleaseEmpty(key, entry, generation);
-            operation?.Complete(ApplicationOperationStatus.Cancelled, "Amostragem de schema descartada — conexão ou metadados alterados");
+            operation?.Complete(ApplicationOperationStatus.Cancelled, L("metadataSamplingDiscarded", "Amostragem de schema descartada — conexão ou metadados alterados"));
             throw new OperationCanceledException("A conexão ou os metadados mudaram durante a amostragem; o schema não foi guardado.");
         }
-        operation?.Complete(ApplicationOperationStatus.Success, $"Schema amostrado — {documentCount} documento(s), {schema.NodeCount} campo(s); somente nomes e tipos");
+        operation?.Complete(ApplicationOperationStatus.Success, F("metadataSampled", "Schema amostrado — {0} documento(s), {1} campo(s); somente nomes e tipos", documentCount, schema.NodeCount));
         RaiseChanged(profile.Id, key);
         return schema;
     }
@@ -334,7 +342,7 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
         var outcome = "success";
         try
         {
-            using var operation = _operations?.Begin($"Atualizando metadados — {state.Profile.Name}", ApplicationOperationPriority.Low, canCancel: true, state.Token);
+            using var operation = _operations?.Begin(F("metadataUpdating", "Atualizando metadados — {0}", state.Profile.Name), ApplicationOperationPriority.Low, canCancel: true, state.Token);
             var token = operation?.Token ?? state.Token;
             var acquired = false;
             try
@@ -360,19 +368,19 @@ public sealed class MetadataCache : IMetadataCache, IDisposable
                 if (acquired)
                 {
                     value = await FetchAsync(key, state.Profile, token).ConfigureAwait(false);
-                    operation?.Complete(ApplicationOperationStatus.Success, $"Metadados atualizados — {state.Profile.Name}");
+                    operation?.Complete(ApplicationOperationStatus.Success, F("metadataUpdated", "Metadados atualizados — {0}", state.Profile.Name));
                 }
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
                 outcome = "cancelled";
-                operation?.Complete(ApplicationOperationStatus.Cancelled, "Atualização de metadados cancelada");
+                operation?.Complete(ApplicationOperationStatus.Cancelled, L("metadataUpdateCancelled", "Atualização de metadados cancelada"));
             }
             catch (Exception)
             {
                 // Messages from the driver may include hosts or filters; only the state is published.
                 outcome = "failed";
-                operation?.Complete(ApplicationOperationStatus.Warning, $"Metadados indisponíveis — {state.Profile.Name}");
+                operation?.Complete(ApplicationOperationStatus.Warning, F("metadataUnavailable", "Metadados indisponíveis — {0}", state.Profile.Name));
             }
             finally
             {

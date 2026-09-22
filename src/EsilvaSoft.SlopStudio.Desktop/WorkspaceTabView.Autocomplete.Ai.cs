@@ -54,15 +54,15 @@ public partial class WorkspaceTabView
     private static readonly TimeSpan AiCompletionIndicatorDelay = TimeSpan.FromSeconds(1);
 
     /// <summary>Texto do indicador enquanto o modelo ainda não entregou nada.</summary>
-    private const string AiCompletionStartingText = "Gerando sugestão com a IA local…";
+    private static string AiCompletionStartingText => T("aiCompletionStarting");
     /// <summary>Texto do indicador enquanto os pedaços chegam.</summary>
-    private const string AiCompletionStreamingText = "Gerando sugestão com a IA local… (Esc cancela)";
+    private static string AiCompletionStreamingText => T("aiCompletionStreaming");
     /// <summary>
     /// Texto do indicador enquanto o que está acontecendo é a carga do modelo. Distinto de propósito: esperar por
     /// uma carga de segundos e esperar por tokens são situações diferentes, e o <c>Esc</c> aqui abandona a espera
     /// sem abortar a carga — ela é do serviço de modelo e serve ao próximo pedido.
     /// </summary>
-    private const string AiCompletionLoadingText = "Carregando modelo… (Esc cancela a espera)";
+    private static string AiCompletionLoadingText => T("aiCompletionLoading");
 
     /// <summary>
     /// Cancela a geração em andamento e apaga indicador e prévia. Cancelar o token abandona o
@@ -221,7 +221,7 @@ public partial class WorkspaceTabView
     {
         var accept = JoinGestures(tab.GestureText(EditorCommandIds.InlineAccept));
         var dismiss = JoinGestures(tab.GestureText(EditorCommandIds.InlineDismiss));
-        return $"Sugestão da IA local · {accept} insere · {dismiss} descarta";
+        return LocalizationViewModel.Current.Format("aiSuggestionShortcutHint", accept, dismiss);
     }
 
     private void PositionAiCompletionPanel()

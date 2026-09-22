@@ -1,3 +1,4 @@
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using EsilvaSoft.SlopStudio.Application;
@@ -41,7 +42,7 @@ public sealed partial class MainWindowViewModel
     private decimal? _queryMaxTimeMs;
 
     [ObservableProperty]
-    private string _queryResults = "Selecione uma conexão, carregue os bancos e execute uma consulta.";
+    private string _queryResults = T("queryInitialResults");
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanExportQueryResults))]
@@ -49,7 +50,7 @@ public sealed partial class MainWindowViewModel
     private string _queryExportPath = string.Empty;
 
     [ObservableProperty]
-    private string _countResults = "A contagem exata respeita o filtro; a estimada considera a coleção inteira.";
+    private string _countResults = T("exactCountNote");
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanGetDistinctValues))]
@@ -60,10 +61,10 @@ public sealed partial class MainWindowViewModel
     private decimal? _distinctMaximumValues = 1_000;
 
     [ObservableProperty]
-    private string _distinctResults = "Informe um campo e execute valores distintos usando o filtro atual.";
+    private string _distinctResults = T("distinctInitial");
 
     [ObservableProperty]
-    private string _explainResults = "Execute Explain para visualizar o plano e as estatísticas da consulta.";
+    private string _explainResults = T("explainInitial");
 
     [ObservableProperty]
     private string _aggregationPipeline = "[\n  { \"$match\": {} },\n  { \"$limit\": 100 }\n]";
@@ -72,7 +73,7 @@ public sealed partial class MainWindowViewModel
     private decimal? _aggregationLimit = 100;
 
     [ObservableProperty]
-    private string _aggregationResults = "Selecione uma coleção e execute um pipeline de agregação.";
+    private string _aggregationResults = T("aggregationInitial");
 
     public bool CanExportQueryResults => _lastQueryDocuments.Count > 0 && !string.IsNullOrWhiteSpace(QueryExportPath);
 
@@ -90,7 +91,7 @@ public sealed partial class MainWindowViewModel
     {
         QueryFilter = "{}";
         QuerySkip = 0;
-        StatusMessage = "Filtro definido como {}. A próxima consulta começa no primeiro documento.";
+        StatusMessage = T("filterReset");
     }
 
     [RelayCommand(CanExecute = nameof(CanExecuteQuery))]
@@ -119,7 +120,7 @@ public sealed partial class MainWindowViewModel
                 CollationJson: string.IsNullOrWhiteSpace(QueryCollation) ? null : QueryCollation);
             var result = await _workspace.QueryAsync(profile, query, cancellationToken);
             QueryResults = result.Documents.Count == 0
-                ? "Nenhum documento encontrado."
+                ? T("noDocumentsFound")
                 : string.Join(Environment.NewLine + Environment.NewLine, result.Documents);
             _lastQueryDocuments = result.Documents;
             ExportQueryResultsCommand.NotifyCanExecuteChanged();
@@ -134,7 +135,7 @@ public sealed partial class MainWindowViewModel
                     QueryHistory.RemoveAt(QueryHistory.Count - 1);
                 }
             }
-            StatusMessage = $"{result.Documents.Count} documento(s) retornado(s) em {result.Duration.TotalMilliseconds:F0} ms.{(result.IsTruncated ? " Limite atingido." : string.Empty)}";
+            StatusMessage = F("queryReturned", result.Documents.Count, result.Duration.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture)) + (result.IsTruncated ? T("limitReached") : string.Empty);
         });
     }
 
@@ -145,7 +146,7 @@ public sealed partial class MainWindowViewModel
         {
             if (!string.Equals(Path.GetExtension(QueryExportPath), ".json", StringComparison.OrdinalIgnoreCase))
             {
-                throw new ArgumentException("Informe um arquivo novo com extensão .json.", nameof(QueryExportPath));
+                throw new ArgumentException(T("newJsonFileRequired"), nameof(QueryExportPath));
             }
 
             var destination = Path.GetFullPath(QueryExportPath);
@@ -154,11 +155,11 @@ public sealed partial class MainWindowViewModel
             await using var stream = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, useAsync: true);
             await using var writer = new StreamWriter(stream);
             await writer.WriteAsync(content);
-            StatusMessage = $"{_lastQueryDocuments.Count} documento(s) exportado(s) em Extended JSON.";
+            StatusMessage = F("exportedExtendedJson", _lastQueryDocuments.Count);
         }
         catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException)
         {
-            SetError(exception.Message);
+            SetError(DesktopOperationErrorMessages.Describe(exception));
         }
     }
 
@@ -185,9 +186,9 @@ public sealed partial class MainWindowViewModel
                 QueryMaxTimeMs is null ? null : decimal.ToInt32(QueryMaxTimeMs.Value));
             var result = await _workspace.CountDocumentsAsync(profile, request, cancellationToken);
             CountResults = result.IsEstimated
-                ? $"Estimativa da coleção: {result.Count:N0} documento(s) em {result.Duration.TotalMilliseconds:F0} ms. Não usa filtro."
-                : $"Contagem exata do filtro: {result.Count:N0} documento(s) em {result.Duration.TotalMilliseconds:F0} ms.";
-            StatusMessage = result.IsEstimated ? "Estimativa da coleção concluída." : "Contagem exata concluída.";
+                ? F("estimatedCount", result.Count.ToString("N0", CultureInfo.CurrentCulture), result.Duration.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture))
+                : F("exactCountResult", result.Count.ToString("N0", CultureInfo.CurrentCulture), result.Duration.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture));
+            StatusMessage = result.IsEstimated ? T("estimatedCountDone") : T("exactCountDone");
         });
     }
 
@@ -210,10 +211,10 @@ public sealed partial class MainWindowViewModel
                 QueryMaxTimeMs is null ? null : decimal.ToInt32(QueryMaxTimeMs.Value));
             var result = await _workspace.GetDistinctValuesAsync(profile, request, cancellationToken);
             DistinctResults = result.Values.Count == 0
-                ? "Nenhum valor distinto encontrado."
+                ? T("distinctNone")
                 : string.Join(Environment.NewLine, result.Values);
-            StatusMessage = $"{result.Values.Count} valor(es) distinto(s) retornado(s) em {result.Duration.TotalMilliseconds:F0} ms." +
-                (result.IsTruncated ? " Limite atingido." : string.Empty);
+            StatusMessage = F("distinctReturned", result.Values.Count, result.Duration.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture)) +
+                (result.IsTruncated ? T("limitReached") : string.Empty);
         });
     }
 
@@ -241,7 +242,7 @@ public sealed partial class MainWindowViewModel
                 BatchSize: QueryBatchSize is null ? null : decimal.ToInt32(QueryBatchSize.Value),
                 CollationJson: string.IsNullOrWhiteSpace(QueryCollation) ? null : QueryCollation);
             ExplainResults = await _workspace.ExplainAsync(SelectedProfile, query, cancellationToken);
-            StatusMessage = "Plano Explain carregado.";
+            StatusMessage = T("explainLoaded");
         });
     }
 
@@ -262,10 +263,10 @@ public sealed partial class MainWindowViewModel
                 decimal.ToInt32(AggregationLimit ?? 100));
             var result = await _workspace.AggregateAsync(profile, query, cancellationToken);
             AggregationResults = result.Documents.Count == 0
-                ? "O pipeline não retornou documentos."
+                ? T("pipelineNone")
                 : string.Join(Environment.NewLine + Environment.NewLine, result.Documents);
             _knownFields.UnionWith(MqlAutocompleteService.InferFieldPaths(result.Documents));
-            StatusMessage = $"Pipeline retornou {result.Documents.Count} documento(s) em {result.Duration.TotalMilliseconds:F0} ms.{(result.IsTruncated ? " Limite atingido." : string.Empty)}";
+            StatusMessage = F("pipelineReturned", result.Documents.Count, result.Duration.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture)) + (result.IsTruncated ? T("limitReached") : string.Empty);
         });
     }
 }

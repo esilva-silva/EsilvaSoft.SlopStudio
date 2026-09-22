@@ -15,15 +15,16 @@ public partial class DocumentMutationWindow : Window
     private async void Apply(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not DocumentMutationViewModel { IsRunning: false } model) return;
-        if (await Dialogs.ChooseAsync(this, model.Operation + " documento", model.Context + "\n" + model.Identity + "\nConfirmar esta operação?", "Confirmar", "Cancelar") != "Confirmar") return;
+        var operation = model.Operation switch { "Inserir" => LocalizationViewModel.Current.Resolve("insert"), "Editar" => LocalizationViewModel.Current.Resolve("edit"), "Excluir" => LocalizationViewModel.Current.Resolve("remove"), _ => model.Operation };
+        if (await Dialogs.ChooseAsync(this, LocalizationViewModel.Current.Format("documentOperationTitle", operation), model.Context + "\n" + model.Identity + "\n" + LocalizationViewModel.Current.Resolve("confirmMutation"), LocalizationViewModel.Current.Resolve("confirm"), LocalizationViewModel.Current.Resolve("cancel")) != LocalizationViewModel.Current.Resolve("confirm")) return;
         try { await model.ExecuteConfirmedAsync(); }
-        catch (Exception ex) { model.Status = "Falha: " + ex.Message; }
+        catch (Exception ex) { model.Status = LocalizationViewModel.Current.Format("failurePrefix", ex.Message); }
     }
     private void CancelOperation(object? sender, RoutedEventArgs e) => (DataContext as DocumentMutationViewModel)?.Cancel();
     private void CloseDialog(object? sender, RoutedEventArgs e) => Close();
     protected override void OnClosing(WindowClosingEventArgs e)
     {
-        if (DataContext is DocumentMutationViewModel { IsRunning: true } model) { e.Cancel = true; model.Status = "Cancele a operação e aguarde antes de fechar."; }
+        if (DataContext is DocumentMutationViewModel { IsRunning: true } model) { e.Cancel = true; model.Status = LocalizationViewModel.Current.Resolve("cancelBeforeClose"); }
         base.OnClosing(e);
     }
 }

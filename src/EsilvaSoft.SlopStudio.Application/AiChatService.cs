@@ -11,6 +11,10 @@ namespace EsilvaSoft.SlopStudio.Application;
 public sealed class AiChatService : IAiChatService
 {
     private static readonly Regex LimitInstruction = new(@"\b(?:limite|limitar|limit)(?:\s+\p{L}+){0,4}\s+(?:a\s+)?(\d+)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private Func<string, string>? _localize;
+
+    public void SetLocalization(Func<string, string> localize) => _localize = localize ?? throw new ArgumentNullException(nameof(localize));
+    private string L(string key, string fallback) => _localize?.Invoke(key) ?? fallback;
 
     public Task<AiChatResponse?> AskAsync(AiChatRequest request, CancellationToken cancellationToken = default)
     {
@@ -51,9 +55,9 @@ public sealed class AiChatService : IAiChatService
 
         var risk = AiOperationRisk.Analyze(proposed, context.OperationType);
         var explanation = changed
-            ? "Analisei o editor e o contexto MongoDB. A proposta adiciona apenas os filtros e o limite solicitados; revise o código antes de aplicar."
-            : "Analisei a instrução e o conteúdo atual. Não encontrei uma transformação segura e inequívoca; a proposta mantém o editor para sua revisão.";
-        var warning = risk ? "A proposta contém uma operação de escrita ou destrutiva. A aplicação exigirá uma confirmação adicional e não executará a consulta." : "";
+            ? L("aiChatChanged", "Analisei o editor e o contexto MongoDB. A proposta adiciona apenas os filtros e o limite solicitados; revise o código antes de aplicar.")
+            : L("aiChatUnchanged", "Analisei a instrução e o conteúdo atual. Não encontrei uma transformação segura e inequívoca; a proposta mantém o editor para sua revisão.");
+        var warning = risk ? L("aiChatRiskWarning", "A proposta contém uma operação de escrita ou destrutiva. A aplicação exigirá uma confirmação adicional e não executará a consulta.") : "";
         var response = new AiChatResponse(explanation, proposed, AiDiffBuilder.Build(context.EditorContent, proposed), risk, warning);
         return Task.FromResult<AiChatResponse?>(response);
     }

@@ -9,11 +9,13 @@ namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 public sealed partial class WorkspaceViewModel
 {
+    private static string T(string key) => LocalizationViewModel.Current.Resolve(key);
+    private static string F(string key, params object?[] args) => LocalizationViewModel.Current.Format(key, args);
     public ObservableCollection<ExplorerNodeViewModel> Roots { get; } = [];
     public ObservableCollection<ConnectionProfile> Profiles { get; } = [];
     [ObservableProperty] private ExplorerNodeViewModel? _selectedNode;
     [ObservableProperty] private string _search = "";
-    [ObservableProperty] private string _explorerStatus = "Abra uma conexão para explorar os bancos.";
+    [ObservableProperty] private string _explorerStatus = T("explorerOpenConnection");
     public bool HasNoConnections => Roots.Count == 0;
     public bool SnapshotAllowsRecovery(Guid profileId) => !_excludedProfiles.Contains(profileId);
 
@@ -23,7 +25,7 @@ public sealed partial class WorkspaceViewModel
         _environmentRevision++;
         foreach (var root in Roots) root.Invalidate(); SelectedNode = null;
         foreach (var tab in Tabs) tab.IsConnected = false;
-        ExplorerStatus = "Ambiente atualizado. Reabra as conexões para conferir o destino.";
+        ExplorerStatus = T("environmentUpdatedReopen");
     }
 
     public async Task ReloadProfilesAsync()
@@ -36,7 +38,7 @@ public sealed partial class WorkspaceViewModel
             {
                 root.Invalidate(); Roots.Remove(root);
                 if (SelectedNode?.Profile.Id == root.Profile.Id) SelectedNode = null;
-                ExplorerStatus = "Perfil alterado ou removido — abra novamente a conexão para atualizar o destino.";
+                ExplorerStatus = T("profileChangedReopen");
             }
         }
         foreach (var profile in profiles)
@@ -110,11 +112,11 @@ public sealed partial class WorkspaceViewModel
         var root = Roots.FirstOrDefault(r => r.Profile.Id == profile.Id);
         if (root is null) { root = CreateRoot(profile); Roots.Add(root); }
         await root.LoadAsync();
-        if (revision != _environmentRevision || !Roots.Contains(root)) throw new InvalidOperationException("O destino mudou durante a abertura. Abra novamente a conexão.");
-        if (!root.IsConnected) throw new InvalidOperationException(root.Message.Length > 0 ? root.Message : "Conexão não aberta.");
+        if (revision != _environmentRevision || !Roots.Contains(root)) throw new InvalidOperationException(T("targetChangedReopen"));
+        if (!root.IsConnected) throw new InvalidOperationException(root.Message.Length > 0 ? root.Message : T("connectionNotOpen"));
         root.IsExpanded = true;
         SelectedNode = root;
-        ExplorerStatus = root.Children.Count + " banco(s) · coleções carregadas ao expandir";
+        ExplorerStatus = F("explorerDatabasesLoaded", root.Children.Count);
         if (ActiveTab is { Profile: null, IsDirty: false }) BindActiveTab(root.Profile, root.Profile.DefaultDatabase ?? "", "");
         ApplySearch();
     }
@@ -124,13 +126,13 @@ public sealed partial class WorkspaceViewModel
         node.Root.Invalidate();
         foreach (var tab in Tabs.Where(t => t.Profile?.Id == node.Profile.Id)) tab.IsConnected = false;
         Details.Clear();
-        ExplorerStatus = "Conexão desconectada. Operações em andamento conservam seu contexto e cancelamento próprios.";
+        ExplorerStatus = T("connectionDisconnected");
     }
 
     public async Task SelectInstanceAsync(ExplorerNodeViewModel node, string? host)
     {
         var root = Roots.FirstOrDefault(r => r.Profile.Id == node.Profile.Id);
-        if (root is null) throw new InvalidOperationException("Perfil removido. Abra novamente as conexões.");
+        if (root is null) throw new InvalidOperationException(T("profileRemovedReopen"));
         var profile = root.Profile with { TargetHost = host };
         var index = Roots.IndexOf(root);
         if (index < 0) return;
@@ -141,13 +143,13 @@ public sealed partial class WorkspaceViewModel
 
     public async Task DropExplorerIndexAsync(ExplorerNodeViewModel node)
     {
-        if (!node.Root.IsConnected || node.Index is null) throw new InvalidOperationException("Selecione um índice de uma conexão aberta.");
+        if (!node.Root.IsConnected || node.Index is null) throw new InvalidOperationException(T("openIndexRequired"));
         var profile = node.Profile;
         profile.EnsureWriteAllowed();
         var request = new IndexDropRequest(node.Database, node.Collection!, node.Index.Name).Validate();
         await _workspace.DropIndexAsync(profile, request);
         if (node.Parent is { } indexes) await indexes.LoadAsync();
-        ExplorerStatus = "Índice removido: " + request.Name;
+        ExplorerStatus = F("indexRemovedExplorer", request.Name);
     }
 
     partial void OnSelectedNodeChanged(ExplorerNodeViewModel? value) => _ = Details.SelectAsync(value);
@@ -165,15 +167,15 @@ public sealed partial class WorkspaceViewModel
             else await ReloadProfilesAsync();
             ApplySearch();
         }
-        catch (Exception ex) { ExplorerStatus = ex.Message; }
+        catch (Exception ex) { ExplorerStatus = DesktopOperationErrorMessages.Describe(ex); }
     }
 
     partial void OnSearchChanged(string value) => ApplySearch();
     private void ApplySearch()
     {
         foreach (var root in Roots) root.Filter(Search.Trim());
-        if (!string.IsNullOrWhiteSpace(Search)) ExplorerStatus = Roots.Any(r => r.IsVisible) ? "Busca limitada aos itens já carregados." : "Nenhum item carregado corresponde à busca.";
-        else if (Roots.Count > 0) ExplorerStatus = "Expanda um banco para carregar coleções.";
+        if (!string.IsNullOrWhiteSpace(Search)) ExplorerStatus = Roots.Any(r => r.IsVisible) ? T("loadedSearchLimited") : T("loadedSearchNone");
+        else if (Roots.Count > 0) ExplorerStatus = T("expandDatabaseCollections");
     }
 
     // Loaded metadata only (Peek): typing never schedules a remote refresh in this path.

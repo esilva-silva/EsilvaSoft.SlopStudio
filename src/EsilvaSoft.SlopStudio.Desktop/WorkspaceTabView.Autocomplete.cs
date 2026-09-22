@@ -96,11 +96,15 @@ public partial class WorkspaceTabView
     private void UpdateCompletionShortcutTexts(WorkspaceTabViewModel tab)
     {
         var show = tab.GestureText(EditorCommandIds.CompletionShow);
-        ShowTraditionalCompletionButton.Content = show.Length > 0 ? $"Sugestões ({show})" : "Sugestões…";
+        ShowTraditionalCompletionButton.Content = show.Length > 0
+            ? LocalizationViewModel.Current.Format("suggestionsWithShortcut", show)
+            : LocalizationViewModel.Current.Resolve("suggestionsEllipsis");
         var accept = tab.GestureText(EditorCommandIds.InlineAccept);
         var dismiss = tab.GestureText(EditorCommandIds.InlineDismiss);
         Avalonia.Automation.AutomationProperties.SetName(CompletionText,
-            accept.Length > 0 && dismiss.Length > 0 ? $"Sugestão: {accept} avança; {dismiss} descarta" : "Sugestão");
+            accept.Length > 0 && dismiss.Length > 0
+                ? LocalizationViewModel.Current.Format("suggestionShortcutHint", accept, dismiss)
+                : LocalizationViewModel.Current.Resolve("suggestionAccessible"));
     }
 
     private void UnbindCompletionTab()
@@ -266,8 +270,8 @@ public partial class WorkspaceTabView
         {
             var gesture = tab.GestureText(EditorCommandIds.CompletionShow);
             tab.Messages = gesture.Length > 0
-                ? $"Sugestão não disponível; use {gesture} para sugestões de Console/MQL."
-                : "Sugestão não disponível; abra a lista de sugestões pelo atalho configurado.";
+                ? F("suggestionsUnavailableShortcut", gesture)
+                : T("suggestionsUnavailable");
         }
     }
 

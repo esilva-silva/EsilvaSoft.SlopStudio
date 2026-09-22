@@ -70,7 +70,7 @@ Referências: [índices](https://www.mongodb.com/docs/manual/indexes/), [driver]
 
 | ID | Recurso e abrangência | Versão de consolidação | Status | Aceite observável |
 | --- | --- | --- | --- | --- |
-| TRF-01 | Exportar resultado/coleção em Extended JSON e CSV | v0.5.0 | 🚧 Em desenvolvimento | Escopo exato, streaming, escaping, progresso e arquivo parcial identificados. A implementação exporta a página carregada como JSON ou CSV para arquivo novo, por escrita incremental, com progresso e cancelamento; o arquivo final só aparece após sucesso. Exportação integral da coleção permanece fora do recorte MVP. |
+| TRF-01 | Exportar resultado/coleção em Extended JSON e CSV | v0.5.0 | ✅ Implementado no recorte da página carregada | A implementação exporta a página carregada como JSON ou CSV para arquivo novo, por escrita incremental, com progresso e cancelamento; o arquivo final só aparece após sucesso. Exportação integral da coleção permanece fora do recorte MVP. |
 | TRF-02 | Importar JSON/NDJSON/CSV com mapeamento de tipos, lotes e política de duplicados | v0.10.0 | 🚧 Em desenvolvimento | Linha inválida identificada, relatório e retomada segura quando suportada |
 | TRF-03 | Exportar banco com manifesto de coleções, opções, índices e validadores | v0.10.0 | 🚧 Em desenvolvimento | Manifesto permite auditar o incluído, o omitido e a consistência |
 | TRF-04 | Backup/restauração com mongodump/mongorestore, archive/gzip e namespace mapping | Backlog sem versão | 📋 Planejado | Restauração em destino de teste confirma BSON, metadados e contagens |
@@ -102,7 +102,7 @@ Referências: [índices](https://www.mongodb.com/docs/manual/indexes/), [driver]
 | ADV-07 | Federation, Online Archive, Stream Processing, Charts e conectores de ecossistema | Backlog sem versão | 📋 Planejado | Cada serviço recebe adaptador/runbook e status explícito de suporte |
 | ADV-08 | SQL para MQL, geração de dados, análise de schema e migrações versionadas | Backlog sem versão | 🚧 Em desenvolvimento | Subconjunto SQL documentado; migração tem checksum, histórico e falhas parciais |
 | ADV-09 | Assistente IA opcional e integrações Git | v0.9.0 / backlog Git | 🧪 Experimental (IA); 📋 Planejado (Git) | Prévia da informação enviada, execução revisada e funcionamento sem IA |
-| UX-01 | Abas, temas, atalhos, localização, acessibilidade, DPI e virtualização | v0.5.0 | 🚧 Em desenvolvimento | Fluxo básico por teclado; maturidade multiplataforma exigida na v1.0.0 |
+| UX-01 | Abas, temas, atalhos, localização, acessibilidade, DPI e virtualização | v0.5.0 | 🚧 Em desenvolvimento | Interface desktop disponível em pt-BR, en, es e zh-CN; pt-BR é o idioma inicial, `en` é o fallback determinístico; maturidade multiplataforma exigida na v1.0.0 |
 | UX-02 | Centro de tarefas, progresso, cancelamento, limites de concorrência | v0.5.0 | 🚧 Em desenvolvimento | Tarefa longa não bloqueia UI; estado incerto distinto de cancelado |
 | UX-03 | Empacotamento Windows/Linux, atualização, diagnóstico, SBOM e licenças | v1.0.0 | 🚧 Em desenvolvimento | Instalação limpa nos dois sistemas; verificação de integridade e inventário de dependências |
 
@@ -118,6 +118,7 @@ O [design system](17-design-system-ui-ux.md) detalha esta entrega dentro dos req
 | EDT-01/02/04/06, UX-01/02 | Abas independentes com editor textual de consulta/script/agregação; contexto de banco/coleção; saídas inferiores separadas | Resposta fora de ordem e cancelamento não atravessam abas; seleção inválida não dispara texto completo; autocomplete funciona no editor |
 | UX-01 | Sistema/claro/escuro, identidade azul/violeta, símbolo e ícones vetoriais, tipografia compacta, atalhos e splitters | Renderização nos dois temas, três tamanhos e escalas; teclado e foco |
 | EDT-04, UX-01 | Recuperação de rascunhos e preferências, opt-out geral/por conexão | Reinício sem resultados/conexões; entrada só com opt-in; falha de gravação visível |
+| UX-01 | Catálogo de localização, troca em execução e restauração por sessão | Quatro códigos canônicos; chave ausente resolve para `en` ou exibe `[[chave]]`; textos de produto e acessibilidade cobertos sem alterar `docs/**/*.md` |
 
 Registro histórico de 10/09/2026: tabela/árvore, editor com destaque/folding, virtualização e homologação integral de acessibilidade não foram antecipados nesta revisão.
 

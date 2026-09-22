@@ -1,6 +1,6 @@
 # Documentação do EsilvaSoft.SlopStudio
 
-Referência: **18/09/2026**. Produto desktop .NET 10/Avalonia, Windows/Linux, LiteDB e MIT. **Atual:** checkout posterior à tag alpha local v0.1.1-alpha; release remota não verificada. **Fase em execução:** v0.6.0 — organização dos projetos e autocomplete básico. **Arquivada:** v0.5.0, por escopo funcional, sem homologação.
+Referência: **21/09/2026**. Produto desktop .NET 10/Avalonia, Windows/Linux, LiteDB e MIT. **Atual:** checkout local posterior à revisão documental de 18/09; release remota não verificada. **Fase em execução:** v0.6.0 — organização dos projetos e autocomplete básico. **Arquivada:** v0.5.0, por escopo funcional, sem homologação.
 
 ## Comece por aqui
 
@@ -17,6 +17,12 @@ Ao editar, adicionar ou mover arquivos `.md`, execute `node scripts/build-docs-i
 7. [Matriz de validação](15-matriz-de-validacao.md) e [checklist de homologação](16-checklist-homologacao.md): separar teste automatizado de servidor, SO, hardware e UI nativos.
 
 ✅ Implementado indica o recorte descrito no código, não uma release homologada. 🚧 Em desenvolvimento indica implementação parcial; 📋 Planejado, ausência de caminho integrado; 🧪 Experimental, limites de qualidade/ambiente. Itens amplos do catálogo só fecham quando todo seu aceite aplicável tem evidência.
+
+## Estado consolidado do checkout
+
+O recorte funcional da v0.5.0 está arquivado, mas seus gates de plataforma, acessibilidade, diálogos nativos, topologias MongoDB e edição real continuam abertos. A v0.6.0 é a única fase ativa: núcleos isolados e autocomplete determinístico têm cobertura automatizada, porém ainda não possuem aceite formal. A IA local da v0.9.0 é experimental; a administração/manutenção da v0.10.0 é antecipação técnica sem ponto de entrada atual na interface. As fases v0.7.0, v0.8.0, v0.11.0 e v1.0.0 permanecem planejadas.
+
+A internacionalização da interface está concluída no recorte automatizado para `pt-BR`, `en`, `es` e `zh-CN`, com `pt-BR` inicial e fallback em `en`; os arquivos `docs/**/*.md` permanecem em português. A evidência automatizada mais recente é build sem avisos/erros e **2.639 testes unitários aprovados, 0 falhas e 20 ignorados**. Benchmarks não são critério desta meta.
 
 ## Estrutura da documentação
 

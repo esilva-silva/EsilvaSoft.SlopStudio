@@ -9,6 +9,8 @@ namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 /// <summary>Row of the results tree. Children are created on first expansion; before that only a placeholder exists.</summary>
 public sealed partial class ResultNodeViewModel : ObservableObject
 {
+    private static string T(string key) => LocalizationViewModel.Current.Resolve(key);
+    private static string F(string key, params object?[] args) => LocalizationViewModel.Current.Format(key, args);
     private const int MaximumValueLength = 240;
     private const int MaximumToolTipLength = 2000;
     private static readonly JsonDocumentOptions Options = new() { MaxDepth = ExtendedJsonFormatter.MaxDepth };
@@ -18,7 +20,7 @@ public sealed partial class ResultNodeViewModel : ObservableObject
     private ResultNodeViewModel(ResultNodeKind kind, string key, string name, string typeName, string value, ResultDocumentViewModel? document, ResultTreeState? state, string? toolTip = null)
     {
         Kind = kind; Key = key; Name = name; TypeName = typeName; Document = document; _state = state;
-        Value = value.Length > MaximumValueLength ? value[..MaximumValueLength] + "… (" + value.Length.ToString(CultureInfo.InvariantCulture) + " caracteres)" : value;
+        Value = value.Length > MaximumValueLength ? value[..MaximumValueLength] + F("truncatedCharacters", value.Length) : value;
         var tip = toolTip ?? name + (typeName.Length == 0 ? "" : " · " + typeName) + (value.Length == 0 ? "" : "\n" + value);
         ToolTip = tip.Length > MaximumToolTipLength ? tip[..MaximumToolTipLength] + "…" : tip;
     }
@@ -65,7 +67,7 @@ public sealed partial class ResultNodeViewModel : ObservableObject
         var key = SetKey(set);
         if (documents is not null)
         {
-            var node = new ResultNodeViewModel(ResultNodeKind.ResultSet, key, set.Label, (set.Method ?? "resultado") + " · " + Count(documents.Count, "documento", "documentos"),
+            var node = new ResultNodeViewModel(ResultNodeKind.ResultSet, key, set.Label, (set.Method ?? T("resultDefault")) + " · " + F("documentCount", documents.Count),
                 Flags(set), null, state, set.Origin.Source + "\n" + set.Origin.Destination) { DocumentCount = documents.Count };
             node.Defer(() => SetContent(set, documents, representation, state));
             return node;
@@ -82,8 +84,8 @@ public sealed partial class ResultNodeViewModel : ObservableObject
         }
         catch (JsonException exception)
         {
-            var node = new ResultNodeViewModel(ResultNodeKind.ResultSet, key, set.Label, "JSON inválido", exception.Message, null, state);
-            node.Defer(() => [Notice(key + "/raw", "Conteúdo original", set.Json, null)]);
+            var node = new ResultNodeViewModel(ResultNodeKind.ResultSet, key, set.Label, T("invalidJson"), exception.Message, null, state);
+            node.Defer(() => [Notice(key + "/raw", LocalizationViewModel.Current.Resolve("originalContent"), set.Json, null)]);
             return node;
         }
     }
@@ -93,13 +95,13 @@ public sealed partial class ResultNodeViewModel : ObservableObject
         var key = SetKey(set);
         var nodes = new List<ResultNodeViewModel>();
         if (set.Completeness == ResultCompleteness.PartialProjection)
-            nodes.Add(Notice(key + "/projection", "Projeção parcial", "Campos omitidos pela projeção não aparecem; a edição fica indisponível.", null));
+            nodes.Add(Notice(key + "/projection", LocalizationViewModel.Current.Resolve("partialProjectionNotice"), LocalizationViewModel.Current.Resolve("partialProjectionExplain"), null));
         if (set.Completeness == ResultCompleteness.Derived)
-            nodes.Add(Notice(key + "/derived", "Agregação", "Documentos transformados pelo pipeline podem não corresponder aos armazenados.", null));
+            nodes.Add(Notice(key + "/derived", LocalizationViewModel.Current.Resolve("derivedNotice"), LocalizationViewModel.Current.Resolve("derivedExplain"), null));
         if (set.IsTruncated)
-            nodes.Add(Notice(key + "/truncated", "Resultado limitado", "O servidor pode ter mais documentos; ajuste filtro, skip ou limit.", null));
+            nodes.Add(Notice(key + "/truncated", LocalizationViewModel.Current.Resolve("limitedNotice"), LocalizationViewModel.Current.Resolve("limitedExplain"), null));
         if (documents.Count == 0)
-            nodes.Add(Notice(key + "/empty", "Sem documentos", "Nenhum documento neste resultado.", null));
+            nodes.Add(Notice(key + "/empty", LocalizationViewModel.Current.Resolve("noDocumentsNotice"), LocalizationViewModel.Current.Resolve("noDocumentInResultNotice"), null));
         foreach (var document in documents)
             nodes.Add(ForDocument(document, key + "/d" + document.Document.Position.ToString(CultureInfo.InvariantCulture), representation, state));
         return nodes;
@@ -111,14 +113,14 @@ public sealed partial class ResultNodeViewModel : ObservableObject
         var toolTip = document.Summary + "\n" + document.IdentityText + (document.FlagsText.Length == 0 ? "" : "\n" + document.FlagsText);
         if (document.Document.Root is not { } root)
         {
-            node = new(ResultNodeKind.Document, key, document.Label, "JSON inválido", document.Document.InvalidJsonMessage ?? "", document, state, toolTip);
-            node.Defer(() => [Notice(key + "/raw", "Conteúdo original", document.Json, document)]);
+            node = new(ResultNodeKind.Document, key, document.Label, T("invalidJson"), document.Document.InvalidJsonMessage ?? "", document, state, toolTip);
+            node.Defer(() => [Notice(key + "/raw", LocalizationViewModel.Current.Resolve("originalContent"), document.Json, document)]);
         }
         else
         {
             var description = ExtendedJsonValue.Describe(root, representation);
             node = root.ValueKind == JsonValueKind.Object
-                ? new(ResultNodeKind.Document, key, document.Label, "Documento", document.IdentityText + " · " + description.Display, document, state, toolTip)
+                ? new(ResultNodeKind.Document, key, document.Label, T("documentTypeLabel"), document.IdentityText + " · " + description.Display, document, state, toolTip)
                 : new(ResultNodeKind.Document, key, document.Label, description.TypeName, description.Display, document, state, toolTip);
             if (description.Shape != ExtendedJsonShape.Scalar && description.ChildCount > 0) node.Defer(() => FieldChildren(root, key, document, representation, state));
         }
@@ -151,7 +153,7 @@ public sealed partial class ResultNodeViewModel : ObservableObject
         }
         if (hasMore)
         {
-            var next = new ResultNodeViewModel(ResultNodeKind.Field, key + "/more" + index.ToString(CultureInfo.InvariantCulture), "Próximos campos…", "", "Expandir para carregar mais 256 campos; JSON e exportação conservam o conteúdo completo.", document, state);
+            var next = new ResultNodeViewModel(ResultNodeKind.Field, key + "/more" + index.ToString(CultureInfo.InvariantCulture), LocalizationViewModel.Current.Resolve("nextFields"), "", LocalizationViewModel.Current.Resolve("expandMoreFields"), document, state);
             next.Defer(() => FieldChildren(element, key, document, representation, state, index));
             children.Add(next);
         }
@@ -169,7 +171,7 @@ public sealed partial class ResultNodeViewModel : ObservableObject
     private void Defer(Func<IReadOnlyList<ResultNodeViewModel>> load)
     {
         _load = load;
-        Children.Add(Notice(Key + "/loading", "Carregando…", "", Document));
+        Children.Add(Notice(Key + "/loading", LocalizationViewModel.Current.Resolve("loadingEllipsis"), "", Document));
         if (_state?.Expanded.Contains(Key) == true) IsExpanded = true;
     }
 
@@ -180,9 +182,7 @@ public sealed partial class ResultNodeViewModel : ObservableObject
 
     private static string Flags(StructuredResultSet set) => string.Join(" · ", new[]
     {
-        set.IsTruncated ? "limitado" : null,
-        set.Completeness switch { ResultCompleteness.PartialProjection => "projeção parcial", ResultCompleteness.Derived => "agregação", _ => null }
+        set.IsTruncated ? T("limitedFlag") : null,
+        set.Completeness switch { ResultCompleteness.PartialProjection => T("partialProjectionFlag"), ResultCompleteness.Derived => T("derivedFlag"), _ => null }
     }.OfType<string>());
-
-    private static string Count(int count, string singular, string plural) => count.ToString(CultureInfo.InvariantCulture) + " " + (count == 1 ? singular : plural);
 }

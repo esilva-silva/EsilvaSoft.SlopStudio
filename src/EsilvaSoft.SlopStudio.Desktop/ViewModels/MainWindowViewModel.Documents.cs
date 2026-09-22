@@ -29,7 +29,7 @@ public sealed partial class MainWindowViewModel
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanDuplicatePreviewDocument))]
     [NotifyCanExecuteChangedFor(nameof(DuplicatePreviewDocumentCommand))]
-    private string _documentPreview = "Informe um filtro e carregue uma prévia antes de alterar um documento.";
+    private string _documentPreview = T("documentPreviewInitial");
 
     [ObservableProperty]
     private bool _deleteManyDocuments;
@@ -44,7 +44,7 @@ public sealed partial class MainWindowViewModel
     private bool _updateUpsert;
 
     [ObservableProperty]
-    private string _findAndModifyResult = "O documento retornado após a alteração aparecerá aqui.";
+    private string _findAndModifyResult = T("findModifyInitial");
 
     public bool CanPreviewDocument => CanExecuteQuery && !string.IsNullOrWhiteSpace(MutationFilter) && !string.Equals(MutationFilter.Trim(), "{}", StringComparison.Ordinal);
 
@@ -61,7 +61,7 @@ public sealed partial class MainWindowViewModel
         await RunAsync(async cancellationToken =>
         {
             var result = await _workspace.InsertAsync(profile, database, collection, DocumentJson, cancellationToken);
-            StatusMessage = $"Documento inserido.{(result.InsertedId is null ? string.Empty : $" _id: {result.InsertedId}")}";
+            StatusMessage = T("insertedDocument") + (result.InsertedId is null ? string.Empty : $" _id: {result.InsertedId}");
         });
     }
 
@@ -77,11 +77,11 @@ public sealed partial class MainWindowViewModel
         {
             var page = await _workspace.QueryAsync(profile, new MongoQuery(database, collection, MutationFilter, Limit: 1), cancellationToken);
             DocumentPreview = page.Documents.Count == 0
-                ? "Nenhum documento corresponde ao filtro atual."
+                ? T("previewNone")
                 : page.Documents[0];
             StatusMessage = page.Documents.Count == 0
-                ? "Prévia não encontrou documento."
-                : "Prévia carregada; revise o documento antes de substituir ou atualizar campos.";
+                ? T("previewNotFound")
+                : T("previewLoaded");
         });
     }
 
@@ -91,11 +91,11 @@ public sealed partial class MainWindowViewModel
         try
         {
             DocumentJson = DocumentDuplicateDraft.CreateWithoutId(DocumentPreview);
-            StatusMessage = "Rascunho de cópia preparado sem o _id. Revise e use Inserir para criar o novo documento.";
+            StatusMessage = T("duplicateDraft");
         }
         catch (ArgumentException exception)
         {
-            SetError(exception.Message);
+            SetError(DesktopOperationErrorMessages.Describe(exception));
         }
     }
 
@@ -111,7 +111,7 @@ public sealed partial class MainWindowViewModel
         {
             var request = new BulkInsertRequest(database, collection, BulkDocumentsJson, decimal.ToInt32(BulkMaximumDocuments ?? 1_000), BulkOrdered);
             var count = await _workspace.InsertManyAsync(profile, request, cancellationToken);
-            StatusMessage = $"Inserção em lote concluída: {count} documento(s).";
+            StatusMessage = F("bulkInsertDone", count);
         });
     }
 
@@ -126,7 +126,7 @@ public sealed partial class MainWindowViewModel
         await RunAsync(async cancellationToken =>
         {
             var result = await _workspace.ReplaceAsync(profile, database, collection, MutationFilter, DocumentJson, cancellationToken);
-            StatusMessage = $"Substituição concluída: {result.MatchedCount} documento(s) encontrado(s), {result.ModifiedCount} modificado(s).";
+            StatusMessage = F("replaceDone", result.MatchedCount, result.ModifiedCount);
         });
     }
 
@@ -148,8 +148,8 @@ public sealed partial class MainWindowViewModel
                 UpdateUpsert,
                 string.IsNullOrWhiteSpace(UpdateArrayFiltersJson) ? null : UpdateArrayFiltersJson);
             var result = await _workspace.UpdateAsync(profile, request, cancellationToken);
-            StatusMessage = $"Atualização parcial concluída: {result.MatchedCount} encontrado(s), {result.ModifiedCount} modificado(s)." +
-                (result.InsertedId is null ? string.Empty : $" Upsertado: {result.InsertedId}.");
+            StatusMessage = F("partialUpdateDone", result.MatchedCount, result.ModifiedCount) +
+                (result.InsertedId is null ? string.Empty : F("upsertedId", result.InsertedId));
         });
     }
 
@@ -165,8 +165,8 @@ public sealed partial class MainWindowViewModel
         {
             var request = new DocumentUpdateRequest(database, collection, MutationFilter, UpdateJson, UpdateUpsert, string.IsNullOrWhiteSpace(UpdateArrayFiltersJson) ? null : UpdateArrayFiltersJson);
             var result = await _workspace.FindAndModifyAsync(profile, request, cancellationToken);
-            FindAndModifyResult = result.DocumentJson ?? "Nenhum documento correspondeu ao filtro.";
-            StatusMessage = result.DocumentJson is null ? "Find-and-modify não encontrou documento." : "Find-and-modify concluído; o documento após a alteração foi retornado.";
+            FindAndModifyResult = result.DocumentJson ?? T("findModifyNone");
+            StatusMessage = result.DocumentJson is null ? T("findModifyNone") : T("findModifyDone");
         });
     }
 
@@ -183,7 +183,7 @@ public sealed partial class MainWindowViewModel
             var result = DeleteManyDocuments
                 ? await _workspace.DeleteManyAsync(profile, database, collection, MutationFilter, cancellationToken)
                 : await _workspace.DeleteAsync(profile, database, collection, MutationFilter, cancellationToken);
-            StatusMessage = $"Exclusão {(DeleteManyDocuments ? "em lote" : "de um documento")} concluída: {result.MatchedCount} documento(s) removido(s).";
+            StatusMessage = DeleteManyDocuments ? F("deleteManyDone", result.MatchedCount) : F("deleteOneDone", result.MatchedCount);
         });
     }
 }

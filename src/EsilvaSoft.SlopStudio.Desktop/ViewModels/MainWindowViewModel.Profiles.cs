@@ -73,7 +73,7 @@ public sealed partial class MainWindowViewModel
             }
 
             SelectedProfile ??= Profiles.FirstOrDefault();
-            StatusMessage = $"{Profiles.Count} conexão(ões) carregada(s).";
+            StatusMessage = F("profilesLoaded", Profiles.Count);
         });
     }
 
@@ -117,11 +117,11 @@ public sealed partial class MainWindowViewModel
             NewProfileIsFavorite = false;
             QuickConnectionString = string.Empty;
             IsProfileEditorVisible = true;
-            StatusMessage = "Perfil preenchido a partir da URI. Revise os campos antes de salvar.";
+            StatusMessage = T("profileFromUri");
         }
         catch (ArgumentException exception)
         {
-            SetError(exception.Message);
+            SetError(DesktopOperationErrorMessages.Describe(exception));
         }
     }
 
@@ -172,7 +172,7 @@ public sealed partial class MainWindowViewModel
         NewProfileIsReadOnly = copy.IsReadOnly;
         NewProfileIsFavorite = copy.IsFavorite;
         IsProfileEditorVisible = true;
-        StatusMessage = "Revise o nome e salve a cópia da conexão.";
+        StatusMessage = T("duplicateProfileHint");
     }
 
     [RelayCommand]
@@ -200,7 +200,7 @@ public sealed partial class MainWindowViewModel
 
         Profiles.Remove(profile);
         SelectedProfile = Profiles.FirstOrDefault();
-        StatusMessage = $"Conexão {profile.Name} removida do workspace LiteDB.";
+        StatusMessage = F("profileRemoved", profile.Name);
     }
 
     [RelayCommand]
@@ -238,7 +238,7 @@ public sealed partial class MainWindowViewModel
             if (ProfileSaved is { } saved)
             {
                 try { await saved(profile); }
-                catch (Exception exception) { preferenceError = exception.Message; }
+                catch (Exception exception) { preferenceError = DesktopOperationErrorMessages.Describe(exception); }
             }
             NewProfileName = string.Empty;
             NewProfileConnectionString = "mongodb://localhost:27017";
@@ -253,12 +253,12 @@ public sealed partial class MainWindowViewModel
             NewProfileIsFavorite = false;
             _editingProfileId = null;
             IsProfileEditorVisible = false;
-            StatusMessage = (editingId is null ? "Conexão salva no workspace LiteDB." : "Conexão atualizada no workspace LiteDB.")
-                + (preferenceError is null ? "" : " Preferência UUID não salva: " + preferenceError);
+            StatusMessage = (editingId is null ? T("profileSaved") : T("profileUpdated"))
+                + (preferenceError is null ? string.Empty : " " + F("uuidPreferenceNotSaved", preferenceError));
         }
         catch (ArgumentException exception)
         {
-            SetError(exception.Message);
+            SetError(DesktopOperationErrorMessages.Describe(exception));
         }
     }
 
@@ -291,8 +291,8 @@ public sealed partial class MainWindowViewModel
             }
 
             StatusMessage = result.IsSuccess
-                ? $"Conectado a MongoDB {result.ServerVersion ?? "(versão não informada)"} em {result.Duration.TotalMilliseconds:F0} ms."
-                : $"Falha ao conectar: {result.Message}";
+                ? F("connectedToMongo", result.ServerVersion ?? T("versionUnknown"), result.Duration.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture))
+                : F("connectionFailure", result.Message);
         });
     }
 
@@ -303,7 +303,7 @@ public sealed partial class MainWindowViewModel
         var schemeEnd = connectionString.IndexOf("://", StringComparison.Ordinal);
         if (schemeEnd < 0)
         {
-            throw new ArgumentException("A URI MongoDB é inválida.", nameof(connectionString));
+            throw new ArgumentException(T("invalidMongoUri"), nameof(connectionString));
         }
 
         var authorityStart = schemeEnd + 3;

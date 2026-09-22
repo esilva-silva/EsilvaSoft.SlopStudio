@@ -1,5 +1,6 @@
 using EsilvaSoft.SlopStudio.Application;
 using EsilvaSoft.SlopStudio.LocalAi.Core;
+using EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 namespace EsilvaSoft.SlopStudio.Desktop;
 
@@ -15,20 +16,22 @@ namespace EsilvaSoft.SlopStudio.Desktop;
 /// </remarks>
 public static class AiCompletionFallbackMessages
 {
+    private static string T(string key) => LocalizationViewModel.Current.Resolve(key);
+    private static string F(string key, params object?[] args) => LocalizationViewModel.Current.Format(key, args);
     /// <summary>A IA explícita está desligada nas preferências (modo Básico ou autocomplete desabilitado).</summary>
-    public const string Disabled = "IA desabilitada nas preferências.";
+    public static string Disabled => T("aiDisabled");
 
     /// <summary>Esta aba não recebeu provider de IA explícita (aba isolada de projeto ou de teste).</summary>
-    public const string NotConfigured = "IA explícita não está disponível nesta aba.";
+    public static string NotConfigured => T("aiNotConfigured");
 
     /// <summary>Falha inesperada ao consumir o fluxo de geração; a mensagem nunca carrega erro nativo cru.</summary>
-    public const string Failed = "A IA local não pôde atender a este pedido.";
+    public static string Failed => T("aiFailed");
 
     /// <summary>
     /// A lista tradicional explícita está desligada nas preferências e por isso não foi aberta. O fallback informa a
     /// indisponibilidade e nada mais: não reabre uma apresentação desligada nem altera a preferência para mostrá-la.
     /// </summary>
-    public const string TraditionalDisabled = "Lista tradicional desligada nas preferências.";
+    public static string TraditionalDisabled => T("traditionalDisabled");
 
     /// <summary>Linha de estado para uma atualização final que não trouxe candidato.</summary>
     /// <param name="update">Atualização final recusada.</param>
@@ -38,33 +41,33 @@ public static class AiCompletionFallbackMessages
         ArgumentNullException.ThrowIfNull(update);
         var text = update.Failure switch
         {
-            AiCompletionFailure.Privacy => "Contexto contém possível segredo; a IA local não foi consultada.",
-            AiCompletionFailure.BudgetExhausted => "O contexto mínimo não cabe na janela do modelo selecionado.",
-            AiCompletionFailure.Rejected => "A IA local não produziu uma sugestão utilizável.",
+            AiCompletionFailure.Privacy => T("aiPrivacyFailure"),
+            AiCompletionFailure.BudgetExhausted => T("aiBudgetFailure"),
+            AiCompletionFailure.Rejected => T("aiRejectedFailure"),
             // Prazo vencido sem nada aproveitável. Com prévia parcial válida o pedido nem chega aqui: ele termina em
             // sucesso parcial e a prévia fica na tela.
-            AiCompletionFailure.Timeout => "A IA local excedeu o tempo limite sem produzir uma sugestão.",
+            AiCompletionFailure.Timeout => T("aiTimeoutFailure"),
             // Descarte silencioso; existe para completude do mapeamento, e quem chama não exibe esta linha.
-            AiCompletionFailure.Preempted => "Geração descartada por uma ação de prioridade maior.",
+            AiCompletionFailure.Preempted => T("aiPreemptedFailure"),
             AiCompletionFailure.ModelUnavailable => Describe(update.Reason, update.Message),
             _ => Failed
         };
         if (update.RetryAfter is not { } retry || retry <= now) return text;
         var seconds = Math.Max(1, (int)Math.Ceiling((retry - now).TotalSeconds));
-        return $"{text} Nova tentativa em {seconds} s.";
+        return text + F("aiRetry", seconds);
     }
 
     private static string Describe(LocalModelUnavailableReason? reason, string message) => reason switch
     {
-        LocalModelUnavailableReason.NoModelConfigured => "Nenhum modelo de IA selecionado; escolha um em Preferências.",
-        LocalModelUnavailableReason.ModelInvalid => "O pacote de modelo selecionado não pode ser usado por esta versão.",
-        LocalModelUnavailableReason.CapabilityMissing => "O modelo selecionado não declara a capacidade de autocomplete.",
-        LocalModelUnavailableReason.ProviderUnavailable => "O acelerador exigido pelo modelo não está disponível nesta máquina.",
-        LocalModelUnavailableReason.Cooldown => "IA local indisponível após uma falha recente.",
-        LocalModelUnavailableReason.NotLoaded => "Nenhum modelo de IA carregado.",
-        LocalModelUnavailableReason.DifferentConfiguration => "Outro modelo está carregado e este pedido não pode trocá-lo.",
-        LocalModelUnavailableReason.ContextOverflow => "O pedido não cabe na janela do modelo selecionado.",
-        LocalModelUnavailableReason.RuntimeFailure => "Falha do runtime de IA local; confira o status do modelo.",
+        LocalModelUnavailableReason.NoModelConfigured => T("noAiModelSelected"),
+        LocalModelUnavailableReason.ModelInvalid => T("aiModelInvalid"),
+        LocalModelUnavailableReason.CapabilityMissing => T("aiCapabilityMissing"),
+        LocalModelUnavailableReason.ProviderUnavailable => T("aiProviderUnavailable"),
+        LocalModelUnavailableReason.Cooldown => T("aiCooldown"),
+        LocalModelUnavailableReason.NotLoaded => T("aiNotLoaded"),
+        LocalModelUnavailableReason.DifferentConfiguration => T("aiDifferentConfiguration"),
+        LocalModelUnavailableReason.ContextOverflow => T("aiContextOverflow"),
+        LocalModelUnavailableReason.RuntimeFailure => T("aiRuntimeFailure"),
         // Sem motivo tipado, a mensagem do serviço é a única informação que existe — e ela já vem segura da camada
         // de aplicação (sem texto do editor e sem erro nativo cru).
         _ => message.Length > 0 ? message : Failed

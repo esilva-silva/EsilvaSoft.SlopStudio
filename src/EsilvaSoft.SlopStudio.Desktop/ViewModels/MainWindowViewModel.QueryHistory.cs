@@ -53,7 +53,7 @@ public sealed partial class MainWindowViewModel
         QueryComment = query.Comment ?? string.Empty;
         QueryBatchSize = query.BatchSize;
         QueryCollation = query.CollationJson ?? string.Empty;
-        StatusMessage = "Consulta carregada do histórico local.";
+        StatusMessage = T("queryLoadedHistory");
     }
 
     partial void OnQueryHistoryEnabledChanged(bool value)
@@ -87,7 +87,7 @@ public sealed partial class MainWindowViewModel
         QueryLimit = query.Limit;
         QuerySkip = query.Skip;
         QueryMaxTimeMs = query.MaxTimeMs;
-        StatusMessage = "Consulta salva carregada.";
+        StatusMessage = T("savedQueryLoaded");
     }
 
     [RelayCommand]
@@ -156,7 +156,7 @@ public sealed partial class MainWindowViewModel
 
         await LoadSavedQueriesAsync();
         SelectedSavedQuery = SavedQueries.FirstOrDefault(item => item.Id == saved!.Id);
-        StatusMessage = "Consulta salva no workspace LiteDB.";
+        StatusMessage = T("savedQueryStored");
     }
 
     [RelayCommand(CanExecute = nameof(CanDeleteSavedQuery))]
@@ -177,7 +177,7 @@ public sealed partial class MainWindowViewModel
         SavedQueryName = string.Empty;
         SavedQueryIsFavorite = false;
         await LoadSavedQueriesAsync();
-        StatusMessage = $"Consulta salva '{query.Name}' removida.";
+        StatusMessage = F("savedQueryRemoved", query.Name);
     }
 
     [RelayCommand]
@@ -186,6 +186,6 @@ public sealed partial class MainWindowViewModel
         SelectedSavedQuery = null;
         SavedQueryName = string.Empty;
         SavedQueryIsFavorite = false;
-        StatusMessage = "Informe um nome para salvar a consulta atual.";
+        StatusMessage = T("savedQueryNameHint");
     }
 }

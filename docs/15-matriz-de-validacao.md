@@ -2,9 +2,15 @@
 
 ## Estado corrente da meta de autocomplete — 21/09/2026
 
-Evidência automatizada atual: `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore -p:UsedAvaloniaProducts=` passou com **0 avisos e 0 erros**; a suíte `EsilvaSoft.SlopStudio.UnitTests` passou com **2.593 aprovados, 0 falhas e 20 ignorados**; o corpus `LanguageCaseCorpusTests` passou com **676 testes verdes** (675 fixtures e o gate agregado de ranking). Os testes novos cobrem namespaces de metadata, schema aprendido no catálogo/completion, edições/snippets, `$lookup` estrangeiro e propagação de campos por ramos de `$facet`.
+Evidência automatizada atual: `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore -p:UsedAvaloniaProducts=` passou com **0 avisos e 0 erros**; a suíte `EsilvaSoft.SlopStudio.UnitTests` passou com **2.639 aprovados, 0 falhas e 20 ignorados**; o corpus `LanguageCaseCorpusTests` passou com **676 testes verdes** (675 fixtures e o gate agregado de ranking). Os testes novos cobrem namespaces de metadata, schema aprendido no catálogo/completion, edições/snippets, `$lookup` estrangeiro e propagação de campos por ramos de `$facet`.
 
 Fora desta meta: gates de performance, validação em múltiplas plataformas, MongoDB real, modelos reais, leitor de tela e homologação nativa. O gate funcional publicado de ranking cobre 44 casos locais com **MRR 1,000, top-1 44/44 e top-5 44/44**; namespaces de metadata, schema learning e `$lookup` estrangeiro têm suites determinísticas próprias.
+
+## Meta transversal — internacionalização — concluída no recorte automatizado — 21/09/2026
+
+`ApplicationLanguageTests`, `LocalizationViewModelTests` e `LocalizationUiTests` cobrem os quatro códigos (`pt-BR`, `en`, `es`, `zh-CN`), normalização com fallback em inglês, persistência aditiva, troca em execução, chaves ausentes, placeholders, diagnósticos e status da IA. A matriz UI gera **64 PNGs reais** (oito janelas × quatro idiomas × claro/escuro); amostras CJK, espanhol, claro e escuro foram inspecionadas. Build da solução passou sem avisos/erros; os testes unitários passaram com **2.639 aprovados, 0 falhas e 20 ignorados**. Benchmarks não fazem parte do critério desta meta. `docs/**/*.md` permanece em português, e fontes remotas/runtime ONNX também usam o localizador com fallback em inglês.
+
+O resultado Headless não encerra a homologação: continuam pendentes revisão linguística de domínio, MongoDB/mongosh real, leitor de tela, diálogos nativos e execução Linux gráfica. Os arquivos `docs/**/*.md` permanecem em português por decisão de escopo.
 
 ## Fase 1 (K11–K16, K16-b) e Fase 5.1 (Traditional Preemptive) — 18/09/2026
 
@@ -355,9 +361,9 @@ Não homologado nesta alteração: MongoDB/mongosh real, Linux, leitor de tela e
 
 ## Revisão documental do roadmap — 13/09/2026
 
-Inspeção estática do checkout `e806ae4`, serviços concretos, chamadas de UI, testes, dependências e tags locais. [Inventário](24-inventario-roadmap.md) associa status a código e lacunas; [roadmap](09-plano-de-implementacao.md) substitui F0–F7 por seis versões. Não houve execução de restore/build/NUnit, MongoDB, mongosh, modelos ou homologação visual nesta tarefa, que altera somente Markdown. As contagens de testes anteriores permanecem históricas, inclusive a falha registrada; não são o resultado do checkout atual.
+Inspeção estática histórica do checkout `e806ae4`, serviços concretos, chamadas de UI, testes, dependências e tags locais. [Inventário](24-inventario-roadmap.md) associa status a código e lacunas; o [roadmap](09-plano-de-implementacao.md) corrente organiza oito fases. Não houve execução de restore/build/NUnit, MongoDB, mongosh, modelos ou homologação visual naquela tarefa somente de Markdown. As contagens daquele registro permanecem históricas, inclusive a falha registrada; não são o resultado do checkout atual.
 
-Verificação documental: 68 requisitos originais preservados e EDT-08 acrescentado; status e versão nas 69 definições; seis fases com objetivo, escopo, exclusões, aceite, dependências e documentação. Links locais, tabelas e blocos de código conferidos. Três links antigos para TRX ausentes foram convertidos em referências textuais explícitas, preservando o registro sem oferecer download inexistente. Referências comparativas removidas conforme o escopo; não houve auditoria jurídica de terceiros nem alteração de avisos/licenças.
+Verificação documental: 68 requisitos originais preservados e EDT-08 acrescentado; status e versão nas 69 definições; oito fases com objetivo, escopo, exclusões, aceite, dependências e documentação. Links locais, tabelas e blocos de código conferidos. Três links antigos para TRX ausentes foram convertidos em referências textuais explícitas, preservando o registro sem oferecer download inexistente. Referências comparativas removidas conforme o escopo; não houve auditoria jurídica de terceiros nem alteração de avisos/licenças.
 
 ## Homologação nativa Windows — 14/09/2026
 

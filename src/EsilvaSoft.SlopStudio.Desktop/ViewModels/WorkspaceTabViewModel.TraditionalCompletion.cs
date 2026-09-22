@@ -53,9 +53,9 @@ public sealed partial class WorkspaceTabViewModel
             "Left" => "←",
             "Right" => "→",
             "Escape" => "Esc",
-            "Space" => "Espaço",
-            "PageUp" => "Page Up",
-            "PageDown" => "Page Down",
+            "Space" => T("spaceKey"),
+            "PageUp" => T("pageUpKey"),
+            "PageDown" => T("pageDownKey"),
             _ => key
         };
     }

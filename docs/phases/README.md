@@ -1,17 +1,21 @@
 # Fases do EsilvaSoft.SlopStudio
 
-Referência: **18/09/2026**. Esta pasta contém o trabalho **planejado ou em execução** por fase. Requisitos concluídos e aceitos são arquivados em [`../done`](../done/README.md); requisitos sem fase definida, adiados ou retirados do escopo ficam em [`../backlog`](../backlog/README.md).
+Referência: **21/09/2026**. Esta pasta contém o trabalho **planejado ou em execução** por fase. Requisitos concluídos e aceitos são arquivados em [`../done`](../done/README.md); requisitos sem fase definida, adiados ou retirados do escopo ficam em [`../backlog`](../backlog/README.md).
 
 O [roadmap](../09-plano-de-implementacao.md) permanece na raiz da documentação como índice e regra geral; cada fase detalha o próprio escopo aqui.
+
+## Meta transversal concluída
+
+A meta de internacionalização da interface foi concluída no recorte automatizado: `pt-BR`, `en`, `es` e `zh-CN`, com `pt-BR` inicial, fallback determinístico em `en`, persistência aditiva, troca em execução e textos de produto/acessibilidade localizados. Foram verificados 64 PNGs reais nos dois temas e os testes unitários passaram com 2.639 aprovados, 0 falhas e 20 ignorados. Os arquivos `docs/**/*.md` permanecem em português. A revisão linguística de domínio e a homologação de MongoDB/mongosh, acessibilidade nativa e Linux gráfico continuam registradas como pendências externas das fases, sem reabrir esta meta.
 
 ## Roadmap oficial
 
 | Fase | Versão | Objetivo | Situação |
 | --- | --- | --- | --- |
 | 1 | v0.5.0 | MVP: conectar → navegar → consultar → visualizar → editar → exportar | [Arquivada por escopo funcional](phase-01-v0.5.0/README.md) — homologação pendente |
-| 2 | v0.6.0 | Organização dos projetos e autocomplete básico | [**Em execução**](phase-02-v0.6.0/README.md) |
+| 2 | v0.6.0 | Organização dos projetos e autocomplete básico | [**Em execução**](phase-02-v0.6.0/README.md) — recorte automatizado implementado; aceite e homologação pendentes |
 | 3 | v0.7.0 | Autocomplete com IA | [Planejada](phase-03-v0.7.0/README.md) |
-| 4 | v0.8.0 | Abertura e salvamento de arquivos de texto | [Planejada](phase-04-v0.8.0/README.md) |
+| 4 | v0.8.0 | Abertura e salvamento de arquivos de texto | [Planejada](phase-04-v0.8.0/README.md) — há antecipação técnica, sem aceite integrado |
 | 5 | v0.9.0 | IA local e produtividade contextual | [Experimental](phase-05-v0.9.0/README.md) |
 | 6 | v0.10.0 | Administração e manutenção | [Em desenvolvimento](phase-06-v0.10.0/README.md) |
 | 7 | v0.11.0 | Chat simples com IA baseado em workflow | [Planejada](phase-07-v0.11.0/README.md) |

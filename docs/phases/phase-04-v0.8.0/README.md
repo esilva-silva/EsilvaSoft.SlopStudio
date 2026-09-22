@@ -1,6 +1,6 @@
 # Fase 4 — v0.8.0: abertura e salvamento de arquivos de texto
 
-**Situação:** Planejada.
+**Situação:** Planejada. Há antecipação técnica de abrir, salvar e salvar como, mas não há aceite integrado desta fase.
 
 ## Objetivo
 

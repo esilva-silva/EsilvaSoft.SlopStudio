@@ -22,6 +22,12 @@ Uma IDE de MongoDB para uso prolongado, com navegação previsível, destino exp
 - [WCAG 2.2: contraste](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html): referência quantitativa aplicada aos controles desktop; não constitui certificação completa de acessibilidade.
 - [Avalonia: variantes de tema](https://docs.avaloniaui.net/docs/styling/theme-variants): recursos dinâmicos e alternância em tempo de execução.
 
+## Localização, acessibilidade e CJK
+
+Os textos de produto usam um catálogo único, com chaves estáveis e atualização em execução. Os códigos suportados são `pt-BR`, `en`, `es` e `zh-CN`; `pt-BR` é o idioma inicial e `en` é o fallback para códigos inválidos ou chaves sem tradução. Uma chave ausente também no inglês aparece como `[[chave]]`, evitando silêncio. O seletor usa os nomes nativos dos idiomas e permanece acessível por teclado e automação.
+
+A troca de idioma não altera rascunhos, resultados, credenciais ou identificadores MongoDB/BSON; ela atualiza rótulos, dicas, acessibilidade, estados, mensagens e exemplos iniciais gerados pelo produto. O layout deve ser verificado nos dois temas com textos longos e caracteres chineses; a evidência corrente é a matriz de 64 PNGs descrita no acompanhamento. Este documento e os demais `docs/**/*.md` continuam em português.
+
 ## Composição e medidas
 
 ```text
@@ -176,7 +182,7 @@ Ctrl+Enter usa seleção ou statement identificado pelo parser; F5 executa tudo.
 
 ## Autocomplete local — revisão de 11/09/2026
 
-Preferências contém Autocomplete…, modal proprietária 660 × 680, mínimo 520 × 420, conteúdo rolável e ações/status no rodapé. Campos tipados em pt-BR: modo, diretório externo, modelos encontrados, hardware, contexto/geração/atraso. Estados do runtime e falhas de gravação são textuais. Recursos semânticos dos temas existentes; nenhum indicador apenas por cor.
+Preferências contém Autocomplete…, modal proprietária 660 × 680, mínimo 520 × 420, conteúdo rolável e ações/status no rodapé. Campos tipados usam o catálogo em pt-BR, en, es e zh-CN: modo, diretório externo, modelos encontrados, hardware, contexto/geração/atraso. Estados do runtime e falhas de gravação são textuais. Recursos semânticos dos temas existentes; nenhum indicador apenas por cor.
 
 TextBox preservado. Ghost text no cursor, com fonte/entrelinha do código e SecondaryText; contexto existente conserva PrimaryText. Projeção visual recortada ao viewport, incluindo múltiplas linhas e sufixo, sem alterar documento. Tab avança por partes lógicas, Escape descarta antes de cancelar consulta e Ctrl+Espaço conserva menu com metadados. F6 continua saindo do editor. Preferências oferece opções independentes para dicionário, Input, campos dos Resultados, contexto ampliado e Tab incremental. Renderização em 18 combinações do workspace e 18 da modal, com controles reais, escalas 100/150/200% e dois temas. [Especificação e limites](21-autocomplete-local.md).
 

@@ -8,6 +8,8 @@ namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 /// <summary>Top-bar update action: checks periodically, downloads on request and reports through the global operation bar.</summary>
 public sealed partial class AppUpdateViewModel : ObservableObject, IDisposable
 {
+    private static string T(string key) => LocalizationViewModel.Current.Resolve(key);
+    private static string F(string key, params object?[] args) => LocalizationViewModel.Current.Format(key, args);
     private static readonly TimeSpan FirstCheckDelay = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan CheckInterval = TimeSpan.FromHours(6);
     private readonly IAppUpdateService? _updates;
@@ -34,9 +36,9 @@ public sealed partial class AppUpdateViewModel : ObservableObject, IDisposable
     public bool IsVisible => State != AppUpdateUiState.Hidden;
     public string Label => State switch
     {
-        AppUpdateUiState.Downloading => $"Baixando {Progress:F0}%",
-        AppUpdateUiState.Ready => "Reiniciar",
-        _ => "Atualizar"
+        AppUpdateUiState.Downloading => F("updateDownloading", Progress.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)),
+        AppUpdateUiState.Ready => T("updateRestart"),
+        _ => T("update")
     };
 
     /// <summary>Queries the release feed; failures stay silent because the next scheduled check retries.</summary>
@@ -51,11 +53,11 @@ public sealed partial class AppUpdateViewModel : ObservableObject, IDisposable
         if (_updates.Availability == AppUpdateAvailability.ManualOnly)
         {
             State = AppUpdateUiState.ManualOnly;
-            ToolTip = $"Versão {release.Version} disponível. A pasta do programa não permite escrita: clique para abrir a página do release.";
+            ToolTip = F("updateAvailableManual", release.Version);
             return;
         }
         State = AppUpdateUiState.Available;
-        ToolTip = $"Versão {release.Version} disponível (atual {_updates.CurrentVersion}). Clique para baixar; a instalação ocorre ao fechar.";
+        ToolTip = F("updateAvailable", release.Version, _updates.CurrentVersion);
     }
 
     [RelayCommand]
@@ -64,8 +66,8 @@ public sealed partial class AppUpdateViewModel : ObservableObject, IDisposable
         if (_disposed || _updates is null || Release is not { } release || State != AppUpdateUiState.Available) return;
         State = AppUpdateUiState.Downloading;
         Progress = 0;
-        ToolTip = $"Baixando a versão {release.Version}. Use Cancelar na barra de status para interromper.";
-        using var operation = _operations.Begin($"Baixando atualização {release.Version}", ApplicationOperationPriority.Normal, canCancel: true, _lifetime.Token);
+        ToolTip = F("updateDownloadTip", release.Version);
+        using var operation = _operations.Begin(F("updateDownloadingOperation", release.Version), ApplicationOperationPriority.Normal, canCancel: true, _lifetime.Token);
         void OnProgress(object? sender, EventArgs args) =>
             Dispatch(() => { if (State == AppUpdateUiState.Downloading && operation.Snapshot.Progress is { } value) Progress = value; });
         _operations.Changed += OnProgress;
@@ -73,18 +75,18 @@ public sealed partial class AppUpdateViewModel : ObservableObject, IDisposable
         {
             // Hashing and extraction of a large package stay off the UI thread.
             var staged = await Task.Run(() => _updates.DownloadAsync(release, operation));
-            operation.Complete(ApplicationOperationStatus.Success, $"Atualização {release.Version} pronta; será instalada ao fechar");
+            operation.Complete(ApplicationOperationStatus.Success, F("updateReadyOperation", release.Version));
             if (!_disposed) SetReady(staged);
         }
         catch (OperationCanceledException) when (operation.Token.IsCancellationRequested)
         {
-            operation.Complete(ApplicationOperationStatus.Cancelled, "Download da atualização cancelado");
-            Restore(release, "Download cancelado.");
+            operation.Complete(ApplicationOperationStatus.Cancelled, T("updateDownloadCancelled"));
+            Restore(release, T("updateCancelled"));
         }
         catch (Exception ex)
         {
-            operation.Complete(ApplicationOperationStatus.Error, "Atualização não baixada: " + ex.Message);
-            Restore(release, $"Não foi possível baixar a versão {release.Version}: {ex.Message}");
+            operation.Complete(ApplicationOperationStatus.Error, F("updateNotDownloaded", ex.Message));
+            Restore(release, F("updateDownloadFailed", release.Version, ex.Message));
         }
         finally { _operations.Changed -= OnProgress; }
     }
@@ -95,8 +97,8 @@ public sealed partial class AppUpdateViewModel : ObservableObject, IDisposable
         State = AppUpdateUiState.Ready;
         Progress = 100;
         ToolTip = staged.LastApplyError is { } error
-            ? $"A atualização {staged.Version} não foi instalada no último fechamento: {error} Uma nova tentativa ocorre ao fechar."
-            : $"Atualização {staged.Version} pronta. Será instalada ao fechar o Slop Studio; clique para reiniciar agora.";
+            ? F("updateInstallFailed", staged.Version, error)
+            : F("updateReady", staged.Version);
     }
 
     private void Restore(AppUpdateRelease release, string reason)
@@ -104,7 +106,7 @@ public sealed partial class AppUpdateViewModel : ObservableObject, IDisposable
         if (_disposed) return;
         State = AppUpdateUiState.Available;
         Progress = 0;
-        ToolTip = $"{reason} Versão {release.Version} disponível; clique para tentar novamente.";
+        ToolTip = F("updateRetry", reason, release.Version);
     }
 
     private void Dispatch(Action action)

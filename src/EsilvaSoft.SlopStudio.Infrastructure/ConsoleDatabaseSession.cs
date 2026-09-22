@@ -7,7 +7,7 @@ using MongoDB.Driver;
 
 namespace EsilvaSoft.SlopStudio.Infrastructure;
 
-internal sealed class ConsoleDatabaseSession(IReadOnlyList<ConnectionProfile> profiles, int documentLimit, int timeoutMs, MongoClientPool clients) : IConsoleDatabaseSession
+internal sealed class ConsoleDatabaseSession(IReadOnlyList<ConnectionProfile> profiles, int documentLimit, int timeoutMs, MongoClientPool clients, Func<string, string>? localize = null) : IConsoleDatabaseSession
 {
     private readonly Dictionary<Guid, MongoClient> _clients = [];
     private static readonly JsonWriterSettings JsonSettings = new() { OutputMode = JsonOutputMode.CanonicalExtendedJson };
@@ -23,7 +23,7 @@ internal sealed class ConsoleDatabaseSession(IReadOnlyList<ConnectionProfile> pr
     {
         var profile = profiles.Single(p => p.Id == operation.ProfileId);
         var args = BsonSerializer.Deserialize<BsonArray>(operation.ArgumentsJson);
-        Validate(operation, args, profile);
+        Validate(operation, args, profile, localize);
         if (!_clients.TryGetValue(profile.Id, out var client))
         {
             var uri = await ConnectionRouting.ApplyAsync(profile.ConnectionString, profile.TargetHost, cancellationToken).ConfigureAwait(false);
@@ -40,7 +40,7 @@ internal sealed class ConsoleDatabaseSession(IReadOnlyList<ConnectionProfile> pr
             case "find":
             {
                 var options = Doc(2); var limit = BoundedLimit(options);
-                var findOptions = new FindOptions { MaxTime = TimeSpan.FromMilliseconds(Math.Min(timeoutMs, NonNegative(options.GetValue("maxTimeMS", timeoutMs)))), BatchSize = Math.Clamp(NonNegative(options.GetValue("batchSize", 100)), 1, 1000) };
+                var findOptions = new FindOptions { MaxTime = TimeSpan.FromMilliseconds(Math.Min(timeoutMs, NonNegative(options.GetValue("maxTimeMS", timeoutMs), localize))), BatchSize = Math.Clamp(NonNegative(options.GetValue("batchSize", 100), localize), 1, 1000) };
                 if (options.TryGetValue("hint", out var hint)) findOptions.Hint = hint;
                 if (options.TryGetValue("comment", out var comment)) findOptions.Comment = comment;
                 if (options.TryGetValue("collation", out var collation)) findOptions.Collation = Collation.FromBsonDocument(collation.AsBsonDocument);
@@ -48,7 +48,7 @@ internal sealed class ConsoleDatabaseSession(IReadOnlyList<ConnectionProfile> pr
                 if (options.TryGetValue("sort", out var sort)) find = find.Sort(sort.AsBsonDocument);
                 var projection = options.GetValue("project", args.Count > 1 ? args[1] : BsonNull.Value);
                 if (!projection.IsBsonNull) find = find.Project<BsonDocument>(projection.AsBsonDocument);
-                find = find.Skip(NonNegative(options.GetValue("skip", 0))).Limit(limit + 1);
+                find = find.Skip(NonNegative(options.GetValue("skip", 0), localize)).Limit(limit + 1);
                 using var cursor = await find.ToCursorAsync(cancellationToken).ConfigureAwait(false);
                 return await ReadPage(cursor, limit, cancellationToken).ConfigureAwait(false);
             }
@@ -57,7 +57,7 @@ internal sealed class ConsoleDatabaseSession(IReadOnlyList<ConnectionProfile> pr
                 var options = Doc(1); var limit = BoundedLimit(options);
                 var stages = args[0].AsBsonArray.Select(v => v.AsBsonDocument).ToList();
                 if (options.TryGetValue("sort", out var sort)) stages.Add(new("$sort", sort));
-                if (options.TryGetValue("skip", out var skip) && NonNegative(skip) > 0) stages.Add(new("$skip", skip));
+                if (options.TryGetValue("skip", out var skip) && NonNegative(skip, localize) > 0) stages.Add(new("$skip", skip));
                 if (options.TryGetValue("project", out var projection)) stages.Add(new("$project", projection));
                 stages.Add(new("$limit", limit + 1));
                 using var cursor = await collection!.AggregateAsync<BsonDocument>(stages.ToArray(), new AggregateOptions { MaxTime = TimeSpan.FromMilliseconds(timeoutMs), BatchSize = 100 }, cancellationToken).ConfigureAwait(false);
@@ -88,13 +88,13 @@ internal sealed class ConsoleDatabaseSession(IReadOnlyList<ConnectionProfile> pr
             case "insertMany":
             {
                 var documents = args[0].AsBsonArray.Select(v => v.AsBsonDocument).ToArray();
-                if (documents.Length is < 1 or > 1000) throw new ArgumentException("Inserção exige entre 1 e 1000 documentos.");
+                if (documents.Length is < 1 or > 1000) throw new ArgumentException(L("consoleInsertCount", "Insertion requires between 1 and 1000 documents.", "Inserção exige entre 1 e 1000 documentos."));
                 await collection!.InsertManyAsync(documents, cancellationToken: cancellationToken).ConfigureAwait(false);
                 value = new BsonDocument { ["acknowledged"] = true, ["insertedIds"] = new BsonArray(documents.Select(d => d.GetValue("_id", BsonNull.Value))) }; break;
             }
             case "updateOne": case "updateMany":
             {
-                var options = Doc(2); ValidateOptions(options, "upsert", "arrayFilters");
+                var options = Doc(2); ValidateOptions(options, localize, "upsert", "arrayFilters");
                 var updateOptions = new UpdateOptions { IsUpsert = options.GetValue("upsert", false).ToBoolean() };
                 if (options.TryGetValue("arrayFilters", out var arrayFilters)) updateOptions.ArrayFilters = arrayFilters.AsBsonArray.Select(v => new BsonDocumentArrayFilterDefinition<BsonDocument>(v.AsBsonDocument));
                 UpdateDefinition<BsonDocument> update = args[1].IsBsonArray
@@ -106,7 +106,7 @@ internal sealed class ConsoleDatabaseSession(IReadOnlyList<ConnectionProfile> pr
             }
             case "replaceOne":
             {
-                var options = Doc(2); ValidateOptions(options, "upsert");
+                var options = Doc(2); ValidateOptions(options, localize, "upsert");
                 var result = await collection!.ReplaceOneAsync(Doc(0), Doc(1), new ReplaceOptions { IsUpsert = options.GetValue("upsert", false).ToBoolean() }, cancellationToken).ConfigureAwait(false);
                 value = new BsonDocument { ["acknowledged"] = result.IsAcknowledged, ["matchedCount"] = result.MatchedCount, ["modifiedCount"] = result.ModifiedCount }; break;
             }
@@ -134,37 +134,38 @@ internal sealed class ConsoleDatabaseSession(IReadOnlyList<ConnectionProfile> pr
             }
             case "stats": value = await db.RunCommandAsync<BsonDocument>(new BsonDocument("collStats", operation.Collection), cancellationToken: cancellationToken).ConfigureAwait(false); break;
             case "databaseStats": value = await db.RunCommandAsync<BsonDocument>(new BsonDocument("dbStats", 1), cancellationToken: cancellationToken).ConfigureAwait(false); break;
-            default: throw new InvalidOperationException("Método não suportado: " + operation.Method);
+            default: throw new InvalidOperationException(L("consoleUnsupportedMethod", "Method is not supported.", "Método não suportado.") + ": " + operation.Method);
         }
         return Reply(value);
     }
 
-    internal static void Validate(ConsoleOperation operation, BsonArray args, ConnectionProfile profile)
+    internal static void Validate(ConsoleOperation operation, BsonArray args, ConnectionProfile profile, Func<string, string>? localize = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operation.Database);
         var read = operation.Method is "find" or "findOne" or "countDocuments" or "estimatedDocumentCount" or "distinct" or "aggregate" or "stats" or "databaseStats";
         if (!read)
         {
             profile.EnsureWriteAllowed();
-            if (operation.Database is "admin" or "local" or "config" || operation.Collection.StartsWith("system.", StringComparison.Ordinal)) throw new InvalidOperationException("Destino de sistema protegido.");
+            if (operation.Database is "admin" or "local" or "config" || operation.Collection.StartsWith("system.", StringComparison.Ordinal)) throw new InvalidOperationException(L("consoleProtectedSystem", "System destination is protected.", "Destino de sistema protegido.", localize));
         }
         if (operation.Method is "updateOne" or "updateMany" or "replaceOne" or "deleteOne" or "deleteMany")
-            if (args.Count == 0 || !args[0].IsBsonDocument || args[0].AsBsonDocument.ElementCount == 0) throw new InvalidOperationException("Uma operação de alteração exige filtro não vazio.");
-        if (operation.Method == "dropIndex" && (args.Count == 0 || args[0] == "_id_" || args[0] == "*")) throw new InvalidOperationException("Índice obrigatório ou remoção global protegida.");
+            if (args.Count == 0 || !args[0].IsBsonDocument || args[0].AsBsonDocument.ElementCount == 0) throw new InvalidOperationException(L("consoleUpdateFilter", "An update operation requires a non-empty filter.", "Uma operação de alteração exige filtro não vazio.", localize));
+        if (operation.Method == "dropIndex" && (args.Count == 0 || args[0] == "_id_" || args[0] == "*")) throw new InvalidOperationException(L("consoleProtectedIndex", "The required index is missing or global removal is protected.", "Índice obrigatório ou remoção global protegida.", localize));
         if (operation.Method == "aggregate")
         {
-            if (args.Count == 0 || !args[0].IsBsonArray) throw new ArgumentException("aggregate exige um array de estágios.");
+            if (args.Count == 0 || !args[0].IsBsonArray) throw new ArgumentException(L("consoleAggregateStages", "aggregate requires an array of stages.", "aggregate exige um array de estágios.", localize));
             AggregationPipelineValidator.ValidateReadPipeline(args[0].AsBsonArray);
         }
     }
-    private static void ValidateOptions(BsonDocument options, params string[] allowed)
+    private static void ValidateOptions(BsonDocument options, Func<string, string>? localize, params string[] allowed)
     {
         var unknown = options.Names.FirstOrDefault(n => !allowed.Contains(n, StringComparer.Ordinal));
-        if (unknown is not null) throw new ArgumentException("Opção não suportada: " + unknown);
+        if (unknown is not null) throw new ArgumentException(L("consoleUnsupportedOption", "Option is not supported: ", "Opção não suportada: ", localize) + unknown);
     }
-    private int BoundedLimit(BsonDocument options) { var value = NonNegative(options.GetValue("limit", documentLimit)); return Math.Min(value == 0 ? documentLimit : value, documentLimit); }
-    private static int NonNegative(BsonValue value) => value.IsNumeric && value.ToDouble() == Math.Truncate(value.ToDouble()) && value.ToDouble() is >= 0 and <= int.MaxValue
-        ? value.ToInt32() : throw new ArgumentException("Skip/limit exige inteiro não negativo.");
+    private int BoundedLimit(BsonDocument options) { var value = NonNegative(options.GetValue("limit", documentLimit), localize); return Math.Min(value == 0 ? documentLimit : value, documentLimit); }
+    private static int NonNegative(BsonValue value, Func<string, string>? localize) => value.IsNumeric && value.ToDouble() == Math.Truncate(value.ToDouble()) && value.ToDouble() is >= 0 and <= int.MaxValue
+        ? value.ToInt32() : throw new ArgumentException(L("consoleNonNegativeSkipLimit", "Skip/limit requires a non-negative integer.", "Skip/limit exige inteiro não negativo.", localize));
+    private static string L(string key, string english, string portuguese, Func<string, string>? localize = null) => localize?.Invoke(key) ?? portuguese;
     private static string Reply(BsonValue value, bool truncated = false) => new BsonDocument { ["value"] = value, ["truncated"] = truncated }.ToJson(JsonSettings);
     private static async Task<string> ReadPage<T>(IAsyncCursor<T> cursor, int limit, CancellationToken token) where T : BsonValue
     {

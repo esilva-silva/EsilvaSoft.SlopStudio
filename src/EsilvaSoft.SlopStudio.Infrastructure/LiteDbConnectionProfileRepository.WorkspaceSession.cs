@@ -15,6 +15,10 @@ public sealed partial class LiteDbConnectionProfileRepository
         if (session.Version != 1) throw new InvalidDataException("Versão da sessão local não suportada.");
         if (session.Preferences?.Autocomplete is not { } autocomplete) throw new InvalidDataException("Preferências locais inválidas.");
         autocomplete.Validate();
+        session = session with
+        {
+            Preferences = session.Preferences with { Language = ApplicationLanguages.Normalize(session.Preferences.Language) }
+        };
         session.Preferences.ValidateUuid();
         session.Preferences.ValidateMetadata();
         session.Preferences.ValidateKeyBindings();
@@ -30,10 +34,12 @@ public sealed partial class LiteDbConnectionProfileRepository
         session.Preferences.ValidateMetadata();
         session.Preferences.ValidateKeyBindings();
         // Persist policy at the boundary as well as in the UI. No credentials or results in this DTO.
-        var allowed = session.Preferences.RecoverDrafts
-            ? session.Tabs.Where(tab => !tab.ContainsResultData && (tab.ProfileId is null || !session.Preferences.ExcludedProfileIds.Contains(tab.ProfileId.Value))).ToArray()
+        var preferences = session.Preferences with { Language = ApplicationLanguages.Normalize(session.Preferences.Language) };
+        var normalized = session with { Preferences = preferences };
+        var allowed = normalized.Preferences.RecoverDrafts
+            ? normalized.Tabs.Where(tab => !tab.ContainsResultData && (tab.ProfileId is null || !normalized.Preferences.ExcludedProfileIds.Contains(tab.ProfileId.Value))).ToArray()
             : [];
-        var filtered = session with { Tabs = allowed, ActiveTabId = allowed.Any(tab => tab.Id == session.ActiveTabId) ? session.ActiveTabId : null };
+        var filtered = normalized with { Tabs = allowed, ActiveTabId = allowed.Any(tab => tab.Id == normalized.ActiveTabId) ? normalized.ActiveTabId : null };
         return RunAsync(() =>
         {
             _ = ReadSession(); // Preserve corrupt or newer snapshots, including autocomplete configuration.

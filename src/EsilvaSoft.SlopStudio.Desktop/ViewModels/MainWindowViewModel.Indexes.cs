@@ -55,7 +55,9 @@ public sealed partial class MainWindowViewModel
     private string _indexWildcardProjection = string.Empty;
 
     [ObservableProperty]
-    private string _indexResults = "Selecione uma coleção para listar seus índices.";
+    private string _indexResults = string.Empty;
+
+    partial void OnIndexResultsChanged(string value) { }
 
     public bool CanDropIndex => CanExecuteQuery && !string.IsNullOrWhiteSpace(IndexNameToDrop);
 
@@ -74,8 +76,8 @@ public sealed partial class MainWindowViewModel
         await RunAsync(async cancellationToken =>
         {
             var indexes = await _workspace.GetIndexesAsync(profile, database, collection, cancellationToken);
-            IndexResults = indexes.Count == 0 ? "Nenhum índice encontrado." : string.Join(Environment.NewLine + Environment.NewLine, indexes);
-            StatusMessage = $"{indexes.Count} índice(s) carregado(s).";
+            IndexResults = indexes.Count == 0 ? T("noIndexes") : string.Join(Environment.NewLine + Environment.NewLine, indexes);
+            StatusMessage = F("indexesLoaded", indexes.Count);
         });
     }
 
@@ -90,8 +92,8 @@ public sealed partial class MainWindowViewModel
         await RunAsync(async cancellationToken =>
         {
             var statistics = await _workspace.GetIndexUsageStatsAsync(profile, database, collection, cancellationToken);
-            IndexResults = statistics.Count == 0 ? "Nenhuma estatística de uso retornada pelo servidor." : string.Join(Environment.NewLine + Environment.NewLine, statistics);
-            StatusMessage = $"{statistics.Count} estatística(s) de uso de índice carregada(s).";
+            IndexResults = statistics.Count == 0 ? T("noIndexStats") : string.Join(Environment.NewLine + Environment.NewLine, statistics);
+            StatusMessage = F("indexStatsLoaded", statistics.Count);
         });
     }
 
@@ -118,7 +120,7 @@ public sealed partial class MainWindowViewModel
                 IndexIsHidden,
                 string.IsNullOrWhiteSpace(IndexWildcardProjection) ? null : IndexWildcardProjection);
             var name = await _workspace.CreateIndexAsync(profile, request, cancellationToken);
-            StatusMessage = $"Índice {name} criado.";
+            StatusMessage = F("indexCreated", name);
             await LoadIndexesAsync();
         });
     }
@@ -135,7 +137,7 @@ public sealed partial class MainWindowViewModel
         if (!await RunAsync(async cancellationToken =>
         {
             await _workspace.DropIndexAsync(profile, new IndexDropRequest(database, collection, name), cancellationToken);
-            StatusMessage = $"Índice {name} removido.";
+            StatusMessage = F("indexDropped", name);
         }))
         {
             return;
@@ -162,7 +164,7 @@ public sealed partial class MainWindowViewModel
         var name = request.Name.Trim();
         IndexNameForVisibility = string.Empty;
         IndexVisibilityConfirmation = string.Empty;
-        await RecordAuditAsync("index.visibility", profile, database, collection, $"Visibilidade do índice {name} alterada.");
+        await RecordAuditAsync("index.visibility", profile, database, collection, F("indexVisibilityChanged", name));
         await LoadIndexesAsync();
     }
 }

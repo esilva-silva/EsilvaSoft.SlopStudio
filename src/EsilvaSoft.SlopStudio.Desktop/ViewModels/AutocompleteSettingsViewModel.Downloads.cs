@@ -21,17 +21,16 @@ public sealed partial class AutocompleteSettingsViewModel
     public Uri? SelectedRemoteModelCardUrl => SelectedRemoteModel?.Variant.BaseModelUrl ?? SelectedRemoteModel?.Variant.PageUrl;
 
     public string RemoteSourceNotice => _remote is null ? ""
-        : "Fonte: Hugging Face (" + string.Join(", ", _remote.RepositoryUrls.Select(url => url.AbsolutePath.Trim('/'))) + "), versões ONNX dos modelos SlopCoder-Mongo. "
-          + "Ao baixar, você aceita a licença publicada no repositório. O download continua se esta janela for fechada; acompanhe ou cancele na barra inferior.";
+        : F("remoteSourceNotice", string.Join(", ", _remote.RepositoryUrls.Select(url => url.AbsolutePath.Trim('/'))));
 
     public string RemoteModelDetails => SelectedRemoteModel is not { } option ? ""
-        : $"Licença {option.Variant.License ?? "não informada"} · " + (option.IsInstalled ? "já instalado em " : "instala em ")
+        : F("remoteModelDetails", option.Variant.License ?? T("licenseNotProvided"), option.IsInstalled ? T("alreadyInstalledAt") : T("installsAt"))
           + Path.Combine(EffectiveModelDirectory, option.Variant.FolderName);
 
     [ObservableProperty, NotifyPropertyChangedFor(nameof(RemoteModelDetails), nameof(HasRemoteModelDetails), nameof(HasSelectedRemoteModel), nameof(SelectedRemoteModelCardUrl))]
     [NotifyCanExecuteChangedFor(nameof(DownloadModelCommand))]
     private RemoteModelOption? _selectedRemoteModel;
-    [ObservableProperty] private string _remoteModelsPlaceholder = "Lista de modelos não carregada";
+    [ObservableProperty] private string _remoteModelsPlaceholder = T("remoteModelsNotLoaded");
     [ObservableProperty, NotifyCanExecuteChangedFor(nameof(DownloadModelCommand))] private bool _isDownloadingModel;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(DownloadPercent))] private double _downloadProgress;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasDownloadStatus))] private string _downloadStatus = "";
@@ -53,13 +52,13 @@ public sealed partial class AutocompleteSettingsViewModel
         var directory = EffectiveModelDirectory;
         if (directory.Length == 0)
         {
-            OperationStatus = "Diretório de modelos não definido.";
+            OperationStatus = T("modelsDirectoryUndefined");
             return null;
         }
         try { return Directory.CreateDirectory(directory).FullName; }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            OperationStatus = $"Não foi possível criar {directory}: {ex.Message}";
+            OperationStatus = F("createDirectoryFailed", directory, ex.Message);
             return null;
         }
     }
@@ -72,15 +71,15 @@ public sealed partial class AutocompleteSettingsViewModel
     private async Task LoadRemoteModelsAsync(CancellationToken cancellationToken)
     {
         if (_remote is null) return;
-        RemoteModelsPlaceholder = "Carregando modelos do Hugging Face…";
+        RemoteModelsPlaceholder = T("remoteModelsLoading");
         try
         {
             var variants = await _remote.ListAsync(cancellationToken);
             ShowRemoteModels(variants, SelectedRemoteModel?.Variant);
-            RemoteModelsPlaceholder = variants.Count == 0 ? "Nenhum modelo publicado nos repositórios" : "Escolha um modelo para baixar";
+            RemoteModelsPlaceholder = variants.Count == 0 ? T("remoteModelsNone") : T("remoteModelsChoose");
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { RemoteModelsPlaceholder = "Lista de modelos não carregada"; }
-        catch (Exception) { RemoteModelsPlaceholder = "Lista indisponível. Confira a conexão e use Atualizar lista."; }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { RemoteModelsPlaceholder = T("remoteModelsNotLoaded"); }
+        catch (Exception) { RemoteModelsPlaceholder = T("remoteModelsUnavailable"); }
     }
 
     private bool CanDownloadModel() => _remote is not null && SelectedRemoteModel is { IsInstalled: false } && !IsDownloadingModel;
@@ -93,40 +92,40 @@ public sealed partial class AutocompleteSettingsViewModel
         var directory = EffectiveModelDirectory;
         IsDownloadingModel = true;
         DownloadProgress = 0;
-        DownloadStatus = $"Baixando {variant.Title} para {directory}…";
-        using var operation = _operations?.Begin($"Baixando modelo {variant.Title}", ApplicationOperationPriority.Normal, canCancel: true, cancellationToken);
+        DownloadStatus = F("downloadModelTo", variant.Title, directory);
+        using var operation = _operations?.Begin(F("downloadModelTo", variant.Title, directory), ApplicationOperationPriority.Normal, canCancel: true, cancellationToken);
         var token = operation?.Token ?? cancellationToken;
         var progress = new Progress<RemoteModelProgress>(update =>
         {
             if (!IsDownloadingModel) return;
             DownloadProgress = update.TotalBytes > 0 ? Math.Clamp(100d * update.CompletedBytes / update.TotalBytes, 0, 100) : 0;
-            DownloadStatus = $"Baixando {variant.Title}: {FormatSize(update.CompletedBytes)} de {FormatSize(update.TotalBytes)}.";
+            DownloadStatus = F("downloadModelProgress", variant.Title, FormatSize(update.CompletedBytes), FormatSize(update.TotalBytes));
             operation?.Report(update.CompletedBytes, update.TotalBytes);
         });
         try
         {
             // Hashing gigabytes stays off the UI thread; Progress<T> marshals updates back.
             var path = await Task.Run(() => remote.DownloadAsync(variant, directory, progress, token), CancellationToken.None);
-            operation?.Complete(ApplicationOperationStatus.Success, $"Modelo {variant.Title} baixado");
+            operation?.Complete(ApplicationOperationStatus.Success, F("modelDownloadedOperation", variant.Title));
             IsDownloadingModel = false;
             DownloadProgress = 100;
             await RefreshModelsCommand.ExecuteAsync(null);
             if (Models.FirstOrDefault(model => !model.IsExternal && string.Equals(model.Reference, variant.FolderName, PathComparison)) is { } installed)
             {
                 SelectedModelOption = installed;
-                DownloadStatus = $"{variant.Title} instalado em {path} e selecionado. Clique em Salvar para usá-lo.";
+                DownloadStatus = F("modelInstalledSave", variant.Title, path);
             }
-            else DownloadStatus = $"Modelo baixado em {path}, mas o catálogo não o reconheceu. Confira as pastas ignoradas.";
+            else DownloadStatus = F("modelCatalogMissed", path);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
-            operation?.Complete(ApplicationOperationStatus.Cancelled, "Download de modelo cancelado");
-            DownloadStatus = "Download cancelado. Arquivos já verificados ficam guardados para retomar na próxima tentativa.";
+            operation?.Complete(ApplicationOperationStatus.Cancelled, T("modelDownloadCancelled"));
+            DownloadStatus = T("downloadCancelledResume");
         }
         catch (Exception ex)
         {
-            operation?.Complete(ApplicationOperationStatus.Error, "Modelo não baixado: " + ex.Message);
-            DownloadStatus = "Download não concluído: " + ex.Message;
+            operation?.Complete(ApplicationOperationStatus.Error, F("modelNotDownloaded", ex.Message));
+            DownloadStatus = F("downloadIncomplete", ex.Message);
         }
         finally
         {

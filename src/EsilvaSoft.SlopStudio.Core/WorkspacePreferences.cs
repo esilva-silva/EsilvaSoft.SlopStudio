@@ -6,6 +6,11 @@ public sealed record WorkspacePreferences
 {
     public AutocompleteSettings Autocomplete { get; init; } = new();
     public string Theme { get; init; } = "Sistema";
+    /// <summary>
+    /// Additive to version 1: the initial UI language is pt-BR; an invalid or missing
+    /// code is normalized to the English fallback at the session boundary.
+    /// </summary>
+    public string Language { get; init; } = ApplicationLanguages.DefaultCode;
     public double CodeFontSize { get; init; } = 14;
     public double ExplorerWidth { get; init; } = 260;
     public double EditorRatio { get; init; } = 0.6;

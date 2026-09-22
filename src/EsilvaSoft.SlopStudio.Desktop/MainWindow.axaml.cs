@@ -13,6 +13,8 @@ namespace EsilvaSoft.SlopStudio.Desktop;
 
 public partial class MainWindow : Window
 {
+    private static string T(string key) => LocalizationViewModel.Current.Resolve(key);
+    private static string F(string key, params object?[] args) => LocalizationViewModel.Current.Format(key, args);
     private bool _allowClose;
     private bool _closing;
     private bool _restartAfterClose;
@@ -45,7 +47,7 @@ public partial class MainWindow : Window
         var dialog = new ConnectionsWindow(vm) { Width = Math.Min(800, Bounds.Width - 40), Height = Math.Min(560, Bounds.Height - 40) };
         await dialog.ShowDialog<bool>(this);
         ConnectionsButton.Focus();
-        try { await vm.ReloadProfilesAsync(); } catch (Exception ex) { vm.SessionStatus = ex.Message; }
+        try { await vm.ReloadProfilesAsync(); } catch (Exception ex) { vm.SessionStatus = DesktopOperationErrorMessages.Describe(ex); }
     }
     private void OpenExplorerCollection(object? sender, RoutedEventArgs e)
     {
@@ -67,11 +69,11 @@ public partial class MainWindow : Window
     private async void OpenFile(object? sender, RoutedEventArgs e)
     {
         if (WorkspaceModel is not { } vm) return;
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Abrir script", AllowMultiple = false, FileTypeFilter = [new FilePickerFileType("JavaScript ou JSON") { Patterns = ["*.js", "*.json"] }, FilePickerFileTypes.All] });
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = T("openScriptPicker"), AllowMultiple = false, FileTypeFilter = [new FilePickerFileType(T("javascriptOrJson")) { Patterns = ["*.js", "*.json"] }, FilePickerFileTypes.All] });
         if (files.Count == 0) return;
         vm.NewTabCommand.Execute(null);
         try { await vm.ActiveTab!.OpenAsync(files[0].Path.LocalPath); }
-        catch (Exception ex) { await Dialogs.ChooseAsync(this, "Não foi possível abrir", ex.Message, "Fechar"); }
+        catch (Exception ex) { await Dialogs.ChooseAsync(this, T("openFailed"), DesktopOperationErrorMessages.Describe(ex), T("close")); }
     }
     private async void SaveFile(object? sender, RoutedEventArgs e) { if (WorkspaceModel?.ActiveTab is { } tab) await SaveTabAsync(tab); }
     private async void SaveAs(object? sender, RoutedEventArgs e) { if (WorkspaceModel?.ActiveTab is { } tab) await SaveTabAsync(tab, choosePath: true); }
@@ -80,12 +82,12 @@ public partial class MainWindow : Window
         var path = choosePath ? "" : tab.FilePath;
         if (string.IsNullOrEmpty(path))
         {
-            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = "Salvar script", SuggestedFileName = tab.IsConsole || tab.IsScript ? "consulta.js" : "consulta.json", FileTypeChoices = [new FilePickerFileType("Script / consulta") { Patterns = ["*.js", "*.json"] }] });
+            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = T("saveScriptPicker"), SuggestedFileName = tab.IsConsole || tab.IsScript ? "consulta.js" : "consulta.json", FileTypeChoices = [new FilePickerFileType(T("scriptOrQuery")) { Patterns = ["*.js", "*.json"] }] });
             if (file is null) return false;
             path = file.Path.LocalPath;
         }
         try { await tab.SaveAsync(path); return true; }
-        catch (Exception ex) { await Dialogs.ChooseAsync(this, "Arquivo não salvo", ex.Message, "Fechar"); return false; }
+        catch (Exception ex) { await Dialogs.ChooseAsync(this, T("notSaved"), DesktopOperationErrorMessages.Describe(ex), T("close")); return false; }
     }
     private async void CloseTab(object? sender, RoutedEventArgs e)
     {
@@ -95,7 +97,7 @@ public partial class MainWindow : Window
     private async Task<bool> StopTabAsync(WorkspaceTabViewModel tab)
     {
         if (!tab.IsRunning) return true;
-        if (await Dialogs.ChooseAsync(this, "Execução em andamento", "Interromper esta operação e aguardar? Efeitos já enviados ao servidor não são revertidos.", "Interromper", "Cancelar") != "Interromper") return false;
+        if (await Dialogs.ChooseAsync(this, T("executionInProgress"), T("stopExecutionPrompt"), T("interrupt"), T("cancel")) != T("interrupt")) return false;
         tab.CancelCommand.Execute(null);
         if (tab.ExecuteCommand.ExecutionTask is { } task) await task;
         return !tab.IsRunning;
@@ -105,17 +107,17 @@ public partial class MainWindow : Window
         if (!await StopTabAsync(tab)) return false;
         if (tab.IsDirty)
         {
-            var choice = await Dialogs.ChooseAsync(this, "Fechar aba", $"Salvar as alterações de {tab.Title}?", "Salvar", "Descartar", "Cancelar");
-            if (choice is null or "Cancelar") return false;
-            if (choice == "Salvar" && !await SaveTabAsync(tab)) return false;
+            var choice = await Dialogs.ChooseAsync(this, T("tabClosePrompt"), F("saveChangesPrompt", tab.Title), T("save"), T("discard"), T("cancel"));
+            if (choice is null || choice == T("cancel")) return false;
+            if (choice == T("save") && !await SaveTabAsync(tab)) return false;
         }
         WorkspaceModel!.RemoveTab(tab);
-        try { await WorkspaceModel.SaveSessionAsync(); } catch (Exception ex) { await Dialogs.ChooseAsync(this, "Sessão não salva", ex.Message, "Fechar"); }
+        try { await WorkspaceModel.SaveSessionAsync(); } catch (Exception ex) { await Dialogs.ChooseAsync(this, T("sessionNotSaved"), DesktopOperationErrorMessages.Describe(ex), T("close")); }
         return true;
     }
     private void OpenTools(object? sender, RoutedEventArgs e)
     {
-        if (WorkspaceModel?.ActiveTab is not { Profile: not null, IsConnected: true } tab) { WorkspaceModel!.SessionStatus = "Abra a conexão e escolha o destino da aba."; return; }
+        if (WorkspaceModel?.ActiveTab is not { Profile: not null, IsConnected: true } tab) { WorkspaceModel!.SessionStatus = T("openConnectionTarget"); return; }
         var vm = new MainWindowViewModel(WorkspaceModel.Workspace, autoLoadCollections: false)
         {
             SelectedProfile = tab.Profile, SelectedDatabase = tab.Database, SelectedCollection = tab.Collection,
@@ -124,8 +126,8 @@ public partial class MainWindow : Window
             QueryLimit = tab.Limit, QuerySkip = tab.Skip, QueryBatchSize = tab.BatchSize, QueryMaxTimeMs = tab.MaxTimeMs,
             UuidRepresentation = WorkspaceModel.CaptureUuidPolicy().Resolve(tab.Profile.Id), IdentifierMode = WorkspaceModel.IdentifierMode
         };
-        var window = new WorkspaceToolsWindow { DataContext = vm, Title = "Ferramentas · " + tab.Context };
-        window.Closing += (_, args) => { if (vm.IsOperationRunning) { args.Cancel = true; vm.StatusMessage = "Cancele a operação e aguarde antes de fechar."; } };
+        var window = new WorkspaceToolsWindow { DataContext = vm, Title = T("toolsWindowTitle") + " · " + tab.Context };
+        window.Closing += (_, args) => { if (vm.IsOperationRunning) { args.Cancel = true; vm.StatusMessage = T("cancelBeforeClose"); } };
         _ = window.ShowDialog(this);
     }
     private void OpenEnvironments(object? sender, RoutedEventArgs e)
@@ -170,7 +172,7 @@ public partial class MainWindow : Window
             {
                 var view = this.GetVisualDescendants().OfType<WorkspaceTabView>().FirstOrDefault(v => v.DataContext == tab);
                 try { await tab.ExecuteCommand.ExecuteAsync(view?.ExecutionCode(control)); }
-                catch (Exception ex) { tab.Errors = ex.Message; tab.ResultTabIndex = 2; }
+                catch (Exception ex) { tab.Errors = DesktopOperationErrorMessages.Describe(ex); tab.ResultTabIndex = 2; }
             }
         }
         else if (e.Key == Key.Escape && vm.ActiveTab is { IsRunning: true } tab) { e.Handled = true; tab.CancelCommand.Execute(null); }
@@ -198,10 +200,8 @@ public partial class MainWindow : Window
                 await Launcher.LaunchUriAsync(release.PageUrl);
                 break;
             case AppUpdateUiState.Ready:
-                var choice = await Dialogs.ChooseAsync(this, "Atualização pronta",
-                    $"A versão {updates.ReadyVersion} será instalada quando o Slop Studio fechar. Reiniciar agora? Abas em execução e rascunhos seguem as confirmações de um fechamento normal.",
-                    "Reiniciar agora", "Depois");
-                if (choice == "Reiniciar agora") RestartForUpdate();
+                var choice = await Dialogs.ChooseAsync(this, T("updateRestart"), F("updateReadyPrompt", updates.ReadyVersion), T("restartNow"), T("later"));
+                if (choice == T("restartNow")) RestartForUpdate();
                 break;
         }
     }
@@ -223,7 +223,7 @@ public partial class MainWindow : Window
         {
             if (OwnedWindows.OfType<WorkspaceToolsWindow>().Any(w => w.DataContext is MainWindowViewModel { IsOperationRunning: true }))
             {
-                await Dialogs.ChooseAsync(this, "Ferramenta em execução", "Conclua ou cancele a operação na janela de ferramentas antes de sair.", "Voltar");
+                await Dialogs.ChooseAsync(this, T("runningTool"), T("finishToolBeforeExit"), T("back"));
                 return;
             }
             foreach (var tab in vm.Tabs.ToArray())
@@ -235,7 +235,7 @@ public partial class MainWindow : Window
             try { await vm.SaveSessionAsync(); }
             catch (Exception ex)
             {
-                if (await Dialogs.ChooseAsync(this, "Sessão não salva", ex.Message + "\nFechar sem recuperar as alterações desta sessão?", "Fechar sem recuperar", "Cancelar") != "Fechar sem recuperar") return;
+                if (await Dialogs.ChooseAsync(this, T("sessionNotSaved"), DesktopOperationErrorMessages.Describe(ex) + "\n" + T("closeWithoutRecoveryPrompt"), T("closeWithoutRecovery"), T("cancel")) != T("closeWithoutRecovery")) return;
             }
             Program.RestartAfterExit = _restartAfterClose;
             _allowClose = true;

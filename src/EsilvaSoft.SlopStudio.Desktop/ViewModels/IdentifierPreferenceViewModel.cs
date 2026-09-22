@@ -11,6 +11,7 @@ public sealed partial class IdentifierPreferenceViewModel : ObservableObject
     public static Guid SampleUuidV4 { get; } = Guid.Parse("0f8fad5b-d9cb-469f-a165-70867728950e");
     private readonly Func<UuidRepresentation> _uuid;
     private readonly Func<IdentifierRepresentationMode, Task>? _apply;
+    private readonly LocalizationViewModel _localization = LocalizationViewModel.Current;
     private bool _loading;
 
     /// <param name="uuid">Current global UUID representation, used by the UUID section of the preview.</param>
@@ -18,11 +19,11 @@ public sealed partial class IdentifierPreferenceViewModel : ObservableObject
     public IdentifierPreferenceViewModel(Func<UuidRepresentation> uuid, Func<IdentifierRepresentationMode, Task>? apply = null)
     {
         _uuid = uuid; _apply = apply;
-        foreach (var mode in IdentifierRepresentationService.All) Choices.Add(new(mode, IdentifierRepresentationService.ChoiceLabel(mode)));
+        foreach (var mode in IdentifierRepresentationService.All) Choices.Add(new(mode, ChoiceLabel(mode)));
         Load(IdentifierRepresentationMode.Standard);
     }
 
-    public string Title { get; } = "Representação padrão de identificadores";
+    public string Title => _localization.Resolve("identifierModeTitle");
     public ObservableCollection<IdentifierModeChoice> Choices { get; } = [];
     public ObservableCollection<IdentifierPreviewRow> ObjectIdPreview { get; } = [];
     public ObservableCollection<IdentifierPreviewRow> UuidPreview { get; } = [];
@@ -48,26 +49,42 @@ public sealed partial class IdentifierPreferenceViewModel : ObservableObject
     public void RefreshPreview()
     {
         var mode = Mode;
-        Description = IdentifierRepresentationService.Description(mode);
+        Description = DescriptionFor(mode);
         IsObjectIdPreviewVisible = mode is IdentifierRepresentationMode.Standard or IdentifierRepresentationMode.ObjectId;
         IsUuidPreviewVisible = mode is IdentifierRepresentationMode.Standard or IdentifierRepresentationMode.UuidV4;
         ObjectIdPreview.Clear();
         if (IsObjectIdPreviewVisible)
         {
             var hex = IdentifierRepresentationService.SampleObjectId;
-            ObjectIdPreview.Add(new("ObjectId", IdentifierRepresentationService.FormatObjectId(hex), "Tipo BSON ObjectId · 12 bytes"));
-            ObjectIdPreview.Add(new("Hex", hex, "24 dígitos hexadecimais"));
-            ObjectIdPreview.Add(new("UUID equivalente", IdentifierRepresentationService.ObjectIdToUuid(hex).ToString("D"),
-                "12 bytes do ObjectId + 4 bytes zero · representação alternativa: não é UUID v4 e não altera o ObjectId gravado"));
+            ObjectIdPreview.Add(new(T("objectIdLabel"), IdentifierRepresentationService.FormatObjectId(hex), T("objectIdBsonType")));
+            ObjectIdPreview.Add(new(T("hexLabel"), hex, T("hexDigits")));
+            ObjectIdPreview.Add(new(T("equivalentUuidLabel"), IdentifierRepresentationService.ObjectIdToUuid(hex).ToString("D"),
+                T("objectIdBytesNote")));
         }
         UuidPreview.Clear();
         if (IsUuidPreviewVisible)
         {
             var representation = _uuid();
-            UuidPreview.Add(new("UUID v4", IdentifierRepresentationService.FormatUuid(SampleUuidV4, representation),
-                $"{UuidCodec.DisplayName(representation)} · Binary subtype {UuidCodec.SubType(representation)} · novos UUIDs usam esta forma; as quatro formas aparecem abaixo"));
+            UuidPreview.Add(new(T("uuidV4Label"), IdentifierRepresentationService.FormatUuid(SampleUuidV4, representation),
+                LocalizationViewModel.Current.Format("uuidPreviewDetails", UuidCodec.DisplayName(representation), UuidCodec.SubType(representation))));
         }
     }
+
+    private static string T(string key) => LocalizationViewModel.Current.Resolve(key);
+    private static string ChoiceLabel(IdentifierRepresentationMode mode) => mode switch
+    {
+        IdentifierRepresentationMode.Standard => T("identifierStandardChoice"),
+        IdentifierRepresentationMode.ObjectId => T("identifierObjectIdChoice"),
+        IdentifierRepresentationMode.UuidV4 => T("identifierUuidChoice"),
+        _ => IdentifierRepresentationService.DisplayName(mode)
+    };
+    private static string DescriptionFor(IdentifierRepresentationMode mode) => mode switch
+    {
+        IdentifierRepresentationMode.Standard => T("identifierStandardDescription"),
+        IdentifierRepresentationMode.ObjectId => T("identifierObjectIdDescription"),
+        IdentifierRepresentationMode.UuidV4 => T("identifierUuidDescription"),
+        _ => IdentifierRepresentationService.Description(mode)
+    };
 
     partial void OnSelectedChoiceChanged(IdentifierModeChoice? value)
     {
@@ -82,11 +99,11 @@ public sealed partial class IdentifierPreferenceViewModel : ObservableObject
         try
         {
             await _apply!(mode);
-            HasError = false; Status = "Modo de identificador salvo. Resultados abertos foram atualizados; nenhum dado gravado foi alterado.";
+            HasError = false; Status = LocalizationViewModel.Current.Resolve("identifierSaved");
         }
         catch (Exception exception)
         {
-            HasError = true; Status = "Modo aplicado nesta sessão, mas não salvo: " + exception.Message;
+            HasError = true; Status = LocalizationViewModel.Current.Format("identifierSessionOnly", exception.Message);
         }
     }
 }
