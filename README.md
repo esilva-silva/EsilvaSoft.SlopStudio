@@ -2,6 +2,10 @@
 
 EsilvaSoft.SlopStudio is an open-source desktop IDE for MongoDB, built with **.NET 10** and **Avalonia** for **Windows and Linux**. It focuses on a predictable database workflow, BSON-aware results, local LiteDB storage, and optional on-device AI assistance. Licensed under **MIT**.
 
+## MongoDB desktop IDE
+
+Slop Studio is an open-source MongoDB desktop IDE and GUI client for Windows and Linux. It helps developers connect to MongoDB, browse databases and collections, write and run queries, inspect BSON-aware results, edit documents with confirmations, and export result pages.
+
 > [!CAUTION]
 > **Experimental project status.** The code, tests, and documentation in this repository were produced with AI-assisted development ("vibe coding") and have not yet undergone a full human code review, security audit, or production hardening. Expect bugs, rough edges, and design decisions that may change.
 >
@@ -70,7 +74,7 @@ No phase has passed its formal acceptance gate yet: automated tests (including h
 ## Getting started
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/esilva-silva/EsilvaSoft.SlopStudio.git
 cd EsilvaSoft.SlopStudio
 dotnet restore EsilvaSoft.SlopStudio.slnx --locked-mode
 dotnet run --project src/EsilvaSoft.SlopStudio.Desktop
