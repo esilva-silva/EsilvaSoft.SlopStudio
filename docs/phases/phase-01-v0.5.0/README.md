@@ -1,10 +1,10 @@
 # Fase 1 — v0.5.0: MVP
 
-**Situação:** Arquivada por escopo funcional. Homologação Windows/Linux **pendente**.
+**Situação:** Arquivada por escopo funcional. A validação manual foi transferida para a [Fase 8 / v0.12.0](../phase-08-v0.12.0/README.md).
 
-A meta transversal de internacionalização associada ao `UX-01` foi concluída no recorte automatizado: `pt-BR`, `en`, `es` e `zh-CN`, fallback em inglês, acessibilidade localizada, troca em execução e persistência segura. A homologação de plataforma desta fase continua independente.
+A meta transversal de internacionalização associada ao `UX-01` foi concluída no recorte automatizado: `pt-BR`, `en`, `es` e `zh-CN`, fallback em inglês, acessibilidade localizada, troca em execução e persistência segura.
 
-O escopo funcional desta fase foi implementado e está arquivado em [`../../done/release_v0.5.0`](../../done/release_v0.5.0/README.md). Esta página permanece como ponto de entrada da fase e mantém visíveis as pendências que impedem declarar a versão homologada.
+O escopo funcional desta fase foi implementado e está arquivado em [`../../done/release_v0.5.0`](../../done/release_v0.5.0/README.md). Esta página permanece como ponto de entrada da fase; a homologação correspondente é acompanhada na Fase 8.
 
 ## Objetivo
 
@@ -28,7 +28,7 @@ As implementações antecipadas presentes no checkout (agregação, administraç
 
 ## Critério de aceite
 
-Demonstrar o ciclo completo em Windows e Linux nos ambientes declarados; testes de BSON, falha e concorrência; evidência visual dos fluxos alterados; contrato CSV e formatação fechados.
+Testes de BSON, falha e concorrência; evidência visual automatizada dos fluxos alterados; contrato CSV e formatação fechados.
 
 ## Dependências
 
@@ -39,7 +39,4 @@ Driver MongoDB, proprietário LiteDB em DI, snapshots de contexto, cancelamento 
 - [Release arquivada v0.5.0](../../done/release_v0.5.0/README.md)
 - [Auditoria do MVP e performance](../../done/release_v0.5.0/25-auditoria-mvp-performance.md)
 - [Guia de uso](../../14-guia-de-uso.md) · [Explorer](../../19-database-explorer.md) · [Editor/BSON](../../06-editor-bson-e-uuid.md) · [Exportação lógica](../../13-exportacao-logica.md)
-
-## Pendências de homologação real
-
-Registradas em [`pendencias-de-homologacao.md`](../../done/release_v0.5.0/pendencias-de-homologacao.md). Nenhuma delas é encerrada por teste automatizado ou execução Headless.
+- [Fase 8 — homologação manual](../phase-08-v0.12.0/README.md)

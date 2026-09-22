@@ -33,6 +33,6 @@ Fase 2 concluída: núcleos separados e autocomplete determinístico estável.
 - [Autocomplete por IA](../../auto-complite/ai-autocomplete.md) e [contexto para IA](../../auto-complite/ai-context.md)
 - Sub-fases do subsistema: [3](../../auto-complite/phases/phase-3-data-ai.md) e [4](../../auto-complite/phases/phase-4-ai-autocomplete.md)
 
-## Pendências de homologação real
+## Validação manual transferida
 
-Nenhuma evidência de aceite ainda. Avaliação de qualidade de sugestão exige corpus reproduzível e revisão humana.
+A avaliação de qualidade de sugestão por corpus reproduzível e revisão humana é critério da [Fase 8 / v0.12.0](../phase-08-v0.12.0/README.md).

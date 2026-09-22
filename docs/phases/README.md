@@ -6,20 +6,21 @@ O [roadmap](../09-plano-de-implementacao.md) permanece na raiz da documentação
 
 ## Meta transversal concluída
 
-A meta de internacionalização da interface foi concluída no recorte automatizado: `pt-BR`, `en`, `es` e `zh-CN`, com `pt-BR` inicial, fallback determinístico em `en`, persistência aditiva, troca em execução e textos de produto/acessibilidade localizados. Foram verificados 64 PNGs reais nos dois temas e os testes unitários passaram com 2.639 aprovados, 0 falhas e 20 ignorados. Os arquivos `docs/**/*.md` permanecem em português. A revisão linguística de domínio e a homologação de MongoDB/mongosh, acessibilidade nativa e Linux gráfico continuam registradas como pendências externas das fases, sem reabrir esta meta.
+A meta de internacionalização da interface foi concluída no recorte automatizado: `pt-BR`, `en`, `es` e `zh-CN`, com `pt-BR` inicial, fallback determinístico em `en`, persistência aditiva, troca em execução e textos de produto/acessibilidade localizados. Foram verificados 64 PNGs reais nos dois temas e os testes unitários passaram com 2.639 aprovados, 0 falhas e 20 ignorados. Os arquivos `docs/**/*.md` permanecem em português. Revisão linguística de domínio e homologações externas pertencem à Fase 8 / v0.12.0.
 
 ## Roadmap oficial
 
 | Fase | Versão | Objetivo | Situação |
 | --- | --- | --- | --- |
-| 1 | v0.5.0 | MVP: conectar → navegar → consultar → visualizar → editar → exportar | [Arquivada por escopo funcional](phase-01-v0.5.0/README.md) — homologação pendente |
-| 2 | v0.6.0 | Organização dos projetos e autocomplete básico | [**Em execução**](phase-02-v0.6.0/README.md) — recorte automatizado implementado; aceite e homologação pendentes |
+| 1 | v0.5.0 | MVP: conectar → navegar → consultar → visualizar → editar → exportar | [Arquivada por escopo funcional](phase-01-v0.5.0/README.md) |
+| 2 | v0.6.0 | Organização dos projetos e autocomplete básico | [**Em execução**](phase-02-v0.6.0/README.md) — recorte automatizado implementado |
 | 3 | v0.7.0 | Autocomplete com IA | [Planejada](phase-03-v0.7.0/README.md) |
-| 4 | v0.8.0 | Abertura e salvamento de arquivos de texto | [Planejada](phase-04-v0.8.0/README.md) — há antecipação técnica, sem aceite integrado |
+| 4 | v0.8.0 | Abertura e salvamento de arquivos de texto | [Planejada](phase-04-v0.8.0/README.md) — há antecipação técnica |
 | 5 | v0.9.0 | IA local e produtividade contextual | [Experimental](phase-05-v0.9.0/README.md) |
 | 6 | v0.10.0 | Administração e manutenção | [Em desenvolvimento](phase-06-v0.10.0/README.md) |
 | 7 | v0.11.0 | Chat simples com IA baseado em workflow | [Planejada](phase-07-v0.11.0/README.md) |
-| 8 | v1.0.0 | Estabilidade, revisão completa, instalação e atualizações | [Planejada](phase-08-v1.0.0/README.md) |
+| 8 | v0.12.0 | Homologação manual e validação em ambientes reais | [Planejada](phase-08-v0.12.0/README.md) |
+| 9 | v1.0.0 | Estabilidade, revisão completa, instalação e atualizações | [Planejada](phase-09-v1.0.0/README.md) |
 
 ## Situações
 
@@ -27,7 +28,7 @@ A meta de internacionalização da interface foi concluída no recorte automatiz
 - **Em desenvolvimento:** existe código integrado antecipando a fase, mas a fase não está ativa. O código é preservado; a interface não o oferece.
 - **Planejada:** sem caminho integrado comprometido para o recorte.
 - **Experimental:** caminho disponível, com qualidade ou ambiente limitando o uso como compromisso estável.
-- **Arquivada:** escopo funcional fechado e movido para `../done/release_vX.Y.Z`; pendências de homologação continuam registradas.
+- **Arquivada:** escopo funcional fechado e movido para `../done/release_vX.Y.Z`; a homologação manual correspondente fica na Fase 8.
 
 ## Implementação antecipada não encerra fase
 

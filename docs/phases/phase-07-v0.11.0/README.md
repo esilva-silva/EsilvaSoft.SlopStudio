@@ -31,6 +31,6 @@ Fase 6 aceita; política de dados e contexto determinístico das fases anteriore
 
 - [ONNX/chat](../../23-onnx-slopcoder.md) · [IA local multimodelo](../../26-ia-local-multimodelo.md) · [Contexto para IA](../../auto-complite/ai-context.md)
 
-## Pendências de homologação real
+## Pendências de escopo
 
 O workflow ainda não foi definido em documento próprio de requisitos. Nenhuma evidência de aceite existe.

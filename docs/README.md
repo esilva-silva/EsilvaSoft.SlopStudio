@@ -8,7 +8,7 @@ Abra [o índice HTML](index.html) para navegar pelo índice lateral e ler docume
 
 Ao editar, adicionar ou mover arquivos `.md`, execute `node scripts/build-docs-index.cjs` na raiz do repositório para atualizar a cópia de leitura local. Quando servido por HTTP, o leitor busca o conteúdo atual dos arquivos; a lista de documentos continua sendo gerada por esse comando. O renderizador Marked e sua licença MIT estão em `docs/assets/`.
 
-1. [Fases](phases/README.md): as oito fases oficiais, com escopo, aceite e situação de cada uma.
+1. [Fases](phases/README.md): as nove fases oficiais, com escopo, aceite e situação de cada uma.
 2. [Roadmap por versão](09-plano-de-implementacao.md): índice das fases e as regras que separam antecipação, fase ativa, backlog e release arquivada.
 3. [Backlog](backlog/README.md): requisitos sem fase definida, adiados ou retirados do escopo atual.
 4. [Releases arquivadas](done/README.md): escopo concluído por versão, com as pendências de homologação ainda abertas.

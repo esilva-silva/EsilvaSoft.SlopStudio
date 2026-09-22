@@ -2,7 +2,7 @@
 
 **Situação:** Experimental.
 
-A camada de IA local já participa do catálogo de localização nos quatro idiomas (`pt-BR`, `en`, `es`, `zh-CN`), com fallback em inglês. Isso encerra a meta transversal de tradução, mas não altera o status experimental nem substitui a homologação de modelos e hardware reais.
+A camada de IA local já participa do catálogo de localização nos quatro idiomas (`pt-BR`, `en`, `es`, `zh-CN`), com fallback em inglês. Isso encerra a meta transversal de tradução, sem alterar o status experimental.
 
 ## Objetivo
 
@@ -19,11 +19,11 @@ Chatbot genérico, execução automática de sugestões, envio implícito a serv
 
 ## Antecipações técnicas presentes no código
 
-Existem `LocalModelAiChatService`, `OnnxLocalModelRuntime`, ghost text e propostas com diff. **Inferência CPU tem registros; GPU não está homologada e CUDA compilado não significa geração validada.** A existência do painel não torna a assistência pronta.
+Existem `LocalModelAiChatService`, `OnnxLocalModelRuntime`, ghost text e propostas com diff. A existência do painel não torna a assistência pronta.
 
 ## Critério de aceite
 
-Casos nos quatro idiomas para cada ação sem alterações extras não solicitadas; Tab/Escape/undo e descarte de resposta obsoleta; funcionamento sem modelo instalado; opt-out impedindo contexto indevido; cancelamento isolado entre chat e autocomplete; latência e memória documentadas por hardware e modelo.
+Casos automatizados nos quatro idiomas para cada ação sem alterações extras não solicitadas; Tab/Escape/undo e descarte de resposta obsoleta; funcionamento sem modelo instalado; opt-out impedindo contexto indevido; cancelamento isolado entre chat e autocomplete.
 
 ## Dependências
 
@@ -33,6 +33,6 @@ Fase 4 aceita, modelo compatível externo, contexto determinístico, política d
 
 - [ONNX/chat](../../23-onnx-slopcoder.md) · [IA local multimodelo](../../26-ia-local-multimodelo.md) · [Autocomplete preemptivo](../../auto-complite/preemptive-autocomplete.md) · sub-fase [5](../../auto-complite/phases/phase-5-preemptive.md)
 
-## Pendências de homologação real
+## Validação manual transferida
 
-GPU/NPU, revisão linguística de domínio, fidelidade de todas as ações e medições de latência em hardware real continuam abertas.
+GPU/NPU, revisão linguística de domínio, fidelidade de todas as ações e medições de latência em hardware real são critérios da [Fase 8 / v0.12.0](../phase-08-v0.12.0/README.md).

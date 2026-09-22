@@ -17,8 +17,8 @@ Slop Studio is an open-source MongoDB desktop IDE and GUI client for Windows and
 
 ## Current implementation status (21 September 2026)
 
-- **v0.5.0** is archived because its defined functional scope is implemented; it is **not homologated**. Real Windows/Linux, accessibility, native-dialog, topology and real-editing gates remain open.
-- **v0.6.0** is the active phase. The deterministic autocomplete implementation, isolated cores and automated language/ranking coverage are present, but its formal acceptance and real-environment validation remain open.
+- **v0.5.0** is archived because its defined functional scope is implemented. Its real-environment validation is planned in **Phase 8 / v0.12.0**.
+- **v0.6.0** is the active phase. The deterministic autocomplete implementation, isolated cores and automated language/ranking coverage are present; its manual validation is planned in **Phase 8 / v0.12.0**.
 - **v0.9.0** local AI is available only as an experimental capability. **v0.10.0** administration and maintenance code is preserved as an early implementation, without a current UI entry point. The remaining phases are planned.
 - The desktop UI supports **Portuguese (Brazil), English, Spanish and Simplified Chinese**. `pt-BR` is the initial language and **English (`en`) is the deterministic fallback**. This does not translate repository documents under `docs/`, which remain in Portuguese.
 
@@ -42,27 +42,28 @@ Concretely: save and test connection profiles, browse databases and collections,
 
 | Phase | Version | Goal | Status |
 | --- | --- | --- | --- |
-| 1 | v0.5.0 | **MVP**: connect → navigate → query → view → edit → export | Feature scope completed and [archived](docs/done/release_v0.5.0/README.md). Windows/Linux acceptance validation remains [pending](docs/done/release_v0.5.0/pendencias-de-homologacao.md) |
+| 1 | v0.5.0 | **MVP**: connect → navigate → query → view → edit → export | Feature scope completed and [archived](docs/done/release_v0.5.0/README.md). Manual validation is planned in [Phase 8 / v0.12.0](docs/phases/phase-08-v0.12.0/README.md) |
 | 2 | v0.6.0 | Project organisation and basic autocomplete | **Active phase** — deterministic autocomplete and its supporting architecture are under consolidation |
 | 3 | v0.7.0 | AI-assisted autocomplete | Planned — local-model suggestions, always reviewable, never applied automatically |
 | 4 | v0.8.0 | Opening and saving text files | Planned — open files in the editor as plain text, save the current content, and "Save as" |
 | 5 | v0.9.0 | Local AI and contextual productivity | Experimental — ONNX models, ghost text, reviewable chat proposals, multi-model catalog, CPU/GPU/NPU selection |
 | 6 | v0.10.0 | Administration and maintenance | In development — collections, views, validation, indexes, stats, users, roles and logical export/import |
 | 7 | v0.11.0 | Simple workflow-based AI chat | Planned — a predefined flow, limited scope and controlled actions |
-| 8 | v1.0.0 | Stability, full review, installation and updates | Planned — stable release only after code, architecture, security, test, installation and update review |
+| 8 | v0.12.0 | Manual validation and real-environment homologation | Planned — platforms, accessibility, MongoDB/mongosh, hardware, installation and updates in real environments |
+| 9 | v1.0.0 | Stability, full review, installation and updates | Planned — stable release after functional acceptance and Phase 8 |
 
 ### How to read this table
 
 - **Active phase** — the only phase being worked on. It is the only scope that justifies new entries in the user interface.
 - **Early implementation** — code that already exists for a later phase. It is kept and tested, but it does **not** close that phase, does not count as completed scope of the active phase, and is **not** exposed in the interface. Features outside the active phase may remain in the code while disabled or experimental.
 - **Backlog** — requirements with no assigned phase, postponed, or removed from the current scope. Nothing is deleted: the implementation is preserved and isolated, only its entry points are removed. See [backlog](docs/backlog/README.md).
-- **Archived release** — a version whose feature scope is closed, in [`docs/done`](docs/done/README.md). Archiving does **not** mean it passed homologation; open acceptance gates stay recorded next to the release.
+- **Archived release** — a version whose feature scope is closed, in [`docs/done`](docs/done/README.md). Archiving does **not** mean it has passed manual validation; those gates are consolidated in Phase 8.
 
 ### Phase 2 delivered milestones
 
 Phase 2 remains active, but its deterministic autocomplete work already includes isolated cores, a parser and context engine, contextual ranking, snippets, configurable keyboard shortcuts, and traditional suggestions. The automated language corpus reports 675 fixtures plus one ranking gate (MRR 1.000; top-1/top-5 44/44). These are implementation milestones, not phase closure or formal acceptance; the remaining scope and evidence are tracked in the [Phase 2 documentation](docs/phases/phase-02-v0.6.0/README.md), [autocomplete execution plan](docs/auto-complite/execution-plan.md), and [implementation tracking](docs/12-acompanhamento-da-implementacao.md).
 
-No phase has passed its formal acceptance gate yet: automated tests (including headless UI rendering) do not replace validation against real MongoDB servers, both operating systems, screen readers, and native dialogs. See the [phase index](docs/phases/README.md), [roadmap](docs/09-plano-de-implementacao.md), [validation matrix](docs/15-matriz-de-validacao.md), and [implementation inventory](docs/24-inventario-roadmap.md) (Portuguese).
+Automated tests (including headless UI rendering) do not replace validation against real MongoDB servers, both operating systems, screen readers, and native dialogs. Those manual gates are consolidated in [Phase 8 / v0.12.0](docs/phases/phase-08-v0.12.0/README.md). See the [phase index](docs/phases/README.md), [roadmap](docs/09-plano-de-implementacao.md), [validation matrix](docs/15-matriz-de-validacao.md), and [implementation inventory](docs/24-inventario-roadmap.md) (Portuguese).
 
 ## Requirements
 

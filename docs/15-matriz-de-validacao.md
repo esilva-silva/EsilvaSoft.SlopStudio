@@ -17,7 +17,7 @@ O resultado Headless não encerra a homologação: continuam pendentes revisão 
 Build `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore`: **0 avisos, 0 erros**. Suíte
 `dotnet test EsilvaSoft.SlopStudio.slnx --no-build --no-restore`: **1273 aprovados, 0 falhas** (baseline de entrada:
 1154). Esta seção separa o que tem **validação automatizada** (build + teste + benchmark local) do que exige
-**homologação manual** (hardware/SO/entrada reais), como exigido pelo `AGENTS.md`.
+**homologação manual** (hardware/SO/entrada reais), concentrada na [Fase 8 / v0.12.0](phases/phase-08-v0.12.0/README.md), como exigido pelo `AGENTS.md`.
 
 ### Validação automatizada (evidência local, esta máquina)
 

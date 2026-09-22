@@ -27,7 +27,7 @@ A reativação dos pontos de entrada é parte do aceite desta fase.
 
 ## Critério de aceite
 
-Em servidor real: criar, inspecionar, renomear e remover coleção; criar, alterar opção suportada e remover índice com releitura; script gerado corresponde ao alvo e não executa ao copiar; estatísticas distinguem estimativa de contagem exata. Confirmação obrigatória para `dropCollection`, `dropIndex`, `deleteMany` e operações de banco; respeitar somente leitura, permissões, proteção de `_id_`, auditoria e resultado incerto após cancelamento.
+Criar, inspecionar, renomear e remover coleção; criar, alterar opção suportada e remover índice com releitura; script gerado corresponde ao alvo e não executa ao copiar; estatísticas distinguem estimativa de contagem exata. Confirmação obrigatória para `dropCollection`, `dropIndex`, `deleteMany` e operações de banco; respeitar somente leitura, permissões, proteção de `_id_`, auditoria e resultado incerto após cancelamento.
 
 ## Dependências
 
@@ -35,8 +35,8 @@ Fase 5 aceita; contratos de escrita e capacidade por servidor/permissão.
 
 ## Documentos relacionados
 
-- [Segurança e administração](../../07-dados-seguranca-e-administracao.md) · [Explorer](../../19-database-explorer.md) · [Transferência lógica](../../13-exportacao-logica.md) · [Checklist de homologação](../../16-checklist-homologacao.md)
+- [Segurança e administração](../../07-dados-seguranca-e-administracao.md) · [Explorer](../../19-database-explorer.md) · [Transferência lógica](../../13-exportacao-logica.md) · [Fase 8 — homologação manual](../phase-08-v0.12.0/README.md)
 
-## Pendências de homologação real
+## Validação manual transferida
 
-RBAC, topologias reais, profiler além da leitura de configuração e homologação das operações destrutivas em servidor real permanecem abertos.
+RBAC, topologias reais, profiler além da leitura de configuração e operações destrutivas em servidor real são critérios da [Fase 8 / v0.12.0](../phase-08-v0.12.0/README.md).

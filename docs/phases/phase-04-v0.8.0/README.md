@@ -1,6 +1,6 @@
 # Fase 4 — v0.8.0: abertura e salvamento de arquivos de texto
 
-**Situação:** Implementada no código e validada por testes automatizados. A homologação nativa de Windows/Linux permanece pendente.
+**Situação:** Implementada no código e validada por testes automatizados. A homologação nativa pertence à [Fase 8 / v0.12.0](../phase-08-v0.12.0/README.md).
 
 ## Objetivo
 
@@ -33,6 +33,6 @@ Fase 3 aceita.
 
 - [Guia de uso](../../14-guia-de-uso.md) · [Editor/BSON](../../06-editor-bson-e-uuid.md) · [Design system](../../17-design-system-ui-ux.md)
 
-## Pendências de homologação real
+## Validação manual transferida
 
-Diálogos nativos de arquivo e pasta, lixeira do sistema e leitor de tela em Windows e Linux não são homologados por teste Headless.
+Diálogos nativos de arquivo e pasta, lixeira do sistema e leitor de tela em Windows e Linux são critérios da [Fase 8 / v0.12.0](../phase-08-v0.12.0/README.md).

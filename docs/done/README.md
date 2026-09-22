@@ -4,10 +4,10 @@ Esta pasta contém os requisitos **concluídos** de cada versão, com a evidênc
 
 | Release | Escopo | Estado do arquivamento |
 | --- | --- | --- |
-| [`release_v0.5.0`](release_v0.5.0/README.md) | MVP: conectar → navegar → consultar → visualizar → editar → exportar | Escopo funcional fechado. **Homologação Windows/Linux pendente** — ver [pendências](release_v0.5.0/pendencias-de-homologacao.md). |
+| [`release_v0.5.0`](release_v0.5.0/README.md) | MVP: conectar → navegar → consultar → visualizar → editar → exportar | Escopo funcional fechado. Validação manual transferida para a [Fase 8 / v0.12.0](../phases/phase-08-v0.12.0/README.md). |
 
 ## Regra de arquivamento
 
-Arquivar uma versão registra que **o escopo funcional foi implementado e revisado**. Não afirma homologação, publicação de release nem aceite externo. Toda versão arquivada mantém um documento `pendencias-de-homologacao.md` enquanto houver gate aberto; esse documento não pode ser removido por reorganização documental.
+Arquivar uma versão registra que **o escopo funcional foi implementado e revisado**. Não afirma publicação de release. A homologação manual aplicável é consolidada na Fase 8; o documento `pendencias-de-homologacao.md` de cada release preserva apenas o registro da transferência e as evidências históricas.
 
 Teste automatizado e execução Headless **não** encerram pendência de homologação real.

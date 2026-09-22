@@ -1,4 +1,6 @@
-# Checklist de homologação
+# Checklist de homologação — Fase 8 / v0.12.0
+
+Este checklist é o único critério de validação manual do roadmap. Ele concentra os cenários de ambiente, hardware e operação humana transferidos das fases funcionais; sua conclusão não altera retrospectivamente a evidência histórica das versões anteriores.
 
 ## Revisão UI/UX — evidência automatizada
 
@@ -104,17 +106,17 @@ Este checklist complementa a matriz de validação e separa evidência local de 
 Esses itens não promovem as pendências históricas do runner mongosh a aprovadas. O Console usa outro runtime.
 
 
-## Gates pendentes por versão — revisão de 13/09/2026
+## Gates da Fase 8 por origem — revisão de 13/09/2026
 
 Este checklist é de homologação, não declaração de inexistência do código. Consulte o [inventário](24-inventario-roadmap.md) e o [roadmap](09-plano-de-implementacao.md).
 
 - [x] v0.5.0: CSV conforme contrato (aninhamento/escape/erros), formatador JSON/query/script e ciclo conectar → navegar → consultar → visualizar → editar → exportar homologados no Windows; validação visual Linux dispensada nesta meta.
 - [x] v0.5.0: BSON, conflitos, contexto/cancelamento por aba e recuperação de sessão confirmados por testes/integração real; abrir coleção nunca executa consulta automaticamente.
-- [ ] v0.6.0: fixtures reais dos 12 stages prioritários; formatação, autocomplete contextual, execução parcial, erros e revisão de UX nos dois temas.
-- [ ] v0.7.0: índices e coleções com confirmação, privilégios, somente leitura, estatísticas e pós-condição verificadas no servidor.
-- [ ] v0.8.0: automação entre dois servidores, BSON, limites, credenciais, falha após escrita e cancelamento; validar separadamente Console e mongosh nos SOs anunciados.
-- [ ] v0.9.0: fidelidade das ações em pt-BR/en, fallback sem modelo, privacidade, obsolescência e hardware realmente executado.
-- [ ] v1.0.0: suíte/regressões atuais aprovadas, performance medida, instalação/atualização em máquinas limpas, acessibilidade nativa, segurança, avisos/SBOM e recuperação.
+- [ ] Origem v0.6.0: fixtures reais dos 12 stages prioritários; formatação, autocomplete contextual, execução parcial, erros e revisão de UX nos dois temas.
+- [ ] Origem v0.7.0: índices e coleções com confirmação, privilégios, somente leitura, estatísticas e pós-condição verificadas no servidor.
+- [ ] Origem v0.8.0: automação entre dois servidores, BSON, limites, credenciais, falha após escrita e cancelamento; validar separadamente Console e mongosh nos SOs anunciados.
+- [ ] Origem v0.9.0: fidelidade das ações em pt-BR/en, fallback sem modelo, privacidade, obsolescência e hardware realmente executado.
+- [ ] Origem v1.0.0: performance medida, instalação/atualização em máquinas limpas, acessibilidade nativa, segurança, avisos/SBOM e recuperação.
 
 
 ## Gate final do polimento MVP
@@ -133,4 +135,4 @@ Este checklist é de homologação, não declaração de inexistência do códig
 - [x] Medir uma amostra de startup e CPU/RAM nativos sem inspeção visual (1.396 ms; 220,3 MiB; 3.734,4 ms CPU após 2 s).
 - [ ] Repetir a medição em série e durante I/O demorado para obter perfil estatístico.
 
-Evidência e limites em [25 — Auditoria](done/release_v0.5.0/25-auditoria-mvp-performance.md). Os gates da v0.5.0 que continuam abertos estão consolidados em [pendências de homologação](done/release_v0.5.0/pendencias-de-homologacao.md); arquivar a release não fechou nenhum deles. Os itens de ambiente deste checklist referem-se ao armazenamento local não criptografado, não a um cofre: ver [bkl-01](backlog/bkl-01-key-vault-criptografico.md).
+Evidência e limites em [25 — Auditoria](done/release_v0.5.0/25-auditoria-mvp-performance.md). Os gates históricos da v0.5.0 foram transferidos para esta Fase 8; arquivar a release não os fechou. Os itens de ambiente deste checklist referem-se ao armazenamento local não criptografado, não a um cofre: ver [bkl-01](backlog/bkl-01-key-vault-criptografico.md).
