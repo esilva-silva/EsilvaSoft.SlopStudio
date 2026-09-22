@@ -15,14 +15,14 @@ Slop Studio is an open-source MongoDB desktop IDE and GUI client for Windows and
 >
 > **Version 1.0.0 will receive a full review** of code, architecture, security, tests, and documentation before it is declared stable. Until then, every release is a pre-release.
 
-## Current implementation status (21 September 2026)
+## Current implementation status (22 September 2026)
 
 - **v0.5.0** is archived because its defined functional scope is implemented. Its real-environment validation is planned in **Phase 8 / v0.12.0**.
-- **v0.6.0** is the active phase. The deterministic autocomplete implementation, isolated cores and automated language/ranking coverage are present; its manual validation is planned in **Phase 8 / v0.12.0**.
-- **v0.9.0** local AI is available only as an experimental capability. **v0.10.0** administration and maintenance code is preserved as an early implementation, without a current UI entry point. The remaining phases are planned.
+- **v0.6.0**, **v0.7.0** and **v0.8.0** are archived by functional scope. They cover deterministic autocomplete, explicit reviewable AI suggestions, and text-file/workspace operations. Their manual and native-environment validation remains planned in **Phase 8 / v0.12.0**.
+- **v0.9.0** local AI is the next experimental phase. **v0.10.0** administration and maintenance code is preserved as an early implementation, without a current UI entry point. Later phases remain planned.
 - The desktop UI supports **Portuguese (Brazil), English, Spanish and Simplified Chinese**. `pt-BR` is the initial language and **English (`en`) is the deterministic fallback**. This does not translate repository documents under `docs/`, which remain in Portuguese.
 
-Latest automated evidence for this checkout: solution build with 0 warnings/errors and **2,639 unit tests passed, 0 failed, 20 ignored**. Benchmarks were intentionally not used as an acceptance gate. Automated and Headless evidence does not replace the open homologation gates.
+Latest automated evidence for this checkout: solution build with 0 warnings/errors, **2,674 unit tests passed, 0 failed, 20 ignored**, and **43 benchmarks passed**. The v0.8.0 release workflow generated and checksum-verified four local packages for Windows/Linux x64/ARM64. Automated and Headless evidence does not replace the open homologation gates.
 
 ## Support the project
 
@@ -43,9 +43,9 @@ Concretely: save and test connection profiles, browse databases and collections,
 | Phase | Version | Goal | Status |
 | --- | --- | --- | --- |
 | 1 | v0.5.0 | **MVP**: connect → navigate → query → view → edit → export | Feature scope completed and [archived](docs/done/release_v0.5.0/README.md). Manual validation is planned in [Phase 8 / v0.12.0](docs/phases/phase-08-v0.12.0/README.md) |
-| 2 | v0.6.0 | Project organisation and basic autocomplete | **Active phase** — deterministic autocomplete and its supporting architecture are under consolidation |
-| 3 | v0.7.0 | AI-assisted autocomplete | Planned — local-model suggestions, always reviewable, never applied automatically |
-| 4 | v0.8.0 | Opening and saving text files | Planned — open files in the editor as plain text, save the current content, and "Save as" |
+| 2 | v0.6.0 | Project organisation and basic autocomplete | Feature scope completed and [archived](docs/done/release_v0.6.0/README.md); manual validation remains in Phase 8 |
+| 3 | v0.7.0 | AI-assisted autocomplete | Feature scope completed and [archived](docs/done/release_v0.7.0/README.md); suggestions remain reviewable and are never applied automatically |
+| 4 | v0.8.0 | Opening and saving text files | Feature scope completed and [archived](docs/done/release_v0.8.0/README.md); includes local single-root workspace operations |
 | 5 | v0.9.0 | Local AI and contextual productivity | Experimental — ONNX models, ghost text, reviewable chat proposals, multi-model catalog, CPU/GPU/NPU selection |
 | 6 | v0.10.0 | Administration and maintenance | In development — collections, views, validation, indexes, stats, users, roles and logical export/import |
 | 7 | v0.11.0 | Simple workflow-based AI chat | Planned — a predefined flow, limited scope and controlled actions |
@@ -59,9 +59,9 @@ Concretely: save and test connection profiles, browse databases and collections,
 - **Backlog** — requirements with no assigned phase, postponed, or removed from the current scope. Nothing is deleted: the implementation is preserved and isolated, only its entry points are removed. See [backlog](docs/backlog/README.md).
 - **Archived release** — a version whose feature scope is closed, in [`docs/done`](docs/done/README.md). Archiving does **not** mean it has passed manual validation; those gates are consolidated in Phase 8.
 
-### Phase 2 delivered milestones
+### Archived v0.6.0–v0.8.0 milestones
 
-Phase 2 remains active, but its deterministic autocomplete work already includes isolated cores, a parser and context engine, contextual ranking, snippets, configurable keyboard shortcuts, and traditional suggestions. The automated language corpus reports 675 fixtures plus one ranking gate (MRR 1.000; top-1/top-5 44/44). These are implementation milestones, not phase closure or formal acceptance; the remaining scope and evidence are tracked in the [Phase 2 documentation](docs/phases/phase-02-v0.6.0/README.md), [autocomplete execution plan](docs/auto-complite/execution-plan.md), and [implementation tracking](docs/12-acompanhamento-da-implementacao.md).
+The archived releases include isolated autocomplete cores, a tolerant parser and context engine, contextual ranking, snippets, explicit reviewable AI suggestions with fallback and cancellation, and safe text-file/workspace persistence. The deterministic language corpus reports 675 fixtures plus one ranking gate (MRR 1.000; top-1/top-5 44/44). Detailed evidence and open manual gates are tracked in the [release archive](docs/done/README.md), [autocomplete execution plan](docs/auto-complite/execution-plan.md), and [implementation tracking](docs/12-acompanhamento-da-implementacao.md).
 
 Automated tests (including headless UI rendering) do not replace validation against real MongoDB servers, both operating systems, screen readers, and native dialogs. Those manual gates are consolidated in [Phase 8 / v0.12.0](docs/phases/phase-08-v0.12.0/README.md). See the [phase index](docs/phases/README.md), [roadmap](docs/09-plano-de-implementacao.md), [validation matrix](docs/15-matriz-de-validacao.md), and [implementation inventory](docs/24-inventario-roadmap.md) (Portuguese).
 
@@ -182,8 +182,8 @@ SLOP_QWEN_MODEL=/path/to/model dotnet test tests/EsilvaSoft.SlopStudio.UnitTests
 
 ```bash
 ./build-release.ps1                                  # version from the latest git tag, or 0.0.0-local
-./build-release.ps1 0.5.0
-./build-release.ps1 0.5.0 -SkipTests -Rids win-x64,linux-x64
+./build-release.ps1 0.8.0
+./build-release.ps1 0.8.0 -SkipTests -Rids win-x64,linux-x64
 ```
 
 On Windows, `build-release.bat` wraps the same script. It produces self-contained single-file packages (`.zip` for Windows, `.tar.gz` for Linux) and `SHA256SUMS.txt` in `artifacts/release/<version>`.
