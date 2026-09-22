@@ -13,9 +13,9 @@ A meta de internacionalização da interface foi concluída no recorte automatiz
 | Fase | Versão | Objetivo | Situação |
 | --- | --- | --- | --- |
 | 1 | v0.5.0 | MVP: conectar → navegar → consultar → visualizar → editar → exportar | [Arquivada por escopo funcional](phase-01-v0.5.0/README.md) |
-| 2 | v0.6.0 | Organização dos projetos e autocomplete básico | [**Em execução**](phase-02-v0.6.0/README.md) — recorte automatizado implementado |
-| 3 | v0.7.0 | Autocomplete com IA | [Planejada](phase-03-v0.7.0/README.md) |
-| 4 | v0.8.0 | Abertura e salvamento de arquivos de texto | [Planejada](phase-04-v0.8.0/README.md) — há antecipação técnica |
+| 2 | v0.6.0 | Organização dos projetos e autocomplete básico | [Arquivada](../done/release_v0.6.0/README.md) |
+| 3 | v0.7.0 | Autocomplete com IA | [Arquivada](../done/release_v0.7.0/README.md) |
+| 4 | v0.8.0 | Abertura e salvamento de arquivos de texto | [Arquivada](../done/release_v0.8.0/README.md) |
 | 5 | v0.9.0 | IA local e produtividade contextual | [Experimental](phase-05-v0.9.0/README.md) |
 | 6 | v0.10.0 | Administração e manutenção | [Em desenvolvimento](phase-06-v0.10.0/README.md) |
 | 7 | v0.11.0 | Chat simples com IA baseado em workflow | [Planejada](phase-07-v0.11.0/README.md) |

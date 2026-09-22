@@ -62,7 +62,7 @@ Fixtures de backup usam tipos heterogêneos e UUIDs de bytes conhecidos, índice
 
 Para LiteDB, complementar testes locais em memória com arquivo real e processos separados nos dois sistemas. Validar APIs e versões escolhidas em .NET 10, proteção por cofre e falha durante migração/rebuild. Não considerar o `BsonDocument` do LiteDB equivalente ao do MongoDB: testar ida e volta de payloads MongoDB com fixtures independentes.
 
-Para script, testar mongosh ausente/incompatível, erro de sintaxe, erro após uma escrita, loop infinito, saída excessiva, processo que termina inesperadamente, caminhos com espaços/Unicode e credenciais TLS. O canal estruturado deve manter tipos mesmo com `printjson` e stderr intercalados; código impresso nunca provoca execução na IDE. Testar execução da seleção sem variáveis anteriores e separação entre abas. Esses cenários são alvos de homologação da v0.8.0; testes e integrações já registrados estão na matriz, sem presumir cobertura integral.
+Para script, testar mongosh ausente/incompatível, erro de sintaxe, erro após uma escrita, loop infinito, saída excessiva, processo que termina inesperadamente, caminhos com espaços/Unicode e credenciais TLS. O canal estruturado deve manter tipos mesmo com `printjson` e stderr intercalados; código impresso nunca provoca execução na IDE. Testar execução da seleção sem variáveis anteriores e separação entre abas. Esses cenários permanecem no backlog do modo script; não são critérios da v0.8.0.
 
 ## UI e desempenho
 
@@ -83,7 +83,7 @@ Esses números são metas de produto, não benchmarks obtidos. Executar cargas m
 
 PR: build Release, analisadores, testes unitários/arquitetura, integração dos módulos afetados e verificação de segredos/licenças. Meta inicial de cobertura: 80% de branches em Core/Application/Editor, com casos explícitos para caminhos críticos; cobertura agregada não substitui cenários de perda de dados.
 
-Execução noturna planejada: matriz ampliada de versões/topologias, falhas de rede e cargas; isso será CI do projeto, não uma automação criada nesta conversa. Release: restore real, pacotes em máquinas limpas, UI em Windows e Linux, SBOM, notas e ausência de defeitos críticos abertos. Ambos os sistemas executam build/test desde a fundação; v0.5.0 exige persistência/fluxo básico e v0.8.0 exige script funcionando nos dois.
+Execução noturna planejada: matriz ampliada de versões/topologias, falhas de rede e cargas; isso será CI do projeto, não uma automação criada nesta conversa. Release: restore real, pacotes em máquinas limpas, UI em Windows e Linux, SBOM, notas e ausência de defeitos críticos abertos. Ambos os sistemas executam build/test desde a fundação; v0.5.0 exige persistência/fluxo básico e v0.8.0 exige arquivos/workspace local. O modo script permanece fora desta release.
 
 Teste dependente de infraestrutura ausente deve aparecer como não executado com motivo. Não declarar Enterprise/Atlas homologados a partir de mocks. Testes instáveis terão responsável e prazo; não remover silenciosamente da suíte obrigatória.
 

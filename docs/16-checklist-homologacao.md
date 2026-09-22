@@ -114,7 +114,7 @@ Este checklist é de homologação, não declaração de inexistência do códig
 - [x] v0.5.0: BSON, conflitos, contexto/cancelamento por aba e recuperação de sessão confirmados por testes/integração real; abrir coleção nunca executa consulta automaticamente.
 - [ ] Origem v0.6.0: fixtures reais dos 12 stages prioritários; formatação, autocomplete contextual, execução parcial, erros e revisão de UX nos dois temas.
 - [ ] Origem v0.7.0: índices e coleções com confirmação, privilégios, somente leitura, estatísticas e pós-condição verificadas no servidor.
-- [ ] Origem v0.8.0: automação entre dois servidores, BSON, limites, credenciais, falha após escrita e cancelamento; validar separadamente Console e mongosh nos SOs anunciados.
+- [ ] Backlog do modo script: automação entre dois servidores, BSON, limites, credenciais, falha após escrita e cancelamento; validar separadamente Console e mongosh quando houver versão comprometida.
 - [ ] Origem v0.9.0: fidelidade das ações em pt-BR/en, fallback sem modelo, privacidade, obsolescência e hardware realmente executado.
 - [ ] Origem v1.0.0: performance medida, instalação/atualização em máquinas limpas, acessibilidade nativa, segurança, avisos/SBOM e recuperação.
 

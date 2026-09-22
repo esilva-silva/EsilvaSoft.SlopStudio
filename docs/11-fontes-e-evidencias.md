@@ -45,7 +45,7 @@ Os documentos anteriores distinguem fatos de referência, decisões propostas e 
 ## Stack e licença
 
 - [LiteDB](https://www.litedb.org/docs/), [conexões Direct/Shared](https://www.litedb.org/docs/connection-string/), [criptografia](https://www.litedb.org/docs/encryption/) e [repositório/licença](https://github.com/litedb-org/LiteDB) — persistência local solicitada na revisão; versão fixada no arquivo Directory.Packages.props.
-- [Scripts mongosh](https://www.mongodb.com/docs/mongodb-shell/write-scripts/), [EJSON](https://www.mongodb.com/docs/mongodb-shell/reference/ejson/) e [opções do executável](https://www.mongodb.com/docs/mongodb-shell/reference/options/) — runtime JavaScript + JSON existente, com consolidação na v0.8.0. O protocolo e os helpers `slop` são contratos próprios da IDE, não APIs do fabricante.
+- [Scripts mongosh](https://www.mongodb.com/docs/mongodb-shell/write-scripts/), [EJSON](https://www.mongodb.com/docs/mongodb-shell/reference/ejson/) e [opções do executável](https://www.mongodb.com/docs/mongodb-shell/reference/options/) — runtime JavaScript + JSON existente em recurso antecipado/backlog. O protocolo e os helpers `slop` são contratos próprios da IDE, não APIs do fabricante.
 
 - [Suporte .NET](https://dotnet.microsoft.com/en-us/platform/support/policy).
 - [Plataformas Avalonia](https://docs.avaloniaui.net/docs/supported-platforms), [headless](https://docs.avaloniaui.net/docs/testing/setting-up-the-headless-platform) e [AvaloniaEdit](https://github.com/AvaloniaUI/AvaloniaEdit).

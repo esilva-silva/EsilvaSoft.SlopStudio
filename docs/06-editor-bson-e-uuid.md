@@ -4,7 +4,7 @@
 
 1. **Consulta e documentos:** um editor textual para Extended JSON/MQL; filtro, projeção, sort, update e pipeline ficam no texto, com autocomplete e diagnóstico. Executa pelo driver.
 2. **Comando administrativo:** documento BSON com nome do comando, opções e banco de destino. Usa o registro de capacidades e riscos.
-3. **Script JavaScript + JSON:** já possui runner, com consolidação na **v0.8.0**, usa um editor textual próprio para executar lógica JavaScript e queries JSON no mesmo script via processo `mongosh`, em Windows e Linux. Suporta variáveis, funções, condicionais, loops, `await`, múltiplas consultas e operações de escrita autorizadas.
+3. **Script JavaScript + JSON:** permanece recurso antecipado/backlog, fora do escopo da v0.8.0. O runner usa um editor textual próprio e processo `mongosh`; sua homologação será retomada quando houver versão comprometida.
 
 O tipo do editor fica visível na aba e no arquivo salvo. Construtores como `ObjectId(...)`, `UUID(...)`, `ISODate(...)` e `NumberLong(...)` pertencem à sintaxe de shell; datas são exibidas como `ISODate("yyyy-MM-ddTHH:mm:ss.fffZ")`, com segundos, milissegundos e UTC explícito. No editor JSON, snippets geram a representação Extended JSON correspondente. A ferramenta Documentos oferece **Gerar UUID** na representação efetiva da conexão, com o construtor nomeado e o Extended JSON canônico equivalente (seção UUID/GUID abaixo). Um conversor de sintaxe shell, se implementado, aceitará apenas um subconjunto documentado, sem usar `eval`.
 
@@ -48,7 +48,7 @@ Uma aba pode associar parâmetros e uma query em painel JSON opcional, carregado
 - Limites de tempo, saída e resultados são configuráveis. Helpers aplicam lotes e contrapressão. JavaScript arbitrário pode chamar `toArray()` e alocar memória: o runner precisa monitorar o processo e encerrá-lo ao ultrapassar o orçamento; não prometer streaming automático de todo código do usuário.
 - Cancelar encerra o job e tenta interromper o processo/cursores; efeitos remotos já aplicados permanecem possíveis. Não repetir script automaticamente após falha ou reconexão.
 - Processo separado mantém falhas fora da UI, mas não é sandbox de segurança: mongosh executa com permissões locais do usuário e pode acessar arquivos/rede. Scripts gerais em modo somente leitura exigem a política e RBAC descritos no documento de segurança.
-- `mongosh` é dependência do modo script, com localização, versão e diagnóstico em Windows/Linux. A v0.8.0 exige instalação/configuração, autenticação e execução reais desse runtime nos sistemas anunciados; ele não é gate obrigatório do MVP v0.5.0.
+- `mongosh` é dependência do modo script, com localização, versão e diagnóstico em Windows/Linux. Esse runtime não é gate da v0.8.0; a validação real permanece no backlog e na homologação da versão que assumir o recurso.
 
 Autocomplete nesse modo sugere JavaScript, variáveis locais, métodos do shell, coleções e operadores dentro dos objetos MQL. A inferência de variáveis computadas é conservadora; o aceite não exige interpretar todo JavaScript dinamicamente. Salvar/reabrir `.js`, formatos de linha dos dois sistemas e painel JSON associado fazem parte de EDT-06. A implementação atual oferece salvar/abrir por caminho `.js`, seleção gráfica nativa de arquivo e persistência opcional da entrada por caminho: somente objeto JSON de até 64 KiB, nunca o conteúdo do script. A opção começa desmarcada para evitar retenção acidental de dados.
 

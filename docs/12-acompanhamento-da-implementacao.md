@@ -1,5 +1,9 @@
 ﻿# Acompanhamento da implementação
 
+## Meta v0.8.0 — fases 1–4 arquivadas — 22/09/2026
+
+Os escopos funcionais das fases 1–4 foram fechados e arquivados em `docs/done/release_v0.5.0` até `release_v0.8.0`; a homologação manual continua transferida para a Fase 8. Restore locked-mode, build Release e testes concluíram sem falhas: 2.674 testes unitários aprovados, 20 ignorados, 43 benchmarks aprovados e zero avisos/erros. `build-release.ps1 -Version 0.8.0` gerou os quatro pacotes locais (Windows/Linux, x64/ARM64) e `SHA256SUMS.txt`; checksums, arquiteturas, executáveis single-file, versão `0.8.0.0` e modo Linux `755` foram verificados. Modelos/hardware reais, MongoDB real, leitor de tela, diálogos nativos e demais homologações externas permanecem pendentes na Fase 8.
+
 ## Atualização da meta de autocomplete — 21/09/2026
 
 A meta foi retomada com escopo funcional e de testes automatizados, sem validar múltiplas plataformas, MongoDB/modelos reais ou metas de performance. O fluxo foi dividido por risco: tarefas de corpus e regressão ficam no perfil Luna; integração de catálogo, ranking e snippets no Terra; parser, contexto, recuperação tolerante, concorrência e cancelamento no Sol; decisões arquiteturais, persistência LiteDB e revisão sistêmica sobem ao Astra apenas quando necessário.
@@ -670,7 +674,7 @@ Os demais documentos numerados permanecem na raiz de `docs/` por serem transvers
 | --- | --- | --- | --- |
 | Administração, índices, coleções, views, validação, transferência lógica | v0.7.0 | v0.10.0 (Fase 6) | Reordenação do roadmap oficial. Código preservado e integrado; pontos de entrada removidos por não ser a fase atual. |
 | AGG-01/02/03/04 (modo Agregação) | v0.6.0 | Backlog (`bkl-04`) | A v0.6.0 passou a ser organização dos projetos e autocomplete básico. Implementação parcial documentada como **antecipação técnica**, não como escopo concluído. |
-| EDT-06, TRF-05 (Script Engine entre conexões) | v0.8.0 | Backlog (`bkl-03`) | A v0.8.0 passou a ser abertura e salvamento de arquivos de texto. Console Jint continua ativo; modo Script/mongosh desativado no seletor. |
+| EDT-06, TRF-05 (Script Engine entre conexões) | Sem versão comprometida | Backlog (`bkl-03`) | A v0.8.0 passou a ser abertura e salvamento de arquivos de texto. Console Jint continua ativo; modo Script/mongosh desativado no seletor. |
 | EDT-07 (exportar query para C#) | v0.6.0 | Backlog (`bkl-05`) | Sem caminho integrado e sem fase atribuída. |
 | Cofre criptográfico (recorte de CON-07) | v0.5.0 | Backlog (`bkl-01`) | O cofre **não existe**: o LiteDB é aberto sem senha e os valores de ambiente são gravados em JSON puro. O armazenamento local permanece, por ser necessário à resolução de `${ENV.get(...)}`. |
 
