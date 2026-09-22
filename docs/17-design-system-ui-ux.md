@@ -104,6 +104,14 @@ O explorer lista todos os perfis cadastrados; bancos aparecem sob as conexões a
 
 Editar/remover um perfil invalida o explorer antigo e exige reabrir sua conexão antes de executar novamente. Isso impede reutilizar um banco listado de outro host ou uma política de acesso antiga. Os rascunhos continuam disponíveis.
 
+### Workspace local e painel lateral
+
+Uma barra vertical acessível organiza dois painéis tratados como abas: **Conexões** primeiro e **Arquivos** segundo. **Abrir pasta** (`Ctrl+Shift+O`) escolhe uma única raiz, abre o workspace local e seleciona automaticamente **Arquivos**; trocar ou fechar a pasta preserva as abas de documentos abertas. O painel não consulta MongoDB e a seleção da árvore nunca executa conteúdo.
+
+**Arquivos** exibe a raiz, pastas antes de arquivos e filhos carregados sob demanda. Os estados vazio, carregando e erro têm texto e ação de **Atualizar**. Enter ou duplo clique abre/ativa o arquivo como texto; abrir o mesmo caminho novamente reutiliza a aba. O menu contextual oferece **Novo arquivo**, **Nova pasta**, **Renomear** e **Excluir**. Nomes duplicados, caminhos fora da raiz e alterações na própria raiz são bloqueados. A exclusão usa a lixeira do sistema e informa a falha quando ela não está disponível.
+
+Arquivos vazios e extensões desconhecidas são válidos. O serviço preserva UTF-8 (com ou sem BOM), UTF-16/UTF-32 com BOM, quebras de linha e bytes na gravação; conteúdo binário ou codificação não reconhecida produz erro recuperável. Documento sem caminho usa **Salvar como**. Alteração externa oferece recarregar, sobrescrever explicitamente ou cancelar, e buffers abertos viram documentos sem arquivo quando o item é excluído.
+
 ### Abas e execução
 
 Nova aba cria um editor. Cada aba possui ID, contexto, texto, arquivo, estado de alteração, resultados, mensagens, erros e cancelamento próprios. O contexto muda somente por ação explícita ou por carregar uma consulta da própria conexão; não há um modo paralelo de campos para montar a consulta.
@@ -123,6 +131,7 @@ Resultados permanecem em Extended JSON, separados de stdout/stderr; consultas ma
 | Enter | Aceita item da lista, se `CompletionEnterAccepts` (padrão habilitado) |
 | Esc | Fecha a lista, encerra o snippet ou descarta o ghost (conforme o estado ativo) |
 | Ctrl+T / Ctrl+O / Ctrl+S | Criar aba / abrir arquivo / salvar arquivo |
+| Ctrl+Shift+S / Ctrl+Shift+O | Salvar como / abrir ou trocar pasta do workspace |
 | Ctrl+Tab / Ctrl+Shift+Tab | Alternar abas |
 | Ctrl+W | Fechar aba com tratamento de alterações e execução |
 | F6 | Alternar foco entre editor e explorer, permitindo sair do editor que aceita Tab |
@@ -134,7 +143,7 @@ Os atalhos do editor usam `EditorKeyBindings` persistido: a preferência substit
 
 ### Recuperação e privacidade
 
-Coleção LiteDB adicional `workspaceSession`, documento `current`, JSON de versão 1. O mesmo repositório continua proprietário da conexão LiteDB; a migração é aditiva. Contratos: `IWorkspaceSessionRepository`, `WorkspaceSession`, `WorkspacePreferences`, `WorkspaceDraft`.
+Coleção LiteDB adicional `workspaceSession`, documento `current`, JSON de versão 2. O mesmo repositório continua proprietário da conexão LiteDB; a migração da versão 1 é aditiva. A sessão pode guardar raiz da pasta, painel selecionado e metadados dos documentos, mas nunca resultados ou credenciais. Contratos: `IWorkspaceSessionRepository`, `WorkspaceSession`, `WorkspacePreferences`, `WorkspaceDraft`, `ITextFileService` e `IWorkspaceFileService`.
 
 Autosave após 750 ms sem edição e no encerramento. Recuperar ordem, aba ativa, texto, contexto e arquivo; não recuperar resultados, credenciais ou conexões abertas. A entrada JSON só entra no snapshot mediante a opção Persistir entrada. Preferências de histórico são independentes do autosave.
 

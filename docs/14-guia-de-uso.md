@@ -133,6 +133,14 @@ Na aba **Agregações**, edite o pipeline no mesmo editor textual. Use **Sugerir
 
 Operações demoradas exibem o estado no rodapé. Use **Cancelar operação** para solicitar cancelamento cooperativo; chamadas que já chegaram ao MongoDB não são desfeitas automaticamente.
 
+## Arquivos de texto e workspace local — Fase 4 (disponível)
+
+Use **Abrir** (`Ctrl+O`) para abrir qualquer arquivo de texto, inclusive vazio ou sem extensão. O conteúdo é carregado como texto e não é executado. **Salvar** (`Ctrl+S`) grava na origem; **Salvar como** (`Ctrl+Shift+S`) escolhe outro caminho e mantém a mesma aba. Se o arquivo mudou no disco enquanto estava aberto, escolha recarregar, sobrescrever explicitamente ou cancelar. Ao fechar uma aba alterada, escolha salvar, descartar ou cancelar.
+
+**Abrir pasta** (`Ctrl+Shift+O`) seleciona uma raiz única e ativa o painel lateral **Arquivos**, ao lado da aba **Conexões**. Expanda a árvore para carregar pastas e arquivos. Enter ou duplo clique abre o arquivo; repetir a abertura ativa a aba já existente. **Novo arquivo**, **Nova pasta**, **Renomear** e **Excluir** ficam no painel e no menu contextual. A raiz não pode ser renomeada ou excluída, nomes duplicados são recusados e **Excluir** usa a lixeira do sistema. Trocar ou fechar a pasta preserva as abas abertas; um arquivo removido continua como documento sem caminho até ser salvo em outro local.
+
+O workspace não executa consultas ao selecionar arquivos ou pastas. A recuperação pode guardar a raiz, o painel selecionado e documentos conforme as preferências; resultados e credenciais nunca entram no snapshot. A versão 2 da sessão migra a versão 1 de forma aditiva e mantém uma sessão ilegível protegida.
+
 ## Script JavaScript + JSON
 
 O runtime usa `mongosh` instalado separadamente. Na aba de script, o JSON de entrada fica disponível em `slop.input` e os resultados estruturados podem ser enviados por `slop.results`:

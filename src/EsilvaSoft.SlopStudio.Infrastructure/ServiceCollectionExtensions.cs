@@ -65,6 +65,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IExplorerMetadataService, ExplorerMetadataService>();
         services.AddSingleton<IScriptExecutionService, MongoshScriptExecutionService>();
         services.AddSingleton<IScriptFileService, LocalScriptFileService>();
+        services.AddSingleton<ITextFileService>(services => (ITextFileService)services.GetRequiredService<IScriptFileService>());
+        services.AddSingleton<IWorkspaceFileService, LocalWorkspaceFileService>();
         services.AddSingleton<IAppUpdateService>(_ => new GitHubAppUpdateService(AppUpdateOptions.FromProcess()));
         return services;
     }

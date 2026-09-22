@@ -29,10 +29,16 @@ public sealed class LocalScriptFileServiceTests
     }
 
     [Test]
-    public void SaveWithNonJavaScriptExtensionThrows()
+    public async Task SaveWithTextExtensionAndEmptyContentWorks()
     {
         var service = new LocalScriptFileService();
+        var path = Path.Combine(Path.GetTempPath(), $"consulta-{Guid.NewGuid():N}.txt");
 
-        Assert.That(() => service.SaveAsync(Path.Combine(Path.GetTempPath(), "consulta.txt"), "db.test.find()"), Throws.TypeOf<ArgumentException>());
+        try
+        {
+            await service.SaveAsync(path, string.Empty);
+            Assert.That(await service.LoadAsync(path), Is.Empty);
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
     }
 }

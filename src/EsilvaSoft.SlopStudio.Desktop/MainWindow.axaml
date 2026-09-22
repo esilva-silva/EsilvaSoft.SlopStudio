@@ -41,6 +41,7 @@
         <Button Grid.Column="8" Content="···" ToolTip.Tip="{Binding Localization.MoreActions}" AutomationProperties.Name="{Binding Localization.MoreActions}">
           <Button.Flyout>
             <MenuFlyout>
+              <MenuItem Header="Abrir pasta como workspace" Click="OpenFolder" />
               <MenuItem Header="{Binding Localization.SaveAs}" Click="SaveAs" />
               <MenuItem Header="{Binding Localization.Preferences}" Click="OpenPreferences" />
             </MenuFlyout>
@@ -50,11 +51,18 @@
     </Border>
     <Grid x:Name="WorkspaceGrid" Grid.Row="1">
       <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="40" />
         <ColumnDefinition Width="260" MinWidth="200" MaxWidth="420" />
         <ColumnDefinition Width="5" />
         <ColumnDefinition Width="*" MinWidth="500" />
       </Grid.ColumnDefinitions>
-      <Border Background="{DynamicResource SecondaryBackground}">
+      <Border Grid.Column="0" Background="{DynamicResource SecondaryBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,1,0">
+        <StackPanel Spacing="4" Margin="4,8">
+          <RadioButton GroupName="Sidebar" Classes="segment" IsChecked="{Binding IsConnectionsSidebar, Mode=OneWay}" Click="ShowConnectionsPanel" ToolTip.Tip="Conexões" AutomationProperties.Name="Conexões" Padding="5" MinWidth="28"><Path Classes="command-icon" Data="{StaticResource DatabaseIcon}" /></RadioButton>
+          <RadioButton GroupName="Sidebar" Classes="segment" IsChecked="{Binding IsFilesSidebar, Mode=OneWay}" Click="ShowFilesPanel" ToolTip.Tip="Arquivos" AutomationProperties.Name="Arquivos" Padding="5" MinWidth="28"><Path Classes="command-icon" Data="{StaticResource OpenIcon}" /></RadioButton>
+        </StackPanel>
+      </Border>
+      <Border x:Name="ConnectionsPanel" Grid.Column="1" Background="{DynamicResource SecondaryBackground}" IsVisible="{Binding IsConnectionsSidebar}">
         <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" Margin="8" RowSpacing="8">
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock Text="{Binding Localization.Databases}" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -123,8 +131,48 @@
           <TextBlock Grid.Row="4" Text="{Binding ExplorerStatus}" Classes="metadata" TextWrapping="Wrap" MaxHeight="40" />
         </Grid>
       </Border>
-      <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DragCompleted="ExplorerResized" />
-      <Grid Grid.Column="2">
+      <Border x:Name="FilesPanel" Grid.Column="1" Background="{DynamicResource SecondaryBackground}" IsVisible="{Binding IsFilesSidebar}">
+        <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="8" RowSpacing="8">
+          <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+            <TextBlock Text="Arquivos" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Content="+" Click="NewWorkspaceFile" ToolTip.Tip="Novo arquivo" AutomationProperties.Name="Novo arquivo" IsEnabled="{Binding HasWorkspace}" Padding="5" />
+            <Button Grid.Column="2" Click="NewWorkspaceFolder" ToolTip.Tip="Nova pasta" AutomationProperties.Name="Nova pasta" IsEnabled="{Binding HasWorkspace}" Padding="5"><Path Classes="command-icon" Data="{StaticResource OpenIcon}" /></Button>
+            <Button Grid.Column="3" Content="↻" Click="RefreshWorkspace" ToolTip.Tip="Atualizar" AutomationProperties.Name="Atualizar arquivos" IsEnabled="{Binding HasWorkspace}" Padding="5" />
+          </Grid>
+          <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4">
+            <Button Content="{Binding OpenWorkspaceLabel}" Click="OpenFolder" Padding="6,4" />
+            <Button Content="Fechar" Click="CloseFolder" Classes="quiet" IsEnabled="{Binding HasWorkspace}" Padding="6,4" />
+          </StackPanel>
+          <TreeView x:Name="WorkspaceTree" Grid.Row="2" ItemsSource="{Binding WorkspaceFiles}" SelectedItem="{Binding SelectedWorkspaceFile}" DoubleTapped="OpenWorkspaceFile" KeyDown="WorkspaceFileKeyDown" AutomationProperties.Name="Arquivos do workspace">
+            <TreeView.Styles>
+              <Style Selector="TreeViewItem" x:DataType="vm:WorkspaceFileNodeViewModel">
+                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                <Setter Property="IsEnabled" Value="{Binding IsActionable}" />
+              </Style>
+            </TreeView.Styles>
+            <TreeView.ItemTemplate>
+              <TreeDataTemplate x:DataType="vm:WorkspaceFileNodeViewModel" ItemsSource="{Binding Children}">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6" ContextRequested="WorkspaceFileContextRequested">
+                  <TextBlock Text="{Binding Icon}" Classes="metadata" />
+                  <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Status}" />
+                  <Grid.ContextMenu>
+                    <ContextMenu>
+                      <MenuItem Header="Novo arquivo" Click="NewWorkspaceFile" />
+                      <MenuItem Header="Nova pasta" Click="NewWorkspaceFolder" />
+                      <MenuItem Header="Atualizar" Click="RefreshWorkspace" />
+                      <MenuItem Header="Renomear" Click="RenameWorkspaceFile" IsEnabled="{Binding CanModify}" />
+                      <MenuItem Header="Excluir" Click="DeleteWorkspaceFile" IsEnabled="{Binding CanModify}" />
+                    </ContextMenu>
+                  </Grid.ContextMenu>
+                </Grid>
+              </TreeDataTemplate>
+            </TreeView.ItemTemplate>
+          </TreeView>
+          <TextBlock Grid.Row="3" Text="{Binding WorkspaceStatus}" Classes="metadata" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding WorkspaceStatus}" />
+        </Grid>
+      </Border>
+      <GridSplitter Grid.Column="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" DragCompleted="ExplorerResized" />
+      <Grid Grid.Column="3">
         <TabControl ItemsSource="{Binding Tabs}" SelectedItem="{Binding ActiveTab}" Background="{DynamicResource PanelBackground}" IsVisible="{Binding HasActiveTab}">
           <TabControl.ItemTemplate>
             <DataTemplate x:DataType="vm:WorkspaceTabViewModel">

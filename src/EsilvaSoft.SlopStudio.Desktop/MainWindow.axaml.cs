@@ -7,6 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Platform.Storage;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
+using EsilvaSoft.SlopStudio.Application;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 namespace EsilvaSoft.SlopStudio.Desktop;
@@ -31,7 +32,7 @@ public partial class MainWindow : Window
     {
         if (WorkspaceModel is not { } vm) return;
         vm.ThemeChanged += (_, _) => ApplyTheme();
-        vm.LayoutChanged += (_, _) => WorkspaceGrid.ColumnDefinitions[0].Width = new GridLength(vm.ExplorerWidth);
+        vm.LayoutChanged += (_, _) => ApplyWorkspaceColumns(vm);
         InitializationTask = vm.InitializeAsync();
         ApplyTheme();
     }
@@ -64,16 +65,81 @@ public partial class MainWindow : Window
     }
     private void ExplorerResized(object? sender, VectorEventArgs e)
     {
-        if (WorkspaceModel is { } vm) vm.ExplorerWidth = Math.Clamp(WorkspaceGrid.ColumnDefinitions[0].ActualWidth, 200, 420);
+        if (WorkspaceModel is { } vm) vm.ExplorerWidth = Math.Clamp(WorkspaceGrid.ColumnDefinitions[1].ActualWidth, 200, 420);
     }
     private async void OpenFile(object? sender, RoutedEventArgs e)
     {
         if (WorkspaceModel is not { } vm) return;
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = T("openScriptPicker"), AllowMultiple = false, FileTypeFilter = [new FilePickerFileType(T("javascriptOrJson")) { Patterns = ["*.js", "*.json"] }, FilePickerFileTypes.All] });
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = T("openScriptPicker"), AllowMultiple = false, FileTypeFilter = [FilePickerFileTypes.All] });
         if (files.Count == 0) return;
-        vm.NewTabCommand.Execute(null);
-        try { await vm.ActiveTab!.OpenAsync(files[0].Path.LocalPath); }
+        try { await vm.OpenTextFileAsync(files[0].Path.LocalPath); }
         catch (Exception ex) { await Dialogs.ChooseAsync(this, T("openFailed"), DesktopOperationErrorMessages.Describe(ex), T("close")); }
+    }
+    private void ApplyWorkspaceColumns(WorkspaceViewModel vm)
+    {
+        var compact = ClientSize.Width > 0 && ClientSize.Width < 1100;
+        WorkspaceGrid.ColumnDefinitions[0].Width = new GridLength(compact ? 32 : 40);
+        WorkspaceGrid.ColumnDefinitions[1].Width = new GridLength(compact ? 240 : vm.ExplorerWidth);
+    }
+    private void ShowConnectionsPanel(object? sender, RoutedEventArgs e) { if (WorkspaceModel is { } vm) vm.SelectedSidebar = "Connections"; }
+    private void ShowFilesPanel(object? sender, RoutedEventArgs e) { if (WorkspaceModel is { } vm) vm.SelectedSidebar = "Files"; }
+    private async void OpenFolder(object? sender, RoutedEventArgs e)
+    {
+        if (WorkspaceModel is not { } vm) return;
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Abrir pasta como workspace", AllowMultiple = false });
+        if (folders.Count == 0) return;
+        try { await vm.SetWorkspaceFolderAsync(folders[0].Path.LocalPath); ShowFilesPanel(sender, e); }
+        catch (Exception ex) { await Dialogs.ChooseAsync(this, "Não foi possível abrir a pasta", ex.Message, T("close")); }
+    }
+    private void CloseFolder(object? sender, RoutedEventArgs e) => WorkspaceModel?.CloseWorkspaceFolder();
+    private async void RefreshWorkspace(object? sender, RoutedEventArgs e) { if (WorkspaceModel is { } vm) await vm.RefreshWorkspaceFolderAsync(); }
+    private async void NewWorkspaceFile(object? sender, RoutedEventArgs e) => await CreateWorkspaceEntryAsync(false);
+    private async void NewWorkspaceFolder(object? sender, RoutedEventArgs e) => await CreateWorkspaceEntryAsync(true);
+    private async Task CreateWorkspaceEntryAsync(bool directory)
+    {
+        if (WorkspaceModel is not { HasWorkspace: true } vm) return;
+        var selected = vm.SelectedWorkspaceFile;
+        var root = vm.WorkspaceRootPath;
+        var name = await Dialogs.PromptAsync(this, directory ? "Nova pasta" : "Novo arquivo", "Nome", "");
+        if (string.IsNullOrWhiteSpace(name) || vm.WorkspaceRootPath != root) return;
+        try { await vm.CreateWorkspaceEntryAsync(name, directory, selected); }
+        catch (Exception ex) { await Dialogs.ChooseAsync(this, "Não foi possível criar", DesktopOperationErrorMessages.Describe(ex), T("close")); }
+    }
+    private async void OpenWorkspaceFile(object? sender, RoutedEventArgs e)
+    {
+        if (WorkspaceModel is not { } vm) return;
+        try
+        {
+            if (vm.SelectedWorkspaceFile is { IsDirectory: false, IsPlaceholder: false } node) await vm.OpenTextFileAsync(node.FullPath);
+            else if (vm.SelectedWorkspaceFile is { IsDirectory: true } directory) directory.IsExpanded = !directory.IsExpanded;
+        }
+        catch (Exception ex) { await Dialogs.ChooseAsync(this, T("openFailed"), DesktopOperationErrorMessages.Describe(ex), T("close")); }
+    }
+    private void WorkspaceFileKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) { e.Handled = true; OpenWorkspaceFile(sender, e); }
+        else if (e.Key == Key.Apps || e.Key == Key.F10 && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            var host = WorkspaceTree.GetVisualDescendants().OfType<Grid>().FirstOrDefault(grid => ReferenceEquals(grid.DataContext, WorkspaceModel?.SelectedWorkspaceFile) && grid.ContextMenu is not null);
+            if (host?.ContextMenu is { } menu) { menu.Open(host); e.Handled = true; }
+        }
+    }
+    private void WorkspaceFileContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (sender is Control control && control.DataContext is ViewModels.WorkspaceFileNodeViewModel node && WorkspaceModel is { } vm) vm.SelectedWorkspaceFile = node;
+    }
+    private async void RenameWorkspaceFile(object? sender, RoutedEventArgs e)
+    {
+        if (WorkspaceModel?.SelectedWorkspaceFile is not { } node) return;
+        var name = await Dialogs.PromptAsync(this, "Renomear", "Novo nome", node.Name);
+        if (string.IsNullOrWhiteSpace(name)) return;
+        try { await WorkspaceModel.RenameWorkspaceNodeAsync(node, name); } catch (Exception ex) { await Dialogs.ChooseAsync(this, "Não foi possível renomear", ex.Message, T("close")); }
+    }
+    private async void DeleteWorkspaceFile(object? sender, RoutedEventArgs e)
+    {
+        if (WorkspaceModel?.SelectedWorkspaceFile is not { } node) return;
+        if (await Dialogs.ChooseAsync(this, "Excluir item", $"Enviar {node.Name} para a lixeira?", "Excluir", T("cancel")) != "Excluir") return;
+        try { await WorkspaceModel.DeleteWorkspaceNodeAsync(node); } catch (Exception ex) { await Dialogs.ChooseAsync(this, "Não foi possível excluir", ex.Message, T("close")); }
     }
     private async void SaveFile(object? sender, RoutedEventArgs e) { if (WorkspaceModel?.ActiveTab is { } tab) await SaveTabAsync(tab); }
     private async void SaveAs(object? sender, RoutedEventArgs e) { if (WorkspaceModel?.ActiveTab is { } tab) await SaveTabAsync(tab, choosePath: true); }
@@ -82,11 +148,33 @@ public partial class MainWindow : Window
         var path = choosePath ? "" : tab.FilePath;
         if (string.IsNullOrEmpty(path))
         {
-            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = T("saveScriptPicker"), SuggestedFileName = tab.IsConsole || tab.IsScript ? "consulta.js" : "consulta.json", FileTypeChoices = [new FilePickerFileType(T("scriptOrQuery")) { Patterns = ["*.js", "*.json"] }] });
+            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = T("saveScriptPicker"),
+                SuggestedFileName = tab.Mode == "Texto" ? "sem-titulo.txt" : tab.IsConsole || tab.IsScript ? "consulta.js" : "consulta.json",
+                FileTypeChoices = [new FilePickerFileType("Arquivo de texto") { Patterns = ["*.txt", "*.md", "*.json", "*.js", "*.*"] }, FilePickerFileTypes.All]
+            });
             if (file is null) return false;
             path = file.Path.LocalPath;
         }
         try { await tab.SaveAsync(path); return true; }
+        catch (TextFileConflictException conflict)
+        {
+            var resolution = await Dialogs.ChooseAsync(this, "Arquivo alterado externamente", $"{Path.GetFileName(conflict.FilePath)} foi alterado fora do Slop Studio.", "Recarregar", "Sobrescrever", T("cancel"));
+            if (resolution == "Recarregar")
+            {
+                if (tab.IsDirty)
+                {
+                    var discard = await Dialogs.ChooseAsync(this, "Descartar alterações locais", "Recarregar substituirá o texto editado nesta aba. Continuar?", "Continuar", T("cancel"));
+                    if (discard != "Continuar") return false;
+                }
+                try { await tab.OpenAsync(conflict.FilePath); return true; }
+                catch (Exception reloadError) { await Dialogs.ChooseAsync(this, T("openFailed"), DesktopOperationErrorMessages.Describe(reloadError), T("close")); return false; }
+            }
+            if (resolution != "Sobrescrever") return false;
+            try { await tab.SaveAsync(path, overwriteExternalChanges: true); return true; }
+            catch (Exception retryError) { await Dialogs.ChooseAsync(this, T("notSaved"), DesktopOperationErrorMessages.Describe(retryError), T("close")); return false; }
+        }
         catch (Exception ex) { await Dialogs.ChooseAsync(this, T("notSaved"), DesktopOperationErrorMessages.Describe(ex), T("close")); return false; }
     }
     private async void CloseTab(object? sender, RoutedEventArgs e)
@@ -161,8 +249,9 @@ public partial class MainWindow : Window
             e.Handled = true;
             var view = this.GetVisualDescendants().OfType<WorkspaceTabView>().FirstOrDefault(v => v.DataContext == vm.ActiveTab);
             var editor = view?.FindControl<SyntaxHighlighting.MongoTextEditor>("CodeEditor");
-            if (editor?.IsKeyboardFocusWithin == true) Explorer.Focus(); else editor?.Focus();
+            if (editor?.IsKeyboardFocusWithin == true) { if (vm.IsFilesSidebar) WorkspaceTree.Focus(); else Explorer.Focus(); } else editor?.Focus();
         }
+        else if (control && e.Key == Key.O && e.KeyModifiers.HasFlag(KeyModifiers.Shift)) { e.Handled = true; OpenFolder(sender, e); }
         else if (control && e.Key == Key.O) { e.Handled = true; OpenFile(sender, e); }
         else if (control && e.Key == Key.S) { e.Handled = true; if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) SaveAs(sender, e); else SaveFile(sender, e); }
         else if (e.Key == Key.F5 || (control && e.Key == Key.Enter))
@@ -182,7 +271,11 @@ public partial class MainWindow : Window
     {
         base.OnPropertyChanged(change);
         // Near the minimum width the top bar has no room for another labelled command.
-        if (change.Property == ClientSizeProperty && UpdateButton is not null) UpdateButton.Classes.Set("compact", ClientSize.Width < CompactTopBarWidth);
+        if (change.Property == ClientSizeProperty)
+        {
+            if (UpdateButton is not null) UpdateButton.Classes.Set("compact", ClientSize.Width < CompactTopBarWidth);
+            if (WorkspaceModel is { } vm) ApplyWorkspaceColumns(vm);
+        }
     }
 
     /// <summary>Action started by the update button; exposed for UI verification.</summary>

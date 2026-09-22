@@ -15,6 +15,7 @@ Revisado em **18/09/2026** conforme o [roadmap oficial de oito fases](09-plano-d
 | CON-07 | Importar/exportar perfis, cofres de SO e sessão sem persistência | v0.5.0 | 🚧 Em desenvolvimento | Arquivo compartilhado e logs não contêm senha, token ou chave privada |
 | CON-08 | Conexões simultâneas, reconexão, desconexão, limite de clientes ativos | v0.5.0 | 🚧 Em desenvolvimento | Uma conexão indisponível não impede consultas em outra |
 | CON-09 | Descoberta de versão, FCV, permissões, serviços e capacidades | v0.5.0 | 🚧 Em desenvolvimento | Falha de descoberta resulta em estado desconhecido, sem bloquear CRUD permitido |
+| CON-10 | Workspace local de uma pasta: abrir/trocar/fechar raiz, árvore de arquivos, criar, renomear e enviar à lixeira | v0.8.0 | 📋 Planejado | Uma raiz por vez; caminhos permanecem dentro da raiz; atualização explícita e falhas recuperáveis |
 
 ## Dados, coleções e consultas
 
@@ -42,7 +43,7 @@ Base: [driver](https://www.mongodb.com/pt-br/docs/drivers/csharp/current/), [val
 | EDT-01 | Editor textual de consultas em Extended JSON/MQL, destaque, indentação, folding, seleção, busca e diagnóstico | v0.5.0 | 🚧 Em desenvolvimento | Documento inválido não executado; linha/coluna e correção localizáveis; não existe formulário paralelo para montar a consulta |
 | EDT-02 | Autocomplete de operadores, campos, caminhos, coleções e tipos | v0.6.0 | 🚧 Em desenvolvimento (entrega determinística encerrada em 17/09/2026 com pendências aceitas em aberto) | Sugestões corretas por contexto, conexão e versão; funciona offline com catálogo. Gates de latência p95/p99 sem evidência |
 | EDT-03 | BSON completo, UUID standard/legacy, ObjectId, datas e números exatos | v0.5.0 | 🚧 Em desenvolvimento | Ida e volta sem conversões implícitas, usando fixtures independentes |
-| EDT-04 | Snippets, parâmetros tipados, favoritos, histórico e scripts em arquivo | v0.5.0 | 🚧 Em desenvolvimento | Parâmetros são nós BSON, nunca substituição textual vulnerável |
+| EDT-04 | Snippets, parâmetros tipados, favoritos, histórico, scripts e arquivos de texto | v0.8.0 | 🚧 Em desenvolvimento | Abrir, salvar e salvar como preservam conteúdo/codificação; parâmetros continuam nós BSON, nunca substituição textual vulnerável |
 | EDT-05 | Console de comandos BSON com metadados e políticas de execução | Backlog sem versão | 📋 Planejado | Comando permitido sem formulário pode ser executado e resultado preservado |
 | EDT-06 | Modo script JavaScript + queries JSON via `mongosh`; variáveis, funções, loops, múltiplas queries, console e resultados | Backlog sem versão | 🚧 Em desenvolvimento | Script combina lógica JS e filtros JSON/Extended JSON na mesma execução em Windows/Linux; preserva BSON, limita resultados e permite interrupção |
 | EDT-07 | Exportar query/pipeline para C# e mongosh | Backlog sem versão | 📋 Planejado | Saída gerada cobre o subconjunto documentado e passa fixtures de equivalência |

@@ -16,7 +16,11 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     private CancellationTokenSource? _cancellation;
     private bool _restoring;
     private CancellationTokenSource? _presentationCancellation;
-    private string _savedText = "";
+    private string? _savedText = "";
+    private readonly SemaphoreSlim _fileOperationGate = new(1, 1);
+    public TextFileEncoding FileEncoding { get; private set; } = TextFileEncoding.Utf8;
+    public bool FileHasBom { get; private set; }
+    public TextFileRevision? FileRevision { get; private set; }
     private int _historyGeneration;
     public Guid Id { get; private set; } = Guid.NewGuid();
     public Guid? MissingProfileId { get; private set; }
@@ -25,10 +29,10 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     public event EventHandler? DraftChanged;
     // Modos que o editor entende. Script e Agregação continuam aqui para que rascunhos e histórico
     // salvos nesses modos reabram como foram gravados, sem conversão silenciosa.
-    public IReadOnlyList<string> Modes { get; } = ["Console", "Script", "Agregação"];
+    public IReadOnlyList<string> Modes { get; } = ["Console", "Script", "Agregação", "Texto"];
     // Modos oferecidos pela interface na fase atual. Script e Agregação estão no backlog
     // (docs/backlog/bkl-03-script-engine-entre-conexoes.md e bkl-04-modo-aggregation.md).
-    public IReadOnlyList<string> SelectableModes { get; } = ["Console"];
+    public IReadOnlyList<string> SelectableModes { get; } = ["Console", "Texto"];
 
     [ObservableProperty] private ConnectionProfile? _profile;
     [ObservableProperty] private bool _isConnected;
@@ -69,12 +73,13 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     public string AccessHint => Profile is null ? T("chooseConnectionForTab") : !IsConnected ? T("disconnectedOpenConnection") : Profile.IsReadOnly ? T("readOnlyPrefix") + Profile.RoutingLabel : T("fixedTargetPrefix") + Profile.RoutingLabel;
     public bool IsScript => Mode == "Script";
     public bool IsAggregation => Mode == "Agregação";
+    public bool IsText => Mode == "Texto";
     public bool CanExplainAggregation => IsAggregation && CanExecute;
     public bool IsQuery => Mode == "Consulta JSON";
     public double CodeLineHeight => CodeFontSize * 1.5;
     partial void OnCodeFontSizeChanged(double value) => OnPropertyChanged(nameof(CodeLineHeight));
     public bool CanEditContext => !IsRunning;
-    public bool CanExecute => !IsRunning && IsConnected && Profile is not null && !string.IsNullOrWhiteSpace(Database) && !string.IsNullOrWhiteSpace(Text)
+    public bool CanExecute => !IsText && !IsRunning && IsConnected && Profile is not null && !string.IsNullOrWhiteSpace(Database) && !string.IsNullOrWhiteSpace(Text)
         && (IsConsole || (IsScript ? !Profile.IsReadOnly : !string.IsNullOrWhiteSpace(Collection)));
     partial void OnProfileChanged(ConnectionProfile? value)
     {
@@ -105,7 +110,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
             {
                 if (!_restoring)
                 {
-                    IsDirty = true;
+                    IsDirty = e.PropertyName == nameof(Text) ? _savedText is null || Text != _savedText : IsDirty;
                     DraftChanged?.Invoke(this, EventArgs.Empty);
                 }
                 OnPropertyChanged(nameof(Context));
@@ -113,6 +118,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
                 OnPropertyChanged(nameof(IsQuery));
                 OnPropertyChanged(nameof(IsConsole));
                 OnPropertyChanged(nameof(IsAggregation));
+                OnPropertyChanged(nameof(IsText));
             }
             if (e.PropertyName is nameof(Profile) or nameof(IsConnected)) OnPropertyChanged(nameof(AccessHint));
             if (e.PropertyName is nameof(IsDirty) or nameof(FilePath) or nameof(Collection) or nameof(Mode)) OnPropertyChanged(nameof(Title));
@@ -146,7 +152,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     [RelayCommand(CanExecute = nameof(CanExecute))]
     private async Task ExecuteAsync(string? selection)
     {
-        if (!CanExecute) return;
+        if (!CanExecute || IsText) return;
         var profile = Profile!;
         var database = Database;
         var collection = Collection;
@@ -260,16 +266,28 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
 
     [RelayCommand] private void Cancel() { _cancellation?.Cancel(); _presentationCancellation?.Cancel(); }
 
-    public async Task SaveAsync(string path)
+    public async Task SaveAsync(string path, bool overwriteExternalChanges = false)
     {
+        path = Path.GetFullPath(path);
         var text = Text;
+        var encoding = FileEncoding;
+        var hasBom = FileHasBom;
+        var samePath = !string.IsNullOrEmpty(FilePath) && string.Equals(path, Path.GetFullPath(FilePath), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        // A restored legacy draft has no revision: ask before replacing its file.
+        var expected = overwriteExternalChanges ? null : samePath ? FileRevision ?? TextFileRevision.Missing : TextFileRevision.Missing;
         var persistInput = PersistInput; var input = InputJson; var historyEnabled = ScriptHistoryEnabled;
-        await _workspace.SaveScriptAsync(path, text);
-        FilePath = path;
-        _savedText = text;
-        IsDirty = Text != _savedText;
-        Status = T("savedFile");
-        DraftChanged?.Invoke(this, EventArgs.Empty);
+        await _fileOperationGate.WaitAsync();
+        try
+        {
+            var revision = await _workspace.SaveTextDocumentAsync(path, text, encoding, hasBom, expected);
+            FilePath = path;
+            FileRevision = revision;
+            _savedText = text;
+            IsDirty = Text != _savedText;
+            Status = T("savedFile");
+            DraftChanged?.Invoke(this, EventArgs.Empty);
+        }
+        finally { _fileOperationGate.Release(); }
         if (historyEnabled)
         {
             try { await _workspace.SaveScriptHistoryAsync(ScriptHistoryEntry.Create(path, inputJson: persistInput ? input : null)); }
@@ -279,11 +297,20 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
 
     public async Task OpenAsync(string path)
     {
-        var text = await _workspace.LoadScriptAsync(path);
-        Text = text;
-        FilePath = path;
-        _savedText = text;
-        IsDirty = false;
+        await _fileOperationGate.WaitAsync();
+        try
+        {
+            var document = await _workspace.LoadTextDocumentAsync(path);
+            _restoring = true;
+            Text = document.Content;
+            FilePath = document.Path;
+            FileEncoding = document.Encoding;
+            FileHasBom = document.HasBom;
+            FileRevision = document.Revision;
+            _savedText = document.Content;
+            IsDirty = false;
+        }
+        finally { _restoring = false; _fileOperationGate.Release(); }
         DraftChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -291,6 +318,9 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
     {
         Id = Id, ContainsResultData = ContainsResultData, ProfileId = Profile?.Id ?? MissingProfileId, TargetHost = Profile?.TargetHost ?? MissingTargetHost, Database = Database, Collection = Collection,
         Mode = Mode, Text = Text, InputJson = PersistInput ? InputJson : null, FilePath = FilePath,
+        FileEncoding = FileEncoding.ToString(), FileHasBom = FileHasBom,
+        FileRevisionLength = FileRevision?.Length, FileRevisionLastWriteTimeUtc = FileRevision?.LastWriteTimeUtc,
+        FileRevisionSha256 = FileRevision?.Sha256, SavedText = _savedText,
         IsDirty = IsDirty, Projection = Projection, Sort = Sort, Limit = Limit, Skip = Skip,
         Hint = Hint, Comment = Comment, Collation = Collation, BatchSize = BatchSize, MaxTimeMs = MaxTimeMs,
         HistoryEnabled = HistoryEnabled, ScriptHistoryEnabled = ScriptHistoryEnabled
@@ -310,6 +340,10 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
             ProjectionJson: EmptyToNull(draft.Projection), SortJson: EmptyToNull(draft.Sort), Limit: draft.Limit, Skip: draft.Skip,
             HintJson: EmptyToNull(draft.Hint), MaxTimeMs: draft.MaxTimeMs, Comment: EmptyToNull(draft.Comment), BatchSize: draft.BatchSize, CollationJson: EmptyToNull(draft.Collation))) : draft.Text;
         FilePath = draft.FilePath;
+        FileEncoding = Enum.TryParse<TextFileEncoding>(draft.FileEncoding, out var encoding) && Enum.IsDefined(encoding) ? encoding : TextFileEncoding.Utf8;
+        FileHasBom = draft.FileHasBom;
+        FileRevision = draft.FileRevisionLength is { } length && draft.FileRevisionLastWriteTimeUtc is { } modified && draft.FileRevisionSha256 is { } hash
+            ? new TextFileRevision(length, modified, hash) : null;
         PersistInput = draft.InputJson is not null;
         InputJson = draft.InputJson ?? "{}";
         Projection = draft.Projection;
@@ -321,7 +355,7 @@ public sealed partial class WorkspaceTabViewModel : ObservableObject, IDisposabl
         HistoryEnabled = draft.HistoryEnabled; ScriptHistoryEnabled = draft.ScriptHistoryEnabled;
         IsDirty = draft.IsDirty || draft.Mode == "Consulta JSON";
         IsConnected = false;
-        _savedText = IsDirty ? "" : Text;
+        _savedText = draft.SavedText ?? (IsDirty ? null : Text);
         _restoring = false;
     }
 

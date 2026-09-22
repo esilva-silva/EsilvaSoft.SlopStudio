@@ -12,6 +12,12 @@ public sealed record WorkspaceDraft
     public string Text { get; init; } = "";
     public string? InputJson { get; init; }
     public string FilePath { get; init; } = "";
+    public string FileEncoding { get; init; } = "Utf8";
+    public bool FileHasBom { get; init; }
+    public long? FileRevisionLength { get; init; }
+    public DateTime? FileRevisionLastWriteTimeUtc { get; init; }
+    public string? FileRevisionSha256 { get; init; }
+    public string? SavedText { get; init; }
     public bool IsDirty { get; init; }
     public string Projection { get; init; } = "";
     public string Sort { get; init; } = "";

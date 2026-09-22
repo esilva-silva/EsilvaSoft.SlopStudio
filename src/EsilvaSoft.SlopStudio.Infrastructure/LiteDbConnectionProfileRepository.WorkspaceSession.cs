@@ -12,7 +12,9 @@ public sealed partial class LiteDbConnectionProfileRepository
         if (document is null) return new WorkspaceSession();
         var session = System.Text.Json.JsonSerializer.Deserialize<WorkspaceSession>(document["json"].AsString)
             ?? throw new InvalidDataException("Sessão local inválida.");
-        if (session.Version != 1) throw new InvalidDataException("Versão da sessão local não suportada.");
+        if (session.Version is < 1 or > 2) throw new InvalidDataException("Versão da sessão local não suportada.");
+        if (session.Version == 1) session = session with { Version = 2 };
+        ValidateTextDrafts(session);
         if (session.Preferences?.Autocomplete is not { } autocomplete) throw new InvalidDataException("Preferências locais inválidas.");
         autocomplete.Validate();
         session = session with
@@ -28,7 +30,8 @@ public sealed partial class LiteDbConnectionProfileRepository
     public Task SaveSessionAsync(WorkspaceSession session, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(session);
-        if (session.Version != 1) throw new ArgumentException("Versão da sessão local não suportada.", nameof(session));
+        if (session.Version != 2) throw new ArgumentException("Versão da sessão local não suportada.", nameof(session));
+        ValidateTextDrafts(session);
         session.Preferences.Autocomplete.Validate();
         session.Preferences.ValidateUuid();
         session.Preferences.ValidateMetadata();
@@ -49,5 +52,21 @@ public sealed partial class LiteDbConnectionProfileRepository
                 ["json"] = System.Text.Json.JsonSerializer.Serialize(filtered)
             });
         }, cancellationToken);
+    }
+
+    private static void ValidateTextDrafts(WorkspaceSession session)
+    {
+        if (session.Tabs is null) throw new InvalidDataException("Rascunhos da sessão local inválidos.");
+        foreach (var draft in session.Tabs)
+        {
+            if (draft is null || draft.Text is null || draft.FilePath is null ||
+                !Enum.TryParse<Application.TextFileEncoding>(draft.FileEncoding, out var encoding) || !Enum.IsDefined(encoding) ||
+                (encoding != Application.TextFileEncoding.Utf8 && !draft.FileHasBom))
+                throw new InvalidDataException("Metadados do arquivo na sessão local inválidos.");
+            var hasRevision = draft.FileRevisionLength is not null || draft.FileRevisionLastWriteTimeUtc is not null || draft.FileRevisionSha256 is not null;
+            if (hasRevision && (draft.FileRevisionLength is null or < 0 || draft.FileRevisionLastWriteTimeUtc is null ||
+                draft.FileRevisionSha256 is not { Length: 64 } hash || !hash.All(Uri.IsHexDigit)))
+                throw new InvalidDataException("Revisão do arquivo na sessão local inválida.");
+        }
     }
 }

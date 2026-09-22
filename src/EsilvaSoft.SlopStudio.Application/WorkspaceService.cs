@@ -4,7 +4,7 @@ using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Application;
 
-public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQueryHistoryRepository queryHistory, IScriptHistoryRepository scriptHistory, ISavedQueryRepository savedQueries, IAuditRepository audit, IMongoWorkspaceService mongo, IScriptExecutionService scripts, IScriptFileService scriptFiles, IConnectionSecretStore secrets, IEnvironmentVaultRepository? environments = null, IExplorerMetadataService? explorer = null, IConsoleRuntime? console = null, IConsoleHistoryRepository? consoleHistory = null, IApplicationOperationService? operations = null, ICodeFormatter? formatter = null, IResultPageExportService? resultExports = null, ICodeValidator? validator = null, IMetadataInvalidationBus? metadataInvalidation = null, SchemaLearningService? schemaLearning = null, LearnedSchemaCatalogSource? learnedSchemaCatalog = null, ILearnedSchemaRepository? learnedSchemaRepository = null)
+public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQueryHistoryRepository queryHistory, IScriptHistoryRepository scriptHistory, ISavedQueryRepository savedQueries, IAuditRepository audit, IMongoWorkspaceService mongo, IScriptExecutionService scripts, IScriptFileService scriptFiles, IConnectionSecretStore secrets, IEnvironmentVaultRepository? environments = null, IExplorerMetadataService? explorer = null, IConsoleRuntime? console = null, IConsoleHistoryRepository? consoleHistory = null, IApplicationOperationService? operations = null, ICodeFormatter? formatter = null, IResultPageExportService? resultExports = null, ICodeValidator? validator = null, IMetadataInvalidationBus? metadataInvalidation = null, SchemaLearningService? schemaLearning = null, LearnedSchemaCatalogSource? learnedSchemaCatalog = null, ILearnedSchemaRepository? learnedSchemaRepository = null, ITextFileService? textFiles = null)
 {
     /// <summary>Optional desktop localizer for operation descriptions; null keeps the application-layer default text.</summary>
     public Func<string, string>? OperationLocalizer { get; set; }
@@ -338,4 +338,17 @@ public sealed class WorkspaceService(IConnectionProfileRepository profiles, IQue
 
     public Task<string> LoadScriptAsync(string path, CancellationToken cancellationToken = default) =>
         TrackAsync("Abrindo arquivo", operationToken => scriptFiles.LoadAsync(path, operationToken), token: cancellationToken);
+
+    public Task<TextFileDocument> LoadTextDocumentAsync(string path, CancellationToken cancellationToken = default)
+    {
+        var files = textFiles ?? scriptFiles as ITextFileService ?? throw new InvalidOperationException("Serviço de texto indisponível.");
+        return TrackAsync("Abrindo arquivo", operationToken => files.LoadAsync(path, operationToken), token: cancellationToken);
+    }
+
+    public Task<TextFileRevision> SaveTextDocumentAsync(string path, string content, TextFileEncoding encoding, bool hasBom,
+        TextFileRevision? expectedRevision = null, CancellationToken cancellationToken = default)
+    {
+        var files = textFiles ?? scriptFiles as ITextFileService ?? throw new InvalidOperationException("Serviço de texto indisponível.");
+        return TrackAsync("Salvando arquivo", operationToken => files.SaveAsync(path, content, encoding, hasBom, expectedRevision, operationToken), priority: ApplicationOperationPriority.High, token: cancellationToken);
+    }
 }

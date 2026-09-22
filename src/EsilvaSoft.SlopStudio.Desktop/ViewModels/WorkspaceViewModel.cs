@@ -10,6 +10,7 @@ namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 
 public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
 {
+    partial void DisposeWorkspaceFiles();
     private readonly WorkspaceService _workspace;
     private readonly IWorkspaceSessionRepository _sessions;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
@@ -32,6 +33,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     private readonly bool _ownsMetadata;
     private readonly LocalizationViewModel _localization = LocalizationViewModel.Current;
     public WorkspaceService Workspace => _workspace;
+    internal IWorkspaceFileService? WorkspaceFileService { get; }
     /// <summary>Autocomplete metadata; explorer loads write into it and connected roots allow refreshes.</summary>
     public IMetadataCache Metadata { get; }
     public ApplicationStatusViewModel Operations { get; }
@@ -82,9 +84,10 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public WorkspaceViewModel(WorkspaceService workspace, IWorkspaceSessionRepository sessions, IAutocompleteService? autocomplete = null, ILocalModelCatalog? modelCatalog = null, IAiChatService? aiChat = null,
         IKnowledgeCatalog? knowledgeCatalog = null,
         ILocalAiModelService? localModels = null, IAppUpdateService? updates = null, IRemoteModelSource? remoteModels = null, IMetadataCache? metadata = null,
-        ILearnedSchemaOptOut? learnedSchemaOptOut = null, IAiCompletionProvider? aiCompletion = null)
+        ILearnedSchemaOptOut? learnedSchemaOptOut = null, IAiCompletionProvider? aiCompletion = null, IWorkspaceFileService? workspaceFiles = null)
     {
         _workspace = workspace;
+        WorkspaceFileService = workspaceFiles;
         _workspace.OperationLocalizer = LocalizationViewModel.Current.ResolveOperationText;
         _workspace.SetLocalization(LocalizationViewModel.Current.Resolve);
         _localization.Language = _language;
@@ -161,6 +164,13 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
             foreach (var entry in session.Preferences.ProfileUuidRepresentations) _profileUuidRepresentations[entry.Key] = entry.Value;
             UuidRepresentation = session.Preferences.UuidRepresentation;
             IdentifierMode = session.Preferences.IdentifierMode;
+            WorkspaceRootPath = session.WorkspaceRootPath;
+            SelectedSidebar = session.ActiveSidebar is "Files" ? "Files" : "Connections";
+            if (!string.IsNullOrWhiteSpace(WorkspaceRootPath) && WorkspaceFileService is not null)
+            {
+                try { await SetWorkspaceFolderAsync(WorkspaceRootPath); }
+                catch (Exception ex) { WorkspaceStatus = ex.Message; WorkspaceRootPath = session.WorkspaceRootPath; }
+            }
             UuidPreferences.Load(UuidRepresentation);
             IdentifierPreferences.Load(IdentifierMode);
             if (RecoverDrafts)
@@ -235,6 +245,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
             var session = new WorkspaceSession
             {
                 ActiveTabId = ActiveTab?.Id,
+                WorkspaceRootPath = WorkspaceRootPath,
+                ActiveSidebar = SelectedSidebar,
                 Preferences = new WorkspacePreferences { Autocomplete = _autocompleteSettings, Theme = Theme, Language = ApplicationLanguages.Normalize(Language), CodeFontSize = CodeFontSize, ExplorerWidth = ExplorerWidth, EditorRatio = EditorRatio, RecoverDrafts = RecoverDrafts, ExcludedProfileIds = _excludedProfiles.ToArray(),
                     UuidRepresentation = UuidRepresentation, ProfileUuidRepresentations = new(_profileUuidRepresentations), IdentifierMode = IdentifierMode,
                     SchemaSamplingProfileIds = Metadata.SchemaSamplingProfiles.ToArray(),
@@ -261,5 +273,6 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
         Metadata.Changed -= OnMetadataChanged;
         if (_ownsMetadata && Metadata is IDisposable metadata) metadata.Dispose();
         _saveGate.Dispose();
+        DisposeWorkspaceFiles();
     }
 }

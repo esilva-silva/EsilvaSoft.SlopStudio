@@ -444,3 +444,14 @@ Testes `dotnet test EsilvaSoft.SlopStudio.slnx --no-build --no-restore`: **1 156
 | Orçamento combinado | Validação do ViewModel com contexto + saída + overhead, valores inclusivos e clamp no provider | Memória livre real do provider/driver |
 | UI | `AutocompleteUiTests.TokenBudgetComboBoxesKeepSelectionsAndFreeTypedValuesWhenSaved`; seleção exata de 32, somente dígitos e PNGs Dark/Light existentes | Inspeção manual adicional da composição em Windows/Linux |
 | ONNX real | `LocalAiModelServiceTests.RealModelTestRunsOnTheRequestedHardware`: Automático e GPU aprovados para SlopCoder DML FP16; CPU recusada corretamente porque o metadata declara GPU-only | Outras exportações/providers |
+## Fase 4 — arquivos de texto e workspace local (implementada; homologação nativa pendente)
+
+| Área | Critério observável | Evidência automatizada esperada | Homologação ainda necessária |
+| --- | --- | --- | --- |
+| Leitura e codificação | Arquivos vazios e extensões desconhecidas abrem como texto; UTF-8/16/32 e BOM preservados; binário/codificação inválida falham visivelmente | Round-trip de bytes, BOM, Unicode e quebras de linha; limite de 16 milhões de caracteres | Arquivos reais em Windows/Linux e permissões do sistema |
+| Salvamento | Salvar e Salvar como preservam a aba, detectam alteração externa e não truncam destino em falha | Temporário no mesmo diretório, sobrescrita, cancelamento, erro e edição durante salvamento | Diálogo nativo e comportamento com antivírus/arquivos bloqueados |
+| Painel Arquivos | Barra lateral acessível com **Conexões** e **Arquivos**; raiz única, pastas antes de arquivos, carregamento sob demanda e erro recuperável | Trocas rápidas de raiz, descarte de respostas antigas, caminhos equivalentes e ausência de execução automática | Navegação nativa, foco, teclado e leitor de tela |
+| Operações de workspace | Criar, renomear e excluir com colisão/raiz protegidas; exclusão usa lixeira | Fixtures independentes para arquivo/pasta, atualização após sucesso e buffers sem caminho após exclusão | Lixeira real disponível/indisponível em Windows e Linux |
+| Sessão e privacidade | Migração aditiva v1→v2; raiz e documentos recuperáveis; resultados/credenciais fora do snapshot | Migração, sessão ilegível/proteção, opt-out e recuperação de buffer alterado | Reinício real, mudança de perfil e homologação prolongada |
+
+Os testes automatizados cobrem os critérios de implementação. Teste Headless não substitui diálogos nativos, lixeira, acessibilidade ou leitor de tela; esses itens continuam como homologação externa.
