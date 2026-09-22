@@ -15,7 +15,7 @@ namespace EsilvaSoft.SlopStudio.UnitTests;
 [TestFixture, NonParallelizable]
 public sealed class DisabledFeatureEntryPointsTests
 {
-    private static readonly string[] ConsoleOnly = ["Console"];
+    private static readonly string[] SelectableModes = ["Console", "Texto"];
     private static readonly string[] DisabledModes = ["Script", "Agregação"];
 
     [Test]
@@ -23,7 +23,7 @@ public sealed class DisabledFeatureEntryPointsTests
     {
         using var context = new WorkspaceTestContext();
         var tab = new WorkspaceTabViewModel(context.Workspace);
-        Assert.That(tab.SelectableModes, Is.EqualTo(ConsoleOnly));
+        Assert.That(tab.SelectableModes, Is.EqualTo(SelectableModes));
         Assert.That(tab.Mode, Is.EqualTo("Console"));
         Assert.That(tab.Modes, Does.Contain("Script").And.Contain("Agregação"));
     }

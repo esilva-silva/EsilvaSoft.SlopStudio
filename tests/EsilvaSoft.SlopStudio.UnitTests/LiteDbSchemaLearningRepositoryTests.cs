@@ -150,7 +150,7 @@ public sealed class LiteDbSchemaLearningRepositoryTests
         Assert.Multiple(() =>
         {
             Assert.That(snapshot!.SampledBatches, Is.EqualTo(6));
-            Assert.That(session.Version, Is.EqualTo(1));
+            Assert.That(session.Version, Is.EqualTo(2));
         });
     }
 
