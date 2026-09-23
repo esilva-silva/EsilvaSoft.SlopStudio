@@ -4,9 +4,11 @@ Referência: **21/09/2026**. Esta pasta contém o trabalho **planejado ou em exe
 
 O [roadmap](../09-plano-de-implementacao.md) permanece na raiz da documentação como índice e regra geral; cada fase detalha o próprio escopo aqui.
 
+Revisão de 22/09/2026: a nova Fase 7 planeja MCP e agentes externos, a antiga Fase 7 passa integralmente à Fase 8 (workflow), a homologação passa à Fase 9/v0.13.0 e a estabilidade à Fase 10/v1.0.0. [Mapa de preservação](phase-07-v0.11.0/14-migracao-documental.md). Planejamento não equivale a implementação.
+
 ## Meta transversal concluída
 
-A meta de internacionalização da interface foi concluída no recorte automatizado: `pt-BR`, `en`, `es` e `zh-CN`, com `pt-BR` inicial, fallback determinístico em `en`, persistência aditiva, troca em execução e textos de produto/acessibilidade localizados. Foram verificados 64 PNGs reais nos dois temas e os testes unitários passaram com 2.639 aprovados, 0 falhas e 20 ignorados. Os arquivos `docs/**/*.md` permanecem em português. Revisão linguística de domínio e homologações externas pertencem à Fase 8 / v0.12.0.
+A meta de internacionalização da interface foi concluída no recorte automatizado: `pt-BR`, `en`, `es` e `zh-CN`, com `pt-BR` inicial, fallback determinístico em `en`, persistência aditiva, troca em execução e textos de produto/acessibilidade localizados. Foram verificados 64 PNGs reais nos dois temas e os testes unitários passaram com 2.639 aprovados, 0 falhas e 20 ignorados. Os arquivos `docs/**/*.md` permanecem em português. Revisão linguística de domínio e homologações externas pertencem à Fase 9 / v0.13.0.
 
 ## Roadmap oficial
 
@@ -18,9 +20,10 @@ A meta de internacionalização da interface foi concluída no recorte automatiz
 | 4 | v0.8.0 | Abertura e salvamento de arquivos de texto | [Arquivada](../done/release_v0.8.0/README.md) |
 | 5 | v0.9.0 | IA local e produtividade contextual | [Experimental](phase-05-v0.9.0/README.md) |
 | 6 | v0.10.0 | Administração e manutenção | [Em desenvolvimento](phase-06-v0.10.0/README.md) |
-| 7 | v0.11.0 | Chat simples com IA baseado em workflow | [Planejada](phase-07-v0.11.0/README.md) |
-| 8 | v0.12.0 | Homologação manual e validação em ambientes reais | [Planejada](phase-08-v0.12.0/README.md) |
-| 9 | v1.0.0 | Estabilidade, revisão completa, instalação e atualizações | [Planejada](phase-09-v1.0.0/README.md) |
+| 7 | v0.11.0 | MCP e integração com agentes externos | [Planejada — plano técnico](phase-07-v0.11.0/README.md) |
+| 8 | v0.12.0 | Chat simples com IA baseado em workflow | [Planejada](phase-08-v0.12.0/README.md) |
+| 9 | v0.13.0 | Homologação manual e validação em ambientes reais | [Planejada](phase-09-v0.13.0/README.md) |
+| 10 | v1.0.0 | Estabilidade, revisão completa, instalação e atualizações | [Planejada](phase-10-v1.0.0/README.md) |
 
 ## Situações
 
@@ -28,7 +31,7 @@ A meta de internacionalização da interface foi concluída no recorte automatiz
 - **Em desenvolvimento:** existe código integrado antecipando a fase, mas a fase não está ativa. O código é preservado; a interface não o oferece.
 - **Planejada:** sem caminho integrado comprometido para o recorte.
 - **Experimental:** caminho disponível, com qualidade ou ambiente limitando o uso como compromisso estável.
-- **Arquivada:** escopo funcional fechado e movido para `../done/release_vX.Y.Z`; a homologação manual correspondente fica na Fase 8.
+- **Arquivada:** escopo funcional fechado e movido para `../done/release_vX.Y.Z`; a homologação manual correspondente fica na Fase 9.
 
 ## Implementação antecipada não encerra fase
 

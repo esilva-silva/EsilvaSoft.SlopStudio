@@ -1,8 +1,8 @@
-﻿# Acompanhamento da implementação
+# Acompanhamento da implementação
 
 ## Meta v0.8.0 — fases 1–4 arquivadas — 22/09/2026
 
-Os escopos funcionais das fases 1–4 foram fechados e arquivados em `docs/done/release_v0.5.0` até `release_v0.8.0`; a homologação manual continua transferida para a Fase 8. Restore locked-mode, build Release e testes concluíram sem falhas: 2.674 testes unitários aprovados, 20 ignorados, 43 benchmarks aprovados e zero avisos/erros. `build-release.ps1 -Version 0.8.0` gerou os quatro pacotes locais (Windows/Linux, x64/ARM64) e `SHA256SUMS.txt`; checksums, arquiteturas, executáveis single-file, versão `0.8.0.0` e modo Linux `755` foram verificados. Modelos/hardware reais, MongoDB real, leitor de tela, diálogos nativos e demais homologações externas permanecem pendentes na Fase 8.
+Os escopos funcionais das fases 1–4 foram fechados e arquivados em `docs/done/release_v0.5.0` até `release_v0.8.0`; a homologação manual continua transferida para a Fase 9. Restore locked-mode, build Release e testes concluíram sem falhas: 2.674 testes unitários aprovados, 20 ignorados, 43 benchmarks aprovados e zero avisos/erros. `build-release.ps1 -Version 0.8.0` gerou os quatro pacotes locais (Windows/Linux, x64/ARM64) e `SHA256SUMS.txt`; checksums, arquiteturas, executáveis single-file, versão `0.8.0.0` e modo Linux `755` foram verificados. Modelos/hardware reais, MongoDB real, leitor de tela, diálogos nativos e demais homologações externas permanecem pendentes na Fase 9.
 
 ## Atualização da meta de autocomplete — 21/09/2026
 
@@ -448,7 +448,7 @@ Cada mudança deve atualizar esta tabela com estado, evidência e resultado de v
 - Ubuntu/WSL: tentativa de revalidação encontrou ausência do SDK solicitado em global.json (10.0.400). A validação Linux anterior não é reapresentada como prova desta mudança. Shell nativo, leitor de tela e integração MongoDB real permanecem pendentes.
 
 
-TRX final desta identidade: [Windows, 244/244](../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/chuke_ESILVA-PC_2026-09-10_13_34_57_net10.0.trx). Build do gerador também aprovado sem avisos/erros, com analisadores habilitados.
+TRX final desta identidade: Windows, 244/244 (artefato histórico não disponível neste checkout: `../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/chuke_ESILVA-PC_2026-09-10_13_34_57_net10.0.trx`). Build do gerador também aprovado sem avisos/erros, com analisadores habilitados.
 
 
 ## Estratégia de credenciais — revisão de 10/09/2026
@@ -465,7 +465,7 @@ Implementação entregue: raízes de todas as conexões, carga progressiva, desc
 
 Documentos possuem página em JSON e árvore estruturada, copiar/abrir no editor, inserir/editar/excluir com confirmação e contexto fixo. Edição relê o documento completo antes de confirmar e detecta conflito; resultados abertos no editor ficam fora dos rascunhos automáticos. Scripts CRUD, índices e administração são gerados sem executar. Serviços de metadados e modelos de apresentação mantêm o driver fora da UI.
 
-Restore travado e build Windows aprovados, 0 avisos/erros; **276/276 testes aprovados**, nenhum ignorado. [TRX final](../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/chuke_ESILVA-PC_2026-09-10_23_11_35_net10.0.trx). Inspecionados 18 PNGs do explorer e editor de documento nos dois temas. Design system, ADR-025, catálogo, plano, guia e matriz atualizados. [Guia e prévias](19-database-explorer.md); [rastreabilidade dos 13 critérios](15-matriz-de-validacao.md#database-explorer--10092026).
+Restore travado e build Windows aprovados, 0 avisos/erros; **276/276 testes aprovados**, nenhum ignorado. TRX final (artefato histórico não disponível neste checkout: `../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/chuke_ESILVA-PC_2026-09-10_23_11_35_net10.0.trx`). Inspecionados 18 PNGs do explorer e editor de documento nos dois temas. Design system, ADR-025, catálogo, plano, guia e matriz atualizados. [Guia e prévias](19-database-explorer.md); [rastreabilidade dos 13 critérios](15-matriz-de-validacao.md#database-explorer--10092026).
 
 Homologação externa permanece pendente: MongoDB/mongosh reais, autenticação/permissões, DNS SRV/TXT e topologias reais, Linux nativo e leitor de tela. A evidência automatizada não equivale a esses cenários.
 
@@ -475,7 +475,7 @@ Console substitui Consulta JSON como modo principal. Entregues runtime Jint/prox
 
 Proteções permanecem por destino efetivo: somente leitura, filtro não vazio, destinos/índices protegidos, confirmação e auditoria. Origem do resultado acompanha edição de documento. O modo Script/mongosh permanece separado. Dependências permissivas Jint 4.16.0 (BSD-2-Clause) e Acornima 1.7.0 (BSD-3-Clause); nome e MIT do produto preservados.
 
-Restore travado e build aprovados, sem avisos/erros. **294/294 testes aprovados**, nenhum ignorado. [TRX final](../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/chuke_ESILVA-PC_2026-09-11_07_55_19_net10.0.trx). Fixture real com dois MongoDB Community 8.0.30 locais validou API/CRUD/índices e integridade BSON; 18 PNGs Console inspecionados. [Guia](20-console.md) e [matriz](15-matriz-de-validacao.md).
+Restore travado e build aprovados, sem avisos/erros. **294/294 testes aprovados**, nenhum ignorado. TRX final (artefato histórico não disponível neste checkout: `../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/chuke_ESILVA-PC_2026-09-11_07_55_19_net10.0.trx`). Fixture real com dois MongoDB Community 8.0.30 locais validou API/CRUD/índices e integridade BSON; 18 PNGs Console inspecionados. [Guia](20-console.md) e [matriz](15-matriz-de-validacao.md).
 
 Linux nativo, leitor de tela, autenticação/TLS e topologias distribuídas permanecem pendentes. Evidência real desta fixture Console não substitui homologações anteriores do runner mongosh.
 
@@ -697,3 +697,11 @@ Os testes que atribuem `Mode = "Script"` ou `"Agregação"` diretamente **não**
 `dotnet build` sem avisos e sem erros; `dotnet test` com **1156 aprovados, 0 falhas, 4 ignorados** (Explicit). `node scripts/build-docs-index.cjs` regenerou o índice com 84 documentos.
 
 **O que esta meta não fez:** nenhum gate de homologação real foi fechado. A v0.5.0 foi arquivada por escopo funcional, com as pendências de Windows/Linux, leitor de tela, diálogos nativos e matriz de autenticação registradas em [`done/release_v0.5.0/pendencias-de-homologacao.md`](done/release_v0.5.0/pendencias-de-homologacao.md). A reorganização não foi usada para ocultar teste falho ou pendência.
+
+## Planejamento da v0.11.0 — MCP e agentes externos — 22/09/2026
+
+Meta documental: [plano técnico](phases/phase-07-v0.11.0/README.md), análise da solução e contratos para Agent Runtime, providers, ferramentas compartilhadas, MCP e chat Avalonia. **Nenhuma integração MCP, OpenAI ou Claude implementada nesta meta.** O roadmap passa a dez fases: novo MCP/agentes em 7/v0.11.0; workflow anterior preservado em 8/v0.12.0; homologação anterior preservada em 9/v0.13.0; estabilidade em 10/v1.0.0. Origem/destino e inventário no [registro de migração](phases/phase-07-v0.11.0/14-migracao-documental.md).
+
+Escopos arquivados, requisitos amplos, backlog, evidências e pendências existentes foram conservados. Nenhuma release, tag, pacote, projeto de produção ou dependência foi criado pela migração documental. A proteção nativa de segredos de agentes é planejada para v0.11.0; não corrige retroativamente os ambientes locais em texto puro. Build/testes do checkout e verificação do leitor devem ser registrados como regressão/documentação, nunca como homologação dos providers futuros.
+
+Validação da meta documental em 22/09/2026: restore locked e build (0 avisos/0 erros, telemetria Avalonia desativada conforme instrução de ambiente); UnitTests 2.674 aprovados/20 ignorados/0 falhas e Benchmarks 43 aprovados/0 falhas. Revisão independente de contratos e preservação dos escopos concluídas. [Auditoria dos 34 itens e limites](phases/phase-07-v0.11.0/17-validacao-da-meta.md). Nenhum aceite funcional de MCP/providers é encerrado por esses testes da base existente.

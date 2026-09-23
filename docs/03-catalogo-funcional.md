@@ -1,6 +1,6 @@
-﻿# Catálogo funcional
+# Catálogo funcional
 
-Revisado em **22/09/2026** conforme o [roadmap oficial de nove fases](09-plano-de-implementacao.md). Os 68 IDs originais são preservados; somente a versão de consolidação mudou, conforme o novo roadmap. Linhas marcadas **Backlog sem versão** estão em [`backlog/`](backlog/README.md) e não têm fase atribuída — ver [bkl-03](backlog/bkl-03-script-engine-entre-conexoes.md) para EDT-06/TRF-05 e [bkl-04](backlog/bkl-04-modo-aggregation.md) para AGG-01/02/03/04. Administração, índices, coleções, views e transferência lógica passaram de v0.7.0 para [v0.10.0](phases/phase-06-v0.10.0/README.md). Status avalia a abrangência completa de cada linha; recortes implementados, evidência de código/testes e lacunas estão no [inventário](24-inventario-roadmap.md). ✅ Implementado não significa homologado em toda topologia; 🚧 Em desenvolvimento indica parcial; 📋 Planejado indica ausência de caminho integrado; 🧪 Experimental indica qualidade/ambiente ainda limitado. A versão indica consolidação do recorte prioritário: extensões de uma linha ampla não entram automaticamente no MVP. Critérios abaixo permanecem alvos de aceite, sujeitos ao [registro de capacidades](04-compatibilidade-e-capacidades.md).
+Revisado em **22/09/2026** conforme o [roadmap oficial de dez fases](09-plano-de-implementacao.md). Os 68 IDs originais são preservados; somente a versão de consolidação mudou, conforme o novo roadmap. Linhas marcadas **Backlog sem versão** estão em [`backlog/`](backlog/README.md) e não têm fase atribuída — ver [bkl-03](backlog/bkl-03-script-engine-entre-conexoes.md) para EDT-06/TRF-05 e [bkl-04](backlog/bkl-04-modo-aggregation.md) para AGG-01/02/03/04. Administração, índices, coleções, views e transferência lógica passaram de v0.7.0 para [v0.10.0](phases/phase-06-v0.10.0/README.md). Status avalia a abrangência completa de cada linha; recortes implementados, evidência de código/testes e lacunas estão no [inventário](24-inventario-roadmap.md). ✅ Implementado não significa homologado em toda topologia; 🚧 Em desenvolvimento indica parcial; 📋 Planejado indica ausência de caminho integrado; 🧪 Experimental indica qualidade/ambiente ainda limitado. A versão indica consolidação do recorte prioritário: extensões de uma linha ampla não entram automaticamente no MVP. Critérios abaixo permanecem alvos de aceite, sujeitos ao [registro de capacidades](04-compatibilidade-e-capacidades.md).
 
 ## Conexões e workspace
 
@@ -102,10 +102,10 @@ Referências: [índices](https://www.mongodb.com/docs/manual/indexes/), [driver]
 | ADV-06 | Vector Search: dimensões, similaridade, filtros, ANN/ENN e busca híbrida | Backlog sem versão | 📋 Planejado | Validar vetor e índice; recursos recentes entram por capacidade, sem envio externo implícito |
 | ADV-07 | Federation, Online Archive, Stream Processing, Charts e conectores de ecossistema | Backlog sem versão | 📋 Planejado | Cada serviço recebe adaptador/runbook e status explícito de suporte |
 | ADV-08 | SQL para MQL, geração de dados, análise de schema e migrações versionadas | Backlog sem versão | 🚧 Em desenvolvimento | Subconjunto SQL documentado; migração tem checksum, histórico e falhas parciais |
-| ADV-09 | Assistente IA opcional e integrações Git | v0.9.0 / backlog Git | 🧪 Experimental (IA); 📋 Planejado (Git) | Prévia da informação enviada, execução revisada e funcionamento sem IA |
-| UX-01 | Abas, temas, atalhos, localização, acessibilidade, DPI e virtualização | v0.5.0 | 🚧 Em desenvolvimento | Interface desktop disponível em pt-BR, en, es e zh-CN; pt-BR é o idioma inicial, `en` é o fallback determinístico; maturidade multiplataforma é validada na Fase 8 / v0.12.0 |
+| ADV-09 | Assistente IA opcional e integrações Git | v0.9.0 (local) / v0.11.0 (MCP/agentes) / v0.12.0 (workflow) / backlog Git | 🧪 Experimental (IA local); 📋 Planejado (MCP/agentes/workflow/Git) | Prévia da informação enviada, execução revisada e funcionamento sem IA; novos recortes rastreados separadamente abaixo |
+| UX-01 | Abas, temas, atalhos, localização, acessibilidade, DPI e virtualização | v0.5.0 | 🚧 Em desenvolvimento | Interface desktop disponível em pt-BR, en, es e zh-CN; pt-BR é o idioma inicial, `en` é o fallback determinístico; maturidade multiplataforma é validada na Fase 9 / v0.13.0 |
 | UX-02 | Centro de tarefas, progresso, cancelamento, limites de concorrência | v0.5.0 | 🚧 Em desenvolvimento | Tarefa longa não bloqueia UI; estado incerto distinto de cancelado |
-| UX-03 | Empacotamento Windows/Linux, atualização, diagnóstico, SBOM e licenças | v1.0.0 | 🚧 Em desenvolvimento | Implementação e documentação na v1.0.0; instalação limpa e verificação de integridade em ambiente real na Fase 8 / v0.12.0 |
+| UX-03 | Empacotamento Windows/Linux, atualização, diagnóstico, SBOM e licenças | v1.0.0 | 🚧 Em desenvolvimento | Implementação e documentação na v1.0.0; instalação limpa e verificação de integridade em ambiente real na Fase 9 / v0.13.0 |
 
 Fontes especializadas: [GridFS](https://www.mongodb.com/docs/drivers/csharp/current/crud/gridfs/), [séries temporais](https://www.mongodb.com/docs/manual/core/timeseries/timeseries-limitations/), [change streams](https://www.mongodb.com/docs/drivers/csharp/current/logging-and-monitoring/change-streams/), [criptografia](https://www.mongodb.com/docs/drivers/csharp/current/security/in-use-encryption/), [Search próprio](https://www.mongodb.com/docs/search/self-managed/current/), [Atlas API](https://www.mongodb.com/docs/atlas/configure-api-access/).
 
@@ -196,3 +196,17 @@ Implementado: construtor Date em UTC na apresentação de resultados/documentos/
 ## Interpretação dos incrementos datados
 
 As seções de incrementos preservam evidência histórica. Seu texto não encerra requisitos amplos nem altera a versão alvo desta tabela. EDT-02 tem base determinística incluída na v0.5.0 e consolidação contextual na v0.6.0; IA opcional é v0.9.0. EDT-04 tem histórico/arquivos existentes, mas parâmetros e snippets completos permanecem pendentes. TRF-01 exige CSV no MVP, enquanto exportação de coleção inteira/streaming fica como extensão sem versão comprometida. Requisitos administrativos e Script/IA já implementados são antecipações mantidas, não novos bloqueadores do MVP.
+
+## Recortes planejados da v0.11.0 — MCP e agentes externos
+
+O [plano da Fase 7](phases/phase-07-v0.11.0/README.md) acrescenta os recortes abaixo sem transformar evidências de IA local ou MongoDB em evidência de MCP. Todos estão **📋 Planejados**. IDs existentes são preservados; a fase detalha contratos, ferramentas, testes e aceites específicos.
+
+| IDs relacionados | Recorte novo | Aceite a implementar |
+| --- | --- | --- |
+| ADV-09, UX-01/02 | Agent Runtime, sessões, streaming, cancelamento e chat Avalonia por capabilities | UI independente do fornecedor, eventos normalizados, destino fixo e degradação sem serviços externos |
+| ADV-09, DAT-01/03/09/10, IDX-01 | MCP e registro único de ferramentas | Cliente externo descobre/executa leituras limitadas; MCP e chat usam a mesma implementação e autorização |
+| ADV-09, CON-07 | OpenAI/Codex e Claude por adaptadores; autenticação e cofre de SO | Apenas fluxos oficiais; referências a segredos persistidas, nenhuma API key/token em texto puro no workspace |
+| CON-07, ADM-11, DAT-04/05/06, IDX-01 | Permissões, aprovações, auditoria e limite de dados externos | Nenhuma escrita sem autorização vinculada à ação; nenhum dado enviado só por conectar um provider; segredos não retornados |
+| ADV-09, EDT-02 | Preservação do modo local | Autocomplete/ONNX funcionam offline e sem conta externa; capabilities locais não prometem ferramentas ou autonomia inexistentes |
+
+O workflow de ADV-09 permanece **📋 Planejado na [Fase 8/v0.12.0](phases/phase-08-v0.12.0/README.md)**, com fluxo fechado e ações revisadas. A integração MCP não habilita automaticamente funcionalidades de backlog ou administrativas ocultas.

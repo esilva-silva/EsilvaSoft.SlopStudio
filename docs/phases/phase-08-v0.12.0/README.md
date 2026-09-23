@@ -1,34 +1,38 @@
-# Fase 8 — v0.12.0: homologação manual e validação em ambientes reais
+# Fase 8 — v0.12.0: chat simples com IA baseado em workflow
 
 **Situação:** Planejada.
 
 ## Objetivo
 
-Concentrar a validação manual antes distribuída nas fases funcionais, sem adicionar funcionalidades de produto nem reabrir seus critérios automatizados.
+Chat técnico que segue um **fluxo predefinido**, com escopo limitado e ações controladas.
 
-## Escopo incluído
+## Escopo incluído (IDs do catálogo)
 
-- Homologação em Windows e Linux gráficos: gerenciadores de janela, teclado, IME, clipboard, diálogos nativos de arquivo/pasta e lixeira.
-- Acessibilidade com leitor de tela, foco e navegação por teclado nas jornadas alteradas.
-- MongoDB e `mongosh` reais: autenticação, TLS/X.509, permissões, somente leitura, topologias, operações destrutivas, edição concorrente e metadados.
-- Modelos e hardware reais: CPU/GPU/NPU, fidelidade de ações, revisão linguística de domínio, latência e memória.
-- Avaliação presencial das jornadas com representantes de desenvolvimento, operação e análise, registrando amostra e limitações.
-- Instalação, atualização e recuperação em máquinas limpas; integridade dos artefatos e evidência sem credenciais ou payloads sensíveis.
-- Registro datado dos ambientes e resultados na [matriz de validação](../../15-matriz-de-validacao.md) e no [checklist](../../16-checklist-homologacao.md).
+- ADV-09 (recorte de chat) — conversa guiada por workflow, com passos declarados e conjunto fechado de ações.
+- Toda ação proposta pelo chat é revisável; nenhuma é executada automaticamente.
 
 ## Fora de escopo
 
-Implementar recursos novos, alterar critérios automatizados já aceitos, reescrever o histórico de evidências ou declarar suporte para ambiente não exercitado.
+Chat livre de propósito geral, execução autônoma de comandos, acesso a serviços externos e qualquer envio implícito de dados do usuário.
+
+## Antecipações técnicas presentes no código
+
+Existe um painel de chat experimental ligado ao runtime local (Fase 5). Ele **não** implementa o workflow desta fase e não constitui antecipação de aceite.
 
 ## Critério de aceite
 
-Executar e registrar os cenários aplicáveis do checklist em seus ambientes reais, com sistema operacional, versões relevantes, configuração sem segredos e resultado observável. Cada alegação de suporte em plataforma, hardware, acessibilidade, instalação ou topologia deve apontar para essa evidência.
+Fluxo predefinido observável passo a passo; escopo de ações fechado e documentado; toda escrita exige confirmação; funcionamento degradado e explícito sem modelo instalado; nenhuma ação fora do workflow declarado.
 
 ## Dependências
 
-Critérios funcionais automatizáveis das Fases 1 a 7, artefatos de distribuição e ambientes de teste disponíveis.
+Fase 6 aceita; política de dados e contexto determinístico das fases anteriores.
 
 ## Documentos relacionados
 
-- [Checklist de homologação](../../16-checklist-homologacao.md) · [Matriz de validação](../../15-matriz-de-validacao.md)
-- [Fase 1](../phase-01-v0.5.0/README.md) · [Fase 2](../phase-02-v0.6.0/README.md) · [Fase 3](../phase-03-v0.7.0/README.md) · [Fase 4](../phase-04-v0.8.0/README.md) · [Fase 5](../phase-05-v0.9.0/README.md) · [Fase 6](../phase-06-v0.10.0/README.md) · [Fase 7](../phase-07-v0.11.0/README.md)
+- [ONNX/chat](../../23-onnx-slopcoder.md) · [IA local multimodelo](../../26-ia-local-multimodelo.md) · [Contexto para IA](../../auto-complite/ai-context.md)
+
+## Pendências de escopo
+
+O workflow ainda não foi definido em documento próprio de requisitos. Nenhuma evidência de aceite existe.
+
+**Dependência técnica adicional planejada em 22/09/2026:** integrar este workflow à fundação da [Fase 7](../phase-07-v0.11.0/README.md) quando implementada, preservando o conjunto fechado de ações e todas as exclusões acima. O conteúdo original desta fase foi mantido integralmente na migração; o chat geral da v0.11.0 não altera seus critérios de aceite.

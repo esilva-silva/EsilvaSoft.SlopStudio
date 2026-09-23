@@ -35,8 +35,8 @@ Fase 5 aceita; contratos de escrita e capacidade por servidor/permissão.
 
 ## Documentos relacionados
 
-- [Segurança e administração](../../07-dados-seguranca-e-administracao.md) · [Explorer](../../19-database-explorer.md) · [Transferência lógica](../../13-exportacao-logica.md) · [Fase 8 — homologação manual](../phase-08-v0.12.0/README.md)
+- [Segurança e administração](../../07-dados-seguranca-e-administracao.md) · [Explorer](../../19-database-explorer.md) · [Transferência lógica](../../13-exportacao-logica.md) · [Fase 9 — homologação manual](../phase-09-v0.13.0/README.md)
 
 ## Validação manual transferida
 
-RBAC, topologias reais, profiler além da leitura de configuração e operações destrutivas em servidor real são critérios da [Fase 8 / v0.12.0](../phase-08-v0.12.0/README.md).
+RBAC, topologias reais, profiler além da leitura de configuração e operações destrutivas em servidor real são critérios da [Fase 9 / v0.13.0](../phase-09-v0.13.0/README.md).

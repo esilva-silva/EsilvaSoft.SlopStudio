@@ -1,6 +1,6 @@
 # Fase 3 — v0.7.0: autocomplete com IA
 
-**Situação:** arquivada por escopo funcional em 22/09/2026. A homologação manual permanece na [Fase 8 / v0.12.0](../phase-08-v0.12.0/README.md).
+**Situação:** arquivada por escopo funcional em 22/09/2026. A homologação manual permanece na [Fase 9 / v0.13.0](../phase-09-v0.13.0/README.md).
 
 O aceite, as evidências automatizadas, a medição disponível e os limites desta entrega estão em [Release v0.7.0](../../done/release_v0.7.0/README.md). Esta página é mantida para preservar links históricos.
 

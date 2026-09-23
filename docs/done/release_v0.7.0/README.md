@@ -1,6 +1,6 @@
 # Release v0.7.0 — autocomplete com IA explícita
 
-**Arquivada em 22/09/2026 por escopo funcional.** A homologação de modelo, hardware, teclado físico, acessibilidade e interface nativa não está concluída; as pendências estão em [pendencias-de-homologacao.md](pendencias-de-homologacao.md) e continuam abertas na [Fase 8 / v0.12.0](../../phases/phase-08-v0.12.0/README.md).
+**Arquivada em 22/09/2026 por escopo funcional.** A homologação de modelo, hardware, teclado físico, acessibilidade e interface nativa não está concluída; as pendências estão em [pendencias-de-homologacao.md](pendencias-de-homologacao.md) e continuam abertas na [Fase 9 / v0.13.0](../../phases/phase-09-v0.13.0/README.md).
 
 Esta pasta corresponde à [Fase 3](../../phases/phase-03-v0.7.0/README.md) do [roadmap](../../09-plano-de-implementacao.md).
 

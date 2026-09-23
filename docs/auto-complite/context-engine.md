@@ -36,7 +36,7 @@ Tudo roda em worker. A UI thread apenas captura o `ContextRequest`.
 
 ## Lexer compartilhado
 
-O lexer de [`SyntaxHighlightingService`](../../src/EsilvaSoft.SlopStudio.Application/SyntaxHighlighting/SyntaxHighlightingService.cs) já é tolerante, mantém estado entre linhas e cache incremental. Ele é extraído como `MongoLexer`, produzindo tokens com tipo léxico (identificador, string com estado de fechamento, número, pontuação, comentário, regex, template). O highlighting passa a classificar sobre esses tokens e a árvore, em vez de manter um segundo lexer. A extração preserva a API `ISyntaxHighlightingService` e deve manter `SyntaxHighlightingTests` sem alteração.
+O lexer de [`SyntaxHighlightingService`](../../src/EsilvaSoft.SlopStudio.Autocomplete.Core/SyntaxHighlighting/SyntaxHighlightingService.cs) já é tolerante, mantém estado entre linhas e cache incremental. Ele é extraído como `MongoLexer`, produzindo tokens com tipo léxico (identificador, string com estado de fechamento, número, pontuação, comentário, regex, template). O highlighting passa a classificar sobre esses tokens e a árvore, em vez de manter um segundo lexer. A extração preserva a API `ISyntaxHighlightingService` e deve manter `SyntaxHighlightingTests` sem alteração.
 
 ## Parser tolerante
 

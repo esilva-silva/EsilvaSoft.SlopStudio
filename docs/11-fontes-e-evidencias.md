@@ -71,3 +71,7 @@ Diferenças da documentação em relação ao servidor real devem virar caso rep
 Consultadas na revisão de 09–10/09/2026: [Fluent 2 cores](https://fluent2.microsoft.design/color); [Fluent 2 tipografia](https://fluent2.microsoft.design/typography); [W3C contraste](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html); [Avalonia variantes](https://docs.avaloniaui.net/docs/styling/theme-variants).
 
 A escolha da paleta e das dimensões é decisão de produto fundamentada nessas referências. Capturas automatizadas desta IDE usam dados sintéticos e ficam em ui-evidence no diretório dos testes. Não representam consultas executadas contra servidor real.
+
+## MCP e agentes externos — pesquisa de 22/09/2026
+
+O [registro específico de fontes/licenças](phases/phase-07-v0.11.0/15-fontes-e-licencas.md) documenta páginas oficiais consultadas para Codex App Server/SDK/API, Claude API/Agent SDK, autenticação de terceiros, MCP 2026-07-28 e compatibilidade 2025-11-25, Credential Manager e Secret Service. Versões móveis e licenças de candidatos não são homologação de pacote ou integração; fixação de artefatos/transitivas permanece gate da implementação.

@@ -1,4 +1,4 @@
-﻿# Matriz de validação
+# Matriz de validação
 
 ## Estado corrente da meta de autocomplete — 21/09/2026
 
@@ -17,7 +17,7 @@ O resultado Headless não encerra a homologação: continuam pendentes revisão 
 Build `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore`: **0 avisos, 0 erros**. Suíte
 `dotnet test EsilvaSoft.SlopStudio.slnx --no-build --no-restore`: **1273 aprovados, 0 falhas** (baseline de entrada:
 1154). Esta seção separa o que tem **validação automatizada** (build + teste + benchmark local) do que exige
-**homologação manual** (hardware/SO/entrada reais), concentrada na [Fase 8 / v0.12.0](phases/phase-08-v0.12.0/README.md), como exigido pelo `AGENTS.md`.
+**homologação manual** (hardware/SO/entrada reais), concentrada na [Fase 9 / v0.13.0](phases/phase-09-v0.13.0/README.md), como exigido pelo `AGENTS.md`.
 
 ### Validação automatizada (evidência local, esta máquina)
 
@@ -172,7 +172,7 @@ Cofre de ambientes usa armazenamento local sem criptografia nativa, separado dos
 
 ## Database Explorer — 10/09/2026
 
-Restore travado aprovado; build Windows com `--no-restore -p:UsedAvaloniaProducts=` aprovado, **0 avisos e 0 erros**. Suíte final: **276/276 testes aprovados**, nenhum ignorado. [TRX desta revisão](../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/chuke_ESILVA-PC_2026-09-10_23_11_35_net10.0.trx). Os totais anteriores são históricos.
+Restore travado aprovado; build Windows com `--no-restore -p:UsedAvaloniaProducts=` aprovado, **0 avisos e 0 erros**. Suíte final: **276/276 testes aprovados**, nenhum ignorado. TRX desta revisão (artefato histórico não disponível neste checkout: `../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/chuke_ESILVA-PC_2026-09-10_23_11_35_net10.0.trx`). Os totais anteriores são históricos.
 
 | Critério de aceite | Implementação e evidência automatizada | Homologação externa |
 | --- | --- | --- |
@@ -194,7 +194,7 @@ PNGs reais Headless/Skia inspecionados em **18 combinações** (claro/escuro × 
 
 ## Console JavaScript — 11/09/2026
 
-Restore com `--locked-mode` aprovado; build `--no-restore -p:UsedAvaloniaProducts=` com **0 avisos/erros**; **294/294 testes aprovados**, nenhum ignorado. [TRX final](../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/chuke_ESILVA-PC_2026-09-11_07_55_19_net10.0.trx).
+Restore com `--locked-mode` aprovado; build `--no-restore -p:UsedAvaloniaProducts=` com **0 avisos/erros**; **294/294 testes aprovados**, nenhum ignorado. TRX final (artefato histórico não disponível neste checkout: `../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/chuke_ESILVA-PC_2026-09-11_07_55_19_net10.0.trx`).
 
 | Aceite do Console | Evidência |
 | --- | --- |
@@ -259,8 +259,8 @@ Asserções alteradas: `WorkspaceUiTests` e `UuidPreferencesUiTests` passaram a 
 | Gate | Evidência atual | Limite |
 | --- | --- | --- |
 | Restore/build | Restore travado e build Windows com `-p:UsedAvaloniaProducts=`, 0 avisos/erros | Opção evita somente a tarefa externa de telemetria Avalonia |
-| Suíte regular | **415 aprovados**, 0 falhas; [TRX](../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/autocomplete-current-final.trx) | Dois testes Qwen são Explicit e executados à parte |
-| IA real CPU | **2 aprovados**; [TRX](../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/qwen-current-final.trx) | Qwen2.5-Coder-0.5B Q4, CPU Windows x64; não generaliza qualidade/performance a modelos maiores |
+| Suíte regular | **415 aprovados**, 0 falhas; TRX (artefato histórico não disponível neste checkout: `../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/autocomplete-current-final.trx`) | Dois testes Qwen são Explicit e executados à parte |
+| IA real CPU | **2 aprovados**; TRX (artefato histórico não disponível neste checkout: `../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/qwen-current-final.trx`) | Qwen2.5-Coder-0.5B Q4, CPU Windows x64; não generaliza qualidade/performance a modelos maiores |
 | FIM/tokenizer | Tokenizer nativo + FIM gerou `a + b`; código sintético avaliado com resultado 5 | Teste fixo, não benchmark de qualidade |
 | Cancelamento nativo | Cancelar geração longa, recuperar sessão e gerar novamente | Inicialização nativa não é imediatamente interrompível; worker mantém UI livre |
 | Contexto/concorrência | AutocompleteReliabilityTests: 1 inferência ativa, fila cancelada não executa, duas sessões independentes; limite antes do runtime | Fakes determinísticos, complementados pelo teste nativo de cancelamento |
@@ -274,7 +274,7 @@ Pesos de teste externos ao repositório; nenhuma dependência Python/Ollama/serv
 
 ## Autocomplete preditivo — auditoria de aceite (11/09/2026)
 
-Esta revisão substitui as limitações anteriores de preview abaixo do editor e contexto somente textual. Restore `--locked-mode` aprovado; build `--no-restore -p:UsedAvaloniaProducts=` com 0 avisos/erros; **431 testes regulares aprovados**, 0 falhas ([TRX](../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/predictive-final.trx)). **2 testes Explicit reais aprovados**, separados da suíte comum ([TRX](../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/predictive-real-final.trx)).
+Esta revisão substitui as limitações anteriores de preview abaixo do editor e contexto somente textual. Restore `--locked-mode` aprovado; build `--no-restore -p:UsedAvaloniaProducts=` com 0 avisos/erros; **431 testes regulares aprovados**, 0 falhas (TRX (artefato histórico não disponível neste checkout: `../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/predictive-final.trx`)). **2 testes Explicit reais aprovados**, separados da suíte comum (TRX (artefato histórico não disponível neste checkout: `../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/predictive-real-final.trx`)).
 
 | Requisito | Implementação e evidência conferida |
 | --- | --- |
@@ -335,20 +335,20 @@ Build Windows `--no-restore -p:UsedAvaloniaProducts=` com **0 avisos/erros**; **
 
 ## ONNX SlopCoder, hardware e chat — 13/09/2026
 
-Windows x64, .NET 10.0.401: restore `--locked-mode` e build `--no-restore -p:UsedAvaloniaProducts=` aprovados nas variantes Cpu, WinML e Cuda (0 avisos/erros). Suíte final padrão WinML: **520 aprovados, 1 falha** em 37 s; [TRX](../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/onnx-expanded-final.trx). A falha é `HugeSingleLineKeepsFullTextAndMakesEveryRangeReachableWithoutShapingItAll`, já registrada na entrega anterior de identificadores; asserção e golden files não foram alterados. Seis testes nativos Explicit ficam fora da suíte regular.
+Windows x64, .NET 10.0.401: restore `--locked-mode` e build `--no-restore -p:UsedAvaloniaProducts=` aprovados nas variantes Cpu, WinML e Cuda (0 avisos/erros). Suíte final padrão WinML: **520 aprovados, 1 falha** em 37 s; TRX (artefato histórico não disponível neste checkout: `../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/onnx-expanded-final.trx`). A falha é `HugeSingleLineKeepsFullTextAndMakesEveryRangeReachableWithoutShapingItAll`, já registrada na entrega anterior de identificadores; asserção e golden files não foram alterados. Seis testes nativos Explicit ficam fora da suíte regular.
 
 | Verificação | Resultado e evidência |
 | --- | --- |
-| Tokenizer e prompt DeepSeek | 547 strings e 40 prompts completos com IDs idênticos; decode também confere os três casos sem round-trip do HF. [TRX CPU](../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/deepseek-cpu-final.trx) |
+| Tokenizer e prompt DeepSeek | 547 strings e 40 prompts completos com IDs idênticos; decode também confere os três casos sem round-trip do HF. TRX CPU (artefato histórico não disponível neste checkout: `../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/deepseek-cpu-final.trx`) |
 | SlopCoder real CPU | Geração repetida, cancelamento e recuperação; 12 tokens em 1168/1146 ms em prompt curto sintético. Mesmo TRX; não é TTFT nem benchmark do editor |
-| Chat e GPU → CPU | Proposta ONNX real e recuperação depois de erro DirectML aprovadas. [TRX](../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/deepseek-chat-fallback.trx) |
-| GPU estrita | Falhou na execução do pacote CPU (`DmlFusedNode_0_4`, `80070057`). [TRX](../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/deepseek-gpu.trx). Não há homologação GPU deste pacote; CUDA só restaurado/compilado |
+| Chat e GPU → CPU | Proposta ONNX real e recuperação depois de erro DirectML aprovadas. TRX (artefato histórico não disponível neste checkout: `../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/deepseek-chat-fallback.trx`) |
+| GPU estrita | Falhou na execução do pacote CPU (`DmlFusedNode_0_4`, `80070057`). TRX (artefato histórico não disponível neste checkout: `../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/deepseek-gpu.trx`). Não há homologação GPU deste pacote; CUDA só restaurado/compilado |
 | Contratos/falhas | Manifesto com ID incorreto e pesos externos ausentes retornam Invalid; propostas truncadas e marcadores são rejeitados; chat cancelado não cancela autocomplete em fila; sessão inicializada uma vez; filtros de privacidade impedem carga |
 | Regressão visual | Suíte Headless produziu PNGs existentes de autocomplete; inspecionados claro/escuro 1366×768 100%, ghost text e painel IA. Não houve mudança de layout/XAML |
 
 O chat FIM gerou filtro de data adicional não solicitado: integração funcional não representa aprovação de fidelidade conversacional. Revisão e confirmação permanecem obrigatórias. Linux, GPU com exportação compatível, leitor de tela, diálogos nativos e MongoDB real não foram homologados nesta entrega. [Guia e contratos](23-onnx-slopcoder.md).
 
-Regressão Qwen real no build WinML: **1 aprovado**, geração CPU repetida e recuperação de cancelamento; [TRX](../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/onnx-qwen-regression.trx).
+Regressão Qwen real no build WinML: **1 aprovado**, geração CPU repetida e recuperação de cancelamento; TRX (artefato histórico não disponível neste checkout: `../tests/EsilvaSoft.SlopStudio.UnitTests/TestResults/onnx-qwen-regression.trx`).
 
 
 ## Datas BSON — 13/09/2026
@@ -455,3 +455,19 @@ Testes `dotnet test EsilvaSoft.SlopStudio.slnx --no-build --no-restore`: **1 156
 | Sessão e privacidade | Migração aditiva v1→v2; raiz e documentos recuperáveis; resultados/credenciais fora do snapshot | Migração, sessão ilegível/proteção, opt-out e recuperação de buffer alterado | Reinício real, mudança de perfil e homologação prolongada |
 
 Os testes automatizados cobrem os critérios de implementação. Teste Headless não substitui diálogos nativos, lixeira, acessibilidade ou leitor de tela; esses itens continuam como homologação externa.
+
+## v0.11.0 — matriz futura de MCP e agentes externos
+
+**Status: 📋 Planejado; nenhum teste de integração externa executado ou aprovado por esta revisão.** O [plano técnico](phases/phase-07-v0.11.0/README.md) especifica os casos e critérios de aceite. Contagens históricas deste documento são somente da implementação existente.
+
+| Camada | Evidência futura | Ambiente / limite |
+| --- | --- | --- |
+| Contratos e registro único | Eventos normalizados, ordem, isolamento de sessões, schema inválido, ferramenta ausente, limites BSON, timeout/cancelamento, negação de permissão/aprovação e auditoria sem secrets | NUnit com fixtures independentes; não prova provider real |
+| MCP | Descoberta/execução por cliente externo, serialização Extended JSON, transportes, desconexão, tool calls concorrentes e recusa de escrita no lote somente leitura | Processo MCP real e MongoDB de teste; contratos simulados identificados |
+| Adaptadores externos | Sessão, streaming, expiração, login cancelado, chave inválida, indisponibilidade e capabilities honestas | Integração explícita dependente de credenciais autorizadas, sem API keys em CI |
+| Cofre e privacidade | Persistência apenas de referências, bloqueio/ausência do cofre, exclusão/revogação, zero egress não autorizado, isolamento de URI/segredos | Windows e Linux reais; teste unitário não comprova proteção nativa |
+| UI e regressões | Chat/provider selector, tool calls, aprovações e cancelamento; ONNX/autocomplete e IDE continuam sem rede/provedor/modelo/MCP | PNGs reais claro/escuro e homologação nativa na Fase 9/v0.13.0 |
+
+A validação documental desta meta deve registrar separadamente índice/leitor, links, preservação das fases e eventuais regressões da solução; não converte esta matriz futura em resultados executados.
+
+Os gates reais necessários para aceitar v0.11.0 (providers, MCP, segredos, Windows/Linux e UI) devem ser satisfeitos antes de anunciar essa entrega. A Fase 9 amplia a homologação transversal; não é justificativa para liberar a Fase 7 sem as provas exigidas em seus [critérios de aceite](phases/phase-07-v0.11.0/12-criterios-de-aceite.md).

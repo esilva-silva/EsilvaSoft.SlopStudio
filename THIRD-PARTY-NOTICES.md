@@ -16,3 +16,7 @@ Esta relação documenta o incremento Console; o inventário completo do produto
 Microsoft.ML.OnnxRuntimeGenAI/Managed **0.15.2** e Microsoft.ML.OnnxRuntime/Managed **1.28.0**, Microsoft, licença MIT. [ONNX Runtime GenAI](https://github.com/microsoft/onnxruntime-genai/tree/v0.15.2), [ONNX Runtime](https://github.com/microsoft/onnxruntime). Os pacotes incluem avisos de componentes nativos transitivos que devem acompanhar distribuições derivadas. Os lockfiles fixam versões e hashes.
 
 Pesos e tokenizers Qwen não fazem parte do repositório nem da publicação. A licença de cada modelo/exportação deve ser consultada na origem escolhida pelo usuário; a MIT do Slop Studio não relicencia modelos externos.
+
+## Planejamento v0.11.0 — candidatos externos
+
+A meta de planejamento MCP/providers não adiciona dependências nem redistribui SDKs ou runtimes de OpenAI, Anthropic ou MCP. A pesquisa, as distinções entre licença de código e termos de serviço e os gates de versão/transitivas estão em [Fontes e licenças da fase 7](docs/phases/phase-07-v0.11.0/15-fontes-e-licencas.md). Candidatos não devem ser confundidos com componentes já incorporados; os avisos definitivos serão atualizados ao selecionar artefatos concretos.

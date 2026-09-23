@@ -167,3 +167,7 @@ ConsoleAutocompleteService lê catálogos através de WorkspaceService; view des
 ## Autocomplete local opcional — 11/09/2026
 
 IAutocompleteService independente da UI, providers básico/IA, runtime ONNX GenAI isolado, tokenizer nativo/FIM e catálogo de modelos externos. Desde a [ADR-040](10-decisoes-arquiteturais.md) o núcleo determinístico vive em `Autocomplete.Core`, os contratos de IA local em `LocalAi.Core` e o runtime ONNX em `Infrastructure.LocalAi`; o restante do fluxo continua em `Application`/`Desktop`. Uma sessão de completion por editor descarta respostas antigas; um gate global limita inferências; sessão de modelo lazy/reutilizável. Preferências versionadas são aditivas no proprietário LiteDB. [Contrato e limites](21-autocomplete-local.md).
+
+## Evolução planejada v0.11.0 — agentes e MCP
+
+O [plano da Fase 7](phases/phase-07-v0.11.0/README.md) separa três componentes: Agent Runtime (sessões/eventos/aprovações), servidor MCP (adaptador de ferramentas) e chat Avalonia (apresentação). Providers OpenAI/Codex, Claude e local são adaptadores; o domínio não recebe protocolos de fornecedor. Chat e MCP passam pelo mesmo registro autorizado de ferramentas e reutilizam serviços MongoDB existentes. O plano define os contratos antes de qualquer integração grande e preserva contexto por aba, snapshots antes de awaits, cancelamento isolado, tipos BSON e um único proprietário LiteDB. Trata-se de arquitetura proposta, sem implementação nesta revisão.

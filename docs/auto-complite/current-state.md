@@ -67,7 +67,7 @@ O caminho ativo já possui `CompletionContextEngine` e `ShapeWalker` compartilha
 
 ## 5. Vocabulário MongoDB duplicado
 
-[LanguageDefinition](../../src/EsilvaSoft.SlopStudio.Application/Language/LanguageDefinition.cs) carrega [mongodb-language.v1.json](../../src/EsilvaSoft.SlopStudio.Application/Language/mongodb-language.v1.json); `MongoSyntaxVocabulary` já projeta os dados. Operadores MQL, keywords básicas, métodos Console e comandos do cabeçalho IA ainda têm listas próprias. Preservar o contrato de treino v1 ao consolidar as demais.
+[LanguageDefinition](../../src/EsilvaSoft.SlopStudio.Autocomplete.Core/LanguageDefinition.cs) carrega [mongodb-language.v1.json](../../src/EsilvaSoft.SlopStudio.Autocomplete.Core/mongodb-language.v1.json); `MongoSyntaxVocabulary` já projeta os dados. Operadores MQL, keywords básicas, métodos Console e comandos do cabeçalho IA ainda têm listas próprias. Preservar o contrato de treino v1 ao consolidar as demais.
 
 `LanguageDefinitionTests` compara a superfície Console com o bootstrap. Shapes, snippets, tipos, Since e flags Search presentes no catálogo não significam providers integrados. Console permanece limitado por [ConsoleBootstrap.js](../../src/EsilvaSoft.SlopStudio.Infrastructure/ConsoleBootstrap.js), Script por mongosh e Agregação por pipeline.
 
@@ -75,12 +75,12 @@ O caminho ativo já possui `CompletionContextEngine` e `ShapeWalker` compartilha
 
 | Componente | Estado e limites confirmados |
 | --- | --- |
-| [MetadataCache](../../src/EsilvaSoft.SlopStudio.Application/Language/MetadataCache.cs) | TTL, stale, single-flight, backoff; LRU de 64 **entradas** de definição/índice/amostra por conexão; leituras usam lock, não são lock-free |
-| [KnowledgeCatalog](../../src/EsilvaSoft.SlopStudio.Application/Language/KnowledgeCatalog.cs) | Query retorna da memória, mas Get padrão pode agendar Task.Run remoto; sem Changed/ResolveAsync no contrato atual |
-| [CatalogModel](../../src/EsilvaSoft.SlopStudio.Application/Language/CatalogModel.cs) | Nomes reais: EditorDialects, CatalogScope, IDs string, CatalogQuery com ConnectionProfile; não criar cópias dos esboços |
+| [MetadataCache](../../src/EsilvaSoft.SlopStudio.Application/MetadataCache.cs) | TTL, stale, single-flight, backoff; LRU de 64 **entradas** de definição/índice/amostra por conexão; leituras usam lock, não são lock-free |
+| [KnowledgeCatalog](../../src/EsilvaSoft.SlopStudio.Autocomplete.Core/KnowledgeCatalog.cs) | Query retorna da memória, mas Get padrão pode agendar Task.Run remoto; sem Changed/ResolveAsync no contrato atual |
+| [CatalogModel](../../src/EsilvaSoft.SlopStudio.Autocomplete.Core/CatalogSymbol.cs) | Nomes reais: EditorDialects, CatalogScope, IDs string, CatalogQuery com ConnectionProfile; não criar cópias dos esboços |
 | [MongoMetadataSource](../../src/EsilvaSoft.SlopStudio.Infrastructure/MongoMetadataSource.cs) | Listagens autorizadas, definição por coleção, índices, amostra nomes/tipos; reutiliza pool e ambiente |
 | Tipos de coleção | ListCollectionNamesAsync conserva só nomes; Unknown até definição. Servidor oferece tipo com nameOnly; perda é da API escolhida |
-| [CollectionSchema](../../src/EsilvaSoft.SlopStudio.Application/Language/CollectionSchema.cs) | Validator/índices/resultados/amostra, BSON/EJSON, arrays, enum limitado; builders limitados, mas Merge usa int.MaxValue |
+| [CollectionSchema](../../src/EsilvaSoft.SlopStudio.Autocomplete.Core/CollectionSchema.cs) | Validator/índices/resultados/amostra, BSON/EJSON, arrays, enum limitado; builders limitados, mas Merge usa int.MaxValue |
 | Explorer/workspace | Write-through, Connect/Disconnect e invalidação integrados; nomes vêm de cache Peek, não só da árvore |
 | [Campos observados](../../src/EsilvaSoft.SlopStudio.Desktop/ViewModels/WorkspaceTabViewModel.Autocomplete.cs) | Memoizados por conjunto/perfil/alvo; primeira inferência ainda na UI; agregação reanalisa prefixo por captura |
 | Amostragem | SampleSchemaAsync e SchemaSamplingProfileIds existem, sem controle visual. Ferramenta de validador continua lendo documentos completos |
@@ -91,11 +91,11 @@ Catálogo, metadata e schema learning já alimentam o caminho ativo; alguns gera
 
 [LocalAiModelService](../../src/EsilvaSoft.SlopStudio.Application/LocalAiModelService.cs) possui modelo único, fila, carga desacoplada, troca, cooldown e cancelamento. GenerateAsync chama EnsureLoadedAsync: checar Ready antes do await não garante que inline nunca carregue. Propor LoadedOnly verificado sob a fila e revisão do modelo.
 
-[OnnxLocalModelRuntime](../../src/EsilvaSoft.SlopStudio.Infrastructure/OnnxLocalModelRuntime.cs) reutiliza modelo/tokenizer, cria GeneratorParams/Generator por geração, roda em Task.Run, cancela via terminate_session e faz fallback CPU automático quando permitido. Não usa diretamente OrtValue, pooling de tensores, streaming público ou KV entre pedidos. Não criar backend paralelo para cumprir nomes conceituais.
+[OnnxLocalModelRuntime](../../src/EsilvaSoft.SlopStudio.Infrastructure.LocalAi/OnnxLocalModelRuntime.cs) reutiliza modelo/tokenizer, cria GeneratorParams/Generator por geração, roda em Task.Run, cancela via terminate_session e faz fallback CPU automático quando permitido. Não usa diretamente OrtValue, pooling de tensores, streaming público ou KV entre pedidos. Não criar backend paralelo para cumprir nomes conceituais.
 
-[ModelAdapters](../../src/EsilvaSoft.SlopStudio.Infrastructure/ModelAdapters.cs) e [DeepSeekModelTokenizer](../../src/EsilvaSoft.SlopStudio.Infrastructure/DeepSeekModelTokenizer.cs) isolam famílias. Builders FIM tokenizam prefixo/sufixo antes de cortar; Qwen recodifica marcadores; RequireFullContext pode repetir encode. A detecção de eco decodifica saída acumulada por token. TTFT medido começa **depois** da tokenização/criação do gerador, não equivale a tecla → ghost.
+[ModelAdapters](../../src/EsilvaSoft.SlopStudio.Infrastructure.LocalAi/ModelAdapters.cs) e [DeepSeekModelTokenizer](../../src/EsilvaSoft.SlopStudio.Infrastructure.LocalAi/DeepSeekModelTokenizer.cs) isolam famílias. Builders FIM tokenizam prefixo/sufixo antes de cortar; Qwen recodifica marcadores; RequireFullContext pode repetir encode. A detecção de eco decodifica saída acumulada por token. TTFT medido começa **depois** da tokenização/criação do gerador, não equivale a tecla → ghost.
 
-[AiProviderSelector](../../src/EsilvaSoft.SlopStudio.Infrastructure/AiProviderSelector.cs) ordena NPU/GPU/CPU compatíveis; explícito não faz fallback silencioso. [OnnxHardwareProbe](../../src/EsilvaSoft.SlopStudio.Infrastructure/OnnxHardwareProbe.cs) detecta disponibilidade, não homologa exportações. NPU depende de pacote/build/hardware e não foi validada nesta revisão.
+[AiProviderSelector](../../src/EsilvaSoft.SlopStudio.Infrastructure.LocalAi/AiProviderSelector.cs) ordena NPU/GPU/CPU compatíveis; explícito não faz fallback silencioso. [OnnxHardwareProbe](../../src/EsilvaSoft.SlopStudio.Infrastructure.LocalAi/OnnxHardwareProbe.cs) detecta disponibilidade, não homologa exportações. NPU depende de pacote/build/hardware e não foi validada nesta revisão.
 
 ## 8. Caches e riscos de fundo
 
@@ -121,7 +121,7 @@ Snapshot da sessão sem resultados/credenciais; alvo capturado antes de await; E
 
 ## 10. Configuração e atalhos
 
-[AutocompleteSettings](../../src/EsilvaSoft.SlopStudio.Core/Autocomplete.cs) v1 já possui Enabled/Mode/UseDictionary, atraso 50–2000 (padrão 150), contexto 64–8192 (2048), saída 1–256 (32), modelo/provider e opções de contexto. Os dois fluxos preemptivos têm políticas independentes; `Ctrl+Espaço` abre a lista padrão e `Ctrl+;` aciona IA explícita, enquanto overrides persistidos continuam legíveis. [Migração e precedência](configuration.md).
+[AutocompleteSettings](../../src/EsilvaSoft.SlopStudio.Core/AutocompleteSettings.cs) v1 já possui Enabled/Mode/UseDictionary, atraso 50–2000 (padrão 150), contexto 64–8192 (2048), saída 1–256 (32), modelo/provider e opções de contexto. Os dois fluxos preemptivos têm políticas independentes; `Ctrl+Espaço` abre a lista padrão e `Ctrl+;` aciona IA explícita, enquanto overrides persistidos continuam legíveis. [Migração e precedência](configuration.md).
 
 ## 11. Testes e evidências existentes
 

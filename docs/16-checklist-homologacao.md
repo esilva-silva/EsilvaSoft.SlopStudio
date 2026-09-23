@@ -1,4 +1,4 @@
-# Checklist de homologação — Fase 8 / v0.12.0
+# Checklist de homologação — Fase 9 / v0.13.0
 
 Este checklist é o único critério de validação manual do roadmap. Ele concentra os cenários de ambiente, hardware e operação humana transferidos das fases funcionais; sua conclusão não altera retrospectivamente a evidência histórica das versões anteriores.
 
@@ -106,7 +106,7 @@ Este checklist complementa a matriz de validação e separa evidência local de 
 Esses itens não promovem as pendências históricas do runner mongosh a aprovadas. O Console usa outro runtime.
 
 
-## Gates da Fase 8 por origem — revisão de 13/09/2026
+## Gates da Fase 9 por origem — revisão de 13/09/2026
 
 Este checklist é de homologação, não declaração de inexistência do código. Consulte o [inventário](24-inventario-roadmap.md) e o [roadmap](09-plano-de-implementacao.md).
 
@@ -135,4 +135,16 @@ Este checklist é de homologação, não declaração de inexistência do códig
 - [x] Medir uma amostra de startup e CPU/RAM nativos sem inspeção visual (1.396 ms; 220,3 MiB; 3.734,4 ms CPU após 2 s).
 - [ ] Repetir a medição em série e durante I/O demorado para obter perfil estatístico.
 
-Evidência e limites em [25 — Auditoria](done/release_v0.5.0/25-auditoria-mvp-performance.md). Os gates históricos da v0.5.0 foram transferidos para esta Fase 8; arquivar a release não os fechou. Os itens de ambiente deste checklist referem-se ao armazenamento local não criptografado, não a um cofre: ver [bkl-01](backlog/bkl-01-key-vault-criptografico.md).
+Evidência e limites em [25 — Auditoria](done/release_v0.5.0/25-auditoria-mvp-performance.md). Os gates históricos da v0.5.0 foram transferidos para esta Fase 9; arquivar a release não os fechou. Os itens de ambiente deste checklist referem-se ao armazenamento local não criptografado, não a um cofre: ver [bkl-01](backlog/bkl-01-key-vault-criptografico.md).
+
+## Gates adicionais da v0.11.0 — pendentes
+
+Os gates existentes permanecem abertos. Quando o [plano MCP/agentes](phases/phase-07-v0.11.0/README.md) for implementado, acrescentar evidências reais para:
+
+- [ ] Clientes MCP escolhidos descobrem e executam leituras com limites e Extended JSON, sem exposição de segredos MongoDB.
+- [ ] OpenAI/Codex e Claude exercitados por adaptadores com mecanismos oficiais, conta autorizada e sem credenciais de produção/CI.
+- [ ] Login cancelado, chave inválida, token expirado, indisponibilidade e revogação não bloqueiam a IDE.
+- [ ] Cofre nativo Windows/Linux protege segredos; bloqueio ou ausência oferece somente sessão ou indisponibilidade explícita, nunca texto puro.
+- [ ] Permissão/approval negados, expirados ou com alvo alterado impedem efeito; cancelamento de escrita não promete rollback.
+- [ ] Contexto externo autorizado é observável; nenhuma coleta/envio implícito; auditoria registra metadados sem secrets.
+- [ ] Chat Avalonia funciona por teclado/leitor de tela, dois temas e escalas; modelo local e IDE continuam funcionais offline.

@@ -132,7 +132,7 @@ A estrutura sugerida na meta, no modelo proposto:
 
 ### Arquivo embutido
 
-[`Application/Language/mongodb-language.v1.json`](../../src/EsilvaSoft.SlopStudio.Application/Language/mongodb-language.v1.json), recurso embutido carregado uma vez por [`LanguageDefinition`](../../src/EsilvaSoft.SlopStudio.Application/Language/LanguageDefinition.cs) e congelado (`FrozenDictionary`). Contém grupos de símbolos, assinaturas, shapes e snippets. Descrições em pt-BR; identificadores em inglês. Versão do arquivo e testes de schema garantem integridade.
+[`Application/Language/mongodb-language.v1.json`](../../src/EsilvaSoft.SlopStudio.Autocomplete.Core/mongodb-language.v1.json), recurso embutido carregado uma vez por [`LanguageDefinition`](../../src/EsilvaSoft.SlopStudio.Autocomplete.Core/LanguageDefinition.cs) e congelado (`FrozenDictionary`). Contém grupos de símbolos, assinaturas, shapes e snippets. Descrições em pt-BR; identificadores em inglês. Versão do arquivo e testes de schema garantem integridade.
 
 O JSON abaixo é ilustrativo; **não substituir o recurso por ele**. O loader atual lê groups, snippets e shapes; preservar schema/versão ou migrar explicitamente.
 

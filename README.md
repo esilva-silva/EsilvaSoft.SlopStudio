@@ -17,8 +17,8 @@ Slop Studio is an open-source MongoDB desktop IDE and GUI client for Windows and
 
 ## Current implementation status (22 September 2026)
 
-- **v0.5.0** is archived because its defined functional scope is implemented. Its real-environment validation is planned in **Phase 8 / v0.12.0**.
-- **v0.6.0**, **v0.7.0** and **v0.8.0** are archived by functional scope. They cover deterministic autocomplete, explicit reviewable AI suggestions, and text-file/workspace operations. Their manual and native-environment validation remains planned in **Phase 8 / v0.12.0**.
+- **v0.5.0** is archived because its defined functional scope is implemented. Its real-environment validation is planned in **Phase 9 / v0.13.0**.
+- **v0.6.0**, **v0.7.0** and **v0.8.0** are archived by functional scope. They cover deterministic autocomplete, explicit reviewable AI suggestions, and text-file/workspace operations. Their manual and native-environment validation remains planned in **Phase 9 / v0.13.0**.
 - **v0.9.0** local AI is the next experimental phase. **v0.10.0** administration and maintenance code is preserved as an early implementation, without a current UI entry point. Later phases remain planned.
 - The desktop UI supports **Portuguese (Brazil), English, Spanish and Simplified Chinese**. `pt-BR` is the initial language and **English (`en`) is the deterministic fallback**. This does not translate repository documents under `docs/`, which remain in Portuguese.
 
@@ -42,28 +42,29 @@ Concretely: save and test connection profiles, browse databases and collections,
 
 | Phase | Version | Goal | Status |
 | --- | --- | --- | --- |
-| 1 | v0.5.0 | **MVP**: connect → navigate → query → view → edit → export | Feature scope completed and [archived](docs/done/release_v0.5.0/README.md). Manual validation is planned in [Phase 8 / v0.12.0](docs/phases/phase-08-v0.12.0/README.md) |
-| 2 | v0.6.0 | Project organisation and basic autocomplete | Feature scope completed and [archived](docs/done/release_v0.6.0/README.md); manual validation remains in Phase 8 |
+| 1 | v0.5.0 | **MVP**: connect → navigate → query → view → edit → export | Feature scope completed and [archived](docs/done/release_v0.5.0/README.md). Manual validation is planned in [Phase 9 / v0.13.0](docs/phases/phase-09-v0.13.0/README.md) |
+| 2 | v0.6.0 | Project organisation and basic autocomplete | Feature scope completed and [archived](docs/done/release_v0.6.0/README.md); manual validation remains in Phase 9 |
 | 3 | v0.7.0 | AI-assisted autocomplete | Feature scope completed and [archived](docs/done/release_v0.7.0/README.md); suggestions remain reviewable and are never applied automatically |
 | 4 | v0.8.0 | Opening and saving text files | Feature scope completed and [archived](docs/done/release_v0.8.0/README.md); includes local single-root workspace operations |
 | 5 | v0.9.0 | Local AI and contextual productivity | Experimental — ONNX models, ghost text, reviewable chat proposals, multi-model catalog, CPU/GPU/NPU selection |
 | 6 | v0.10.0 | Administration and maintenance | In development — collections, views, validation, indexes, stats, users, roles and logical export/import |
-| 7 | v0.11.0 | Simple workflow-based AI chat | Planned — a predefined flow, limited scope and controlled actions |
-| 8 | v0.12.0 | Manual validation and real-environment homologation | Planned — platforms, accessibility, MongoDB/mongosh, hardware, installation and updates in real environments |
-| 9 | v1.0.0 | Stability, full review, installation and updates | Planned — stable release after functional acceptance and Phase 8 |
+| 7 | v0.11.0 | MCP e integração com agentes externos | Planejado — [plano técnico](docs/phases/phase-07-v0.11.0/README.md) para Agent Runtime, MCP, chat nativo e providers; sem integração implementada nesta meta |
+| 8 | v0.12.0 | Simple workflow-based AI chat | Planned — a predefined flow, limited scope and controlled actions |
+| 9 | v0.13.0 | Manual validation and real-environment homologation | Planned — platforms, accessibility, MongoDB/mongosh, hardware, installation and updates in real environments |
+| 10 | v1.0.0 | Stability, full review, installation and updates | Planned — stable release after functional acceptance and Phase 9 |
 
 ### How to read this table
 
 - **Active phase** — the only phase being worked on. It is the only scope that justifies new entries in the user interface.
 - **Early implementation** — code that already exists for a later phase. It is kept and tested, but it does **not** close that phase, does not count as completed scope of the active phase, and is **not** exposed in the interface. Features outside the active phase may remain in the code while disabled or experimental.
 - **Backlog** — requirements with no assigned phase, postponed, or removed from the current scope. Nothing is deleted: the implementation is preserved and isolated, only its entry points are removed. See [backlog](docs/backlog/README.md).
-- **Archived release** — a version whose feature scope is closed, in [`docs/done`](docs/done/README.md). Archiving does **not** mean it has passed manual validation; those gates are consolidated in Phase 8.
+- **Archived release** — a version whose feature scope is closed, in [`docs/done`](docs/done/README.md). Archiving does **not** mean it has passed manual validation; those gates are consolidated in Phase 9.
 
 ### Archived v0.6.0–v0.8.0 milestones
 
 The archived releases include isolated autocomplete cores, a tolerant parser and context engine, contextual ranking, snippets, explicit reviewable AI suggestions with fallback and cancellation, and safe text-file/workspace persistence. The deterministic language corpus reports 675 fixtures plus one ranking gate (MRR 1.000; top-1/top-5 44/44). Detailed evidence and open manual gates are tracked in the [release archive](docs/done/README.md), [autocomplete execution plan](docs/auto-complite/execution-plan.md), and [implementation tracking](docs/12-acompanhamento-da-implementacao.md).
 
-Automated tests (including headless UI rendering) do not replace validation against real MongoDB servers, both operating systems, screen readers, and native dialogs. Those manual gates are consolidated in [Phase 8 / v0.12.0](docs/phases/phase-08-v0.12.0/README.md). See the [phase index](docs/phases/README.md), [roadmap](docs/09-plano-de-implementacao.md), [validation matrix](docs/15-matriz-de-validacao.md), and [implementation inventory](docs/24-inventario-roadmap.md) (Portuguese).
+Automated tests (including headless UI rendering) do not replace validation against real MongoDB servers, both operating systems, screen readers, and native dialogs. Those manual gates are consolidated in [Phase 9 / v0.13.0](docs/phases/phase-09-v0.13.0/README.md). See the [phase index](docs/phases/README.md), [roadmap](docs/09-plano-de-implementacao.md), [validation matrix](docs/15-matriz-de-validacao.md), and [implementation inventory](docs/24-inventario-roadmap.md) (Portuguese).
 
 ## Requirements
 

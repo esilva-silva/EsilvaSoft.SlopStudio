@@ -87,3 +87,7 @@ CSFLE e Queryable Encryption exigem matriz específica de servidor, driver, bibl
 A recuperação automática de texto foi explicitamente escolhida para esta revisão. Os rascunhos são locais e podem conter dados sensíveis digitados pelo usuário; não são um cofre. Desativação global/por conexão e opt-in separado da entrada JSON são aplicados antes de persistir. Snapshots não incluem credenciais do perfil nem resultados. Histórico de consulta, histórico de caminhos e rascunhos possuem preferências independentes.
 
 Alterar URI ou política de um perfil invalida sua árvore aberta e exige reabertura. As ferramentas mantêm confirmações, auditoria e bloqueios existentes. Salvar ambientes também invalida o explorer e exige reabertura; operações já iniciadas conservam seus valores capturados. A integração com cofre nativo permanece planejada.
+
+## Limite planejado para agentes externos — v0.11.0
+
+O [plano MCP/agentes](phases/phase-07-v0.11.0/README.md) acrescenta autenticação oficial, cofre de SO para credenciais de providers, permissões no registro único e aprovações vinculadas à ação. Cliente MCP recebe IDs lógicos; resolução MongoDB permanece local. Nenhum dado MongoDB sai apenas porque um provider foi conectado. Metadados, schema, amostras, resultados e seleção explícita exigem autorização de contexto, com limites e auditoria sem payloads/segredos. O primeiro conjunto MCP será somente leitura; escritas/destrutivas vêm depois dos gates de autorização, aprovação e auditoria. Este plano não torna seguros os valores locais em texto puro já descritos acima.

@@ -157,7 +157,9 @@ Apresentação humana usa `ISODate("yyyy-MM-ddTHH:mm:ss.fffZ")`; o `Z` torna exp
 
 ## ADR-035 — Roadmap por versão e status baseado em evidência (13/09/2026)
 
-**Estado: aceita para a documentação; estrutura atualizada em 22/09/2026 para o roadmap de nove fases.** O plano anterior F0–F7 misturava abrangência futura com recursos já implementados e vinculava scripts/administração ao MVP. O registro inicial de seis fases foi sucedido por: v0.5.0 MVP; v0.6.0 organização/autocomplete determinístico; v0.7.0 autocomplete com IA; v0.8.0 arquivos de texto; v0.9.0 IA local; v0.10.0 administração/manutenção; v0.11.0 chat baseado em workflow; v0.12.0 homologação manual; v1.0.0 estabilidade. O [roadmap](09-plano-de-implementacao.md) é a fonte corrente.
+**Estado: aceita para a documentação; registro histórico do roadmap de nove fases, sucedido pela revisão de 22/09/2026 abaixo.** O plano anterior F0–F7 misturava abrangência futura com recursos já implementados e vinculava scripts/administração ao MVP. O registro inicial de seis fases foi sucedido por: v0.5.0 MVP; v0.6.0 organização/autocomplete determinístico; v0.7.0 autocomplete com IA; v0.8.0 arquivos de texto; v0.9.0 IA local; v0.10.0 administração/manutenção; v0.11.0 chat baseado em workflow; v0.12.0 homologação manual; v1.0.0 estabilidade. O [roadmap](09-plano-de-implementacao.md) é a fonte corrente.
+
+**Revisão de planejamento em 22/09/2026:** acrescentar MCP e agentes externos na Fase 7/v0.11.0; preservar integralmente workflow na Fase 8/v0.12.0; mover homologação para Fase 9/v0.13.0 e estabilidade para Fase 10/v1.0.0. O registro acima é histórico, não escopo vigente. [Mapa de preservação](phases/phase-07-v0.11.0/14-migracao-documental.md).
 
 Cada fase registra objetivo, inclusões, exclusões, aceite, dependências, status e documentos. IDs existentes são preservados; EDT-08 explicita formatação. O inventário distingue recorte implementado de requisito completo e evidência estática de homologação real. CSV e formatador geral de query/script foram implementados no recorte arquivado da v0.5.0; os gates de homologação da release permanecem abertos. Recursos avançados existentes continuam antecipações disponíveis; não serão removidos, reimplementados nem declarados estáveis por remapeamento documental.
 
@@ -314,3 +316,51 @@ O workspace local tem uma única raiz por vez e uma barra lateral com as abas **
 `IWorkspaceFileService` concentra enumeração, criação, renomeação e envio à lixeira, com implementações de disco na Infrastructure para Windows e Linux. A sessão LiteDB evolui aditivamente para a versão 2, mantendo o proprietário existente e migrando a versão 1 sem perda; raiz, painel selecionado e metadados de documentos podem ser recuperados, sem resultados ou credenciais. A resposta de uma enumeração antiga é descartada após troca de raiz.
 
 **Não decidido nesta ADR:** múltiplas raízes, Git, sincronização, monitoramento contínuo, importação de dados e execução implícita. Diálogos nativos, lixeira real e leitor de tela exigem homologação em Windows e Linux além dos testes Headless.
+
+## ADR-046 — Runtime e adaptadores de agentes (22/09/2026)
+
+**Estado: proposta para implementação na v0.11.0; não implementada.** Contexto: o chat local gera propostas revisáveis, enquanto uma experiência de agente requer sessões, streaming, tools e aprovações sem acoplar Avalonia ao protocolo de fornecedor.
+
+**Decisão:** DTOs puros em Core/Agents; portas e runtime em Application/Agents; adapters externos em novo Infrastructure.Agents; fachada local reutiliza LocalAi.Core. UI consome eventos internos correlacionados e capabilities efetivas. Codex App Server por STDIO é preferido após spike de confinamento; Claude API C# é baseline, Agent SDK permanece alternativa condicionada. Cada sessão/turno tem cancelamento próprio, filas limitadas e estado terminal; nenhum evento tardio atualiza outra aba. [Contratos](phases/phase-07-v0.11.0/03-agent-runtime.md).
+
+**Alternativas:** copiar protocolo Codex/Claude para o domínio cria dependência estrutural; usar MCP como chat não cobre ciclo de conversa; criar seis projetos de abstrações/providers inicialmente fragmenta camadas já existentes. São rejeitadas. Consequência: tradução, testes de conformidade e controle de versões ficam a cargo dos adapters; SDK externo nunca entra em Core/Application. ONNX e autocomplete continuam offline. Gate: dois adapters, fachada local e provider falso passam pelo mesmo consumidor e regras; autorização de shell/arquivos/subagents não é herdada das capabilities do fornecedor.
+
+## ADR-047 — MCP por proxy e proprietário local único (22/09/2026)
+
+**Estado: proposta.** Contexto: múltiplos clientes MCP não podem abrir o LiteDB local nem duplicar política/estado da IDE.
+
+**Decisão:** novo executável McpServer atende STDIO e encaminha DTOs por IPC autenticado a broker hospedado na IDE, que usa registry e proprietário DI existentes. Named pipe/Unix socket por usuário, credencial local por cliente, versão IPC e revogação. Proxy acessa somente sua credencial de transporte, nunca segredos MongoDB/providers. IDE fechada retorna indisponibilidade; crash/reconexão não repete escrita. Distribuir proxy e IDE juntos. [Detalhes e alternativas](phases/phase-07-v0.11.0/05-mcp-server.md).
+
+**Alternativas:** binário gráfico em modo MCP mistura lifecycle/stdout; servidor autônomo proprietário exigiria migração de ownership; daemon permanente amplia escopo operacional. Rejeitados na baseline. Streamable HTTP fica opcional após gates próprios; acesso remoto não é incluído automaticamente. Planejar compatibilidade MCP 2026-07-28 e 2025-11-25 em adapters distintos, com versão SDK fixada e clientes testados. Consequência: depender da IDE aberta é limitação explícita em troca de estado/approvals únicos. Gate: isolamento de clientes, dois SOs, stdout limpo, versões e recovery sem segunda conexão LiteDB.
+
+## ADR-048 — Tool Registry único e execução literal (22/09/2026)
+
+**Estado: proposta.** Contexto: métodos MongoDB existentes são reutilizáveis, mas não equivalem a ferramentas seguras para entrada externa; parser dinâmico aceita ENV e confirmações atuais são distribuídas pela UI.
+
+**Decisão:** registry Application centraliza descriptor/schema, validação literal, risco, grants, aprovação, auditoria e saída limitada. Runtime e MCP invocam os mesmos handlers; identidade vem do canal e nunca de argumentos do modelo. Infraestrutura separa parser Extended JSON literal da resolução privada da conexão. Preservar BSON/UUID, caches/invalidações e proteções existentes. Primeiro incremento somente leitura; aggregate exige validação de namespaces e escrita recursiva. [Catálogo](phases/phase-07-v0.11.0/06-mcp-tools.md).
+
+**Alternativas:** handlers duplicados por provider/MCP divergem; reflexão automática dos serviços expõe operações inadequadas; confiar em prompt/annotations não aplica autorização. Consequência: novos DTOs, codec literal, schemas e gaps precisam ser implementados antes de registrar tools. Não expor runCommand, ENV, mongosh ou shell genérico. Gate: paridade interno/MCP e testes adversariais de parser/saída.
+
+## ADR-049 — Autenticação oficial e segredos por sistema operacional (22/09/2026)
+
+**Estado: proposta.** Contexto: armazenamento em memória e vault atual não oferecem cofre persistente completo; tokens externos não podem ser gravados em LiteDB plaintext.
+
+**Decisão:** ISecretStore assíncrono, Credential Manager por usuário no Windows e Secret Service no Linux; referências no banco. Cofre indisponível gera falha ou memória explícita, nunca fallback plaintext. Codex gerencia login oficial com backend keyring verificado; Slop não copia refresh tokens. Claude embutido usa API Key; login de assinatura só após autorização oficial específica. Migração aditiva grava/verifica cofre antes de trocar referência, com recuperação após queda. [Fluxos e fontes](phases/phase-07-v0.11.0/07-autenticacao-e-segredos.md).
+
+**Alternativas:** cookies/WebView/token extraído, auth.json por fallback, criptografia caseira e segundo LiteDB são rejeitados. DPAPI é alternativa de implementação Windows explícita, não chave estática junto ao banco. Consequência: ambientes Linux sem cofre têm experiência degradada; backups legados permanecem potencialmente sensíveis. Gate: scan de canários, falhas/recovery, logout isolado e homologação nativa. Licença de SDK não autoriza fluxo de serviço ou assinatura.
+
+## ADR-050 — Permissão determinística e aprovação vinculada à ação (22/09/2026)
+
+**Estado: proposta.** Contexto: consentimento em linguagem natural e aprovação externa não garantem autorização para uma conexão/operação concreta.
+
+**Decisão:** deny por padrão; interseção de políticas globais, conexão, principal, namespace e saída. Aprovação one-shot vincula chamada, destino, argumentos, revisões e prazo; revalidar antes do despacho. Read-only sempre vence. Escritas exigem intenção durável; falha bloqueia antes de executar. Após envio, resultado incerto não autoriza retry. Sem aprovação persistente de destrutivas. UI da IDE é autoridade humana para chamadas externas. [Política](phases/phase-07-v0.11.0/08-permissoes-e-aprovacoes.md).
+
+**Alternativas:** allow-all do provider, boolean approved no JSON ou ticket reutilizável deixam rota de contorno. Consequência: aprovação pode expirar, alteração de perfil invalida solicitação, ausência da UI impede escrita. Pré-condição atômica é gate para update/delete unitário; administração fica fora da baseline. Gate: revogação, replay, TOCTOU, concorrência, auditoria falha e `_id_` preservado.
+
+## ADR-051 — Fronteira explícita de dados para IA externa (22/09/2026)
+
+**Estado: proposta.** Contexto: conexão autenticada não significa autorização de transmitir documentos, metadados ou histórico.
+
+**Decisão:** contexto por escopos independentes com prévia/destinatário e orçamento; saída de tool passa pela mesma política antes de qualquer byte. Provider conectado não dispara consulta/amostra; troca de provider inicia sessão sem retransmitir conversa. DTOs allowlist, redaction defensiva e erros sanitizados. Auditoria contém identidade/decisão/desfecho sem prompts, documentos ou secrets. Conversas ficam efêmeras no Slop nesta versão; retenção do processo/serviço externo é fronteira separada a verificar. [Privacidade](phases/phase-07-v0.11.0/09-seguranca-e-privacidade.md).
+
+**Alternativas:** contexto automático de workspace/Explorer e envio irrestrito por tool read-only são rejeitados. Consequência: alguns pedidos exigem ampliar consentimento explicitamente; redação não promete detecção universal de segredos. Shell/file tools dos providers permanecem desabilitadas para evitar contorno. Gate: canários, prompt injection, grants de namespaces, zero envio ao conectar e degradação sem rede.

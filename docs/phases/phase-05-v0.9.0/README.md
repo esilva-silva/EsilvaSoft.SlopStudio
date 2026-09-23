@@ -35,4 +35,4 @@ Fase 4 aceita, modelo compatível externo, contexto determinístico, política d
 
 ## Validação manual transferida
 
-GPU/NPU, revisão linguística de domínio, fidelidade de todas as ações e medições de latência em hardware real são critérios da [Fase 8 / v0.12.0](../phase-08-v0.12.0/README.md).
+GPU/NPU, revisão linguística de domínio, fidelidade de todas as ações e medições de latência em hardware real são critérios da [Fase 9 / v0.13.0](../phase-09-v0.13.0/README.md).

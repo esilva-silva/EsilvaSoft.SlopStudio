@@ -1,6 +1,6 @@
 # Registro de transferência de homologação — v0.6.0
 
-A release [v0.6.0](README.md) foi arquivada por escopo funcional. As pendências abaixo continuam abertas e foram transferidas para a [Fase 8 / v0.12.0](../../phases/phase-08-v0.12.0/README.md); nenhum teste Headless ou registro documental encerra esses itens.
+A release [v0.6.0](README.md) foi arquivada por escopo funcional. As pendências abaixo continuam abertas e foram transferidas para a [Fase 9 / v0.13.0](../../phases/phase-09-v0.13.0/README.md); nenhum teste Headless ou registro documental encerra esses itens.
 
 ## Autocomplete e editor
 
