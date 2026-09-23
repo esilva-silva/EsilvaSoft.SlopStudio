@@ -1,4 +1,5 @@
 using EsilvaSoft.SlopStudio.Application;
+using EsilvaSoft.SlopStudio.Application.Agents;
 using LiteDB;
 
 namespace EsilvaSoft.SlopStudio.Infrastructure;
@@ -19,6 +20,7 @@ public sealed partial class LiteDbConnectionProfileRepository :
     IWorkspaceSessionRepository,
     IEnvironmentVaultRepository,
     IConsoleHistoryRepository,
+    IAgentAuthorizationPolicyRepository,
     IDisposable
 {
     private readonly LiteDatabase _database;

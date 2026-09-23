@@ -6,12 +6,12 @@ Estado: projeto, não implementação. Consulta oficial em 22/09/2026. A aplica�
 
 | Integração | Apresentação inicial | Dono da autenticação |
 | --- | --- | --- |
-| Codex App Server | Entrar com ChatGPT / API Key, conforme capability e política da conta | Login gerenciado pelo processo oficial; API Key do usuário |
-| OpenAI API direta | API Key | Slop entrega a chave do usuário somente ao cliente API |
+| OpenAI API direta (baseline inicial) | API Key | Slop resolve referência do cofre e entrega a chave somente ao cliente API |
+| Codex App Server (condicional) | Login oficial / API Key, conforme capability homologada | Não integrar enquanto experimental e sem suporte oficial para produção; não copiar tokens |
 | Claude embutido | API Key | Cliente API oficial; não importar sessão Claude Desktop/Code |
 | Local ONNX | Sem login | Nenhuma credencial externa |
 
-No App Server, iniciar `account/login/start` com `chatgpt`, abrir `authUrl` no navegador do sistema e aguardar conclusão correlacionada por `loginId`; o callback pertence ao servidor. Cancelar e sair pelos métodos oficiais. Device code só aparece se a versão homologada oferecer esse fluxo. Excluir tokens gerenciados externamente do primeiro escopo. [App Server — autenticação](https://learn.chatgpt.com/docs/app-server#authentication).
+O handshake isolado do App Server não libera autenticação: a documentação oficial ainda o classifica experimental e sem suporte para produção. A baseline é API OpenAI direta com chave do usuário guardada no cofre Slop, sem alegar login de assinatura ChatGPT. Se o App Server alcançar suporte oficial de produção, reabrir a decisão e exigir confinamento e keyring comprovados. [App Server — autenticação](https://learn.chatgpt.com/docs/app-server#authentication), [estado de suporte](https://learn.chatgpt.com/docs/app-server).
 
 A configuração Codex deve exigir `cli_auth_credentials_store="keyring"`; indisponibilidade falha de forma visível. `auto` permite fallback plaintext e `file` usa auth.json: ambos são proibidos na integração Slop. `ephemeral` é alternativa explicitamente escolhida de sessão, sem persistência. [Armazenamento oficial Codex](https://learn.chatgpt.com/docs/auth#credential-storage).
 
@@ -19,17 +19,17 @@ Anthropic não autoriza ofertar login claude.ai dentro de aplicações de tercei
 
 ## Contratos e propriedade
 
-Propor `ISecretStore` em Application, implementações por SO em Infrastructure. Operações assíncronas `Get`, `Set`, `Delete` e `GetAvailability` aceitam cancelamento; retornam falhas tipadas (`Unavailable`, `Locked`, `Denied`, `NotFound`, `Corrupt`) sem ecoar segredo. `IAgentCredentialProvider` resolve referências para uso efêmero pelo adapter; nunca integra payload de prompt/evento/auditoria. LiteDB persiste apenas `SecretReference`, provider, método, identificador de conta não sensível e versão. Não guardar fragmentos da chave para identificação.
+Propor `ISecretStore` em Application, implementações por SO em Infrastructure. Operações assíncronas `Get`, `Set`, `Delete` e `GetAvailability` aceitam cancelamento; retornam falhas tipadas (`Unavailable`, `Locked`, `Denied`, `Cancelled`, `NotFound`, `Corrupt`) sem ecoar segredo. `Cancelled` cobre prompts de desbloqueio dispensados pelo usuário; timeout e cancelamento da operação continuam distintos. `IAgentCredentialProvider` resolve referências para uso efêmero pelo adapter; nunca integra payload de prompt/evento/auditoria. LiteDB persiste apenas `SecretReference`, provider, método, identificador de conta não sensível e versão. Não guardar fragmentos da chave para identificação.
 
 | Plataforma | Decisão proposta | Gate |
 | --- | --- | --- |
 | Windows | Credential Manager por usuário; DPAPI CurrentUser somente como implementação explícita revisada | Validar acesso, roaming/backup, exclusão e outro usuário sem acesso |
-| Linux | Secret Service do desktop, integração via D-Bus/libsecret | Validar serviço ausente, sessão bloqueada, desbloqueio cancelado e ambiente headless |
+| Linux | Secret Service do desktop; avaliar binding de baixo nível `Tmds.DBus.Protocol` 0.94.1 (MIT) | Prova somente documental do candidato; runtime D-Bus indisponível neste host. Validar serviço ausente, sessão bloqueada, desbloqueio cancelado e ambiente headless |
 | Sem cofre utilizável | Modo somente memória solicitado explicitamente ou provider indisponível | Nenhum fallback para arquivo, LiteDB, variável persistida ou configuração |
 
 Essas escolhas utilizam mecanismos de plataforma, mas sua integração ainda precisa ser implementada e homologada. [Windows Credentials Management](https://learn.microsoft.com/en-us/windows/win32/secauthn/credentials-management), [Secret Service](https://specifications.freedesktop.org/secret-service/latest/).
 
-API Keys persistentes passam pelo cofre Slop. Tokens OAuth/refresh/session gerenciados por Codex permanecem no armazenamento seguro do processo oficial, sem cópia no Slop. Usar diretório de configuração isolado e verificar efetivamente o backend antes do login; isolamento de pasta sozinho não prova isolamento do item no keyring. Testar que logout não remove credenciais de outra instalação. Se um futuro fluxo fizer Slop proprietário do token, exigir o mesmo `ISecretStore`, rotação atômica e validade/escopo mínimo; não extrair cookies nem inventar OAuth próprio.
+API Keys persistentes passam pelo cofre Slop. Tokens OAuth/refresh/session gerenciados por Codex permanecem no armazenamento seguro do processo oficial, sem cópia no Slop; essa via não faz parte da baseline enquanto App Server estiver sem suporte de produção. Usar diretório de configuração isolado e verificar efetivamente o backend antes de eventual login; isolamento de pasta sozinho não prova isolamento do item no keyring. Testar que logout não remove credenciais de outra instalação. Se um futuro fluxo fizer Slop proprietário do token, exigir o mesmo `ISecretStore`, rotação atômica e validade/escopo mínimo; não extrair cookies nem inventar OAuth próprio.
 
 ## Estado atual e migração
 

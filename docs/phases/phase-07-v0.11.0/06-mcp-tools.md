@@ -4,7 +4,7 @@ Estado: **planejado**. Há serviços MongoDB existentes, mas nenhuma ferramenta 
 
 ## Contrato comum
 
-Nomes wire em inglês, descrições de produto em pt-BR. Cada `AgentToolDescriptor` informa nome, versão do schema, descrição, input/output JSON Schema, risco, permissões, categorias de dados, limites e necessidade de aprovação. Não gerar tools por reflexão dos serviços existentes. Anotações MCP são informativas; a autorização real acontece no registry.
+Nomes wire em inglês, descrições de produto em pt-BR. Cada `AgentToolDescriptor` informa nome, versão do schema, descrição, input/output JSON Schema, risco, permissões, categorias de dados, limites e necessidade de aprovação. Não gerar tools por reflexão dos serviços existentes. Anotações MCP são informativas; a autorização real acontece no registry. Para destinos `ProviderExternal`, nomes de perfil definidos pelo usuário não são enviados: o campo `name` recebe alias estável derivado do ID (`Conexão <ID>`). O nome original fica disponível somente para destino `Local`; redaction heurística de texto livre não é garantia de ausência de segredos.
 
 Schemas usam objetos fechados (`additionalProperties: false`) em todos os níveis. Nomes de banco/coleção são strings não vazias, limitadas a 255 caracteres como teto de entrada do produto e validadas depois pelas regras MongoDB aplicáveis. IDs de conexão são UUIDs opacos concedidos ao principal; inexistência e falta de acesso não revelam configuração. Nenhum schema contém senha, URI, token, `approved`, `principalId`, comandos shell ou caminhos livres.
 
@@ -23,19 +23,19 @@ Antes do executor, parsing literal deve rejeitar JS/constructors, resolução de
 
 | Tool / risco / permissão | Input e output específico | Método existente e trabalho necessário |
 | --- | --- | --- |
-| `list_connections` / R / Metadata | `{}` → `connections[{id,name,readOnly}]` | `WorkspaceService.GetProfilesAsync`; filtrar por grant e projetar DTO. Nunca serializar `ConnectionProfile` |
-| `get_connection_info` / R / Metadata | C → `{id,name,readOnly,availability}` | `GetProfilesAsync` + seleção por ID; não retornar URI, host privado ou cofre por padrão |
-| `list_databases` / R / Metadata | C → `names[]` | `GetDatabasesAsync` → `GetDatabaseNamesAsync`; limitar nomes aos grants |
-| `list_collections` / R / Metadata | D → `names[]` | `GetCollectionsAsync` → `GetCollectionNamesAsync`; aplicar filtro de namespace antes da entrega |
+| `list_connections` / R / Metadata | `{}` → `connections[{id,name,readOnly}]` | `WorkspaceService.GetProfilesAsync`; exigir grant antes de revelar até nome/ID; filtrar e projetar DTO allowlist. Nunca serializar `ConnectionProfile`; limite 200 e `truncated`. Para `ProviderExternal`, `name` é alias derivado do ID; revalidar geração e campos projetados após avaliações assíncronas e antes de devolver |
+| `get_connection_info` / R / Metadata | C → `{id,name,readOnly,availability}` | `GetProfilesAsync` + seleção por ID; omitir no primeiro recorte se `availability` exigir probe de rede. Se incluído depois, retornar somente estado local do broker, sem URI, host privado ou cofre |
+| `list_databases` / R / Metadata | C → `names[]` | Preferir `IMongoMetadataSource.ListDatabaseNamesAsync`, que pede `AuthorizedDatabases=true`; `MongoWorkspaceService.GetDatabaseNamesAsync` atual não limita a essa opção. Aplicar escopo/grant antes do envio |
+| `list_collections` / R / Metadata | D → `names[]` | Preferir `IMongoMetadataSource.ListCollectionNamesAsync`, que pede `AuthorizedCollections=true`; o caminho atual `MongoWorkspaceService.GetCollectionNamesAsync` não limita a essa opção. Aplicar grants de namespace antes do envio |
 | `get_collection_schema` / R / Schema | N + `sampleSize` 1–100 padrão 20 → `fields[{path,bsonTypes,observedCount}],sampleSize,observedAt,source,isPartial` | `MongoMetadataSource.SampleSchemaAsync`, `SchemaSampleOptions` e `SchemaBuilder`; novo caso de uso dedicado, sem chamar autocomplete de UI |
 | `sample_documents` / R / Documents | N + `limit` 1–20 padrão 5, `projectionEjson?` → `documentsEjson[]` | `QueryAsync` com limite fixado; primeira página, **não** afirmar amostra aleatória/representativa |
 | `mongo_find` / R / Documents | Q → `documentsEjson[],returnedCount,hasMore` | `QueryAsync`/`MongoQuery`; limites MCP mais estritos que Core e parser literal novo |
 | `mongo_find_one` / R / Documents | Q sem limit/skip → `documentEjson?` | Reuso de `QueryAsync` com limit=1; não há método especializado necessário |
 | `get_document` / R / Documents | N + `idEjson` → `documentEjson?` | `QueryAsync` por `_id` exato; wrapper compõe filtro com codec BSON e não concatena código |
-| `mongo_count` / R / Documents | N + `filterEjson`, `maxTimeMs` → `countEjson,estimated:false` | `CountDocumentsAsync`/`CollectionCountRequest`; primeira versão somente contagem exata |
+| `mongo_count` / R / Documents | N + `filterEjson`, `maxTimeMs` → `countEjson,estimated:false` | `CountDocumentsAsync`/`CollectionCountRequest`; parser literal e grants são pré-requisitos. Contagem Int64 sai como Extended JSON ou string decimal, nunca `double`/number JavaScript |
 | `mongo_distinct` / R / Documents | N + `field`, `filterEjson`, `maximumValues` 1–100 padrão 20, `maxTimeMs` → `valuesEjson[],truncated` | `GetDistinctValuesAsync`; usa `$group` e limite, não presumir custo constante; adicionar limite total em bytes |
 | `mongo_explain` / R / Diagnostics + Documents | Q → `planEjson,verbosity` | `ExplainAsync` usa hoje **executionStats**, logo executa trabalho de consulta; gate de custo e saneamento obrigatórios. Propor opção queryPlanner antes de tornar padrão barato |
-| `get_indexes` / R / Metadata | N → `indexesEjson[]` | `GetIndexesAsync`; definição pode conter filtros parciais e valores sensíveis, aplicar boundary de contexto |
+| `get_indexes` / R / Metadata | N → índice por DTO allowlist | `GetIndexesAsync` devolve definições BSON completas que podem conter filtro parcial e valores. Não expor `indexesEjson[]` cru; aguardar schema explícito, grants, teto de saída e revisão de campos |
 
 Os nomes da lista inicial do pedido são cobertos sem inventar serviços. Schema amostrado não é contrato completo da coleção; informar cobertura e origem. Schema aprendido em `LearnedSchemaCatalogSource` é conhecimento parcial com confiança/opt-out; não o apresentar como schema autoritativo nem iniciar aprendizagem/persistência automaticamente por uma tool.
 

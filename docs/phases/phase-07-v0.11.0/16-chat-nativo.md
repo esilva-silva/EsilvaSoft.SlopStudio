@@ -12,7 +12,7 @@ A sequência Tab visita cabeçalho, contexto, histórico, mensagem e ações; Sh
 
 ## Configuração orientada por capabilities
 
-Seletor de provider lista os registrados e sua disponibilidade. Autenticação lista somente métodos oficialmente suportados pela versão e política: Codex login ChatGPT/API Key; Claude API Key na baseline; local sem conta. Modelo vem do catálogo permitido e não de lista fixa no domínio. Campos de chave usam entrada protegida; persistir no cofre é escolha explícita, com estado de disponibilidade. Não exibir parte da chave em status. Falha de login/cancelamento/expiração aparece com ação reconectar; não iniciar login só por abrir a tela.
+Seletor de provider lista os registrados e sua disponibilidade. Autenticação lista somente métodos oficialmente suportados pela versão e política: OpenAI API Key na baseline; Claude API Key; local sem conta. Codex App Server permanece oculto até suporte oficial de produção, confinamento e keyring homologados. Modelo vem do catálogo permitido e não de lista fixa no domínio. Campos de chave usam entrada protegida; persistir no cofre é escolha explícita, com estado de disponibilidade. Não exibir parte da chave em status. Falha de autenticação/cancelamento/expiração aparece com ação reconectar; não iniciar autenticação só por abrir a tela.
 
 Permissões mostram conexões e namespaces concedidos, leitura de metadados/documentos e operações separadas. Não pré-marcar escrita. O usuário vê que leitura por tool envia dados ao destinatário externo. Mudar provider cria outra sessão e pede escolha explícita se desejar transferir conteúdo; grants não são copiados implicitamente. Configuração por capability evita `if Claude`/`if OpenAI` nos ViewModels de chat.
 

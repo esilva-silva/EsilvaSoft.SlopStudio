@@ -21,7 +21,7 @@ Trocar provider inicia sessão independente; histórico/contexto anterior não �
 
 ## Segredos e fronteiras
 
-Resolver connection ID dentro de Infrastructure. Construir DTO sanitizado por allowlist; jamais serializar `ConnectionProfile` integralmente. Remover senha, URI, certificados privados, tokens, env, caminhos de segredos, usuário/host quando não necessários e mensagens de exceção com credenciais. Guardar chaves/tokens somente no cofre aprovado; logs de SDK e traces de protocolo não podem capturar autenticação.
+Resolver connection ID dentro de Infrastructure. Construir DTO sanitizado por allowlist; jamais serializar `ConnectionProfile` integralmente. Remover senha, URI, certificados privados, tokens, env, caminhos de segredos, usuário/host quando não necessários e mensagens de exceção com credenciais. Nomes de perfil são texto livre: para qualquer destino externo substituir por alias estável derivado do ID (`Conexão <ID>`), não tentar inferir todos os segredos por regex; no destino local o nome real pode ser preservado. Guardar chaves/tokens somente no cofre aprovado; logs de SDK e traces de protocolo não podem capturar autenticação.
 
 O estado local atual não oferece cofre seguro completo. A entrega futura exige migração controlada das credenciais MongoDB que forem persistidas e usadas por agentes, além das novas chaves de IA. Um segredo já gravado não fica seguro só porque deixou de ser retornado por MCP. [Plano de migração e limites de remoção](07-autenticacao-e-segredos.md).
 

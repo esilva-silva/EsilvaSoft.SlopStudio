@@ -34,7 +34,9 @@ O parser atual resolve UUID constructors e valores dinâmicos `ENV`. MCP não po
 
 ### Metadados, schema e aprendizagem
 
-[MongoMetadataSource](../../../src/EsilvaSoft.SlopStudio.Infrastructure/MongoMetadataSource.cs) fornece metadados e `SampleSchemaAsync` com limite/MaxTime; a amostra projeta tipos/campos. `MetadataCache` coordena atualização/invalidação e `SchemaBuilder` compõe conhecimento. `SchemaLearningService`/coordenador/analisador mantêm conhecimento aprendido com policy, confiança, disponibilidade e opt-out; `LearnedSchemaCatalogSource` não é schema autoritativo.
+[MongoMetadataSource](../../../src/EsilvaSoft.SlopStudio.Infrastructure/MongoMetadataSource.cs) fornece metadados e `SampleSchemaAsync` com limite/MaxTime; `ListDatabaseNamesAsync` e `ListCollectionNamesAsync` já pedem `AuthorizedDatabases=true`/`AuthorizedCollections=true`. Os métodos públicos atuais de `MongoWorkspaceService` para esses nomes não pedem essas opções, portanto tools devem preferir a porta `IMongoMetadataSource` e ainda aplicar grants Slop antes de transmitir metadados. A amostra projeta tipos/campos. `MetadataCache` coordena atualização/invalidação e `SchemaBuilder` compõe conhecimento. `SchemaLearningService`/coordenador/analisador mantêm conhecimento aprendido com policy, confiança, disponibilidade e opt-out; `LearnedSchemaCatalogSource` não é schema autoritativo.
+
+`MongoOperationContext.ParseDocument` transforma construtores de UUID e resolve `ENV` via `DynamicValues.ResolveJson`; é caminho interno legado do Console e queries atuais. Não o usar para entradas externas de Agent/MCP. Implementar parser EJSON literal separado antes de habilitar `mongo_find`, `mongo_count` ou qualquer tool com filtro/projeção; erros não devem ecoar os argumentos. Saídas de `mongo_find` exigem limite em bytes com documentos BSON/EJSON íntegros. `mongo_count` retorna Int64 e precisa de Extended JSON/string para preservar precisão. `GetIndexesAsync` devolve documentos BSON de índices completos; projeção allowlist deve preceder qualquer exposição.
 
 O registry deverá ter caso de uso explícito de schema que utiliza essa base, com categoria de dados e amostragem autorizada. Abrir conexão/provider, descobrir tools ou selecionar coleção não dispara query/amostragem. Nova escrita deve passar pelo caminho que invalida caches, especialmente rename/drop, em vez de chamar executores internos diretamente.
 
@@ -66,7 +68,7 @@ Workspace/WorkspaceTab ViewModels mantêm edição/contexto por aba; explorer na
 
 | Gap observado | Consequência | Gate antes da entrega |
 | --- | --- | --- |
-| Sem registry/política de principal | Adapter pode contornar confirmações de UI | Registry único, identidade confiável, default deny e testes chat/MCP equivalentes |
+| Registry interno parcial; sem broker/identidade MCP, ledger de decisão ou integração chat | Ingress externo ainda não pode invocar tools com identidade confiável ou auditoria equivalente | Completar registry e identidade confiável, auditar cada chamada e provar equivalência chat/MCP antes de registrar ingressos |
 | Parsing dinâmico de entradas | ENV/segredos podem sair por consulta | Modo literal separado, fixtures de strings e nenhuma resolução dinâmica externa |
 | Profiles/diagnósticos têm dados privados | Serialização automática vaza URI/host/ambiente | DTOs allowlist, cofre de SO, redator e testes de canários |
 | Sem ledger de aprovações | Replay, consentimento obsoleto, auditoria insuficiente | Hash alvo/args/revisão/principal, expiração, one-shot e status de certeza |

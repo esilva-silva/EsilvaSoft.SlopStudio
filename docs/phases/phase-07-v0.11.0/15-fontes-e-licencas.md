@@ -1,15 +1,15 @@
 # Fontes oficiais, versões e licenças
 
-Pesquisa documental realizada em **22/09/2026**, abrindo páginas oficiais e arquivos de licença, além de pesquisar os tópicos. Fontes `latest` e branches `main` são móveis; esta lista não fixa uma dependência. Nenhum pacote, binário, login ou chamada paga foi adicionado/executado nesta meta. A licença do **EsilvaSoft.SlopStudio permanece MIT**.
+Pesquisa documental realizada em **22/09/2026**, abrindo páginas oficiais e arquivos de licença, além de pesquisar os tópicos. Fontes `latest` e branches `main` são móveis; esta lista não fixa dependências do produto. Pacotes candidatos foram restaurados somente em spikes isolados. Nenhum pacote foi adicionado à solução, e não houve login ou chamada paga. A licença do **EsilvaSoft.SlopStudio permanece MIT**.
 
 ## Registro de fontes
 
 | Fonte primária consultada | Evidência usada | Consequência no plano |
 | --- | --- | --- |
-| [Codex App Server](https://learn.chatgpt.com/docs/app-server) — redirecionamento oficial de developers.openai.com/codex/app-server | Transporte, schema e APIs de sessão/autenticação | Adapter separado e spike da versão escolhida |
-| [Codex SDK](https://learn.chatgpt.com/docs/codex-sdk) | Distinção SDK/App Server | Priorizar App Server para integração interativa |
+| [Codex App Server](https://learn.chatgpt.com/docs/app-server) — redirecionamento oficial de developers.openai.com/codex/app-server | Transporte, schema e APIs de sessão/autenticação; a página declara comando e transporte WebSocket experimentais e sem suporte a produção | Não adotar enquanto permanecer sem suporte de produção; exigir decisão/revisão oficial. O spike de handshake não altera essa maturidade |
+| [Codex SDK](https://learn.chatgpt.com/docs/codex-sdk) | Distinção SDK/App Server | Avaliar API OpenAI direta como fallback com capabilities reduzidas e sem login ChatGPT |
 | [Codex Authentication](https://learn.chatgpt.com/docs/auth) | Login e backend de credenciais | Cofre obrigatório ou memória explícita |
-| [OpenAI SDKs](https://developers.openai.com/api/docs/libraries) e [function calling](https://developers.openai.com/api/docs/guides/function-calling) | Cliente API e execução de tools pela aplicação | Alternativa API .NET; política continua no Slop |
+| [OpenAI SDKs](https://developers.openai.com/api/docs/libraries) e [function calling](https://developers.openai.com/api/docs/guides/function-calling) | Cliente API e execução de tools pela aplicação | Baseline inicial API .NET com API Key; política continua no Slop |
 | [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview) | Python/TypeScript e restrição de login de terceiros | Sidecar avaliado; não ofertar login de assinatura no chat |
 | [Claude legal and compliance](https://code.claude.com/docs/en/legal-and-compliance) | Distinção entre produto terceiro e binário Claude Code intacto | Não coletar/reutilizar tokens de aplicações Anthropic |
 | [Claude C# SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/csharp) | Cliente C# oficial e mudança de origem do pacote | API .NET é opção concreta, separada do Agent SDK |
@@ -25,16 +25,17 @@ A página MCP `latest` consultada redirecionou para **2026-07-28**. Essa revisã
 | Candidato | Licença/evidência consultada | Decisão de distribuição |
 | --- | --- | --- |
 | Codex executável / Codex SDK | [LICENSE oficial do repositório](https://raw.githubusercontent.com/openai/codex/main/LICENSE), Apache-2.0, consultado nesta revisão; confirmar artefato/tag no spike | Uso comercial e redistribuição sujeitos a licença/avisos, indicação de modificações e NOTICE quando aplicável. Não presumir cobertura de serviço, modelo ou componente nativo; binário externo homologado primeiro |
-| OpenAI SDK .NET | [LICENSE oficial](https://raw.githubusercontent.com/openai/openai-dotnet/main/LICENSE), MIT, consultado nesta revisão | Permite uso comercial/redistribuição com copyright e licença preservados; alternativa sem pacote selecionado nesta meta |
+| OpenAI SDK .NET 2.14.0 | [LICENSE oficial](https://raw.githubusercontent.com/openai/openai-dotnet/OpenAI_2.14.0/LICENSE), MIT; spike isolado com tag/commit, hashes, lock e inventário em [`eng/spikes/phase-07/openai-api`](../../../eng/spikes/phase-07/openai-api/README.md) | Baseline técnica inicial para API direta; cinco testes offline passaram. Sem integração no produto, chamada real ou auditoria de vulnerabilidade concluída; spike configura audit feed dedicado para futura CI conectada |
 | Anthropic SDK C# | [LICENSE do repositório oficial](https://github.com/anthropics/anthropic-sdk-csharp/blob/main/LICENSE), texto MIT | Candidato baseline; fixar tag, publisher, hash e transitivas |
 | Claude Agent SDK Python | [LICENSE](https://github.com/anthropics/claude-agent-sdk-python/blob/main/LICENSE), MIT | Wrapper permissivo não resolve licença do runtime incorporado |
 | Claude Agent SDK TypeScript | [LICENSE.md](https://github.com/anthropics/claude-agent-sdk-typescript/blob/main/LICENSE.md), direitos reservados e uso sujeito a termos comerciais Anthropic | Não classificar como MIT nem adicionar dependência comercial automaticamente; adoção exige decisão específica após revisão |
 | MCP C# SDK | [LICENSE](https://github.com/modelcontextprotocol/csharp-sdk/blob/main/LICENSE), transição MIT → Apache-2.0 com contribuições legadas MIT | Conferir pacote/tag e todos os avisos; não rotular todo o candidato simplesmente MIT |
+| `Tmds.DBus.Protocol` 0.94.1 (Linux Secret Service) | MIT; commit/tag e hashes registrados no [spike de viabilidade](../../../eng/spikes/phase-07/linux-secret-service/README.md) e lock Desktop | Candidato de baixo nível, sem prova de runtime D-Bus. `libsecret` não foi selecionado; SBOM/licenças por RID continuam gate |
 | Node/Python/libsecret e bibliotecas nativas | Não adicionados; seleção concreta pendente | SBOM e licenças por versão/arquitetura são gate antes de empacotar |
 
 Licença de código permite determinados usos do software; termos do serviço regulam autenticação, acesso e cobrança. Uma biblioteca permissiva não autoriza reutilizar assinatura ou tokens. A presença de termos comerciais em um candidato não muda a MIT do Slop, mas impede sua inclusão automática conforme governança do repositório. A alternativa API permite manter esse candidato fora do incremento inicial.
 
-Para candidatos MIT, preservar copyright/permissão na distribuição, inclusive uso comercial; para componentes Apache-2.0, conservar licença/atribuições e NOTICE aplicável, identificar modificações e revisar condições de patentes. Não há pacote resolvido nesta meta, logo não existe árvore transitiva final certificável: a avaliação é condicional e exige examinar NuGet/npm/Python lock, binário Codex e bibliotecas nativas da versão efetivamente selecionada, por RID. O aceite do lote 0 deve registrar cada dependência transitiva, licença e obrigação, além dos termos de uso da API/conta. Não substituir essa verificação por supor que transitivas herdam a licença do SDK.
+Para candidatos MIT, preservar copyright/permissão na distribuição, inclusive uso comercial; para componentes Apache-2.0, conservar licença/atribuições e NOTICE aplicável, identificar modificações e revisar condições de patentes. Pacotes MCP e Anthropic foram resolvidos e inventariados somente em spikes isolados; nenhuma dependência foi incorporada à solução. Não existe ainda árvore transitiva final certificável para produto/distribuição: a avaliação é condicional e exige examinar NuGet/npm/Python lock, binário Codex e bibliotecas nativas da versão efetivamente selecionada, por RID. O aceite do lote 0 deve registrar cada dependência transitiva, licença e obrigação, além dos termos de uso da API/conta. Não substituir essa verificação por supor que transitivas herdam a licença do SDK.
 
 ## Gate de dependências
 
