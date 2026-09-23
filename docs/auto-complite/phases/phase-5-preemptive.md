@@ -1,6 +1,6 @@
 # Fase 5 — Autocomplete preemptivo
 
-**Implementada no escopo automatizado, revisada em 21/09/2026.** Três entregas obrigatórias e independência entre geradores. [Arquitetura detalhada](../preemptive-autocomplete.md).
+**Implementada no escopo automatizado, revisada em 22/09/2026.** Três entregas obrigatórias e independência entre geradores. [Arquitetura detalhada](../preemptive-autocomplete.md).
 
 ## Justificativa da divisão
 
@@ -16,15 +16,16 @@ Dependências: dados consolidados e Fase 2 (contexto, ranking, presenter, flags)
 
 **Mudança de comportamento não prevista no plano original:** a ordem de fonte padrão do ghost passou a ser determinístico → dicionário lexical local → IA. A IA automática só é alcançada com `InlineUseAi = true` **e** modelo em estado `Ready` (política LoadedOnly); nada nesse caminho carrega, troca ou inicializa modelo por digitação. `AiAutocompleteProvider` foi preservado, apenas deixou de ser a fonte padrão.
 
-Aceite verificado: funcional com IA/modelo ausente; ambiguidade e catálogo truncado não geram falso candidato único; zero chamadas remotas/IA em sequência de digitação; sugestão antiga nunca aplicada (47 testes novos, incluindo relógio falso — 20 teclas abaixo do debounce não geram computação e a pausa gera exatamente uma —, os sete gatilhos de cancelamento, isolamento entre abas, funcionamento sem modelo/MongoDB, supressão pelo automático quando a lista explícita está aberta, combinações das três flags, LoadedOnly em três fases, migração, abstenção por ambiguidade/truncamento e aceite como operação única de undo sem executar consulta).
+Aceite verificado: funcional com IA/modelo ausente; ambiguidade e catálogo truncado não geram falso candidato único; zero inferências locais de IA em sequência de digitação; sugestão antiga nunca aplicada. A arquitetura em duas etapas faz lookup determinístico imediato e mantém lexical/IA no fallback com debounce: 20 teclas abaixo do debounce fazem 20 lookups locais baratos, zero inferências de IA e uma única execução de fallback após pausa. Testes cobrem os sete gatilhos de cancelamento, isolamento entre abas, funcionamento sem modelo/MongoDB, supressão pelo automático quando a lista explícita está aberta, combinações das três flags, LoadedOnly em três fases, migração, abstenção por ambiguidade/truncamento e aceite como operação única de undo sem executar consulta.
 
-**Aceite NÃO verificado — não declarar cumprido:**
+**Evidência e limites:**
 
 - **Computação p95 ≤ 5 ms: atendida** (catálogo de linguagem: p50 0,002 ms/p95 0,009 ms/máx 0,013 ms; com 200 campos de schema: p50 0,044 ms/p95 0,068 ms/máx 4,24 ms). Ver [performance](../performance.md).
-- **Edição → ghost p95 ≤ 20 ms: NÃO atendida.** Medido em Headless com debounce de 50 ms: excedente de 17,6–27,1 ms além do debounce (primeira sugestão do processo 92/112/108 ms; aquecida 77/68/77 ms). O trabalho de geração em si é ~0,07 ms; o excedente é dominado pela resolução do temporizador do Windows (~15,6 ms) mais dois saltos de despachante. A meta não foi ajustada; o número medido fica registrado como não atendido.
+- **Edição → ghost p95 ≤ 20 ms: atendida em Headless** após encurtar o caminho determinístico até a publicação: quatro execuções mediram p95 de 3,85–8,42 ms. Máximos isolados chegaram a 22–25 ms; p95 é o gate, e não há alegação de latência nativa multiplataforma.
 - **PNGs reais nos dois temas e 18 combinações**: não produzidos nesta entrega.
-- **IME**: `InlineCompletionEditorState.Composing` existe e é respeitado pelo coordinator, mas o editor **não publica** o estado de composição — `ImeComposing` é sempre falso em produção. A regra "não sugerir durante composição de IME" está testada e **não vale na prática**; é pendência de implementação.
-- **UI de configuração**: `InlineEnabled`, `InlineUseTraditional` e `InlineUseAi` não têm controle em `AutocompleteSettingsWindow`; só editáveis via JSON persistido. Ver [configuration](../configuration.md).
+- **IME**: o editor agora propaga begin/update/end de preedit pela API de texto do Avalonia; Headless confirma o ciclo, mas entrada IME nativa permanece pendente de homologação.
+- **UI de configuração**: os bindings de `InlineEnabled`, `InlineUseTraditional` e `InlineUseAi` já têm controles no `AutocompleteSettingsWindow`; a matriz anterior estava desatualizada.
+- **PNGs/layouts nativos, ABNT2/US, leitor de tela, Linux gráfico e IME nativo**: pendentes para homologação da Fase 9; não são cobertos pelo Headless.
 - Correções antes do cursor continuam só pela lista; prévia de substituição não foi implementada nesta entrega.
 
 ## 5.2 AI Preemptive Completion — funcional com fakes; modelo real fora da meta

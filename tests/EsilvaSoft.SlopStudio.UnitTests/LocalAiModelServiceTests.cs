@@ -100,6 +100,89 @@ public sealed class LocalAiModelServiceTests
     }
 
     [Test]
+    public async Task SwitchingConfigurationDuringModelLoadCancelsTheOldGenerationBeforeItCanRun()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = new CompletionRuntimeFake
+        {
+            OnInitialize = async token =>
+            {
+                started.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            }
+        };
+        var second = new CompletionRuntimeFake();
+        var runtimes = new Queue<CompletionRuntimeFake>([first, second]);
+        await using var service = new LocalAiModelService(new CompletionCatalogFake(), () => runtimes.Dequeue());
+        var original = new AutocompleteSettings { ModelPath = "model-one" };
+
+        var oldRequest = service.GenerateAsync(LocalModelRole.Autocomplete, original, Request, AiRequestPriority.Interactive);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await service.SwitchModelAsync(original with { ModelPath = "model-two" }).WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.That(async () => await oldRequest, Throws.InstanceOf<OperationCanceledException>());
+        Assert.Multiple(() =>
+        {
+            Assert.That(first.Generations, Is.Zero, "A request for the old selection cannot begin inference after its load finishes.");
+            Assert.That(first.Disposed, Is.True, "The abandoned load is released before a replacement can load.");
+            Assert.That(service.LoadedModel, Is.Null);
+        });
+
+        var replacement = await service.GenerateAsync(LocalModelRole.Autocomplete, original with { ModelPath = "model-two" }, Request,
+            AiRequestPriority.Interactive).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.That(replacement.Result.Text, Is.Not.Empty);
+        Assert.That(second.Generations, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task ARequestQueuedAfterTheSwitchSnapshotCannotReloadTheSupersededConfiguration()
+    {
+        var first = new CompletionRuntimeFake();
+        var second = new CompletionRuntimeFake();
+        var runtimes = new Queue<CompletionRuntimeFake>([first, second]);
+        await using var service = new LocalAiModelService(new CompletionCatalogFake(), () => runtimes.Dequeue());
+        var oldSettings = new AutocompleteSettings { ModelPath = "model-one" };
+        var newSettings = oldSettings with { ModelPath = "model-two" };
+
+        await service.GenerateAsync(LocalModelRole.Autocomplete, oldSettings, Request, AiRequestPriority.Interactive);
+        await service.SwitchModelAsync(newSettings);
+
+        var stale = Assert.ThrowsAsync<LocalModelUnavailableException>(() => service.GenerateAsync(
+            LocalModelRole.Autocomplete, oldSettings, Request, AiRequestPriority.Interactive))!;
+        Assert.That(stale.UnavailableReason, Is.EqualTo(LocalModelUnavailableReason.DifferentConfiguration));
+        Assert.That(first.Initializations, Is.EqualTo(1), "The superseded request cannot recreate the old session.");
+        Assert.That(first.Generations, Is.EqualTo(1));
+
+        var current = await service.GenerateAsync(LocalModelRole.Autocomplete, newSettings, Request, AiRequestPriority.Interactive);
+        Assert.That(current.Result.Text, Is.Not.Empty);
+        Assert.That(second.Generations, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task AChatOverrideIsAllowedForTheCurrentSelectionAndRejectedAfterThatSelectionChanges()
+    {
+        var first = new CompletionRuntimeFake();
+        var second = new CompletionRuntimeFake();
+        var runtimes = new Queue<CompletionRuntimeFake>([first, second]);
+        await using var service = new LocalAiModelService(new CompletionCatalogFake(), () => runtimes.Dequeue());
+        var original = new AutocompleteSettings { SelectedModel = "model-one" };
+        await service.SwitchModelAsync(original);
+        await service.GenerateAsync(LocalModelRole.Chat, original with { ChatModel = "chat-special" }, Request, AiRequestPriority.Interactive);
+
+        var replacement = original with { SelectedModel = "model-two" };
+        await service.SwitchModelAsync(replacement);
+        var stale = Assert.ThrowsAsync<LocalModelUnavailableException>(() => service.GenerateAsync(
+            LocalModelRole.Chat, original with { ChatModel = "chat-special" }, Request, AiRequestPriority.Interactive))!;
+
+        Assert.That(stale.UnavailableReason, Is.EqualTo(LocalModelUnavailableReason.DifferentConfiguration));
+        var current = await service.GenerateAsync(LocalModelRole.Chat, replacement with { ChatModel = "chat-new" }, Request,
+            AiRequestPriority.Interactive);
+        Assert.That(current.Result.Text, Is.Not.Empty);
+        Assert.That(first.Generations, Is.EqualTo(1));
+        Assert.That(second.Generations, Is.EqualTo(1));
+    }
+
+    [Test]
     public async Task LoadingIsReportedInTheGlobalActivityBar()
     {
         var operations = new ApplicationOperationService();

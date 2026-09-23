@@ -59,6 +59,9 @@ public sealed partial class MainWindowViewModel
     [ObservableProperty]
     private bool _newProfileIsFavorite;
 
+    [ObservableProperty]
+    private bool _newProfileLocalAiContextEnabled = true;
+
     [RelayCommand]
     private async Task LoadProfilesAsync()
     {
@@ -93,6 +96,7 @@ public sealed partial class MainWindowViewModel
         NewProfileFolder = string.Empty;
         NewProfileIsReadOnly = false;
         NewProfileIsFavorite = false;
+        NewProfileLocalAiContextEnabled = true;
         IsProfileEditorVisible = true;
     }
 
@@ -115,6 +119,7 @@ public sealed partial class MainWindowViewModel
             NewProfileFolder = string.Empty;
             NewProfileIsReadOnly = false;
             NewProfileIsFavorite = false;
+            NewProfileLocalAiContextEnabled = true;
             QuickConnectionString = string.Empty;
             IsProfileEditorVisible = true;
             StatusMessage = T("profileFromUri");
@@ -146,6 +151,7 @@ public sealed partial class MainWindowViewModel
         NewProfileFolder = SelectedProfile.Folder ?? string.Empty;
         NewProfileIsReadOnly = SelectedProfile.IsReadOnly;
         NewProfileIsFavorite = SelectedProfile.IsFavorite;
+        NewProfileLocalAiContextEnabled = SelectedProfile.LocalAiContextEnabled;
         IsProfileEditorVisible = true;
     }
 
@@ -171,6 +177,7 @@ public sealed partial class MainWindowViewModel
         NewProfileFolder = copy.Folder ?? string.Empty;
         NewProfileIsReadOnly = copy.IsReadOnly;
         NewProfileIsFavorite = copy.IsFavorite;
+        NewProfileLocalAiContextEnabled = copy.LocalAiContextEnabled;
         IsProfileEditorVisible = true;
         StatusMessage = T("duplicateProfileHint");
     }
@@ -211,7 +218,8 @@ public sealed partial class MainWindowViewModel
             var connectionString = string.IsNullOrWhiteSpace(NewProfileUsername)
                 ? NewProfileConnectionString
                 : AddCredentials(NewProfileConnectionString, NewProfileUsername, NewProfilePassword);
-            var profile = ConnectionProfile.Create(NewProfileName, connectionString, NewProfileDatabase, NewProfileIsReadOnly, NewProfileIsFavorite, NewProfileEnvironment, NewProfileColor, NewProfileTags, NewProfileFolder);
+            var profile = ConnectionProfile.Create(NewProfileName, connectionString, NewProfileDatabase, NewProfileIsReadOnly, NewProfileIsFavorite, NewProfileEnvironment, NewProfileColor, NewProfileTags, NewProfileFolder)
+                with { LocalAiContextEnabled = NewProfileLocalAiContextEnabled };
             var editingId = _editingProfileId;
             if (editingId is not null)
             {
@@ -251,6 +259,7 @@ public sealed partial class MainWindowViewModel
             NewProfileFolder = string.Empty;
             NewProfileIsReadOnly = false;
             NewProfileIsFavorite = false;
+            NewProfileLocalAiContextEnabled = true;
             _editingProfileId = null;
             IsProfileEditorVisible = false;
             StatusMessage = (editingId is null ? T("profileSaved") : T("profileUpdated"))

@@ -35,7 +35,7 @@
             <TextBox Text="{Binding QuickConnectionString}" PlaceholderText="mongodb://servidor:27017/banco" AutomationProperties.Name="{local:Loc Key=quickUri}"/>
             <Button Grid.Column="1" Content="{local:Loc Key=fill}" Command="{Binding StartProfileFromConnectionStringCommand}"/>
           </Grid>
-          <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="6">
+          <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="6">
             <TextBlock Text="{local:Loc Key=name}"/>
             <TextBlock Grid.Column="1" Text="{local:Loc Key=defaultDatabase}"/>
             <TextBox Grid.Row="1" Text="{Binding NewProfileName}" AutomationProperties.Name="{local:Loc Key=connectionName}"/>
@@ -60,6 +60,8 @@
             <CheckBox Content="{local:Loc Key=favorite}" IsChecked="{Binding NewProfileIsFavorite}" Margin="0,0,20,0"/>
             <CheckBox Content="{local:Loc Key=readOnly}" IsChecked="{Binding NewProfileIsReadOnly}"/>
           </WrapPanel>
+          <CheckBox x:Name="AllowLocalAiConnectionContext" Content="{local:Loc Key=allowLocalAiConnectionContext}" IsChecked="{Binding NewProfileLocalAiContextEnabled}"/>
+          <TextBlock Text="{local:Loc Key=localAiConnectionContextScope}" Classes="metadata" TextWrapping="Wrap" Margin="24,0,0,4"/>
           <local:UuidRepresentationPanel x:Name="ProfileUuidPanel" IsVisible="False" Margin="0,8,0,0"/>
           
         </StackPanel>

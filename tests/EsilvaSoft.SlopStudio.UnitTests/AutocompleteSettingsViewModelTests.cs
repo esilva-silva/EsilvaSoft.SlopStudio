@@ -10,6 +10,26 @@ namespace EsilvaSoft.SlopStudio.UnitTests;
 [TestFixture]
 public sealed class AutocompleteSettingsViewModelTests
 {
+    [Test]
+    public void LocalAiContextConsentIsOptInAndInputJsonRequiresSeparateOptIn()
+    {
+        var preferences = new AutocompleteSettingsViewModel(new CompletionServiceFake(), catalog: null, save: _ => Task.CompletedTask);
+        var defaults = new AutocompleteSettings();
+        preferences.Load(defaults);
+
+        Assert.That(defaults.LocalAiContextEnabled, Is.False);
+        Assert.That(defaults.IncludeInputJsonInLocalAiContext, Is.False);
+        Assert.That(preferences.Snapshot().LocalAiContextEnabled, Is.False);
+        Assert.That(preferences.Snapshot().IncludeInputJsonInLocalAiContext, Is.False);
+
+        preferences.LocalAiContextEnabled = true;
+        preferences.IncludeInputJsonInLocalAiContext = true;
+        var optedIn = preferences.Snapshot();
+        Assert.That(optedIn.LocalAiContextEnabled, Is.True);
+        Assert.That(optedIn.IncludeInputJsonInLocalAiContext, Is.True);
+        var restored = JsonSerializer.Deserialize<AutocompleteSettings>(JsonSerializer.Serialize(optedIn));
+        Assert.That(restored, Is.EqualTo(optedIn));
+    }
     private static readonly string[] TwoModels = ["Coder-0.5B", "Coder 1.5B"];
     private static readonly string[] RefreshedModels = ["Coder 1.5B", "Coder-3B"];
 

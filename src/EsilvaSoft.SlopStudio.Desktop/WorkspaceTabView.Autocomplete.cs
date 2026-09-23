@@ -32,11 +32,8 @@ public partial class WorkspaceTabView
     /// </summary>
     private InlineCompletionCoordinator _inlineCoordinator = new();
     private InlineCompletionSuggestion? _inlineSuggestion;
-    /// <summary>
-    /// Composição de IME em andamento. O editor ainda não expõe esse estado nesta versão (pendência de homologação com
-    /// IME real); o portão existe e é respeitado por quem o informar.
-    /// </summary>
-    internal bool ImeComposing { get; set; }
+    /// <summary>Composição de IME publicada pelo cliente de texto do editor.</summary>
+    internal bool ImeComposing { get; private set; }
     private WorkspaceTabViewModel? _completionTab;
     private AutocompleteResult? _completion;
     private string? _completionOriginal;
@@ -56,6 +53,7 @@ public partial class WorkspaceTabView
     {
         CodeEditor.AddHandler(InputElement.KeyDownEvent, EditorKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         CodeEditor.PropertyChanged += EditorCompletionChanged;
+        CodeEditor.ImeCompositionChanged += EditorImeCompositionChanged;
         CodeEditor.LayoutUpdated += (_, _) => PositionGhostText();
         CodeEditor.AddHandler(ScrollViewer.ScrollChangedEvent, (_, _) => PositionGhostText());
         // A sessão de snippet sobrevive de propósito tanto a InvalidateCompletion quanto à perda de foco: aceitar um
@@ -63,7 +61,11 @@ public partial class WorkspaceTabView
         // não pode encerrá-lo. O que ela jamais pode fazer é reivindicar Escape de um editor que o cursor já deixou —
         // DismissCompletion impõe isso com uma checagem explícita de foco, e UnbindCompletionTab descarta a sessão
         // quando a aba se vai.
-        CodeEditor.LostFocus += (_, _) => InvalidateCompletion();
+        CodeEditor.LostFocus += (_, _) =>
+        {
+            if (ImeComposing) EditorImeCompositionChanged(CodeEditor, false);
+            InvalidateCompletion();
+        };
         DataContextChanged += (_, _) => BindCompletionTab();
         AttachedToVisualTree += (_, _) =>
         {
@@ -73,9 +75,22 @@ public partial class WorkspaceTabView
         };
         DetachedFromVisualTree += (_, _) =>
         {
-            _attached = false; InvalidateCompletion(InlineCompletionCancelReason.Closed);
+            _attached = false;
+            if (ImeComposing) EditorImeCompositionChanged(CodeEditor, false);
+            InvalidateCompletion(InlineCompletionCancelReason.Closed);
             _completionSession.Dispose(); _inlineCoordinator.Dispose(); UnbindCompletionTab();
         };
+    }
+
+    private void EditorImeCompositionChanged(object? sender, bool composing)
+    {
+        ImeComposing = composing;
+        if (composing)
+        {
+            // Uma composição pode atualizar o preedit sem alterar o documento. Invalide imediatamente para que um
+            // ghost anterior não cubra os candidatos do IME; a confirmação do texto será tratada como edição normal.
+            InvalidateCompletion(InlineCompletionCancelReason.Typing);
+        }
     }
 
     private void BindCompletionTab()
@@ -247,9 +262,12 @@ public partial class WorkspaceTabView
         try
         {
             var pending = _inlineCoordinator.RequestAsync(settings, state,
-                token => ComputeInlineCompletionAsync(tab, settings, snapshot, original, caret, token));
-            // Trabalho síncrono deste evento do editor na thread de UI: agora é só agendar a pendência. A captura de
-            // contexto e a geração só acontecem depois do atraso, e nunca por tecla.
+                InlineCompletionPolicy.TraditionalInline(settings)
+                    ? token => ComputeTraditionalInlineCompletionAsync(tab, snapshot, caret, token)
+                    : null,
+                token => ComputeInlineCompletionAsync(tab, settings, original, caret, token));
+            // O único trabalho sem debounce é o lookup determinístico local. Fallback lexical/IA continua atrás do
+            // atraso configurado; todas as fontes seguem canceláveis e uma nova edição substitui a pendência.
             AutocompleteMetrics.UiDispatcherTime.Record(System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds,
                 new KeyValuePair<string, object?>("handler", "inline"));
             var result = await pending;
@@ -282,14 +300,9 @@ public partial class WorkspaceTabView
     /// explícito, inferência de IA) — sempre sob LoadedOnly, nunca carregando, trocando ou inicializando modelo.
     /// </summary>
     private async Task<InlineCompletionSuggestion?> ComputeInlineCompletionAsync(WorkspaceTabViewModel tab,
-        AutocompleteSettings settings, Autocomplete.Core.Text.ITextSnapshot snapshot, string original, int caret, CancellationToken token)
+        AutocompleteSettings settings, string original, int caret, CancellationToken token)
     {
         var traditional = InlineCompletionPolicy.TraditionalInline(settings);
-        if (traditional)
-        {
-            var deterministic = await tab.GetInlineCompletionAsync(snapshot, caret, token);
-            if (deterministic is not null) return deterministic;
-        }
         token.ThrowIfCancellationRequested();
         // Origens do pedido decididas de uma vez pela política: o dicionário lexical só participa quando a origem
         // determinística está ligada (com InlineUseTraditional desligado ele não reaparece por atalho interno), e
@@ -303,6 +316,10 @@ public partial class WorkspaceTabView
         var result = await _completionSession.RequestAsync(tab.Autocomplete, request, immediate: true, sources);
         return result is null ? null : new InlineCompletionSuggestion(result.Text, result.Description, "", null) { IsAi = result.IsAi };
     }
+
+    private static Task<InlineCompletionSuggestion?> ComputeTraditionalInlineCompletionAsync(WorkspaceTabViewModel tab,
+        Autocomplete.Core.Text.ITextSnapshot snapshot, int caret, CancellationToken token) =>
+        tab.GetInlineCompletionAsync(snapshot, caret, token);
 
     private bool AcceptCompletion()
     {

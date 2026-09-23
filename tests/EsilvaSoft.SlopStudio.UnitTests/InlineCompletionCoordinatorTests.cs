@@ -10,7 +10,7 @@ namespace EsilvaSoft.SlopStudio.UnitTests;
 [TestFixture]
 public sealed class InlineCompletionCoordinatorTests
 {
-    private static readonly AutocompleteSettings Settings = new() { DelayMilliseconds = 150 };
+    private static readonly AutocompleteSettings Settings = new() { DelayMilliseconds = 150, InlineUseTraditional = false, InlineUseAi = true };
     private static readonly InlineCompletionEditorState Ready = InlineCompletionEditorState.Ready;
 
     private static InlineCompletionSuggestion Suggestion(string text = "ectionPool") => new(text, "", "dsl/ConnectionPool", null);
@@ -236,5 +236,43 @@ public sealed class InlineCompletionCoordinatorTests
 
         clock.Advance(TimeSpan.FromMilliseconds(1));
         Assert.That(await pending, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task TraditionalCompletionDoesNotWaitForTheAiDebounce()
+    {
+        var clock = new ManualTimeProvider();
+        using var coordinator = new InlineCompletionCoordinator(clock);
+        var pending = coordinator.RequestAsync(new AutocompleteSettings { DelayMilliseconds = 2000 }, Ready,
+            _ => Task.FromResult<InlineCompletionSuggestion?>(Suggestion()),
+            _ => throw new AssertionException("O fallback não deve executar após um hit determinístico."));
+
+        Assert.That(await pending, Is.Not.Null);
+        Assert.That(coordinator.Computations, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task DefaultTraditionalAndAiFlagsDebounceOnlyFallbackAcrossTypingBurst()
+    {
+        var clock = new ManualTimeProvider();
+        using var coordinator = new InlineCompletionCoordinator(clock);
+        var deterministicCalls = 0;
+        var aiCalls = 0;
+        var requests = new List<Task<InlineCompletionSuggestion?>>();
+        var settings = new AutocompleteSettings { DelayMilliseconds = 150, InlineUseAi = true };
+
+        for (var key = 0; key < 20; key++)
+        {
+            requests.Add(coordinator.RequestAsync(settings, Ready,
+                _ => { Interlocked.Increment(ref deterministicCalls); return Task.FromResult<InlineCompletionSuggestion?>(null); },
+                _ => { Interlocked.Increment(ref aiCalls); return Task.FromResult<InlineCompletionSuggestion?>(Suggestion()); }));
+            clock.Advance(TimeSpan.FromMilliseconds(20));
+        }
+
+        Assert.That(deterministicCalls, Is.EqualTo(20), "Lookup determinístico é local e imediato.");
+        Assert.That(aiCalls, Is.Zero, "Nenhuma inferência roda durante a rajada nem antes do debounce.");
+        clock.Advance(TimeSpan.FromMilliseconds(150));
+        await Task.WhenAll(requests);
+        Assert.That(aiCalls, Is.EqualTo(1), "Apenas o último pedido sobrevive ao debounce para fallback.");
     }
 }

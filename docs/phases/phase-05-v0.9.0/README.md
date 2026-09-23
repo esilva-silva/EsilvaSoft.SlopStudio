@@ -1,6 +1,8 @@
 # Fase 5 — v0.9.0: IA local e produtividade contextual
 
-**Situação:** Experimental.
+**Situação:** escopo automatizável implementado e validado em 22/09/2026; assistência com modelo ONNX e homologação nativa continuam experimentais até as evidências da Fase 9.
+
+**Meta de implementação:** [plano, tarefas executadas, evidências e critérios de conclusão](meta-de-implementacao.md).
 
 A camada de IA local já participa do catálogo de localização nos quatro idiomas (`pt-BR`, `en`, `es`, `zh-CN`), com fallback em inglês. Isso encerra a meta transversal de tradução, sem alterar o status experimental.
 

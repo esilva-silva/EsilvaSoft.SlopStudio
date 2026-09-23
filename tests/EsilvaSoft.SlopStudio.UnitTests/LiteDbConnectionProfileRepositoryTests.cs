@@ -22,6 +22,19 @@ public sealed class LiteDbConnectionProfileRepositoryTests
     }
 
     [Test]
+    public async Task SaveAsyncPersistsPerConnectionLocalAiContextOptOut()
+    {
+        await using var fixture = new TemporaryWorkspace();
+        using var repository = new LiteDbConnectionProfileRepository(fixture.DatabasePath);
+        var profile = ConnectionProfile.Create("Privada", "mongodb://localhost:27017") with { LocalAiContextEnabled = false };
+
+        await repository.SaveAsync(profile);
+        var loaded = await repository.GetAllAsync();
+
+        Assert.That(loaded.Single().LocalAiContextEnabled, Is.False);
+    }
+
+    [Test]
     public async Task DeleteAsyncRemovesOnlyRequestedProfile()
     {
         await using var fixture = new TemporaryWorkspace();

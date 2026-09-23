@@ -22,6 +22,10 @@ public sealed record AutocompleteSettings
     public string ChatModel { get; init; } = "";
     /// <summary>Additive to version 1: the chat assistant may use the local model.</summary>
     public bool ChatEnabled { get; init; } = true;
+    /// <summary>Explicit local-only consent to include eligible tab context in a manual AI chat request.</summary>
+    public bool LocalAiContextEnabled { get; init; }
+    /// <summary>Separate explicit opt-in for including the tab's JSON input in local AI chat context.</summary>
+    public bool IncludeInputJsonInLocalAiContext { get; init; }
     public AiAccelerationMode Acceleration { get; init; } = AiAccelerationMode.Auto;
     public AiExecutionProvider ExecutionProvider { get; init; } = AiExecutionProvider.Auto;
     public int ContextTokens { get; init; } = 2048;

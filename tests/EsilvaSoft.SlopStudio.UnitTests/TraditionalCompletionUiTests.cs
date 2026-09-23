@@ -19,6 +19,53 @@ namespace EsilvaSoft.SlopStudio.UnitTests;
 [TestFixture, NonParallelizable]
 public sealed class TraditionalCompletionUiTests
 {
+    [Test]
+    public async Task InlineGhostPresentationP95FromEditIsWithinTwentyMilliseconds()
+    {
+        var session = HeadlessUnitTestSession.GetOrStartForAssembly(typeof(UiTestApp).Assembly);
+        await session.Dispatch<bool>(async () =>
+        {
+            using var context = new WorkspaceTestContext();
+            using var workspace = new WorkspaceViewModel(context.Workspace, context.Repository);
+            var window = new MainWindow { DataContext = workspace };
+            window.Show(); await window.InitializationTask;
+            var tab = workspace.ActiveTab!;
+            tab.InlinePreemptiveCompletion = new CountingCompletionProvider(workspace.InlinePreemptiveCompletion!, () => { });
+            window.UpdateLayout(); Dispatcher.UIThread.RunJobs();
+            var view = window.GetVisualDescendants().OfType<WorkspaceTabView>().Single(v => v.DataContext == tab);
+            var editor = view.FindControl<MongoTextEditor>("CodeEditor")!;
+            var ghost = view.FindControl<Border>("CompletionPanel")!;
+            editor.Focus();
+            var samples = new double[30];
+            for (var i = 0; i < samples.Length; i++)
+            {
+                editor.Text = ""; editor.CaretIndex = editor.SelectionStart = editor.SelectionEnd = 0;
+                Dispatcher.UIThread.RunJobs();
+                var text = (i & 1) == 0 ? "Conn" : "Conne";
+                var shown = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
+                void GhostChanged(object? _, AvaloniaPropertyChangedEventArgs __)
+                {
+                    if (ghost.IsVisible) shown.TrySetResult(System.Diagnostics.Stopwatch.GetTimestamp());
+                }
+                ghost.PropertyChanged += GhostChanged;
+                var started = System.Diagnostics.Stopwatch.GetTimestamp();
+                editor.Text = text; editor.CaretIndex = editor.SelectionStart = editor.SelectionEnd = text.Length;
+                Dispatcher.UIThread.RunJobs();
+                var shownAt = await shown.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                ghost.PropertyChanged -= GhostChanged;
+                Assert.That(ghost.IsVisible, Is.True, $"Ghost ausente na amostra {i}.");
+                samples[i] = System.Diagnostics.Stopwatch.GetElapsedTime(started, shownAt).TotalMilliseconds;
+                ghost.IsVisible = false;
+            }
+            Array.Sort(samples);
+            var p95 = samples[(int)Math.Ceiling(samples.Length * .95) - 1];
+            TestContext.Out.WriteLine($"edição→ghost Headless: p50={samples[samples.Length / 2]:F2} ms, p95={p95:F2} ms, máx={samples[^1]:F2} ms");
+            Assert.That(p95, Is.LessThanOrEqualTo(20), "O gate inclui o ciclo do editor, coordinator, cálculo e publicação do ghost.");
+            typeof(MainWindow).GetField("_allowClose", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(window, true);
+            window.Close(); return true;
+        }, CancellationToken.None);
+    }
+
     /// <summary>ARB-02 (Tab), ARB-07 (Shift+Tab) and HDL-08 (single undo removes the whole snippet insertion).</summary>
     [Test]
     public async Task SnippetPlaceholdersFollowTabAndShiftTabAndUndoAsOneInsertion()

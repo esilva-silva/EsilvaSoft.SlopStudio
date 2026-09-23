@@ -15,6 +15,9 @@ public sealed record ConnectionProfile(
     DateTimeOffset? LastConnectedAt = null,
     string? Folder = null)
 {
+    /// <summary>Per-connection opt-out from including tab context in local AI chat requests.</summary>
+    public bool LocalAiContextEnabled { get; init; } = true;
+
     /// <summary>Explicit runtime target; never written into the saved connection URI.</summary>
     public string? TargetHost { get; init; }
 
@@ -104,7 +107,8 @@ public sealed record ConnectionProfile(
 
     public ConnectionProfile Duplicate(string name)
     {
-        return Create(name, ConnectionString, DefaultDatabase, IsReadOnly, IsFavorite, Environment, Color, Tags, Folder);
+        return Create(name, ConnectionString, DefaultDatabase, IsReadOnly, IsFavorite, Environment, Color, Tags, Folder)
+            with { LocalAiContextEnabled = LocalAiContextEnabled };
     }
 
     /// <summary>Returns the profile with the local timestamp of a successful connection.</summary>

@@ -1,6 +1,6 @@
 # Autocomplete preemptivo (inline)
 
-Revisão de 21/09/2026. **5.1 (Traditional Preemptive), 5.2 (AI Preemptive) e 5.3 (estratégia híbrida) implementados no escopo automatizado**. Preemptivo descreve o disparo automático, não a tecnologia de geração. Modelos ONNX reais, homologação nativa e performance permanecem fora desta meta.
+Revisão de 22/09/2026. **5.1 (Traditional Preemptive), 5.2 (AI Preemptive) e 5.3 (estratégia híbrida) implementados no escopo automatizado**. Preemptivo descreve o disparo automático, não a tecnologia de geração. O gate de edição→ghost p95 ≤ 20 ms passou em Headless; modelo ONNX real e homologação nativa permanecem na Fase 9.
 
 **Ordem de fonte efetiva do ghost, implementada em 5.1:** determinístico (`TraditionalPreemptiveCompletionProvider`) → dicionário lexical local → IA. A IA automática só entra com `InlineUseAi = true` **e** modelo já em `Ready` (LoadedOnly); nenhum caminho de digitação carrega, troca ou inicializa modelo. Detalhe e evidência em [phase-5-preemptive](phases/phase-5-preemptive.md#51-traditional-preemptive-completion--concluído-em-18092026-com-pendências-abertas).
 
@@ -23,7 +23,7 @@ Edição → snapshot/cursor → Context Engine → Knowledge Catalog (Peek)
       → CompletionService → Ranking → confiança → Inline Suggestion
 ```
 
-Implementado por `InlineCompletionCoordinator`, `TraditionalPreemptiveCompletionProvider`, `InlineCompletionConfidence`, `InlineCompletionPolicy` e `InlineCompletionEditorState`, cobertos por 47 testes novos. Computação p95 ≤ 5 ms medida e atendida; edição → ghost p95 ≤ 20 ms medida e **não atendida** (17,6–27,1 ms de excedente sobre o debounce, dominado pela resolução do temporizador do Windows). Ver [performance](performance.md) e [phase-5-preemptive](phases/phase-5-preemptive.md).
+Implementado por `InlineCompletionCoordinator`, `TraditionalPreemptiveCompletionProvider`, `InlineCompletionConfidence`, `InlineCompletionPolicy` e `InlineCompletionEditorState`. Computação p95 ≤ 5 ms medida e atendida; edição → ghost p95 ≤ 20 ms medida e atendida em quatro execuções Headless (3,85–8,42 ms). Máximos isolados de 22–25 ms não alteram o gate p95. A medição não comprova latência nativa; ver [performance](performance.md) e [phase-5-preemptive](phases/phase-5-preemptive.md).
 
 Fontes determinísticas: campos/tipos, operadores, métodos, collections, databases, stages, snippets, estruturas de filtros/updates. Sem modelo, rede, amostragem ou contexto IA. Cache ausente não dispara carga pelo automático: usar o disponível; enriquecimento vem do Explorer, comando explícito ou refresh autorizado.
 
@@ -92,7 +92,7 @@ Experimento futuro de extensão: só após 5.1/5.2, no máximo uma extensão, me
 
 Só edição elegível: ponto em receptor, prefixo de campo, abertura de objeto, dois-pontos, vírgula, parêntese e nova linha são categorias a avaliar. Cursor sem edição, seleção, perda de foco, IME, lista/snippet ativos, comentário/regex/número, sufixo conflitante e contexto desconhecido suspendem. Lookup dinâmico não herda última coleção.
 
-**IME — pendência de implementação, não só de homologação.** `InlineCompletionEditorState.Composing` existe e é respeitado pelo coordinator (testado), mas nenhum editor real publica esse estado: `ImeComposing` é sempre falso em produção. Até o editor propagar a composição de IME, a inibição descrita acima não vale fora dos testes.
+**IME — integração automatizada concluída; homologação nativa pendente.** O editor envolve o cliente de texto do Avalonia, publica início/atualização/fim de preedit e limpa o estado ao perder foco/desanexar; testes Headless verificam que a composição suprime o ghost. A digitação IME em Windows/Linux nativos permanece pendente da Fase 9.
 
 Esc suprime a âncora atual; refresh/resposta tardia não ressuscita ghost. Nova edição pode criar pedido. Trocar aba/destino/modo/preferências invalida tudo.
 

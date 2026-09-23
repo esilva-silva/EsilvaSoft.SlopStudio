@@ -19,10 +19,10 @@ Slop Studio is an open-source MongoDB desktop IDE and GUI client for Windows and
 
 - **v0.5.0** is archived because its defined functional scope is implemented. Its real-environment validation is planned in **Phase 9 / v0.13.0**.
 - **v0.6.0**, **v0.7.0** and **v0.8.0** are archived by functional scope. They cover deterministic autocomplete, explicit reviewable AI suggestions, and text-file/workspace operations. Their manual and native-environment validation remains planned in **Phase 9 / v0.13.0**.
-- **v0.9.0** local AI is the next experimental phase. **v0.10.0** administration and maintenance code is preserved as an early implementation, without a current UI entry point. Later phases remain planned.
+- **v0.9.0** local AI's automated scope is implemented and tested; actual ONNX model support remains experimental pending real-model and native-environment validation in **Phase 9 / v0.13.0**. **v0.10.0** administration and maintenance is in development.
 - The desktop UI supports **Portuguese (Brazil), English, Spanish and Simplified Chinese**. `pt-BR` is the initial language and **English (`en`) is the deterministic fallback**. This does not translate repository documents under `docs/`, which remain in Portuguese.
 
-Latest automated evidence for this checkout: solution build with 0 warnings/errors, **2,674 unit tests passed, 0 failed, 20 ignored**, and **43 benchmarks passed**. The v0.8.0 release workflow generated and checksum-verified four local packages for Windows/Linux x64/ARM64. Automated and Headless evidence does not replace the open homologation gates.
+Latest automated evidence for this checkout: solution build with **0 warnings and 0 errors**; **2,699 unit tests passed, 0 failed, 20 ignored**, and **43 benchmark tests passed**. Locked restore passed against the local NuGet cache; online package vulnerability auditing was unavailable in the sandbox. The v0.8.0 release workflow generated and checksum-verified four local packages for Windows/Linux x64/ARM64. Automated and Headless evidence does not replace the open real-model and native-environment gates.
 
 ## Support the project
 
@@ -46,17 +46,17 @@ Concretely: save and test connection profiles, browse databases and collections,
 | 2 | v0.6.0 | Project organisation and basic autocomplete | Feature scope completed and [archived](docs/done/release_v0.6.0/README.md); manual validation remains in Phase 9 |
 | 3 | v0.7.0 | AI-assisted autocomplete | Feature scope completed and [archived](docs/done/release_v0.7.0/README.md); suggestions remain reviewable and are never applied automatically |
 | 4 | v0.8.0 | Opening and saving text files | Feature scope completed and [archived](docs/done/release_v0.8.0/README.md); includes local single-root workspace operations |
-| 5 | v0.9.0 | Local AI and contextual productivity | Experimental — ONNX models, ghost text, reviewable chat proposals, multi-model catalog, CPU/GPU/NPU selection |
+| 5 | v0.9.0 | Local AI and contextual productivity | Automated scope implemented; experimental for real ONNX models. Includes contextual preview, reviewable proposals, inline suggestions and multi-model selection. See [implementation meta](docs/phases/phase-05-v0.9.0/meta-de-implementacao.md) |
 | 6 | v0.10.0 | Administration and maintenance | In development — collections, views, validation, indexes, stats, users, roles and logical export/import |
-| 7 | v0.11.0 | MCP e integração com agentes externos | Planejado — [plano técnico](docs/phases/phase-07-v0.11.0/README.md) para Agent Runtime, MCP, chat nativo e providers; sem integração implementada nesta meta |
+| 7 | v0.11.0 | MCP and external agent integration | Planned — [technical plan](docs/phases/phase-07-v0.11.0/README.md) for Agent Runtime, MCP, native chat and providers; no integration implemented in that planning effort |
 | 8 | v0.12.0 | Simple workflow-based AI chat | Planned — a predefined flow, limited scope and controlled actions |
 | 9 | v0.13.0 | Manual validation and real-environment homologation | Planned — platforms, accessibility, MongoDB/mongosh, hardware, installation and updates in real environments |
 | 10 | v1.0.0 | Stability, full review, installation and updates | Planned — stable release after functional acceptance and Phase 9 |
 
 ### How to read this table
 
-- **Active phase** — the only phase being worked on. It is the only scope that justifies new entries in the user interface.
-- **Early implementation** — code that already exists for a later phase. It is kept and tested, but it does **not** close that phase, does not count as completed scope of the active phase, and is **not** exposed in the interface. Features outside the active phase may remain in the code while disabled or experimental.
+- **Active phase** — Phase 6 / v0.10.0 is in development. Phase 5's automated scope is complete; its real-model and native-environment validation remains in Phase 9.
+- **Early implementation** — code that exists ahead of its phase. It is kept and tested, but does not close that phase or count as completed scope. A feature may be visible while still marked experimental.
 - **Backlog** — requirements with no assigned phase, postponed, or removed from the current scope. Nothing is deleted: the implementation is preserved and isolated, only its entry points are removed. See [backlog](docs/backlog/README.md).
 - **Archived release** — a version whose feature scope is closed, in [`docs/done`](docs/done/README.md). Archiving does **not** mean it has passed manual validation; those gates are consolidated in Phase 9.
 
@@ -107,16 +107,16 @@ db.Customers.countDocuments({ Active: true })
 - Use **Formatar JSON/query/script** in the editor options to format the selection or the whole tab (undoable).
 - **Exportar página…** writes the loaded result page to Extended JSON or CSV.
 
-### Features outside the active phase
+### Features outside the active phase or still experimental
 
-Some capabilities exist in the code but have no entry point in the interface while their phase is not active. They are disabled, not removed:
+Local AI is available as an experimental feature. Administrative tools and the following backlog items remain outside the current product scope:
 
 | Capability | Where it went |
 | --- | --- |
-| **Ferramentas** window — collections, indexes, administration, transfer, bulk CRUD | [Phase 6 / v0.10.0](docs/phases/phase-06-v0.10.0/README.md) and [backlog](docs/backlog/bkl-02-ferramentas-fora-de-fase.md) |
-| **Ambientes / Key Vault** button | [Backlog](docs/backlog/bkl-01-key-vault-criptografico.md) — environments still resolve at runtime |
+| **Tools** window — collections, indexes, administration, transfer, bulk CRUD | [Phase 6 / v0.10.0](docs/phases/phase-06-v0.10.0/README.md) and [backlog](docs/backlog/bkl-02-ferramentas-fora-de-fase.md) |
+| **Environments / Key Vault** button | [Backlog](docs/backlog/bkl-01-key-vault-criptografico.md) — environment values still resolve at runtime |
 | **Script** editor mode (external `mongosh`) | [Backlog](docs/backlog/bkl-03-script-engine-entre-conexoes.md) |
-| **Agregação** editor mode | [Backlog](docs/backlog/bkl-04-modo-aggregation.md) |
+| **Aggregation** editor mode | [Backlog](docs/backlog/bkl-04-modo-aggregation.md) |
 
 The editor mode selector is therefore no longer shown: **Console** is the only available mode.
 
@@ -140,6 +140,8 @@ The editor mode selector is therefore no longer shown: **Console** is the only a
 4. Click **Testar modelo** to validate the folder, tokenizer, ONNX session, provider and a real generation, with load time, first-token latency and tokens per second.
 
 Without a model, autocomplete keeps working with deterministic suggestions. Nothing is sent to external AI services. AI output is a proposal: always review the diff before applying it. See [local multi-model AI](docs/26-ia-local-multimodelo.md) (Portuguese).
+
+The local AI assistant's tab context is opt-in globally and per connection. Input JSON has a separate opt-in. Before a manual request reaches the local model, the app shows the context snapshot for review; changing the instruction, editor, target or policy invalidates that preview. Applying a proposal edits the current tab as an undoable action and never runs the query. Real-model fidelity and hardware performance have not yet been homologated; see [Phase 5 evidence and limits](docs/phases/phase-05-v0.9.0/meta-de-implementacao.md).
 
 ## Commands
 
@@ -212,7 +214,7 @@ ARM64 packages are cross-compiled. 32-bit x86 is not built, because ONNX Runtime
 - The workspace (profiles, history, drafts, preferences, audit) is stored in `workspace.db` under `%LOCALAPPDATA%\EsilvaSoft\SlopStudio` (Windows) or `$XDG_DATA_HOME/EsilvaSoft/SlopStudio` (Linux).
 - Results and resolved credentials are not saved in session snapshots, but tab text is, and it may contain sensitive data you typed.
 - There is no native OS credential vault yet.
-- No code, query, document or credential is sent to AI services; optional ONNX and GenAI telemetry is disabled.
+- No code, query, document or credential is sent to **external** AI services. If local AI context is explicitly enabled, selected tab data is reviewed before being sent only to the selected on-device model. Credentials and result values are excluded; Input JSON requires separate opt-in. Optional ONNX and GenAI telemetry is disabled.
 
 ## Documentation
 

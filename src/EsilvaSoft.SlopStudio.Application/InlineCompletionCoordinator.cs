@@ -65,9 +65,19 @@ public sealed class InlineCompletionCoordinator(TimeProvider? timeProvider = nul
     /// <param name="compute">Geração propriamente dita; recebe o token da pendência.</param>
     public async Task<InlineCompletionSuggestion?> RequestAsync(AutocompleteSettings settings, InlineCompletionEditorState state,
         Func<CancellationToken, Task<InlineCompletionSuggestion?>> compute)
+        => await RequestAsync(settings, state, null, compute).ConfigureAwait(true);
+
+    /// <summary>
+    /// Runs a cheap deterministic provider immediately, then applies the configured debounce to optional fallbacks
+    /// (lexical/AI) only when the deterministic provider abstains. A null <paramref name="computeImmediate"/> keeps
+    /// the whole request behind the configured delay.
+    /// </summary>
+    public async Task<InlineCompletionSuggestion?> RequestAsync(AutocompleteSettings settings, InlineCompletionEditorState state,
+        Func<CancellationToken, Task<InlineCompletionSuggestion?>>? computeImmediate,
+        Func<CancellationToken, Task<InlineCompletionSuggestion?>> computeAfterDelay)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        ArgumentNullException.ThrowIfNull(compute);
+        ArgumentNullException.ThrowIfNull(computeAfterDelay);
         if (!InlineCompletionPolicy.Allows(settings, state))
         {
             Cancel(InlineCompletionPolicy.AnyInline(settings) ? InlineCompletionCancelReason.Superseded : InlineCompletionCancelReason.Disabled);
@@ -91,18 +101,29 @@ public sealed class InlineCompletionCoordinator(TimeProvider? timeProvider = nul
         AutocompleteMetrics.CompletionRequested.Add(1, InlineModality, new KeyValuePair<string, object?>("trigger", "automatic"));
         try
         {
-            // Debounce pelo relógio injetado. Uma rajada de teclas só produz esperas descartadas: apenas a última
-            // sobrevive ao atraso, e por isso uma pausa gera no máximo uma computação.
+            InlineCompletionSuggestion? suggestion = null;
+            if (computeImmediate is not null)
+            {
+                Interlocked.Increment(ref _computations);
+                suggestion = await computeImmediate(cancellation.Token).ConfigureAwait(true);
+                if (!IsCurrent(generation, cancellation)) return Obsolete();
+                if (suggestion is not null)
+                {
+                    RecordReturned(suggestion);
+                    AutocompleteMetrics.CompletionLatency.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds, InlineModality);
+                    return suggestion;
+                }
+            }
+            // Debounce apenas as fontes opcionais. Um hit determinístico publica sem atraso; se ele abstém,
+            // typeahead continua substituindo esta pendência e IA permanece protegida pelo intervalo configurado.
             var delay = TimeSpan.FromMilliseconds(Math.Clamp(settings.DelayMilliseconds, 50, 2000));
             await Task.Delay(delay, _clock, cancellation.Token).ConfigureAwait(true);
             if (!IsCurrent(generation, cancellation)) return Obsolete();
             Interlocked.Increment(ref _computations);
-            var suggestion = await compute(cancellation.Token).ConfigureAwait(true);
+            suggestion = await computeAfterDelay(cancellation.Token).ConfigureAwait(true);
             // Reconferência obrigatória: um gerador que ignore o token ainda assim não atualiza o editor.
             if (!IsCurrent(generation, cancellation)) return Obsolete();
-            AutocompleteMetrics.CompletionReturned.Add(1, InlineModality,
-                new KeyValuePair<string, object?>("source", suggestion is null ? "none" : "traditional-preemptive"),
-                new KeyValuePair<string, object?>("count_bucket", suggestion is null ? "0" : "1"));
+            RecordReturned(suggestion);
             AutocompleteMetrics.CompletionLatency.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds, InlineModality);
             return suggestion;
         }
@@ -116,6 +137,10 @@ public sealed class InlineCompletionCoordinator(TimeProvider? timeProvider = nul
             lock (_gate) if (ReferenceEquals(_pending, cancellation)) _pending = null;
         }
     }
+
+    private static void RecordReturned(InlineCompletionSuggestion? suggestion) => AutocompleteMetrics.CompletionReturned.Add(1, InlineModality,
+        new KeyValuePair<string, object?>("source", suggestion is null ? "none" : suggestion.IsAi ? "ai" : "inline"),
+        new KeyValuePair<string, object?>("count_bucket", suggestion is null ? "0" : "1"));
 
     private bool IsCurrent(long generation, CancellationTokenSource cancellation)
     {

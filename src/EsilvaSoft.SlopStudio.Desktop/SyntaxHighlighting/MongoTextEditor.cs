@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Input.TextInput;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using AvaloniaEdit;
@@ -43,6 +44,9 @@ public sealed class MongoTextEditor : TextEditor
     public string PlaceholderText { get => GetValue(PlaceholderTextProperty); set => SetValue(PlaceholderTextProperty, value); }
     public SyntaxSnapshot? Snapshot { get; private set; }
     public Task HighlightingTask { get; private set; } = Task.CompletedTask;
+    /// <summary>Raised when the platform starts, updates, or ends an IME preedit composition.</summary>
+    public event EventHandler<bool>? ImeCompositionChanged;
+    private TrackingTextInputMethodClient? _imeClient;
     protected override Type StyleKeyOverride => typeof(TextEditor);
 
     public MongoTextEditor()
@@ -97,6 +101,15 @@ public sealed class MongoTextEditor : TextEditor
                 }
             }
         }, RoutingStrategies.Tunnel);
+        // AvaloniaEdit provides the platform text-input client. Wrap only its preedit calls so the editor can publish
+        // composition state without changing how text, selection, or candidate-window geometry are handled.
+        AddHandler(InputElement.TextInputMethodClientRequestedEvent, (_, e) =>
+        {
+            if (e.Client is null) return;
+            if (_imeClient is null || !ReferenceEquals(_imeClient.Inner, e.Client))
+                _imeClient = new TrackingTextInputMethodClient(e.Client, composing => ImeCompositionChanged?.Invoke(this, composing));
+            e.Client = _imeClient;
+        }, RoutingStrategies.Bubble, handledEventsToo: true);
     }
     private void ApplyTheme()
     {
@@ -164,6 +177,28 @@ public sealed class MongoTextEditor : TextEditor
     private void ContextChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is "Profile" or "Database" or "Collection" or "Mode" or "SyntaxContext") RefreshHighlighting();
+    }
+
+    private sealed class TrackingTextInputMethodClient(TextInputMethodClient inner, Action<bool> compositionChanged) : TextInputMethodClient
+    {
+        public TextInputMethodClient Inner { get; } = inner;
+        public override Visual TextViewVisual => Inner.TextViewVisual;
+        public override bool SupportsPreedit => Inner.SupportsPreedit;
+        public override bool SupportsSurroundingText => Inner.SupportsSurroundingText;
+        public override string SurroundingText => Inner.SurroundingText;
+        public override Rect CursorRectangle => Inner.CursorRectangle;
+        public override TextSelection Selection { get => Inner.Selection; set => Inner.Selection = value; }
+        public override void SetPreeditText(string? text)
+        {
+            Inner.SetPreeditText(text!);
+            compositionChanged(!string.IsNullOrEmpty(text));
+        }
+        public override void SetPreeditText(string? text, int? cursor)
+        {
+            Inner.SetPreeditText(text!, cursor);
+            compositionChanged(!string.IsNullOrEmpty(text));
+        }
+        public override void ExecuteContextMenuAction(ContextMenuAction action) => Inner.ExecuteContextMenuAction(action);
     }
     public void RefreshHighlighting()
     {

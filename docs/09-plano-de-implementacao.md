@@ -25,7 +25,7 @@ O incremento cobre catálogo, barra principal, Explorer, editor/resultados, ferr
 | 2 | v0.6.0 | Organização dos projetos e autocomplete básico | [Arquivada](done/release_v0.6.0/README.md). Núcleos separados e autocomplete determinístico aceitos no recorte funcional |
 | 3 | v0.7.0 | Autocomplete com IA | [Arquivada](done/release_v0.7.0/README.md). Sugestões assistidas por modelo local, sempre revisáveis e sem aplicação automática |
 | 4 | v0.8.0 | Abertura e salvamento de arquivos de texto e workspace local de uma pasta | [Arquivada](done/release_v0.8.0/README.md). Inclui Abrir/Salvar/Salvar como, painel Arquivos com raiz única e operações de arquivo/pasta |
-| 5 | v0.9.0 | IA local e produtividade contextual | [Experimental](phases/phase-05-v0.9.0/README.md). Modelos ONNX, ghost text, propostas de chat revisáveis, catálogo multimodelo e seleção de CPU/GPU/NPU |
+| 5 | v0.9.0 | IA local e produtividade contextual | Escopo automatizável implementado; [experimental](phases/phase-05-v0.9.0/README.md) até inferência real/homologação da Fase 9. Inclui prévia de contexto, propostas revisáveis, IME e gate Headless de latência |
 | 6 | v0.10.0 | Administração e manutenção | [Em desenvolvimento](phases/phase-06-v0.10.0/README.md). Coleções, views, validação, índices, estatísticas, usuários, papéis e exportação/importação lógica |
 | 7 | v0.11.0 | MCP e integração com agentes externos | [Planejada](phases/phase-07-v0.11.0/README.md). Agent Runtime, registro único de ferramentas, servidor MCP e chat Avalonia com adaptadores OpenAI/Codex, Claude e local |
 | 8 | v0.12.0 | Chat simples com IA baseado em workflow | [Planejada](phases/phase-08-v0.12.0/README.md). Fluxo predefinido, escopo limitado e ações controladas |
@@ -40,7 +40,7 @@ A inserção da nova v0.11.0 preservou integralmente o escopo anterior de workfl
 
 Quatro estados distintos, que não devem ser confundidos:
 
-- **Fase ativa** — após o arquivamento da v0.8.0, a próxima fase funcional é a [Fase 5 / v0.9.0](phases/phase-05-v0.9.0/README.md). É o único escopo que justifica novas entradas na interface.
+- **Fase ativa** — o recorte automatizável da Fase 5 / v0.9.0 está concluído; a fase funcional em desenvolvimento é a [Fase 6 / v0.10.0](phases/phase-06-v0.10.0/README.md). A Fase 5 continua experimental até homologação real aplicável na Fase 9.
 - **Implementação antecipada** — código integrado que pertence a uma fase futura. Existe, é preservado e continua testado, mas **não** encerra a fase à qual pertence, **não** conta como escopo concluído da fase atual e **não** aparece na interface. Exemplos atuais: administração (v0.10.0), agregação e Script Engine (sem fase), IA local (v0.9.0).
 - **Backlog** — requisito sem fase definida, adiado ou retirado do escopo. Ver [`backlog/`](backlog/README.md). Entrar no backlog não apaga código: a implementação é preservada e isolada, apenas sem ponto de entrada visual.
 - **Release arquivada** — versão cujo escopo funcional foi fechado e movido para [`done/`](done/README.md). Arquivar **não** significa homologar; a validação manual aplicável pertence à Fase 9.
@@ -53,7 +53,7 @@ O backlog de requisitos sem fase atribuída está em [`backlog/bkl-05-requisitos
 
 ## Ordem de trabalho e definição de pronto
 
-1. Avançar pela Fase 5 / v0.9.0, reutilizando as implementações das fases 1–4 e preservando proteções.
+1. Manter a Fase 5 / v0.9.0 com seu aceite automatizado registrado; transferir validação de inferência/hardware real para a Fase 9.
 2. Avançar pelas fases 6, 7 e 8 na ordem do roadmap, reutilizando implementações antecipadas e preservando proteções. A meta atual da v0.11.0 entrega somente análise, contratos e plano; não ativa nova fase na interface.
 3. Executar a Fase 9 / v0.13.0, que concentra a homologação manual e a validação em ambientes reais de todas as fases anteriores.
 4. Fechar a v1.0.0 após os aceites funcionais e a Fase 9.

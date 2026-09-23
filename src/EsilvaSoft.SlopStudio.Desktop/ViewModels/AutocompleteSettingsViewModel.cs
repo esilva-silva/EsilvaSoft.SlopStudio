@@ -74,6 +74,8 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
     [ObservableProperty] private string _modelPath = "";
     [ObservableProperty] private LocalModelOption? _selectedModelOption;
     [ObservableProperty] private bool _chatEnabled = true;
+    [ObservableProperty] private bool _localAiContextEnabled;
+    [ObservableProperty] private bool _includeInputJsonInLocalAiContext;
     [ObservableProperty] private int _contextTokens = 2048;
     [ObservableProperty] private int _maximumTokens = 32;
     [ObservableProperty] private int _delayMilliseconds = 150;
@@ -204,7 +206,9 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
             DelayMilliseconds = settings.DelayMilliseconds; _executionProvider = settings.ExecutionProvider;
             UseDictionary = settings.UseDictionary; UseInputPanelContext = settings.UseInputPanelContext;
             UseResultPanelContext = settings.UseResultPanelContext; UseEditorContext = settings.UseEditorContext;
-            IncrementalTab = settings.IncrementalTab; ChatEnabled = settings.ChatEnabled; _chatModel = settings.ChatModel;
+            IncrementalTab = settings.IncrementalTab; ChatEnabled = settings.ChatEnabled;
+            LocalAiContextEnabled = settings.LocalAiContextEnabled; _chatModel = settings.ChatModel;
+            IncludeInputJsonInLocalAiContext = settings.IncludeInputJsonInLocalAiContext;
             CompletionAutoOpenOnTrigger = settings.CompletionAutoOpenOnTrigger; CompletionEnterAccepts = settings.CompletionEnterAccepts;
             _inlineEnabledOverride = settings.InlineEnabledValue; InlineEnabledIsOverridden = _inlineEnabledOverride.HasValue;
             InlineEnabledEffective = settings.InlineEnabled;
@@ -243,6 +247,8 @@ public sealed partial class AutocompleteSettingsViewModel(IAutocompleteService s
             Enabled = Enabled, Mode = (AutocompleteMode)ModeIndex, Acceleration = (AiAccelerationMode)HardwareIndex,
             ModelDirectory = ModelDirectory.Trim(), SelectedModel = option is { IsExternal: false } ? option.Reference : "",
             ModelPath = option is { IsExternal: true } ? option.Reference : "", ChatModel = _chatModel, ChatEnabled = ChatEnabled,
+            LocalAiContextEnabled = LocalAiContextEnabled,
+            IncludeInputJsonInLocalAiContext = IncludeInputJsonInLocalAiContext,
             ContextTokens = ContextTokens, MaximumCompletionTokens = MaximumTokens,
             HardwareProfilesJson = SnapshotHardwareProfiles(),
             SelectedHardwareProfile = _hardwareProfileLocked ? SelectedHardwareProfile?.Name ?? "" : "",

@@ -1,4 +1,5 @@
 using EsilvaSoft.SlopStudio.Core;
+using System.Text.Json;
 
 namespace EsilvaSoft.SlopStudio.UnitTests;
 
@@ -33,6 +34,31 @@ public sealed class ConnectionProfileTests
         var profile = ConnectionProfile.Create("Produção", "mongodb://localhost:27017", isFavorite: true);
 
         Assert.That(profile.IsFavorite, Is.True);
+    }
+
+    [Test]
+    public void LocalAiContextPermissionDefaultsOnPerConnectionAndCanBeOptedOut()
+    {
+        var profile = ConnectionProfile.Create("Produção", "mongodb://localhost:27017");
+        var optedOut = profile with { LocalAiContextEnabled = false };
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(profile.LocalAiContextEnabled, Is.True);
+            Assert.That(optedOut.LocalAiContextEnabled, Is.False);
+            Assert.That(profile.Duplicate("cópia").LocalAiContextEnabled, Is.True);
+            Assert.That(optedOut.Duplicate("cópia privada").LocalAiContextEnabled, Is.False);
+        });
+    }
+
+    [Test]
+    public void LegacyConnectionProfileWithoutLocalAiContextFlagKeepsOptOutAvailable()
+    {
+        const string json = "{\"Id\":\"125c3c6e-946e-4a1f-b244-42305a3eea8e\",\"Name\":\"Antiga\",\"ConnectionString\":\"mongodb://localhost:27017\"}";
+
+        var profile = JsonSerializer.Deserialize<ConnectionProfile>(json);
+
+        Assert.That(profile?.LocalAiContextEnabled, Is.True);
     }
 
     [Test]

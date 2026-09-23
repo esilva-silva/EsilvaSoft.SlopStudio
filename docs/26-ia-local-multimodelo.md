@@ -1,6 +1,6 @@
 # IA local multimodelo: catálogo, hardware e serviço central
 
-Revisão de 13/09/2026. O subsistema deixou de ser "um caminho para um modelo ONNX" e passou a ser:
+Revisão de 22/09/2026. O subsistema deixou de ser "um caminho para um modelo ONNX" e passou a ser:
 
 ```text
 Catálogo de modelos → Modelo selecionado → Capacidades → Hardware/provider → ONNX Runtime GenAI → Autocomplete / Chat
@@ -37,9 +37,15 @@ Campos aditivos em `AutocompleteSettings`, dentro de `WorkspacePreferences` (ses
 | `ModelPath` | `""` | Pasta externa; usada somente quando `SelectedModel` está vazio (compatível com sessões anteriores) |
 | `ChatModel` | `""` | Pasta de um modelo separado para o chat; vazio reutiliza `SelectedModel` |
 | `ChatEnabled` | `true` | O Assistente IA pode usar o modelo local |
+| `LocalAiContextEnabled` | `false` | Consentimento global para contexto de aba no Assistente local; requer também a permissão da conexão |
+| `IncludeInputJsonInLocalAiContext` | `false` | Opt-in separado para incluir o JSON da aba Input; respeita o limite de 8.192 caracteres |
 | `Acceleration` | `Auto` | Automático, CPU, GPU ou NPU |
 
 A estrutura conceitual `Ai { Enabled, ModelDirectory, SelectedModel, Hardware, Autocomplete, Chat }` foi mapeada nesses campos, em vez de um novo documento, para manter a migração aditiva e o versionamento existentes. `ChatModel` já é respeitado pelo serviço, mas ainda não tem controle na UI. Um modelo de embeddings existe apenas como capacidade declarável.
+
+O contexto do Assistente exige consentimento global e por conexão; `UseEditorContext` e `UseResultPanelContext` controlam suas fontes, e Input JSON permanece em opt-in separado. Resultado contribui somente nomes de campos inferidos, nunca valores. Antes da inferência manual, a pessoa revisa uma prévia do snapshot limitado que o pedido carregará; editar instrução, código, destino, conexão ou política invalida a revisão e exige nova prévia. Propostas continuam efêmeras, ligadas à revisão de origem, com diff revalidado, confirmação explícita e undo. Ver [ADR-052](10-decisoes-arquiteturais.md#adr-052--consentimento-local-e-prévia-do-contexto-de-chat-22092026).
+
+`ConnectionProfile.LocalAiContextEnabled` é aditivo (padrão `true` para preservar a preferência histórica por conexão); `AutocompleteSettings.LocalAiContextEnabled` é o opt-in global desligado por padrão, então uma instalação antiga não passa a enviar contexto automaticamente.
 
 **Migração:** a lista de caminhos conhecidos desta máquina (`F:\models\…`, `C:\SlopStudio.MongoAI-artifacts\…`) e a sugestão automática de caminho foram removidas. Um `ModelPath` já salvo continua funcionando como pasta externa. Para usar o catálogo, informe o diretório pai (por exemplo `F:\models`) e escolha a pasta.
 

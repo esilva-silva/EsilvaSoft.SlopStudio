@@ -1,5 +1,18 @@
 # Matriz de validação
 
+## Fase 5 / v0.9.0 — IA local e produtividade contextual — 22/09/2026
+
+Escopo automatizável implementado. Restore locked-mode passou com `NuGet.Config` temporário apontando ao cache local e `NuGetAudit=false`; sandbox bloqueia o config global e TLS com NuGet.org, então a auditoria online de pacotes ficou indisponível. Build integrado (`dotnet build EsilvaSoft.SlopStudio.slnx --no-restore -p:UsedAvaloniaProducts=`): **0 avisos, 0 erros**. Suíte completa (`dotnet test EsilvaSoft.SlopStudio.slnx --no-build --no-restore -p:UsedAvaloniaProducts=`): **2.742 aprovados, 0 falhas, 20 ignorados** (2.699 UnitTests + 43 Benchmarks). Os 20 ignorados incluem verificações condicionadas a pesos ONNX/ambiente real.
+
+| Frente | Evidência automatizada | Limite registrado |
+| --- | --- | --- |
+| F5-02/05 — privacidade e chat | 73 testes focados; consentimento global e por conexão; Input JSON em opt-in separado; snapshot de contexto revisto antes da inferência e invalidado se instrução, editor, destino ou política mudar; diff recalculado, proposta inválida/obsoleta recusada, confirmação adicional e undo; nenhuma execução Mongo ao aplicar | Fakes e serviço baseline não comprovam fidelidade do modelo local real |
+| F5-03 — runtime multimodelo | 4 testes focados, inclusive chamada já registrada/aguardando durante troca e override ChatModel distinto permitido apenas na seleção base atual | Pacotes ONNX, providers GPU/NPU e falhas de hardware reais não exercitados |
+| F5-04 — preemptivo e IME | Rajada de 20 teclas: 20 lookups determinísticos locais, 0 inferências de IA antes do debounce e uma única execução de fallback depois; lifecycle de preedit IME publicado e suprime ghost; quatro execuções de edição→ghost p95 **3,85–8,42 ms** | Headless não homologa IME nativo, acessibilidade ou temporização em Windows/Linux gráfico |
+| F5-06/07 — UI e idiomas | 73 casos focados nos quatro idiomas; PNGs Headless claros/escuros de chat/proposta e prévia nos quatro idiomas; amostras pt-BR claro, zh-CN escuro e en claro inspecionadas; undo após aplicar | Revisão linguística de domínio, leitor de tela e layouts nativos continuam na Fase 9 |
+
+PNGs do chat e prévia: `tests/EsilvaSoft.SlopStudio.UnitTests/bin/Debug/net10.0/ui-evidence/ai-chat-localization/` (quatro locales × claro/escuro). Benchmarks condicionais não executados estão contados como ignorados; não se declara inferência real concluída. A Fase 5 permanece experimental até a homologação aplicável; ver [meta de implementação](phases/phase-05-v0.9.0/meta-de-implementacao.md).
+
 ## Estado corrente da meta de autocomplete — 21/09/2026
 
 Evidência automatizada atual: `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore -p:UsedAvaloniaProducts=` passou com **0 avisos e 0 erros**; a suíte `EsilvaSoft.SlopStudio.UnitTests` passou com **2.639 aprovados, 0 falhas e 20 ignorados**; o corpus `LanguageCaseCorpusTests` passou com **676 testes verdes** (675 fixtures e o gate agregado de ranking). Os testes novos cobrem namespaces de metadata, schema aprendido no catálogo/completion, edições/snippets, `$lookup` estrangeiro e propagação de campos por ramos de `$facet`.
@@ -29,7 +42,7 @@ Build `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore`: **0 avisos, 0 erro
 | K15 — teto de profundidade/nós em `CollectionSchema.Merge` | Teste com schema que excede `SchemaMaximumDepth`/`SchemaMaximumNodes` |
 | K16-b — cota por fonte em `KnowledgeCatalog.Query` | Teste com duas fontes do mesmo `kind` disputando `MaximumCandidates` |
 | K11 — travas de regressão | Cache esvaziado após `InvalidateEnvironment`; hosts distintos com mesmo nome de namespace sem reuso cruzado |
-| P51 — coordinator, debounce, cancelamento | 20 teclas abaixo do debounce → zero computação; pausa gera exatamente uma; sete gatilhos de cancelamento cobertos |
+| P51 — coordinator, debounce, cancelamento | 20 teclas abaixo do debounce → 20 lookups determinísticos locais, zero inferências IA; pausa gera exatamente um fallback; sete gatilhos de cancelamento cobertos |
 | P52 — provider determinístico e confiança | Abstenção por ambiguidade/truncamento/palavra completa/snippet; funcionamento sem modelo/MongoDB |
 | P53 — presenter, typeahead, undo | Aceite como operação única de undo sem executar consulta; isolamento entre abas |
 | Flags inline e migração | Quatro combinações de `InlineUseTraditional`/`InlineUseAi`; ausente ≠ `false` explícito; migração v1 com `InlineUseAi = false` |
@@ -40,8 +53,8 @@ Build `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore`: **0 avisos, 0 erro
 
 | Item | Situação |
 | --- | --- |
-| Edição → ghost, p95 ≤ 20 ms | Medida em Headless (não é homologação nativa): 17,6–27,1 ms de excedente sobre o debounce, dominado pela resolução do temporizador do Windows. **Meta não atendida** |
-| IME real | `ImeComposing` nunca é publicado pelo editor real; a inibição por composição de IME só existe em teste |
+| Edição → ghost, p95 ≤ 20 ms | Meta atendida em Headless após otimização: p95 de 3,85–8,42 ms em quatro execuções. Não homologa temporização nativa |
+| IME real | O editor publica início/atualização/fim de preedit; ciclo coberto em Headless. IME nativo aguarda homologação |
 | Layouts físicos (ABNT2/US Windows; X11/Wayland Linux) | Não executado |
 | Leitor de tela | Não executado |
 | MongoDB real | Não exercitado neste lote |
@@ -51,8 +64,7 @@ Build `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore`: **0 avisos, 0 erro
 ### Pendências de escopo, não de evidência
 
 - K17 (relatório de performance do catálogo) permanece fora desta meta; L11–L15 estão implementados com testes, enquanto L16 (benchmark/gate de performance) permanece fora desta meta.
-- `InlineEnabled`/`InlineUseTraditional`/`InlineUseAi` não têm controle em `AutocompleteSettingsWindow`; só editáveis
-  via JSON persistido.
+- `InlineEnabled`/`InlineUseTraditional`/`InlineUseAi` têm bindings e controles em `AutocompleteSettingsWindow`; a anotação anterior que dizia serem editáveis só via JSON estava desatualizada.
 - Registro histórico: os arquivos `.case` em `tests/.../Language/Cases/` estavam sem runner. Desde 21/09/2026, o runner automatizado cobre parsing, papéis, shapes, kinds, aspas, `ReplaceSpan`, edições/snippets e ranking tipado (**675 fixtures aprovados**); o gate agregado publica MRR/top-1/top-5 e as integrações de namespace metadata, schema learning e `$lookup` têm cobertura determinística complementar.
 - Fases 5.2 e 5.3 estão implementadas no fluxo automático com fakes: `LoadedOnly`, debounce, cancelamento, descarte por geração e arbitragem tradicional → IA são cobertos. A Fase 4 também tem `Ctrl+;`, indicador, prévia inline multilinha e matriz de fallback; o caminho com modelo ONNX real continua fora da validação desta meta.
 

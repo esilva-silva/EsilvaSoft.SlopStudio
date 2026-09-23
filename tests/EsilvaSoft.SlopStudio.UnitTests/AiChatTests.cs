@@ -61,11 +61,15 @@ public sealed class AiChatTests
     {
         using var context = new WorkspaceTestContext();
         var original = "db.users.find({})";
-        var proposal = new AiChangeProposal(Guid.NewGuid(), original, original + ".limit(20)", "explicação", "+ alteração", false, "",
-            new("limite a 20", "Aba", original, "javascript", "mongosh", "app", "users", "consulta"));
+        var tab = new EsilvaSoft.SlopStudio.Desktop.ViewModels.WorkspaceTabViewModel(context.Workspace)
+            { Text = original, Database = "app", Collection = "users" };
+        var proposed = original + ".limit(20)";
+        var editorContext = tab.CaptureAiEditorContext("limite a 20");
+        var proposal = new AiChangeProposal(Guid.NewGuid(), original, proposed, "explicação",
+            AiDiffBuilder.Build(original, proposed), false, "", editorContext);
         Assert.That(proposal.IsNoOp, Is.False);
-        Assert.That(AiDiffBuilder.Build(original, proposal.ProposedContent), Does.Contain("+"));
-        var tab = new EsilvaSoft.SlopStudio.Desktop.ViewModels.WorkspaceTabViewModel(context.Workspace) { Text = original, AiProposal = proposal };
+        Assert.That(proposal.Diff, Does.Contain("+"));
+        tab.AiProposal = proposal;
         Assert.That(tab.Text, Is.EqualTo(original), "A proposta deve permanecer apenas na prévia até a confirmação.");
         Assert.That(tab.ApplyAiProposal(proposal), Is.True);
         Assert.That(tab.Text, Is.EqualTo(proposal.ProposedContent));
@@ -75,5 +79,212 @@ public sealed class AiChatTests
         tab.Text = "editor alterado pelo usuário";
         Assert.That(tab.ApplyAiProposal(stale), Is.False);
         Assert.That(tab.Text, Is.EqualTo("editor alterado pelo usuário"));
+    }
+
+    [Test]
+    public async Task ChatContextHonorsEditorAndResultOptOutAndNeverIncludesInputJson()
+    {
+        using var context = new WorkspaceTestContext();
+        var autocomplete = new AutocompleteService();
+        await autocomplete.ConfigureAsync(new AutocompleteSettings { UseEditorContext = false, UseResultPanelContext = false });
+        var tab = new EsilvaSoft.SlopStudio.Desktop.ViewModels.WorkspaceTabViewModel(context.Workspace)
+        {
+            Autocomplete = autocomplete,
+            Text = "db.users.find({ segredo: 'editor' })",
+            InputJson = "{\"token\":\"input-secret\"}",
+            Database = "app",
+            Collection = "users"
+        };
+
+        var snapshot = tab.CaptureAiEditorContext("resuma o contexto");
+
+        Assert.That(snapshot.EditorContent, Is.Empty);
+        Assert.That(snapshot.AdditionalContext, Does.Not.Contain("input-secret"));
+        Assert.That(snapshot.AdditionalContext, Does.Not.Contain("segredo"));
+        Assert.That(snapshot.Database, Is.EqualTo("app"));
+        Assert.That(snapshot.Collection, Is.EqualTo("users"));
+    }
+
+    [Test]
+    public async Task InputJsonIsIncludedOnlyAfterItsOwnExplicitLocalAiOptIn()
+    {
+        using var context = new WorkspaceTestContext();
+        var autocomplete = new AutocompleteService();
+        await autocomplete.ConfigureAsync(new AutocompleteSettings { LocalAiContextEnabled = true });
+        var tab = new EsilvaSoft.SlopStudio.Desktop.ViewModels.WorkspaceTabViewModel(context.Workspace)
+        {
+            Autocomplete = autocomplete,
+            InputJson = "{\"tenant\":\"north\"}",
+            Database = "app",
+            Collection = "users"
+        };
+
+        var defaultSnapshot = tab.CaptureAiEditorContext("explique o input");
+        await autocomplete.ConfigureAsync(autocomplete.Settings with { IncludeInputJsonInLocalAiContext = true });
+        var optedInSnapshot = tab.CaptureAiEditorContext("explique o input");
+
+        Assert.That(defaultSnapshot.AdditionalContext, Does.Not.Contain("tenant"));
+        Assert.That(optedInSnapshot.AdditionalContext, Does.Contain("INPUT JSON (opt-in)").And.Contain("tenant"));
+    }
+
+    [Test]
+    public async Task GlobalAndPerConnectionOptOutPreventChatRequestDispatch()
+    {
+        using var context = new WorkspaceTestContext();
+        var autocomplete = new AutocompleteService();
+        await autocomplete.ConfigureAsync(new AutocompleteSettings { LocalAiContextEnabled = true });
+        var chat = new RecordingAiChatService();
+        var profile = ConnectionProfile.Create("Privada", "mongodb://localhost") with { LocalAiContextEnabled = false };
+        var tab = new EsilvaSoft.SlopStudio.Desktop.ViewModels.WorkspaceTabViewModel(context.Workspace)
+        {
+            Autocomplete = autocomplete,
+            AiChat = chat,
+            Profile = profile,
+            Database = "app",
+            Collection = "users",
+            Text = "db.users.find({})",
+            ChatInput = "resuma"
+        };
+
+        await tab.SendAiChatCommand.ExecuteAsync(null);
+
+        Assert.That(chat.RequestCount, Is.Zero);
+        Assert.That(tab.ChatStatus, Is.EqualTo(AiChatStatus.NoContext));
+
+        tab.Profile = profile with { LocalAiContextEnabled = true };
+        await autocomplete.ConfigureAsync(autocomplete.Settings with { LocalAiContextEnabled = false });
+        await tab.SendAiChatCommand.ExecuteAsync(null);
+        Assert.That(chat.RequestCount, Is.Zero, "Global opt-out also blocks dispatch after this profile permits local context.");
+    }
+
+    [Test]
+    public async Task ContextMustBeReviewedAndAnyLaterEditRequiresANewPreview()
+    {
+        using var context = new WorkspaceTestContext();
+        var autocomplete = new AutocompleteService();
+        await autocomplete.ConfigureAsync(new AutocompleteSettings { LocalAiContextEnabled = true });
+        var chat = new RecordingAiChatService();
+        var tab = new EsilvaSoft.SlopStudio.Desktop.ViewModels.WorkspaceTabViewModel(context.Workspace)
+        {
+            Autocomplete = autocomplete, AiChat = chat, Database = "app", Collection = "users",
+            Text = "db.users.find({})", InputJson = "{\"key\":\"hidden\"}", ChatInput = "explique"
+        };
+
+        await tab.SendAiChatCommand.ExecuteAsync(null);
+        Assert.That(tab.HasAiContextPreview, Is.True);
+        Assert.That(tab.AiContextPreview, Does.Contain("db.users.find({})").And.Contain("explique").And.Not.Contain("hidden"));
+        Assert.That(chat.RequestCount, Is.Zero);
+
+        tab.Text += " ";
+        await tab.SendAiChatCommand.ExecuteAsync(null);
+        Assert.That(tab.HasAiContextPreview, Is.False, "Uma edição posterior invalida a prévia antiga.");
+        Assert.That(chat.RequestCount, Is.Zero);
+
+        await tab.SendAiChatCommand.ExecuteAsync(null);
+        await autocomplete.ConfigureAsync(autocomplete.Settings with { UseEditorContext = false });
+        await autocomplete.ConfigureAsync(autocomplete.Settings with { UseEditorContext = true });
+        await tab.SendAiChatCommand.ExecuteAsync(null);
+        Assert.That(tab.HasAiContextPreview, Is.False, "Alterar e restaurar a política também invalida a prévia.");
+        Assert.That(chat.RequestCount, Is.Zero);
+
+        await tab.SendAiChatCommand.ExecuteAsync(null);
+        await tab.SendAiChatCommand.ExecuteAsync(null);
+        Assert.That(chat.RequestCount, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task InvalidAiProposalIsRejectedBeforeItCanBeReviewedOrApplied()
+    {
+        using var context = new WorkspaceTestContext();
+        var autocomplete = new AutocompleteService();
+        await autocomplete.ConfigureAsync(new AutocompleteSettings { LocalAiContextEnabled = true });
+        var tab = new EsilvaSoft.SlopStudio.Desktop.ViewModels.WorkspaceTabViewModel(context.Workspace)
+        {
+            Autocomplete = autocomplete,
+            AiChat = new FixedAiChatService(new("explicação", "db.users.find({", "diff")),
+            Database = "app",
+            Collection = "users",
+            Text = "db.users.find({})",
+            ChatInput = "limite a 20"
+        };
+
+        await tab.SendAiChatCommand.ExecuteAsync(null); // revisão explícita do contexto
+        await tab.SendAiChatCommand.ExecuteAsync(null);
+
+        Assert.That(tab.AiProposal, Is.Null);
+        Assert.That(tab.ChatStatus, Is.EqualTo(AiChatStatus.Error));
+        Assert.That(tab.ChatStatusMessage, Does.Contain("inválido"));
+        Assert.That(tab.Text, Is.EqualTo("db.users.find({})"));
+    }
+
+    [Test]
+    public void ProposalCannotBeAppliedAfterTextWasEditedAndRestored()
+    {
+        using var context = new WorkspaceTestContext();
+        var original = "db.users.find({})";
+        var tab = new EsilvaSoft.SlopStudio.Desktop.ViewModels.WorkspaceTabViewModel(context.Workspace)
+            { Text = original, Database = "app", Collection = "users" };
+        var proposed = original + ".limit(20)";
+        var proposal = new AiChangeProposal(Guid.NewGuid(), original, proposed, "explicação",
+            AiDiffBuilder.Build(original, proposed), false, "", tab.CaptureAiEditorContext("limite a 20"));
+        tab.AiProposal = proposal;
+
+        tab.Text = original + " ";
+        tab.Text = original;
+
+        Assert.That(tab.CanApplyAiProposal(proposal), Is.False);
+        Assert.That(tab.ApplyAiProposal(proposal), Is.False);
+        Assert.That(tab.Text, Is.EqualTo(original));
+    }
+
+    [Test]
+    public void ProposalCannotBeAppliedWhenItsDiffWasChanged()
+    {
+        using var context = new WorkspaceTestContext();
+        var original = "db.users.find({})";
+        var tab = new EsilvaSoft.SlopStudio.Desktop.ViewModels.WorkspaceTabViewModel(context.Workspace)
+            { Text = original, Database = "app", Collection = "users" };
+        var proposed = original + ".limit(20)";
+        var proposal = new AiChangeProposal(Guid.NewGuid(), original, proposed, "explicação", "diff divergente", false, "",
+            tab.CaptureAiEditorContext("limite a 20"));
+        tab.AiProposal = proposal;
+
+        Assert.That(tab.CanApplyAiProposal(proposal), Is.False);
+        Assert.That(tab.ApplyAiProposal(proposal), Is.False);
+        Assert.That(tab.Text, Is.EqualTo(original));
+    }
+
+    [Test]
+    public void ProposalCannotBeAppliedAfterDestinationChangesAndReturnsToItsOriginalValue()
+    {
+        using var context = new WorkspaceTestContext();
+        var original = "db.users.find({})";
+        var tab = new EsilvaSoft.SlopStudio.Desktop.ViewModels.WorkspaceTabViewModel(context.Workspace)
+            { Text = original, Database = "app", Collection = "users" };
+        var proposed = original + ".limit(20)";
+        var proposal = new AiChangeProposal(Guid.NewGuid(), original, proposed, "explicação",
+            AiDiffBuilder.Build(original, proposed), false, "", tab.CaptureAiEditorContext("limite a 20"));
+        tab.AiProposal = proposal;
+
+        tab.Database = "outro";
+        tab.Database = "app";
+
+        Assert.That(tab.CanApplyAiProposal(proposal), Is.False);
+        Assert.That(tab.ApplyAiProposal(proposal), Is.False);
+    }
+
+    private sealed class RecordingAiChatService : IAiChatService
+    {
+        public int RequestCount { get; private set; }
+        public Task<AiChatResponse?> AskAsync(AiChatRequest request, CancellationToken cancellationToken = default)
+        {
+            RequestCount++;
+            return Task.FromResult<AiChatResponse?>(null);
+        }
+    }
+
+    private sealed class FixedAiChatService(AiChatResponse response) : IAiChatService
+    {
+        public Task<AiChatResponse?> AskAsync(AiChatRequest request, CancellationToken cancellationToken = default) => Task.FromResult<AiChatResponse?>(response);
     }
 }

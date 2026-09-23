@@ -29,9 +29,16 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
     private ModelKey? _failedKey;
     private DateTimeOffset _retryAfter;
     private LocalModelUnavailableReason _failedCause;
+    // Null until the first settings switch. Afterwards only the selected autocomplete/chat model keys are accepted.
+    private HashSet<ModelKey>? _configuredKeys;
+    private HashSet<ModelKey> _supersededKeys = [];
+    private HashSet<ModelKey> _observedChatKeys = [];
+    private AutocompleteSettings? _configuredSettings;
     private CancellationTokenSource? _active;
     private CancellationTokenSource? _activePreemption;
     private AiRequestPriority _activePriority;
+    // Includes requests waiting for the queue or a detached model load, not only runtime inference.
+    private readonly HashSet<CancellationTokenSource> _generationRequests = [];
     private LocalModelDefinition? _loadedDefinition;
     private Func<string, string>? _localize;
     private LocalModelStatus _status = new(LocalModelState.NotLoaded, "Nenhum modelo carregado; autocomplete básico disponível.");
@@ -71,7 +78,7 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            return (await EnsureLoadedAsync(KeyFor(role, settings), settings, linked.Token).ConfigureAwait(false)).Model;
+            return (await EnsureLoadedAsync(KeyFor(role, settings), role, settings, linked.Token).ConfigureAwait(false)).Model;
         }
         finally { _gate.Release(); }
     }
@@ -92,7 +99,29 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
     public async Task SwitchModelAsync(AutocompleteSettings settings, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        CancelGeneration();
+        var configuredKeys = new HashSet<ModelKey>
+        {
+            KeyFor(LocalModelRole.Autocomplete, settings), KeyFor(LocalModelRole.Chat, settings)
+        };
+        CancellationTokenSource[] requests;
+        lock (_stateGate)
+        {
+            // Publish the new selection before awaiting the gate. A stale request racing behind this switch will
+            // either be cancelled here or rejected against these keys when it eventually enters the gate.
+            if (_configuredSettings is not null)
+            {
+                foreach (var previous in _configuredKeys!)
+                    if (!configuredKeys.Contains(previous)) _supersededKeys.Add(previous);
+                if (!SameModelSourceAndHardware(_configuredSettings, settings) || settings.ChatModel.Length > 0)
+                    foreach (var previous in _observedChatKeys)
+                        if (!configuredKeys.Contains(previous)) _supersededKeys.Add(previous);
+            }
+            _observedChatKeys = [];
+            _configuredSettings = settings;
+            _configuredKeys = configuredKeys;
+            requests = [.. _generationRequests];
+        }
+        CancelRequests(requests);
         await _gate.WaitAsync((int)AiRequestPriority.Interactive, cancellationToken).ConfigureAwait(false);
         try
         {
@@ -108,7 +137,28 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
 
     public void CancelGeneration()
     {
-        lock (_stateGate) _active?.Cancel();
+        CancellationTokenSource[] requests;
+        lock (_stateGate) requests = [.. _generationRequests];
+        CancelRequests(requests);
+    }
+
+    private static void CancelRequests(IEnumerable<CancellationTokenSource> requests)
+    {
+        foreach (var request in requests)
+        {
+            try { request.Cancel(); }
+            catch (ObjectDisposedException) { /* The request completed after the snapshot. */ }
+        }
+    }
+
+    private void RegisterGenerationRequest(CancellationTokenSource request)
+    {
+        lock (_stateGate) _generationRequests.Add(request);
+    }
+
+    private void UnregisterGenerationRequest(CancellationTokenSource request)
+    {
+        lock (_stateGate) _generationRequests.Remove(request);
     }
 
     public async Task<LocalModelGeneration> GenerateAsync(LocalModelRole role, AutocompleteSettings settings, Func<LocalModelDefinition, ModelGenerationRequest> request,
@@ -121,35 +171,43 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
         using var preemption = new CancellationTokenSource();
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdown.Token, preemption.Token);
         var token = linked.Token;
+        RegisterGenerationRequest(linked);
         if (priority == AiRequestPriority.Interactive) PreemptBackground();
-        await _gate.WaitAsync((int)priority, token).ConfigureAwait(false);
-        var key = KeyFor(role, settings);
         try
         {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            token.ThrowIfCancellationRequested();
-            var loaded = load == AiModelLoadPolicy.LoadedOnly
-                ? RequireLoaded(key)
-                : await EnsureLoadedAsync(key, settings, token).ConfigureAwait(false);
-            RequireCapability(loaded.Model, role);
-            lock (_stateGate) { _active = linked; _activePreemption = preemption; _activePriority = priority; }
-            if (priority == AiRequestPriority.Background && _gate.HasWaiters((int)AiRequestPriority.Interactive)) preemption.Cancel();
-            var generated = await loaded.Runtime.GenerateAsync(request(loaded.Model), token).ConfigureAwait(false);
-            token.ThrowIfCancellationRequested();
-            Succeeded(loaded, key, roleTag, role, generated);
-            return new(loaded.Model, generated);
-        }
-        catch (Exception ex)
-        {
-            var translated = await TranslateGenerationFailureAsync(ex, key, roleTag, preemption, cancellationToken, token).ConfigureAwait(false);
-            if (ReferenceEquals(translated, ex)) throw;
-            throw translated;
+            await _gate.WaitAsync((int)priority, token).ConfigureAwait(false);
+            var key = KeyFor(role, settings);
+            try
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                token.ThrowIfCancellationRequested();
+                var loaded = load == AiModelLoadPolicy.LoadedOnly
+                    ? RequireLoaded(key, role, settings)
+                    : await EnsureLoadedAsync(key, role, settings, token).ConfigureAwait(false);
+                RequireCapability(loaded.Model, role);
+                lock (_stateGate) { _active = linked; _activePreemption = preemption; _activePriority = priority; }
+                if (priority == AiRequestPriority.Background && _gate.HasWaiters((int)AiRequestPriority.Interactive)) preemption.Cancel();
+                var generated = await loaded.Runtime.GenerateAsync(request(loaded.Model), token).ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
+                Succeeded(loaded, key, roleTag, role, generated);
+                return new(loaded.Model, generated);
+            }
+            catch (Exception ex)
+            {
+                var translated = await TranslateGenerationFailureAsync(ex, key, roleTag, preemption, cancellationToken, token).ConfigureAwait(false);
+                if (ReferenceEquals(translated, ex)) throw;
+                throw translated;
+            }
+            finally
+            {
+                lock (_stateGate)
+                    if (ReferenceEquals(_active, linked)) { _active = null; _activePreemption = null; }
+                _gate.Release();
+            }
         }
         finally
         {
-            lock (_stateGate)
-                if (ReferenceEquals(_active, linked)) { _active = null; _activePreemption = null; }
-            _gate.Release();
+            UnregisterGenerationRequest(linked);
         }
     }
 
@@ -178,74 +236,79 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
         using var preemption = new CancellationTokenSource();
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdown.Token, preemption.Token);
         var token = linked.Token;
+        RegisterGenerationRequest(linked);
         if (priority == AiRequestPriority.Interactive) PreemptBackground();
-        await _gate.WaitAsync((int)priority, token).ConfigureAwait(false);
-        var key = KeyFor(role, settings);
         try
         {
-            ActiveModel loaded;
-            ModelGenerationRequest generation;
+            await _gate.WaitAsync((int)priority, token).ConfigureAwait(false);
+            var key = KeyFor(role, settings);
             try
             {
-                ObjectDisposedException.ThrowIf(_disposed, this);
-                token.ThrowIfCancellationRequested();
-                loaded = load == AiModelLoadPolicy.LoadedOnly
-                    ? RequireLoaded(key)
-                    : await EnsureLoadedAsync(key, settings, token).ConfigureAwait(false);
-                RequireCapability(loaded.Model, role);
-                generation = request(loaded.Model);
-            }
-            catch (Exception ex)
-            {
-                var translated = await TranslateGenerationFailureAsync(ex, key, roleTag, preemption, cancellationToken, token).ConfigureAwait(false);
-                if (ReferenceEquals(translated, ex)) throw;
-                throw translated;
-            }
-            lock (_stateGate) { _active = linked; _activePreemption = preemption; _activePriority = priority; }
-            if (priority == AiRequestPriority.Background && _gate.HasWaiters((int)AiRequestPriority.Interactive)) preemption.Cancel();
-
-            GeneratedChunk? last = null;
-            var enumerator = loaded.Runtime.StreamAsync(generation, token).GetAsyncEnumerator(token);
-            try
-            {
-                while (true)
+                ActiveModel loaded;
+                ModelGenerationRequest generation;
+                try
                 {
-                    GeneratedChunk chunk;
-                    try
+                    ObjectDisposedException.ThrowIf(_disposed, this);
+                    token.ThrowIfCancellationRequested();
+                    loaded = load == AiModelLoadPolicy.LoadedOnly
+                        ? RequireLoaded(key, role, settings)
+                        : await EnsureLoadedAsync(key, role, settings, token).ConfigureAwait(false);
+                    RequireCapability(loaded.Model, role);
+                    generation = request(loaded.Model);
+                }
+                catch (Exception ex)
+                {
+                    var translated = await TranslateGenerationFailureAsync(ex, key, roleTag, preemption, cancellationToken, token).ConfigureAwait(false);
+                    if (ReferenceEquals(translated, ex)) throw;
+                    throw translated;
+                }
+                lock (_stateGate) { _active = linked; _activePreemption = preemption; _activePriority = priority; }
+                if (priority == AiRequestPriority.Background && _gate.HasWaiters((int)AiRequestPriority.Interactive)) preemption.Cancel();
+
+                GeneratedChunk? last = null;
+                var enumerator = loaded.Runtime.StreamAsync(generation, token).GetAsyncEnumerator(token);
+                try
+                {
+                    while (true)
                     {
-                        if (!await enumerator.MoveNextAsync().ConfigureAwait(false)) break;
-                        chunk = enumerator.Current;
+                        GeneratedChunk chunk;
+                        try
+                        {
+                            if (!await enumerator.MoveNextAsync().ConfigureAwait(false)) break;
+                            chunk = enumerator.Current;
+                        }
+                        catch (Exception ex)
+                        {
+                            var translated = await TranslateGenerationFailureAsync(ex, key, roleTag, preemption, cancellationToken, token).ConfigureAwait(false);
+                            if (ReferenceEquals(translated, ex)) throw;
+                            throw translated;
+                        }
+                        if (chunk.IsFinal) last = chunk;
+                        yield return chunk;
                     }
-                    catch (Exception ex)
-                    {
-                        var translated = await TranslateGenerationFailureAsync(ex, key, roleTag, preemption, cancellationToken, token).ConfigureAwait(false);
-                        if (ReferenceEquals(translated, ex)) throw;
-                        throw translated;
-                    }
-                    if (chunk.IsFinal) last = chunk;
-                    yield return chunk;
+                }
+                finally { await enumerator.DisposeAsync().ConfigureAwait(false); }
+
+                try
+                {
+                    token.ThrowIfCancellationRequested();
+                    Succeeded(loaded, key, roleTag, role, Measured(last));
+                }
+                catch (Exception ex)
+                {
+                    var translated = await TranslateGenerationFailureAsync(ex, key, roleTag, preemption, cancellationToken, token).ConfigureAwait(false);
+                    if (ReferenceEquals(translated, ex)) throw;
+                    throw translated;
                 }
             }
-            finally { await enumerator.DisposeAsync().ConfigureAwait(false); }
-
-            try
+            finally
             {
-                token.ThrowIfCancellationRequested();
-                Succeeded(loaded, key, roleTag, role, Measured(last));
-            }
-            catch (Exception ex)
-            {
-                var translated = await TranslateGenerationFailureAsync(ex, key, roleTag, preemption, cancellationToken, token).ConfigureAwait(false);
-                if (ReferenceEquals(translated, ex)) throw;
-                throw translated;
+                lock (_stateGate)
+                    if (ReferenceEquals(_active, linked)) { _active = null; _activePreemption = null; }
+                _gate.Release();
             }
         }
-        finally
-        {
-            lock (_stateGate)
-                if (ReferenceEquals(_active, linked)) { _active = null; _activePreemption = null; }
-            _gate.Release();
-        }
+        finally { UnregisterGenerationRequest(linked); }
     }
 
     /// <summary>
@@ -335,7 +398,7 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
             name = model.Name;
             steps.Add(new(L("aiStepFiles", "Pasta e arquivos"), true, L("aiFilesFound", "genai_config.json, decoder ONNX e tokenizer encontrados.")));
             ActiveModel loaded;
-            try { loaded = await EnsureLoadedAsync(key, settings, token).ConfigureAwait(false); }
+            try { loaded = await EnsureLoadedAsync(key, LocalModelRole.Autocomplete, settings, token).ConfigureAwait(false); }
             catch (LocalModelUnavailableException ex) when (ex.InnerException is LocalModelLoadException { Stage: LocalModelLoadStage.Tokenizer })
             {
                 steps.Add(new(L("aiStepTokenizer", "Tokenizer"), false, ex.Message));
@@ -449,8 +512,9 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
     /// digitação, então aqui a única saída possível é recusar, sem nenhum efeito sobre o estado carregado.
     /// Chamado com <c>_gate</c> tomado, que é quem guarda <c>_loaded</c>, <c>_loading</c> e <c>_key</c>.
     /// </summary>
-    private ActiveModel RequireLoaded(ModelKey key)
+    private ActiveModel RequireLoaded(ModelKey key, LocalModelRole role, AutocompleteSettings settings)
     {
+        EnsureConfiguredKey(key, role, settings);
         if (_loaded is { } loaded && _key == key) return loaded;
         if (key.Path.Length == 0) throw NoModelConfigured();
         // Uma falha recente desta chave é informação mais útil do que "não está carregado": sob gate o modelo não
@@ -468,6 +532,32 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
     private LocalModelUnavailableException NoModelConfigured() =>
         new(L("aiNoModelSelectedPreferences", "Nenhum modelo selecionado. Escolha um modelo em Preferências para usar a IA local."))
         { UnavailableReason = LocalModelUnavailableReason.NoModelConfigured };
+
+    private void EnsureConfiguredKey(ModelKey key, LocalModelRole role, AutocompleteSettings settings)
+    {
+        lock (_stateGate)
+        {
+            if (_configuredKeys is null || _configuredKeys.Contains(key)) return;
+            if (role == LocalModelRole.Chat && IsCurrentChatOverride(key, settings))
+            {
+                _observedChatKeys.Add(key);
+                return;
+            }
+            throw new LocalModelUnavailableException(L("aiDifferentConfiguration", "O modelo carregado é de outra configuração; a solicitação foi descartada após a troca."))
+            { UnavailableReason = LocalModelUnavailableReason.DifferentConfiguration };
+        }
+    }
+
+    private bool IsCurrentChatOverride(ModelKey key, AutocompleteSettings settings) =>
+        _configuredSettings is { ChatModel.Length: 0 } configured
+        && settings.ChatModel.Length > 0 && AutocompleteSettings.IsModelFolderName(settings.ChatModel)
+        && SameModelSourceAndHardware(settings, configured) && !_supersededKeys.Contains(key);
+
+    private static bool SameModelSourceAndHardware(AutocompleteSettings left, AutocompleteSettings right) =>
+        string.Equals(left.ModelPath, right.ModelPath, StringComparison.Ordinal)
+        && string.Equals(left.ModelDirectory, right.ModelDirectory, StringComparison.Ordinal)
+        && string.Equals(left.SelectedModel, right.SelectedModel, StringComparison.Ordinal)
+        && left.Acceleration == right.Acceleration && left.ExecutionProvider == right.ExecutionProvider;
 
     /// <summary>
     /// Fim da recusa temporária desta chave, ou nulo quando não há cooldown ativo. O cooldown é por chave de modelo
@@ -504,8 +594,9 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
         };
     }
 
-    private async Task<ActiveModel> EnsureLoadedAsync(ModelKey key, AutocompleteSettings settings, CancellationToken token)
+    private async Task<ActiveModel> EnsureLoadedAsync(ModelKey key, LocalModelRole role, AutocompleteSettings settings, CancellationToken token)
     {
+        EnsureConfiguredKey(key, role, settings);
         if (_key is not null && _key != key)
         {
             diagnostics?.Record("model.switch", ModelName(key.Path));

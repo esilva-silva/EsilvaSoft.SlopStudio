@@ -89,7 +89,8 @@ public sealed partial class LiteDbConnectionProfileRepository
             profile.Folder)
         {
             TargetHost = profile.TargetHost,
-            SourceGenerationId = profile.SourceGenerationId
+            SourceGenerationId = profile.SourceGenerationId,
+            LocalAiContextEnabled = profile.LocalAiContextEnabled
         };
 
     private static ConnectionProfileDocument FromDomain(ConnectionProfile profile) =>
@@ -107,7 +108,8 @@ public sealed partial class LiteDbConnectionProfileRepository
             LastConnectedAt = profile.LastConnectedAt,
             Folder = profile.Folder,
             TargetHost = profile.TargetHost,
-            SourceGenerationId = profile.SourceGenerationId
+            SourceGenerationId = profile.SourceGenerationId,
+            LocalAiContextEnabled = profile.LocalAiContextEnabled
         };
 
     private sealed class ConnectionProfileDocument
@@ -144,5 +146,8 @@ public sealed partial class LiteDbConnectionProfileRepository
         /// rest of the document.
         /// </summary>
         public Guid? SourceGenerationId { get; init; }
+
+        /// <summary>Additive per-connection local AI context opt-out; legacy profiles preserve the enabled default.</summary>
+        public bool LocalAiContextEnabled { get; init; } = true;
     }
 }

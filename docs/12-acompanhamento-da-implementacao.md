@@ -1,5 +1,11 @@
 # Acompanhamento da implementação
 
+## Fase 5 / v0.9.0 — escopo automatizável concluído — 22/09/2026
+
+Build da solução: **0 avisos, 0 erros**. Suíte completa: **2.742 aprovados, 0 falhas, 20 ignorados**. Implementados consentimento local de contexto global/por conexão, opt-in separado de Input JSON e prévia obrigatória antes da inferência, com invalidação por edição/política/destino; respostas são vinculadas à revisão de origem e propostas continuam revisáveis, undoáveis e sem execução Mongo. Runtime agora invalida chamadas obsoletas que aguardam fila/carga sem interromper contexto válido; autocomplete imediato determinístico e fallback/IA debounced; editor publica ciclo de composição IME. Quatro execuções Headless do gate edição→ghost deram p95 3,85–8,42 ms. Imagens de chat e prévia nos quatro idiomas/temas foram geradas e inspecionadas.
+
+Restore locked-mode passou via cache local e `NuGet.Config` temporário; a leitura do config global e TLS para NuGet.org são bloqueados pelo sandbox, portanto `NuGetAudit` online não foi executado. Modelo ONNX real, fidelidade da inferência, GPU/NPU, Linux gráfico, IME/leitor de tela nativos e latência/memória reais continuam experimentais na Fase 9. A matriz e a [meta de implementação](phases/phase-05-v0.9.0/meta-de-implementacao.md) registram as evidências e limites.
+
 ## Meta v0.8.0 — fases 1–4 arquivadas — 22/09/2026
 
 Os escopos funcionais das fases 1–4 foram fechados e arquivados em `docs/done/release_v0.5.0` até `release_v0.8.0`; a homologação manual continua transferida para a Fase 9. Restore locked-mode, build Release e testes concluíram sem falhas: 2.674 testes unitários aprovados, 20 ignorados, 43 benchmarks aprovados e zero avisos/erros. `build-release.ps1 -Version 0.8.0` gerou os quatro pacotes locais (Windows/Linux, x64/ARM64) e `SHA256SUMS.txt`; checksums, arquiteturas, executáveis single-file, versão `0.8.0.0` e modo Linux `755` foram verificados. Modelos/hardware reais, MongoDB real, leitor de tela, diálogos nativos e demais homologações externas permanecem pendentes na Fase 9.
@@ -13,6 +19,8 @@ O novo runner de casos `.case` cobre parsing, papéis de contexto, shapes, kinds
 Os provedores explícito e preemptivo, cancelamento, concorrência, namespaces de metadata, schema learning e `$lookup` estrangeiro possuem cobertura unitária. O gate funcional de ranking registra **MRR 1,000, top-1 44/44 e top-5 44/44** sobre o corpus local; extensões futuras de corpus não reabrem este aceite. A suíte unitária completa mais recente teve **2.639 aprovados, 0 falhas e 20 ignorados**. Performance, validação multiplataforma, leitor de tela, MongoDB real e modelos reais permanecem explicitamente fora da meta.
 
 ## Fase 1 (K11–K16, K16-b) e Fase 5.1 (Traditional Preemptive) — 18/09/2026
+
+**Registro histórico desta data.** Os limites de IME, latência e controles abaixo foram reaudidados e atualizados em 22/09 na seção [Fase 5 / v0.9.0](#fase-5--v090--escopo-automatizável-concluído--22092026); não representam o estado atual.
 
 Build `dotnet build EsilvaSoft.SlopStudio.slnx --no-restore`: **0 avisos, 0 erros**. Suíte
 `dotnet test EsilvaSoft.SlopStudio.slnx --no-build --no-restore`: **1273 aprovados, 0 falhas** (baseline de entrada: 1154).
