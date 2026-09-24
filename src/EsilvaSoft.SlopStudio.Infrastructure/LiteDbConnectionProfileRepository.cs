@@ -19,6 +19,7 @@ public sealed partial class LiteDbConnectionProfileRepository :
     IAuditRepository,
     IWorkspaceSessionRepository,
     IEnvironmentVaultRepository,
+    ILegacyCredentialInventoryRepository,
     IConsoleHistoryRepository,
     IAgentAuthorizationPolicyRepository,
     IAgentAuditRepository,

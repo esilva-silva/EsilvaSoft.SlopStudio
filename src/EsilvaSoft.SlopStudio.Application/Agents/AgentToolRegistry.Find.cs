@@ -8,9 +8,33 @@ public sealed partial class AgentToolRegistry
 {
     private async Task<AgentToolInvocationResult> InvokeFindAsync(
         AgentPrincipal? principal, AgentInvocationContext? context, AgentOutputDestination? destination,
-        AgentOutputDataScope? outputScope, string? argumentsJson, CancellationToken cancellationToken)
+        AgentOutputDataScope? outputScope, string toolName, string? argumentsJson, CancellationToken cancellationToken)
     {
-        if (!TryParseFindArguments(argumentsJson, out var connectionId, out var database, out var collection, out var query))
+        Guid connectionId;
+        string? database;
+        string? collection;
+        AgentMongoFindQuery? query;
+        string? idEjson = null;
+        bool parsed;
+        if (toolName == GetDocumentToolName)
+        {
+            parsed = TryParseGetDocumentArguments(argumentsJson, out connectionId, out database,
+                out collection, out idEjson);
+            query = parsed ? new(database!, collection!, "{}", null, null, 1, 0, 5_000) : null;
+        }
+        else
+        {
+            parsed = toolName switch
+            {
+                SampleDocumentsToolName => TryParseSampleDocumentsArguments(argumentsJson, out connectionId,
+                    out database, out collection, out query),
+                MongoFindOneToolName => TryParseFindOneArguments(argumentsJson, out connectionId,
+                    out database, out collection, out query),
+                _ => TryParseFindArguments(argumentsJson, out connectionId,
+                    out database, out collection, out query)
+            };
+        }
+        if (!parsed)
             return AgentToolInvocationResult.Failure(InvalidArguments);
         if (principal is null || !IsCompleteInvocationContext(context) || destination is null ||
             !IsValidDestination(destination, context!) || outputScope != AgentOutputDataScope.DocumentValues ||
@@ -33,6 +57,8 @@ public sealed partial class AgentToolRegistry
                 generation == Guid.Empty || !IsValidProfileName(matching[0].Name))
                 return AgentToolInvocationResult.Failure(PermissionDenied, AgentAuditDecisionReason.ValidationRejected);
             profile = matching[0];
+            if (HasDynamicMongoTarget(profile))
+                return AgentToolInvocationResult.Failure(PermissionDenied, AgentAuditDecisionReason.ValidationRejected);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch
@@ -77,8 +103,12 @@ public sealed partial class AgentToolRegistry
         try
         {
             var allowedTimeMs = (int)Math.Clamp(_executionTimeout.TotalMilliseconds, 1, 30_000);
-            page = await AwaitWithCancellationAsync(_find.FindAsync(profile,
-                query! with { MaxTimeMs = Math.Min(query!.MaxTimeMs, allowedTimeMs) }, cancellationToken),
+            var operation = toolName == GetDocumentToolName
+                ? _find.FindByIdAsync(profile, new AgentMongoFindByIdQuery(database!, collection!, idEjson!,
+                    Math.Min(query!.MaxTimeMs, allowedTimeMs)), cancellationToken)
+                : _find.FindAsync(profile,
+                    query! with { MaxTimeMs = Math.Min(query!.MaxTimeMs, allowedTimeMs) }, cancellationToken);
+            page = await AwaitWithCancellationAsync(operation,
                 cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
@@ -96,6 +126,9 @@ public sealed partial class AgentToolRegistry
             page.DocumentsEjson.Count > query!.Limit || page.Truncated && !page.HasMore)
             return AgentToolInvocationResult.Failure(PermissionDenied, AgentAuditDecisionReason.ValidationRejected);
         if (page.ResultTooLarge) return AgentToolInvocationResult.Failure(ResultTooLarge);
+        var singleDocument = toolName is MongoFindOneToolName or GetDocumentToolName;
+        if (singleDocument && page.Truncated)
+            return AgentToolInvocationResult.Failure(PermissionDenied, AgentAuditDecisionReason.ValidationRejected);
 
         var returned = new List<string>(page.DocumentsEjson.Count);
         var truncated = page.Truncated;
@@ -105,8 +138,10 @@ public sealed partial class AgentToolRegistry
             if (document is null || Utf8ByteCount(document) > MaximumOutputBytes ||
                 !IsLiteralEjsonDocument(document, rejectCode: false, maximumBytes: MaximumOutputBytes))
                 return AgentToolInvocationResult.Failure(PermissionDenied, AgentAuditDecisionReason.ValidationRejected);
-            var candidate = new FindResponse([.. returned, document], returned.Count + 1,
-                true, true, "OutputLimit");
+            object candidate = singleDocument
+                ? new FindOneResponse(document)
+                : new FindResponse([.. returned, document], returned.Count + 1,
+                    true, true, "OutputLimit");
             if (Utf8ByteCount(JsonSerializer.Serialize(candidate, SerializerOptions)) > MaximumOutputBytes)
             {
                 if (returned.Count == 0) return AgentToolInvocationResult.Failure(ResultTooLarge);
@@ -124,8 +159,10 @@ public sealed partial class AgentToolRegistry
         if (finalLoad.Policy.Revision != policy.Revision)
             return AgentToolInvocationResult.Failure(PermissionDenied, AgentAuditDecisionReason.PolicyRevisionMismatch);
 
-        var json = JsonSerializer.Serialize(new FindResponse(returned, returned.Count,
-            page.HasMore || truncated, truncated, truncated ? "OutputLimit" : null), SerializerOptions);
+        var json = singleDocument
+            ? JsonSerializer.Serialize(new FindOneResponse(returned.Count == 0 ? null : returned[0]), SerializerOptions)
+            : JsonSerializer.Serialize(new FindResponse(returned, returned.Count,
+                page.HasMore || truncated, truncated, truncated ? "OutputLimit" : null), SerializerOptions);
         if (Utf8ByteCount(json) > MaximumOutputBytes) return AgentToolInvocationResult.Failure(ResultTooLarge);
         cancellationToken.ThrowIfCancellationRequested();
         return AgentToolInvocationResult.Success(json);
@@ -202,6 +239,173 @@ public sealed partial class AgentToolRegistry
         catch (JsonException) { return false; }
     }
 
+    private static bool TryParseSampleDocumentsArguments(string? json, out Guid connectionId, out string? database,
+        out string? collection, out AgentMongoFindQuery? query)
+    {
+        connectionId = Guid.Empty;
+        database = null;
+        collection = null;
+        query = null;
+        if (json is null || Utf8ByteCount(json) > MaximumInputBytes) return false;
+        try
+        {
+            using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 16 });
+            if (document.RootElement.ValueKind != JsonValueKind.Object) return false;
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            string? projection = null;
+            var limit = 5;
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (!seen.Add(property.Name)) return false;
+                switch (property.Name)
+                {
+                    case "connectionId" when property.Value.ValueKind == JsonValueKind.String &&
+                        Guid.TryParseExact(property.Value.GetString(), "D", out var parsedConnection) &&
+                        parsedConnection != Guid.Empty:
+                        connectionId = parsedConnection;
+                        break;
+                    case "database" when property.Value.ValueKind == JsonValueKind.String &&
+                        IsSafeMetadataName(property.Value.GetString()):
+                        database = property.Value.GetString();
+                        break;
+                    case "collection" when property.Value.ValueKind == JsonValueKind.String &&
+                        IsSafeMetadataName(property.Value.GetString()):
+                        collection = property.Value.GetString();
+                        break;
+                    case "limit" when property.Value.ValueKind == JsonValueKind.Number &&
+                        property.Value.TryGetInt32(out var parsedLimit) && parsedLimit is >= 1 and <= 20:
+                        limit = parsedLimit;
+                        break;
+                    case "projectionEjson" when property.Value.ValueKind == JsonValueKind.String &&
+                        IsSimpleFieldSpec(property.Value.GetString(), allowDescending: false):
+                        projection = property.Value.GetString();
+                        break;
+                    default: return false;
+                }
+            }
+            if (connectionId == Guid.Empty || database is null || collection is null) return false;
+            query = new(database, collection, "{}", projection, null, limit, 0, 5_000);
+            return true;
+        }
+        catch (JsonException) { return false; }
+    }
+
+    private static bool TryParseFindOneArguments(string? json, out Guid connectionId, out string? database,
+        out string? collection, out AgentMongoFindQuery? query)
+    {
+        connectionId = Guid.Empty;
+        database = null;
+        collection = null;
+        query = null;
+        if (json is null || Utf8ByteCount(json) > MaximumInputBytes) return false;
+        try
+        {
+            using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 16 });
+            if (document.RootElement.ValueKind != JsonValueKind.Object) return false;
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var filter = "{}";
+            string? projection = null;
+            string? sort = null;
+            var maxTimeMs = 5_000;
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (!seen.Add(property.Name)) return false;
+                switch (property.Name)
+                {
+                    case "connectionId" when property.Value.ValueKind == JsonValueKind.String &&
+                        Guid.TryParseExact(property.Value.GetString(), "D", out var parsedConnection) &&
+                        parsedConnection != Guid.Empty:
+                        connectionId = parsedConnection;
+                        break;
+                    case "database" when property.Value.ValueKind == JsonValueKind.String &&
+                        IsSafeMetadataName(property.Value.GetString()):
+                        database = property.Value.GetString();
+                        break;
+                    case "collection" when property.Value.ValueKind == JsonValueKind.String &&
+                        IsSafeMetadataName(property.Value.GetString()):
+                        collection = property.Value.GetString();
+                        break;
+                    case "filterEjson" when property.Value.ValueKind == JsonValueKind.String &&
+                        IsLiteralEjsonDocument(property.Value.GetString(), rejectCode: true):
+                        filter = property.Value.GetString()!;
+                        break;
+                    case "projectionEjson" when property.Value.ValueKind == JsonValueKind.String &&
+                        IsSimpleFieldSpec(property.Value.GetString(), allowDescending: false):
+                        projection = property.Value.GetString();
+                        break;
+                    case "sortEjson" when property.Value.ValueKind == JsonValueKind.String &&
+                        IsSimpleFieldSpec(property.Value.GetString(), allowDescending: true):
+                        sort = property.Value.GetString();
+                        break;
+                    case "maxTimeMs" when property.Value.ValueKind == JsonValueKind.Number &&
+                        property.Value.TryGetInt32(out var parsedMaxTime) && parsedMaxTime is >= 1 and <= 30_000:
+                        maxTimeMs = parsedMaxTime;
+                        break;
+                    default: return false;
+                }
+            }
+            if (connectionId == Guid.Empty || database is null || collection is null) return false;
+            query = new(database, collection, filter, projection, sort, 1, 0, maxTimeMs);
+            return true;
+        }
+        catch (JsonException) { return false; }
+    }
+
+    private static bool TryParseGetDocumentArguments(string? json, out Guid connectionId,
+        out string? database, out string? collection, out string? idEjson)
+    {
+        connectionId = Guid.Empty;
+        database = null;
+        collection = null;
+        idEjson = null;
+        if (json is null || Utf8ByteCount(json) > MaximumInputBytes) return false;
+        try
+        {
+            using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 16 });
+            if (document.RootElement.ValueKind != JsonValueKind.Object) return false;
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (!seen.Add(property.Name)) return false;
+                switch (property.Name)
+                {
+                    case "connectionId" when property.Value.ValueKind == JsonValueKind.String &&
+                        Guid.TryParseExact(property.Value.GetString(), "D", out var parsedConnection) &&
+                        parsedConnection != Guid.Empty:
+                        connectionId = parsedConnection;
+                        break;
+                    case "database" when property.Value.ValueKind == JsonValueKind.String &&
+                        IsSafeMetadataName(property.Value.GetString()):
+                        database = property.Value.GetString();
+                        break;
+                    case "collection" when property.Value.ValueKind == JsonValueKind.String &&
+                        IsSafeMetadataName(property.Value.GetString()):
+                        collection = property.Value.GetString();
+                        break;
+                    case "idEjson" when property.Value.ValueKind == JsonValueKind.String &&
+                        IsLiteralEjsonValue(property.Value.GetString()):
+                        idEjson = property.Value.GetString();
+                        break;
+                    default: return false;
+                }
+            }
+            return connectionId != Guid.Empty && database is not null && collection is not null && idEjson is not null;
+        }
+        catch (JsonException) { return false; }
+    }
+
+    private static bool IsLiteralEjsonValue(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json) || json.Length > MaximumInputBytes ||
+            Utf8ByteCount(json) > MaximumInputBytes) return false;
+        try
+        {
+            using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 64 });
+            return !HasForbiddenOperator(document.RootElement);
+        }
+        catch (JsonException) { return false; }
+    }
+
     private static bool IsLiteralEjsonDocument(string? json, bool rejectCode, int maximumBytes = MaximumInputBytes)
     {
         if (json is null || json.Length > maximumBytes || Utf8ByteCount(json) > maximumBytes)
@@ -256,4 +460,6 @@ public sealed partial class AgentToolRegistry
         [property: JsonPropertyName("truncated")] bool Truncated,
         [property: JsonPropertyName("truncationReason"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         string? TruncationReason);
+
+    private sealed record FindOneResponse([property: JsonPropertyName("documentEjson")] string? DocumentEjson);
 }

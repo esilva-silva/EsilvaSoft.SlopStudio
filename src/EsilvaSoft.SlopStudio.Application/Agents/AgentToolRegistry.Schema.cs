@@ -40,6 +40,8 @@ public sealed partial class AgentToolRegistry
                 generation == Guid.Empty || !IsValidProfileName(matching[0].Name))
                 return AgentToolInvocationResult.Failure(PermissionDenied, AgentAuditDecisionReason.ValidationRejected);
             profile = matching[0];
+            if (HasDynamicMongoTarget(profile))
+                return AgentToolInvocationResult.Failure(PermissionDenied, AgentAuditDecisionReason.ValidationRejected);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch

@@ -16,6 +16,13 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
     public const string ListCollectionsToolName = "list_collections";
     public const string GetCollectionSchemaToolName = "get_collection_schema";
     public const string MongoFindToolName = "mongo_find";
+    public const string MongoCountToolName = "mongo_count";
+    public const string SampleDocumentsToolName = "sample_documents";
+    public const string MongoFindOneToolName = "mongo_find_one";
+    public const string GetDocumentToolName = "get_document";
+    public const string MongoDistinctToolName = "mongo_distinct";
+    public const string GetIndexesToolName = "get_indexes";
+    public const string MongoExplainToolName = "mongo_explain";
     private const int MaximumInputBytes = 64 * 1024;
     private const int MaximumConnections = 200;
     private const string PermissionDenied = "PermissionDenied";
@@ -56,6 +63,43 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
     private const string MongoFindOutputSchema = """
         {"type":"object","additionalProperties":false,"required":["documentsEjson","returnedCount","hasMore","truncated"],"properties":{"documentsEjson":{"type":"array","maxItems":100,"items":{"type":"string"}},"returnedCount":{"type":"integer","minimum":0,"maximum":100},"hasMore":{"type":"boolean"},"truncated":{"type":"boolean"},"truncationReason":{"type":"string","const":"OutputLimit"}}}
         """;
+    private const string MongoCountInputSchema = """
+        {"type":"object","additionalProperties":false,"required":["connectionId","database","collection"],"properties":{"connectionId":{"type":"string","format":"uuid"},"database":{"type":"string","minLength":1,"maxLength":255},"collection":{"type":"string","minLength":1,"maxLength":255},"filterEjson":{"type":"string","maxLength":65536,"default":"{}"},"maxTimeMs":{"type":"integer","minimum":1,"maximum":30000,"default":5000}}}
+        """;
+    private const string MongoCountOutputSchema = """
+        {"type":"object","additionalProperties":false,"required":["countEjson","estimated"],"properties":{"countEjson":{"type":"string"},"estimated":{"type":"boolean","const":false}}}
+        """;
+    private const string SampleDocumentsInputSchema = """
+        {"type":"object","additionalProperties":false,"required":["connectionId","database","collection"],"properties":{"connectionId":{"type":"string","format":"uuid"},"database":{"type":"string","minLength":1,"maxLength":255},"collection":{"type":"string","minLength":1,"maxLength":255},"limit":{"type":"integer","minimum":1,"maximum":20,"default":5},"projectionEjson":{"type":"string","maxLength":65536}}}
+        """;
+    private const string SampleDocumentsOutputSchema = """
+        {"type":"object","additionalProperties":false,"required":["documentsEjson","returnedCount","hasMore","truncated"],"properties":{"documentsEjson":{"type":"array","maxItems":20,"items":{"type":"string"}},"returnedCount":{"type":"integer","minimum":0,"maximum":20},"hasMore":{"type":"boolean"},"truncated":{"type":"boolean"},"truncationReason":{"type":"string","const":"OutputLimit"}}}
+        """;
+    private const string MongoFindOneInputSchema = """
+        {"type":"object","additionalProperties":false,"required":["connectionId","database","collection"],"properties":{"connectionId":{"type":"string","format":"uuid"},"database":{"type":"string","minLength":1,"maxLength":255},"collection":{"type":"string","minLength":1,"maxLength":255},"filterEjson":{"type":"string","maxLength":65536,"default":"{}"},"projectionEjson":{"type":"string","maxLength":65536},"sortEjson":{"type":"string","maxLength":65536},"maxTimeMs":{"type":"integer","minimum":1,"maximum":30000,"default":5000}}}
+        """;
+    private const string MongoFindOneOutputSchema = """
+        {"type":"object","additionalProperties":false,"required":["documentEjson"],"properties":{"documentEjson":{"type":["string","null"]}}}
+        """;
+    private const string GetDocumentInputSchema = """
+        {"type":"object","additionalProperties":false,"required":["connectionId","database","collection","idEjson"],"properties":{"connectionId":{"type":"string","format":"uuid"},"database":{"type":"string","minLength":1,"maxLength":255},"collection":{"type":"string","minLength":1,"maxLength":255},"idEjson":{"type":"string","maxLength":65536}}}
+        """;
+    private const string MongoDistinctInputSchema = """
+        {"type":"object","additionalProperties":false,"required":["connectionId","database","collection","field"],"properties":{"connectionId":{"type":"string","format":"uuid"},"database":{"type":"string","minLength":1,"maxLength":255},"collection":{"type":"string","minLength":1,"maxLength":255},"field":{"type":"string","minLength":1,"maxLength":1024},"filterEjson":{"type":"string","maxLength":65536,"default":"{}"},"maximumValues":{"type":"integer","minimum":1,"maximum":100,"default":20},"maxTimeMs":{"type":"integer","minimum":1,"maximum":30000,"default":5000}}}
+        """;
+    private const string MongoDistinctOutputSchema = """
+        {"type":"object","additionalProperties":false,"required":["valuesEjson","truncated"],"properties":{"valuesEjson":{"type":"array","maxItems":100,"items":{"type":"string"}},"truncated":{"type":"boolean"},"truncationReason":{"type":"string","enum":["ValueLimit","OutputLimit"]}}}
+        """;
+    private const string GetIndexesInputSchema = """
+        {"type":"object","additionalProperties":false,"required":["connectionId","database","collection"],"properties":{"connectionId":{"type":"string","format":"uuid"},"database":{"type":"string","minLength":1,"maxLength":255},"collection":{"type":"string","minLength":1,"maxLength":255}}}
+        """;
+    private const string GetIndexesOutputSchema = """
+        {"type":"object","additionalProperties":false,"required":["indexes","truncated"],"properties":{"indexes":{"type":"array","maxItems":200,"items":{"type":"object","additionalProperties":false,"required":["name","keyFields","unique","sparse","hidden"],"properties":{"name":{"type":"string"},"keyFields":{"type":"array","items":{"type":"string"}},"unique":{"type":"boolean"},"sparse":{"type":"boolean"},"hidden":{"type":"boolean"}}}},"truncated":{"type":"boolean"},"truncationReason":{"type":"string","const":"OutputLimit"}}}
+        """;
+    private const string MongoExplainInputSchema = MongoFindInputSchema;
+    private const string MongoExplainOutputSchema = """
+        {"type":"object","additionalProperties":false,"required":["planEjson","verbosity"],"properties":{"planEjson":{"type":"string"},"verbosity":{"type":"string","const":"queryPlanner"}}}
+        """;
 
     private static readonly ReadOnlyCollection<AgentToolDescriptor> Descriptors = Array.AsReadOnly(
         [new AgentToolDescriptor(ListConnectionsToolName, 1, AgentToolRisk.ReadOnly, [AgentPermission.ReadMetadata]),
@@ -64,7 +108,21 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
          new AgentToolDescriptor(GetCollectionSchemaToolName, 1, AgentToolRisk.ReadOnly,
              [AgentPermission.ReadSchema, AgentPermission.ExecuteReadQueries]),
          new AgentToolDescriptor(MongoFindToolName, 1, AgentToolRisk.ReadOnly,
-             [AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments])]);
+             [AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments]),
+         new AgentToolDescriptor(MongoCountToolName, 1, AgentToolRisk.ReadOnly,
+             [AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments]),
+         new AgentToolDescriptor(SampleDocumentsToolName, 1, AgentToolRisk.ReadOnly,
+             [AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments]),
+         new AgentToolDescriptor(MongoFindOneToolName, 1, AgentToolRisk.ReadOnly,
+             [AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments]),
+         new AgentToolDescriptor(GetDocumentToolName, 1, AgentToolRisk.ReadOnly,
+             [AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments]),
+         new AgentToolDescriptor(MongoDistinctToolName, 1, AgentToolRisk.ReadOnly,
+             [AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments]),
+         new AgentToolDescriptor(GetIndexesToolName, 1, AgentToolRisk.ReadOnly,
+             [AgentPermission.ReadMetadata]),
+         new AgentToolDescriptor(MongoExplainToolName, 1, AgentToolRisk.ReadOnly,
+             [AgentPermission.ReadDiagnostics, AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments])]);
 
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
@@ -75,6 +133,12 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
     private readonly IMongoMetadataSource? _metadata;
     private readonly IAgentSchemaSamplingConsentProvider? _schemaSamplingConsent;
     private readonly IAgentMongoFindSource? _find;
+    private readonly IAgentMongoCountSource? _count;
+    private readonly IAgentMongoDistinctSource? _distinct;
+    private readonly IAgentMongoIndexSource? _indexes;
+    private readonly IAgentMongoExplainSource? _explain;
+    private readonly AgentToolInvocationQuota _quota = new();
+    private readonly AsyncLocal<AgentToolInvocationQuota.Lease?> _activeQuotaLease = new();
     private readonly TimeSpan _executionTimeout;
 
     public AgentToolRegistry(
@@ -85,7 +149,11 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         TimeSpan? executionTimeout = null,
         IMongoMetadataSource? metadata = null,
         IAgentSchemaSamplingConsentProvider? schemaSamplingConsent = null,
-        IAgentMongoFindSource? find = null)
+        IAgentMongoFindSource? find = null,
+        IAgentMongoCountSource? count = null,
+        IAgentMongoDistinctSource? distinct = null,
+        IAgentMongoIndexSource? indexes = null,
+        IAgentMongoExplainSource? explain = null)
     {
         _profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
         _policies = policies ?? throw new ArgumentNullException(nameof(policies));
@@ -94,6 +162,10 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         _metadata = metadata;
         _schemaSamplingConsent = schemaSamplingConsent;
         _find = find;
+        _count = count;
+        _distinct = distinct;
+        _indexes = indexes;
+        _explain = explain;
         var requestedTimeout = executionTimeout ?? DefaultExecutionTimeout;
         if (requestedTimeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(executionTimeout));
         _executionTimeout = requestedTimeout > MaximumExecutionTimeout ? MaximumExecutionTimeout : requestedTimeout;
@@ -112,6 +184,13 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
             ListCollectionsToolName => ListCollectionsInputSchema,
             GetCollectionSchemaToolName => GetCollectionSchemaInputSchema,
             MongoFindToolName => MongoFindInputSchema,
+            MongoCountToolName => MongoCountInputSchema,
+            SampleDocumentsToolName => SampleDocumentsInputSchema,
+            MongoFindOneToolName => MongoFindOneInputSchema,
+            GetDocumentToolName => GetDocumentInputSchema,
+            MongoDistinctToolName => MongoDistinctInputSchema,
+            GetIndexesToolName => GetIndexesInputSchema,
+            MongoExplainToolName => MongoExplainInputSchema,
             _ => null
         };
 
@@ -122,6 +201,13 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
             ListDatabasesToolName or ListCollectionsToolName => NamesOutputSchema,
             GetCollectionSchemaToolName => GetCollectionSchemaOutputSchema,
             MongoFindToolName => MongoFindOutputSchema,
+            MongoCountToolName => MongoCountOutputSchema,
+            SampleDocumentsToolName => SampleDocumentsOutputSchema,
+            MongoFindOneToolName => MongoFindOneOutputSchema,
+            GetDocumentToolName => MongoFindOneOutputSchema,
+            MongoDistinctToolName => MongoDistinctOutputSchema,
+            GetIndexesToolName => GetIndexesOutputSchema,
+            MongoExplainToolName => MongoExplainOutputSchema,
             _ => null
         };
 
@@ -165,8 +251,16 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
                 }
             }
 
-            var result = await InvokeWithinDeadlineAsync(principal, invocationContext, destination, outputDataScope,
-                name, argumentsJson, deadline.Token).ConfigureAwait(false);
+            // The intent is durable before admission. A rejected call is still counted for its
+            // turn and receives a correlated, typed audit outcome without touching a source.
+            using var quotaLease = auditable
+                ? _quota.TryEnter(invocationContext!.SessionId!.Value, invocationContext.TurnId!.Value,
+                    intent!.ConnectionId)
+                : null;
+            var result = auditable && quotaLease is null
+                ? AgentToolInvocationResult.Failure(PermissionDenied, AgentAuditDecisionReason.LimitExceeded)
+                : await InvokeWithQuotaLeaseAsync(quotaLease, principal, invocationContext, destination,
+                    outputDataScope, name, argumentsJson, deadline.Token).ConfigureAwait(false);
             deadline.Token.ThrowIfCancellationRequested();
             if (intentWritten && !await AppendOutcomeAsync(intent!, result).ConfigureAwait(false))
                 return AgentToolInvocationResult.Failure(PermissionDenied);
@@ -194,6 +288,25 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         }
     }
 
+    private async Task<AgentToolInvocationResult> InvokeWithQuotaLeaseAsync(
+        AgentToolInvocationQuota.Lease? lease, AgentPrincipal? principal,
+        AgentInvocationContext? invocationContext, AgentOutputDestination? destination,
+        AgentOutputDataScope? outputDataScope, string? name, string? argumentsJson,
+        CancellationToken cancellationToken)
+    {
+        var previous = _activeQuotaLease.Value;
+        _activeQuotaLease.Value = lease;
+        try
+        {
+            return await InvokeWithinDeadlineAsync(principal, invocationContext, destination, outputDataScope,
+                name, argumentsJson, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _activeQuotaLease.Value = previous;
+        }
+    }
+
     private static AgentAuditEvent CreateAuditIntent(
         AgentPrincipal principal, AgentInvocationContext context, AgentOutputDestination destination,
         string name, string? argumentsJson)
@@ -204,6 +317,20 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         bool parsed;
         if (name == MongoFindToolName)
             parsed = TryParseFindArguments(argumentsJson, out connectionId, out database, out _, out _);
+        else if (name == MongoCountToolName)
+            parsed = TryParseCountArguments(argumentsJson, out connectionId, out database, out _, out _);
+        else if (name == SampleDocumentsToolName)
+            parsed = TryParseSampleDocumentsArguments(argumentsJson, out connectionId, out database, out _, out _);
+        else if (name == MongoFindOneToolName)
+            parsed = TryParseFindOneArguments(argumentsJson, out connectionId, out database, out _, out _);
+        else if (name == GetDocumentToolName)
+            parsed = TryParseGetDocumentArguments(argumentsJson, out connectionId, out database, out _, out _);
+        else if (name == MongoDistinctToolName)
+            parsed = TryParseDistinctArguments(argumentsJson, out connectionId, out database, out _, out _);
+        else if (name == GetIndexesToolName)
+            parsed = TryParseGetIndexesArguments(argumentsJson, out connectionId, out database, out _);
+        else if (name == MongoExplainToolName)
+            parsed = TryParseFindArguments(argumentsJson, out connectionId, out database, out _, out _);
         else if (name == GetCollectionSchemaToolName)
             parsed = TryParseSchemaArguments(argumentsJson, out connectionId, out database, out _, out _);
         else
@@ -212,6 +339,12 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         {
             GetCollectionSchemaToolName => AgentPermission.ReadSchema,
             MongoFindToolName => AgentPermission.ReadDocuments,
+            MongoCountToolName => AgentPermission.ReadDocuments,
+            SampleDocumentsToolName => AgentPermission.ReadDocuments,
+            MongoFindOneToolName => AgentPermission.ReadDocuments,
+            GetDocumentToolName => AgentPermission.ReadDocuments,
+            MongoDistinctToolName => AgentPermission.ReadDocuments,
+            MongoExplainToolName => AgentPermission.ReadDiagnostics,
             _ => AgentPermission.ReadMetadata
         };
         return new AgentAuditEvent(Guid.NewGuid(), AgentAuditEvent.CurrentSchemaVersion, startedAt,
@@ -258,13 +391,20 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
             {
                 outputBytes = Encoding.UTF8.GetByteCount(json);
                 using var document = JsonDocument.Parse(json);
-                itemCount = document.RootElement.GetProperty(intent.ToolName switch
-                {
-                    ListConnectionsToolName => "connections",
-                    GetCollectionSchemaToolName => "fields",
-                    MongoFindToolName => "documentsEjson",
-                    _ => "names"
-                }).GetArrayLength();
+                itemCount = intent.ToolName is MongoCountToolName or MongoExplainToolName ? 1 :
+                    intent.ToolName is MongoFindOneToolName or GetDocumentToolName
+                        ? document.RootElement.GetProperty("documentEjson").ValueKind == JsonValueKind.Null ? 0 : 1
+                        :
+                    document.RootElement.GetProperty(intent.ToolName switch
+                    {
+                        ListConnectionsToolName => "connections",
+                        GetCollectionSchemaToolName => "fields",
+                        MongoFindToolName => "documentsEjson",
+                        SampleDocumentsToolName => "documentsEjson",
+                        MongoDistinctToolName => "valuesEjson",
+                        GetIndexesToolName => "indexes",
+                        _ => "names"
+                    }).GetArrayLength();
             }
             var terminal = intent with
             {
@@ -308,6 +448,27 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
                 argumentsJson, cancellationToken).ConfigureAwait(false);
         if (name == MongoFindToolName)
             return await InvokeFindAsync(principal, invocationContext, destination, outputDataScope,
+                name, argumentsJson, cancellationToken).ConfigureAwait(false);
+        if (name == SampleDocumentsToolName)
+            return await InvokeFindAsync(principal, invocationContext, destination, outputDataScope,
+                name, argumentsJson, cancellationToken).ConfigureAwait(false);
+        if (name == MongoFindOneToolName)
+            return await InvokeFindAsync(principal, invocationContext, destination, outputDataScope,
+                name, argumentsJson, cancellationToken).ConfigureAwait(false);
+        if (name == GetDocumentToolName)
+            return await InvokeFindAsync(principal, invocationContext, destination, outputDataScope,
+                name, argumentsJson, cancellationToken).ConfigureAwait(false);
+        if (name == MongoDistinctToolName)
+            return await InvokeDistinctAsync(principal, invocationContext, destination, outputDataScope,
+                argumentsJson, cancellationToken).ConfigureAwait(false);
+        if (name == GetIndexesToolName)
+            return await InvokeIndexesAsync(principal, invocationContext, destination, outputDataScope,
+                argumentsJson, cancellationToken).ConfigureAwait(false);
+        if (name == MongoExplainToolName)
+            return await InvokeExplainAsync(principal, invocationContext, destination, outputDataScope,
+                argumentsJson, cancellationToken).ConfigureAwait(false);
+        if (name == MongoCountToolName)
+            return await InvokeCountAsync(principal, invocationContext, destination, outputDataScope,
                 argumentsJson, cancellationToken).ConfigureAwait(false);
         if (!IsClosedEmptyObject(argumentsJson)) return AgentToolInvocationResult.Failure(InvalidArguments);
         if (principal is null) return AgentToolInvocationResult.Failure(PermissionDenied);
@@ -475,6 +636,8 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
                 generation == Guid.Empty || !IsValidProfileName(matching[0].Name))
                 return AgentToolInvocationResult.Failure(PermissionDenied, AgentAuditDecisionReason.ValidationRejected);
             profile = matching[0];
+            if (HasDynamicMongoTarget(profile))
+                return AgentToolInvocationResult.Failure(PermissionDenied, AgentAuditDecisionReason.ValidationRejected);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch
@@ -722,6 +885,14 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         return true;
     }
 
+    // A profile generation pins the template, not values resolved from ENV or the vault.
+    // Reads that dispatch to MongoDB require a stable target for their namespace grant.
+    private static bool HasDynamicMongoTarget(ConnectionProfile profile) =>
+        profile.ConnectionString.Contains("${", StringComparison.Ordinal) ||
+        profile.ConnectionString.Contains("ENV.get(", StringComparison.OrdinalIgnoreCase) ||
+        profile.TargetHost?.Contains("${", StringComparison.Ordinal) == true ||
+        profile.TargetHost?.Contains("ENV.get(", StringComparison.OrdinalIgnoreCase) == true;
+
     private static AgentAuditDecisionReason MapDenialReason(AgentPermissionDenialReason reason) => reason switch
     {
         AgentPermissionDenialReason.PolicyUnavailable or AgentPermissionDenialReason.InvalidPolicy =>
@@ -760,7 +931,7 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         return new(policy, AgentAuditDecisionReason.PolicyAllowed);
     }
 
-    private static async Task<T> AwaitWithCancellationAsync<T>(Task<T> operation, CancellationToken cancellationToken)
+    private async Task<T> AwaitWithCancellationAsync<T>(Task<T> operation, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(operation);
         try
@@ -769,17 +940,13 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            _ = operation.ContinueWith(
-                static completed => _ = completed.Exception,
-                CancellationToken.None,
-                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
-                TaskScheduler.Default);
+            HoldQuotaUntilCompletion(operation);
 
             throw;
         }
     }
 
-    private static async Task AwaitWithCancellationAsync(Task operation, CancellationToken cancellationToken)
+    private async Task AwaitWithCancellationAsync(Task operation, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(operation);
         try
@@ -788,13 +955,20 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            _ = operation.ContinueWith(
-                static completed => _ = completed.Exception,
+            HoldQuotaUntilCompletion(operation);
+            throw;
+        }
+    }
+
+    private void HoldQuotaUntilCompletion(Task operation)
+    {
+        if (_activeQuotaLease.Value is { } lease)
+            lease.HoldUntil(operation);
+        else
+            _ = operation.ContinueWith(static completed => _ = completed.Exception,
                 CancellationToken.None,
                 TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
                 TaskScheduler.Default);
-            throw;
-        }
     }
 
     private static bool IsClosedEmptyObject(string? json)

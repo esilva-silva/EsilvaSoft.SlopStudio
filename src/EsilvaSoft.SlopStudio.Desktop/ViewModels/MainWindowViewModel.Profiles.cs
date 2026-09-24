@@ -220,6 +220,11 @@ public sealed partial class MainWindowViewModel
                 : AddCredentials(NewProfileConnectionString, NewProfileUsername, NewProfilePassword);
             var profile = ConnectionProfile.Create(NewProfileName, connectionString, NewProfileDatabase, NewProfileIsReadOnly, NewProfileIsFavorite, NewProfileEnvironment, NewProfileColor, NewProfileTags, NewProfileFolder)
                 with { LocalAiContextEnabled = NewProfileLocalAiContextEnabled };
+            var source = Profiles.FirstOrDefault(existing => existing.Id == ProfileEditorSourceId);
+            if (source is not null && source.SecretReference is not null &&
+                string.Equals(connectionString, source.ConnectionString, StringComparison.Ordinal) &&
+                string.IsNullOrEmpty(NewProfilePassword))
+                profile = profile with { SecretReference = source.SecretReference };
             var editingId = _editingProfileId;
             if (editingId is not null)
             {

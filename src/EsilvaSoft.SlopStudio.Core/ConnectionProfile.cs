@@ -29,6 +29,8 @@ public sealed record ConnectionProfile(
     /// the profile has been persisted for the first time.
     /// </summary>
     public Guid? SourceGenerationId { get; init; }
+    /// <summary>Opaque reference to a complete connection URI held by the operating-system secret store.</summary>
+    public SecretReference? SecretReference { get; init; }
     public string RoutingLabel => TargetHost is not null ? "Instância explícita: " + TargetHost : Regex.IsMatch(ConnectionString, @"[?&]directConnection=true(?:&|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant) ? "Instância configurada na URI: " + Endpoint : "Seleção automática do driver";
     public string Endpoint
     {
@@ -108,7 +110,7 @@ public sealed record ConnectionProfile(
     public ConnectionProfile Duplicate(string name)
     {
         return Create(name, ConnectionString, DefaultDatabase, IsReadOnly, IsFavorite, Environment, Color, Tags, Folder)
-            with { LocalAiContextEnabled = LocalAiContextEnabled };
+            with { LocalAiContextEnabled = LocalAiContextEnabled, SecretReference = SecretReference };
     }
 
     /// <summary>Returns the profile with the local timestamp of a successful connection.</summary>

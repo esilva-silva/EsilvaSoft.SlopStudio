@@ -27,7 +27,11 @@ public sealed partial class LiteDbConnectionProfileRepository
             var collection = _database.GetCollection<ConnectionProfileDocument>(CollectionName);
             var existing = collection.FindById(profile.Id);
             var sourceGenerationId = ResolveSourceGenerationId(existing, profile);
-            collection.Upsert(FromDomain(profile with { SourceGenerationId = sourceGenerationId }));
+            var reference = profile.SecretReference;
+            if (reference is null && existing is not null && existing.ConnectionString == profile.ConnectionString)
+                reference = existing.SecretReferenceId is { } id && id != Guid.Empty
+                    ? new SecretReference(id, existing.SecretReferenceVersion ?? 1) : null;
+            collection.Upsert(FromDomain(profile with { SourceGenerationId = sourceGenerationId, SecretReference = reference }));
         }, cancellationToken);
 
     /// <summary>
@@ -90,7 +94,9 @@ public sealed partial class LiteDbConnectionProfileRepository
         {
             TargetHost = profile.TargetHost,
             SourceGenerationId = profile.SourceGenerationId,
-            LocalAiContextEnabled = profile.LocalAiContextEnabled
+            LocalAiContextEnabled = profile.LocalAiContextEnabled,
+            SecretReference = profile.SecretReferenceId is { } id && id != Guid.Empty
+                ? new SecretReference(id, profile.SecretReferenceVersion ?? 1) : null
         };
 
     private static ConnectionProfileDocument FromDomain(ConnectionProfile profile) =>
@@ -109,7 +115,9 @@ public sealed partial class LiteDbConnectionProfileRepository
             Folder = profile.Folder,
             TargetHost = profile.TargetHost,
             SourceGenerationId = profile.SourceGenerationId,
-            LocalAiContextEnabled = profile.LocalAiContextEnabled
+            LocalAiContextEnabled = profile.LocalAiContextEnabled,
+            SecretReferenceId = profile.SecretReference?.Id,
+            SecretReferenceVersion = profile.SecretReference?.Version
         };
 
     private sealed class ConnectionProfileDocument
@@ -149,5 +157,8 @@ public sealed partial class LiteDbConnectionProfileRepository
 
         /// <summary>Additive per-connection local AI context opt-out; legacy profiles preserve the enabled default.</summary>
         public bool LocalAiContextEnabled { get; init; } = true;
+
+        public Guid? SecretReferenceId { get; init; }
+        public int? SecretReferenceVersion { get; init; }
     }
 }

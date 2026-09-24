@@ -7,6 +7,9 @@ public interface IAgentMongoFindSource
 {
     Task<AgentMongoFindPage> FindAsync(ConnectionProfile profile, AgentMongoFindQuery query,
         CancellationToken cancellationToken);
+
+    Task<AgentMongoFindPage> FindByIdAsync(ConnectionProfile profile, AgentMongoFindByIdQuery query,
+        CancellationToken cancellationToken);
 }
 
 public sealed record AgentMongoFindQuery(string Database, string Collection, string FilterEjson,
@@ -14,3 +17,6 @@ public sealed record AgentMongoFindQuery(string Database, string Collection, str
 
 public sealed record AgentMongoFindPage(IReadOnlyList<string> DocumentsEjson, bool HasMore,
     bool Truncated, bool TargetVerified, bool ResultTooLarge);
+
+public sealed record AgentMongoFindByIdQuery(string Database, string Collection, string IdEjson,
+    int MaxTimeMs);

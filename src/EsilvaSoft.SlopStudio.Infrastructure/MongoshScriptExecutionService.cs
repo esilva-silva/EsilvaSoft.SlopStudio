@@ -7,7 +7,8 @@ using EsilvaSoft.SlopStudio.Core;
 
 namespace EsilvaSoft.SlopStudio.Infrastructure;
 
-public sealed class MongoshScriptExecutionService(IEnvironmentVaultRepository? environments = null, IConnectionSecretStore? secrets = null) : IScriptExecutionService
+public sealed class MongoshScriptExecutionService(IEnvironmentVaultRepository? environments = null,
+    IConnectionSecretStore? secrets = null, ISecretStore? credentialStore = null) : IScriptExecutionService
 {
     public async Task<ScriptExecutionResult> ExecuteAsync(
         ConnectionProfile profile,
@@ -18,7 +19,7 @@ public sealed class MongoshScriptExecutionService(IEnvironmentVaultRepository? e
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(script);
         profile.EnsureWriteAllowed();
-        var environment = new OperationEnvironment(environments, secrets, profile.Id);
+        var environment = new OperationEnvironment(environments, secrets, profile.Id, credentialStore);
         await environment.PrepareAsync(profile, cancellationToken).ConfigureAwait(false);
         var connectionString = environment.ResolvedConnection;
         var safeInput = MongoshScriptTemplate.ValidateInput(inputJson);

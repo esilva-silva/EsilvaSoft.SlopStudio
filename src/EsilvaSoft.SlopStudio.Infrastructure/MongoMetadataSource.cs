@@ -11,7 +11,8 @@ namespace EsilvaSoft.SlopStudio.Infrastructure;
 /// Metadata commands for autocomplete. Listings use nameOnly/authorized options; schema sampling computes names and
 /// BSON types on the server so document values never reach the IDE.
 /// </summary>
-public sealed class MongoMetadataSource(IConnectionSecretStore? secrets = null, IEnvironmentVaultRepository? environments = null, MongoClientPool? clients = null)
+public sealed class MongoMetadataSource(IConnectionSecretStore? secrets = null, IEnvironmentVaultRepository? environments = null,
+    MongoClientPool? clients = null, ISecretStore? credentialStore = null)
     : IMongoMetadataSource
 {
     internal const string SampleComment = "slopstudio:autocomplete-schema";
@@ -281,7 +282,7 @@ public sealed class MongoMetadataSource(IConnectionSecretStore? secrets = null, 
     {
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentException.ThrowIfNullOrWhiteSpace(profile.ConnectionString);
-        var environment = new OperationEnvironment(environments, secrets, profile.Id);
+        var environment = new OperationEnvironment(environments, secrets, profile.Id, credentialStore);
         await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
         await environment.PrepareAsync(profile, cancellationToken).ConfigureAwait(false);
         return (clients ?? MongoClientPool.Shared).Get(MongoClientSettings.FromConnectionString(environment.ResolvedConnection));

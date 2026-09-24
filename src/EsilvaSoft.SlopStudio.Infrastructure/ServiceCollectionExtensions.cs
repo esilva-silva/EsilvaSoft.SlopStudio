@@ -28,6 +28,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAuditRepository>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
         services.AddSingleton<IWorkspaceSessionRepository>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
         services.AddSingleton<IEnvironmentVaultRepository>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
+        services.AddSingleton<ILegacyCredentialInventoryRepository>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
+        services.AddSingleton<ILegacyConnectionCredentialMigration, LegacyConnectionCredentialMigration>();
         services.AddSingleton<IConsoleHistoryRepository>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
         services.AddSingleton<IAgentAuthorizationPolicyProvider>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
         services.AddSingleton<IAgentAuthorizationPolicyRepository>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());

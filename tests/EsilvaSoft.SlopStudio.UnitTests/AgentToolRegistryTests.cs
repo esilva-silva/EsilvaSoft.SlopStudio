@@ -14,6 +14,7 @@ public sealed class AgentToolRegistryTests
     private static readonly string[] SummaryPropertyNames = ["id", "name", "readOnly"];
     private static readonly string[] AllowedDatabaseName = ["allowed"];
     private static readonly string[] VisibleCollectionName = ["visible"];
+    private static readonly string[] IndexSummaryPropertyNames = ["name", "keyFields", "unique", "sparse", "hidden"];
     private static readonly string[] DatabaseAuditToolNames = ["list_databases", "list_databases"];
     private static readonly AgentAuditOutcome[] CancelledAuditOutcomes =
         [AgentAuditOutcome.Intent, AgentAuditOutcome.Cancelled];
@@ -21,6 +22,32 @@ public sealed class AgentToolRegistryTests
     private static readonly Guid TurnId = Guid.Parse("6b8097c6-8313-4ed6-9a02-2e657fd9a387");
     private static AgentOutputDestination LocalDestination => AgentOutputDestination.Local();
     private static AgentOutputDataScope Metadata => AgentOutputDataScope.Metadata;
+
+    [Test]
+    public async Task TurnQuotaDeniesTheTwentyFirstAuditableCallBeforeProfileAccess()
+    {
+        var profiles = new StubProfileRepository([]);
+        var policy = Policy(104);
+        var provider = new CountingPolicyProvider(policy);
+        var audit = new RecordingAuditRepository();
+        var registry = Registry(profiles, provider, new AgentPermissionEvaluator(provider), audit: audit);
+
+        for (var i = 0; i < 20; i++)
+        {
+            var admitted = await registry.InvokeAsync(Principal(104), Context(), LocalDestination,
+                Metadata, AgentToolRegistry.ListConnectionsToolName, "{}");
+            Assert.That(admitted.Succeeded, Is.True, $"Call {i + 1} should be admitted.");
+        }
+        var profileReads = profiles.GetAllCalls;
+        var denied = await registry.InvokeAsync(Principal(104), Context(), LocalDestination,
+            Metadata, AgentToolRegistry.ListConnectionsToolName, "{}");
+
+        Assert.That(denied.ErrorCode, Is.EqualTo("PermissionDenied"));
+        Assert.That(profiles.GetAllCalls, Is.EqualTo(profileReads));
+        Assert.That(audit.Events[^2].Outcome, Is.EqualTo(AgentAuditOutcome.Intent));
+        Assert.That(audit.Events[^1].Outcome, Is.EqualTo(AgentAuditOutcome.Denied));
+        Assert.That(audit.Events[^1].DecisionReason, Is.EqualTo(AgentAuditDecisionReason.LimitExceeded));
+    }
 
     [Test]
     public async Task ListConnectionsRequiresClosedEmptyObjectAndKnownTool()
@@ -710,7 +737,558 @@ public sealed class AgentToolRegistryTests
         TimeSpan? timeout = null,
         IAgentAuditRepository? audit = null,
         IMongoMetadataSource? metadata = null,
-        IAgentMongoFindSource? find = null) => new(profiles, policies, evaluator, audit ?? new RecordingAuditRepository(), timeout, metadata, find: find);
+        IAgentMongoFindSource? find = null,
+        IAgentMongoCountSource? count = null,
+        IAgentMongoDistinctSource? distinct = null,
+        IAgentMongoIndexSource? indexes = null,
+        IAgentMongoExplainSource? explain = null) => new(profiles, policies, evaluator, audit ?? new RecordingAuditRepository(), timeout, metadata, find: find, count: count, distinct: distinct, indexes: indexes, explain: explain);
+
+    [Test]
+    public async Task MongoCountRequiresDocumentGrantsAndReturnsCanonicalInt64WithAudit()
+    {
+        var profile = Connection("count");
+        var scope = AgentNamespaceScope.ForCollection(profile.Id, "allowed", "visible");
+        var grants = new[] { AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments }
+            .Select(permission => new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+                profile.SourceGenerationId!.Value, permission, scope, LocalDestination,
+                AgentOutputDataScope.DocumentValues)).ToArray();
+        var provider = new SequencePolicyProvider(Policy(80, grants));
+        var source = new StubCountSource { Result = new("{\"$numberLong\":\"9007199254740993\"}", true) };
+        var audit = new RecordingAuditRepository();
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), audit: audit, count: source);
+        var filter = "{\"name\":\"ENV.PRIVATE_CANARY\",\"amount\":{\"$numberDecimal\":\"12.5\"}}";
+        var arguments = JsonSerializer.Serialize(new { connectionId = profile.Id, database = "allowed",
+            collection = "visible", filterEjson = filter, maxTimeMs = 30_000 });
+
+        var result = await registry.InvokeAsync(Principal(80), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoCountToolName, arguments);
+
+        Assert.That(result.Succeeded, Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(source.LastQuery!.FilterEjson, Is.EqualTo(filter));
+            Assert.That(source.LastQuery.MaxTimeMs, Is.EqualTo(5_000));
+            Assert.That(audit.Events.Select(item => item.Outcome), Is.EqualTo(new[]
+                { AgentAuditOutcome.Intent, AgentAuditOutcome.Succeeded }));
+            Assert.That(audit.Events[0].Permission, Is.EqualTo(AgentPermission.ReadDocuments));
+            Assert.That(audit.Events[1].ItemCount, Is.EqualTo(1));
+            Assert.That(audit.Events[1].OutputBytes, Is.GreaterThan(0));
+        });
+        using var output = JsonDocument.Parse(result.StructuredContentJson!);
+        Assert.Multiple(() =>
+        {
+            Assert.That(output.RootElement.GetProperty("countEjson").GetString(),
+                Is.EqualTo("{\"$numberLong\":\"9007199254740993\"}"));
+            Assert.That(output.RootElement.GetProperty("estimated").GetBoolean(), Is.False);
+        });
+    }
+
+    [Test]
+    public async Task MongoCountDeniesMissingGrantAndRejectsUnclosedOrCostlyInputs()
+    {
+        var profile = Connection("count");
+        var scope = AgentNamespaceScope.ForCollection(profile.Id, "allowed", "visible");
+        var onlyQueryGrant = new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+            profile.SourceGenerationId!.Value, AgentPermission.ExecuteReadQueries, scope, LocalDestination,
+            AgentOutputDataScope.DocumentValues);
+        var provider = new SequencePolicyProvider(Policy(81, onlyQueryGrant));
+        var source = new StubCountSource();
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), count: source);
+        var prefix = $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"allowed\",\"collection\":\"visible\"";
+
+        var denied = await registry.InvokeAsync(Principal(81), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoCountToolName, prefix + "}");
+        Assert.That(denied.ErrorCode, Is.EqualTo("PermissionDenied"));
+        foreach (var suffix in new[]
+                 { ",\"approved\":true}", ",\"limit\":1}", ",\"maxTimeMs\":0}",
+                   ",\"maxTimeMs\":30001}", ",\"filterEjson\":\"{\\\"$where\\\":\\\"true\\\"}\"}",
+                   ",\"filterEjson\":\"ObjectId('507f1f77bcf86cd799439011')\"}",
+                   ",\"database\":\"allowed\"}" })
+        {
+            var invalid = await registry.InvokeAsync(Principal(81), Context(), LocalDestination,
+                AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoCountToolName, prefix + suffix);
+            Assert.That(invalid.ErrorCode, Is.EqualTo("InvalidArguments"), suffix);
+        }
+        Assert.That(source.Calls, Is.Zero);
+    }
+
+    [Test]
+    public async Task MongoCountSuppressesUnverifiedOrNonCanonicalResult()
+    {
+        var profile = Connection("count");
+        var scope = AgentNamespaceScope.ForCollection(profile.Id, "allowed", "visible");
+        var grants = new[] { AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments }
+            .Select(permission => new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+                profile.SourceGenerationId!.Value, permission, scope, LocalDestination,
+                AgentOutputDataScope.DocumentValues)).ToArray();
+        var arguments = $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"allowed\",\"collection\":\"visible\"}}";
+        foreach (var invalid in new[] { new AgentMongoCountResult("{\"$numberLong\":\"2\"}", false),
+                     new AgentMongoCountResult("2", true),
+                     new AgentMongoCountResult("{\"$numberLong\":\"-1\"}", true) })
+        {
+            var provider = new SequencePolicyProvider(Policy(82, grants));
+            var registry = Registry(new StubProfileRepository([profile]), provider,
+                new AgentPermissionEvaluator(provider), count: new StubCountSource { Result = invalid });
+            var result = await registry.InvokeAsync(Principal(82), Context(), LocalDestination,
+                AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoCountToolName, arguments);
+            Assert.That(result.ErrorCode, Is.EqualTo("PermissionDenied"));
+            Assert.That(result.StructuredContentJson, Is.Null);
+        }
+    }
+
+    [Test]
+    public async Task MongoCountSuppressesOutputWhenPolicyIsRevokedAfterCount()
+    {
+        var profile = Connection("count");
+        var scope = AgentNamespaceScope.ForCollection(profile.Id, "allowed", "visible");
+        var grants = new[] { AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments }
+            .Select(permission => new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+                profile.SourceGenerationId!.Value, permission, scope, LocalDestination,
+                AgentOutputDataScope.DocumentValues)).ToArray();
+        var allowed = Policy(83, grants);
+        var provider = new SequencePolicyProvider(allowed, allowed, allowed, allowed, Policy(84, grants));
+        var source = new StubCountSource { Result = new("{\"$numberLong\":\"42\"}", true) };
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), count: source);
+
+        var result = await registry.InvokeAsync(Principal(83), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoCountToolName,
+            $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"allowed\",\"collection\":\"visible\"}}");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(source.Calls, Is.EqualTo(1));
+            Assert.That(result.ErrorCode, Is.EqualTo("PermissionDenied"));
+            Assert.That(result.StructuredContentJson, Is.Null);
+        });
+    }
+
+    [Test]
+    public async Task SampleDocumentsUsesFirstFindPageWithLiteralProjectionAndAudit()
+    {
+        var profile = Connection("sample");
+        var scope = AgentNamespaceScope.ForCollection(profile.Id, "allowed", "visible");
+        var grants = new[] { AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments }
+            .Select(permission => new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+                profile.SourceGenerationId!.Value, permission, scope, LocalDestination,
+                AgentOutputDataScope.DocumentValues)).ToArray();
+        var provider = new SequencePolicyProvider(Policy(90, grants));
+        var document = "{\"literal\":\"ENV.PRIVATE_CANARY\",\"value\":{\"$numberLong\":\"9007199254740993\"}}";
+        var source = new StubFindSource { Page = new([document], false, false, true, false) };
+        var audit = new RecordingAuditRepository();
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), audit: audit, find: source);
+        var arguments = JsonSerializer.Serialize(new { connectionId = profile.Id, database = "allowed",
+            collection = "visible", projectionEjson = "{\"literal\":1,\"value\":1}" });
+
+        var result = await registry.InvokeAsync(Principal(90), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.SampleDocumentsToolName, arguments);
+
+        Assert.That(result.Succeeded, Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(source.LastQuery!.FilterEjson, Is.EqualTo("{}"));
+            Assert.That(source.LastQuery.Skip, Is.Zero);
+            Assert.That(source.LastQuery.SortEjson, Is.Null);
+            Assert.That(source.LastQuery.Limit, Is.EqualTo(5));
+            Assert.That(source.LastQuery.MaxTimeMs, Is.EqualTo(5_000));
+            Assert.That(source.LastQuery.ProjectionEjson, Is.EqualTo("{\"literal\":1,\"value\":1}"));
+            Assert.That(audit.Events.Select(item => item.Outcome), Is.EqualTo(new[]
+                { AgentAuditOutcome.Intent, AgentAuditOutcome.Succeeded }));
+            Assert.That(audit.Events[1].ItemCount, Is.EqualTo(1));
+        });
+        using var output = JsonDocument.Parse(result.StructuredContentJson!);
+        Assert.That(output.RootElement.GetProperty("documentsEjson")[0].GetString(), Is.EqualTo(document));
+    }
+
+    [Test]
+    public void SampleDocumentsOutputSchemaCapsDocumentsAtTwenty()
+    {
+        var policy = Policy(90);
+        var registry = Registry(new StubProfileRepository([]), new SequencePolicyProvider(policy),
+            new AgentPermissionEvaluator(new SequencePolicyProvider(policy)));
+        using var schema = JsonDocument.Parse(registry.GetOutputSchemaJson(AgentToolRegistry.SampleDocumentsToolName)!);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(schema.RootElement.GetProperty("additionalProperties").GetBoolean(), Is.False);
+            Assert.That(schema.RootElement.GetProperty("properties").GetProperty("documentsEjson")
+                .GetProperty("maxItems").GetInt32(), Is.EqualTo(20));
+            Assert.That(schema.RootElement.GetProperty("properties").GetProperty("returnedCount")
+                .GetProperty("maximum").GetInt32(), Is.EqualTo(20));
+        });
+    }
+
+    [Test]
+    public async Task MongoFindOneReturnsCanonicalDocumentOrNullAndAuditsActualItemCount()
+    {
+        var profile = Connection("find-one");
+        var scope = AgentNamespaceScope.ForCollection(profile.Id, "allowed", "visible");
+        var grants = new[] { AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments }
+            .Select(permission => new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+                profile.SourceGenerationId!.Value, permission, scope, LocalDestination,
+                AgentOutputDataScope.DocumentValues)).ToArray();
+        const string bson = "{\"_id\":{\"$oid\":\"507f1f77bcf86cd799439011\"},\"n\":{\"$numberLong\":\"9007199254740993\"},\"literal\":\"ENV.PRIVATE_CANARY\"}";
+        foreach (var (items, expectedCount) in new[]
+                 { ((IReadOnlyList<string>)new[] { bson }, 1), ((IReadOnlyList<string>)Array.Empty<string>(), 0) })
+        {
+            var provider = new SequencePolicyProvider(Policy(94, grants));
+            var source = new StubFindSource { Page = new(items, false, false, true, false) };
+            var audit = new RecordingAuditRepository();
+            var registry = Registry(new StubProfileRepository([profile]), provider,
+                new AgentPermissionEvaluator(provider), audit: audit, find: source);
+            var filter = "{\"literal\":\"ENV.PRIVATE_CANARY\"}";
+            var arguments = JsonSerializer.Serialize(new { connectionId = profile.Id, database = "allowed",
+                collection = "visible", filterEjson = filter, sortEjson = "{\"_id\":1}" });
+
+            var result = await registry.InvokeAsync(Principal(94), Context(), LocalDestination,
+                AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoFindOneToolName, arguments);
+
+            Assert.That(result.Succeeded, Is.True);
+            Assert.Multiple(() =>
+            {
+                Assert.That(source.LastQuery!.Limit, Is.EqualTo(1));
+                Assert.That(source.LastQuery.Skip, Is.Zero);
+                Assert.That(source.LastQuery.FilterEjson, Is.EqualTo(filter));
+                Assert.That(source.LastQuery.SortEjson, Is.EqualTo("{\"_id\":1}"));
+                Assert.That(audit.Events[1].ItemCount, Is.EqualTo(expectedCount));
+                Assert.That(audit.Events[1].Outcome, Is.EqualTo(AgentAuditOutcome.Succeeded));
+            });
+            using var output = JsonDocument.Parse(result.StructuredContentJson!);
+            Assert.That(output.RootElement.EnumerateObject().Single().Name, Is.EqualTo("documentEjson"));
+            Assert.That(expectedCount == 0
+                ? output.RootElement.GetProperty("documentEjson").ValueKind == JsonValueKind.Null
+                : output.RootElement.GetProperty("documentEjson").GetString() == bson, Is.True);
+        }
+    }
+
+    [Test]
+    public async Task MongoFindOneRejectsLimitSkipAndMissingDocumentGrant()
+    {
+        var profile = Connection("find-one");
+        var scope = AgentNamespaceScope.ForCollection(profile.Id, "allowed", "visible");
+        var grant = new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+            profile.SourceGenerationId!.Value, AgentPermission.ExecuteReadQueries, scope, LocalDestination,
+            AgentOutputDataScope.DocumentValues);
+        var provider = new SequencePolicyProvider(Policy(95, grant));
+        var source = new StubFindSource();
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), find: source);
+        var prefix = $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"allowed\",\"collection\":\"visible\"";
+
+        var denied = await registry.InvokeAsync(Principal(95), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoFindOneToolName, prefix + "}");
+        Assert.That(denied.ErrorCode, Is.EqualTo("PermissionDenied"));
+        foreach (var suffix in new[] { ",\"limit\":1}", ",\"skip\":0}", ",\"approved\":true}",
+                     ",\"filterEjson\":\"ObjectId('507f1f77bcf86cd799439011')\"}" })
+        {
+            var invalid = await registry.InvokeAsync(Principal(95), Context(), LocalDestination,
+                AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoFindOneToolName, prefix + suffix);
+            Assert.That(invalid.ErrorCode, Is.EqualTo("InvalidArguments"), suffix);
+        }
+        Assert.That(source.Calls, Is.Zero);
+    }
+
+    [Test]
+    public async Task GetDocumentUsesLiteralIdReturnsCanonicalDocumentOrNullAndAuditsCount()
+    {
+        var profile = Connection("document");
+        var scope = AgentNamespaceScope.ForCollection(profile.Id, "allowed", "visible");
+        var grants = new[] { AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments }
+            .Select(permission => new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+                profile.SourceGenerationId!.Value, permission, scope, LocalDestination,
+                AgentOutputDataScope.DocumentValues)).ToArray();
+        const string bson = "{\"_id\":{\"$numberLong\":\"9007199254740993\"},\"literal\":\"ENV.PRIVATE_CANARY\"}";
+        var ids = new[]
+        {
+            "{\"$oid\":\"507f1f77bcf86cd799439011\"}",
+            "\"ENV.PRIVATE_CANARY\"",
+            "{\"$numberLong\":\"9007199254740993\"}",
+            "{\"nested\":{\"$numberInt\":\"7\"}}",
+            "{\"$binary\":{\"base64\":\"AAAAAAAAAAAAAAAAAAAAAA==\",\"subType\":\"04\"}}"
+        };
+        foreach (var id in ids)
+        {
+            var provider = new SequencePolicyProvider(Policy(96, grants));
+            var source = new StubFindSource { Page = new([bson], false, false, true, false) };
+            var audit = new RecordingAuditRepository();
+            var registry = Registry(new StubProfileRepository([profile]), provider,
+                new AgentPermissionEvaluator(provider), audit: audit, find: source);
+            var arguments = JsonSerializer.Serialize(new { connectionId = profile.Id, database = "allowed",
+                collection = "visible", idEjson = id });
+
+            var result = await registry.InvokeAsync(Principal(96), Context(), LocalDestination,
+                AgentOutputDataScope.DocumentValues, AgentToolRegistry.GetDocumentToolName, arguments);
+
+            Assert.That(result.Succeeded, Is.True, id);
+            Assert.Multiple(() =>
+            {
+                Assert.That(source.LastByIdQuery!.IdEjson, Is.EqualTo(id));
+                Assert.That(source.LastByIdQuery.MaxTimeMs, Is.EqualTo(5_000));
+                Assert.That(audit.Events[1].ItemCount, Is.EqualTo(1));
+                Assert.That(audit.Events[1].Outcome, Is.EqualTo(AgentAuditOutcome.Succeeded));
+            });
+            using var output = JsonDocument.Parse(result.StructuredContentJson!);
+            Assert.That(output.RootElement.GetProperty("documentEjson").GetString(), Is.EqualTo(bson));
+        }
+
+        var emptyProvider = new SequencePolicyProvider(Policy(96, grants));
+        var emptySource = new StubFindSource { Page = new([], false, false, true, false) };
+        var emptyAudit = new RecordingAuditRepository();
+        var emptyRegistry = Registry(new StubProfileRepository([profile]), emptyProvider,
+            new AgentPermissionEvaluator(emptyProvider), audit: emptyAudit, find: emptySource);
+        var emptyArguments = JsonSerializer.Serialize(new { connectionId = profile.Id, database = "allowed",
+            collection = "visible", idEjson = "\"missing\"" });
+        var missing = await emptyRegistry.InvokeAsync(Principal(96), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.GetDocumentToolName, emptyArguments);
+
+        Assert.That(missing.Succeeded, Is.True);
+        using var emptyOutput = JsonDocument.Parse(missing.StructuredContentJson!);
+        Assert.That(emptyOutput.RootElement.GetProperty("documentEjson").ValueKind, Is.EqualTo(JsonValueKind.Null));
+        Assert.That(emptyAudit.Events[1].ItemCount, Is.Zero);
+    }
+
+    [Test]
+    public async Task GetDocumentDeniesMissingGrantAndRejectsCodeDuplicatesAndExtraArguments()
+    {
+        var profile = Connection("document");
+        var scope = AgentNamespaceScope.ForCollection(profile.Id, "allowed", "visible");
+        var grant = new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+            profile.SourceGenerationId!.Value, AgentPermission.ExecuteReadQueries, scope, LocalDestination,
+            AgentOutputDataScope.DocumentValues);
+        var provider = new SequencePolicyProvider(Policy(97, grant));
+        var source = new StubFindSource();
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), find: source);
+        var prefix = $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"allowed\",\"collection\":\"visible\"";
+
+        var denied = await registry.InvokeAsync(Principal(97), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.GetDocumentToolName,
+            prefix + ",\"idEjson\":\"\\\"literal\\\"\"}");
+        Assert.That(denied.ErrorCode, Is.EqualTo("PermissionDenied"));
+        foreach (var id in new[] { "ObjectId('507f1f77bcf86cd799439011')", "{\"$where\":\"true\"}",
+                     "{\"$code\":\"return true\"}", "{\"a\":1,\"a\":2}" })
+        {
+            var arguments = JsonSerializer.Serialize(new { connectionId = profile.Id, database = "allowed",
+                collection = "visible", idEjson = id });
+            var invalid = await registry.InvokeAsync(Principal(97), Context(), LocalDestination,
+                AgentOutputDataScope.DocumentValues, AgentToolRegistry.GetDocumentToolName, arguments);
+            Assert.That(invalid.ErrorCode, Is.EqualTo("InvalidArguments"), id);
+        }
+        foreach (var suffix in new[] { ",\"idEjson\":\"\\\"x\\\"\",\"limit\":1}",
+                     ",\"idEjson\":\"\\\"x\\\"\",\"approved\":true}",
+                     ",\"idEjson\":\"\\\"x\\\"\",\"idEjson\":\"\\\"y\\\"\"}" })
+        {
+            var invalid = await registry.InvokeAsync(Principal(97), Context(), LocalDestination,
+                AgentOutputDataScope.DocumentValues, AgentToolRegistry.GetDocumentToolName, prefix + suffix);
+            Assert.That(invalid.ErrorCode, Is.EqualTo("InvalidArguments"), suffix);
+        }
+        var oversized = JsonSerializer.Serialize(new { connectionId = profile.Id, database = "allowed",
+            collection = "visible", idEjson = "\"" + new string('x', 65_536) + "\"" });
+        var oversizedResult = await registry.InvokeAsync(Principal(97), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.GetDocumentToolName, oversized);
+        Assert.That(oversizedResult.ErrorCode, Is.EqualTo("InvalidArguments"));
+        Assert.That(source.Calls, Is.Zero);
+    }
+
+    [Test]
+    public async Task MongoDistinctPreservesLiteralEjsonAndAuditsReturnedValues()
+    {
+        var profile = Connection("distinct");
+        var scope = AgentNamespaceScope.ForCollection(profile.Id, "allowed", "visible");
+        var grants = new[] { AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments }
+            .Select(permission => new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+                profile.SourceGenerationId!.Value, permission, scope, LocalDestination,
+                AgentOutputDataScope.DocumentValues)).ToArray();
+        var provider = new SequencePolicyProvider(Policy(98, grants));
+        var values = new[] { "{\"$numberLong\":\"9007199254740993\"}",
+            "{\"$numberDecimal\":\"123.45\"}", "\"ENV.PRIVATE_CANARY\"" };
+        var source = new StubDistinctSource { Page = new(values, false, true, false) };
+        var audit = new RecordingAuditRepository();
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), audit: audit, distinct: source);
+        var filter = "{\"literal\":\"ENV.PRIVATE_CANARY\"}";
+        var arguments = JsonSerializer.Serialize(new { connectionId = profile.Id, database = "allowed",
+            collection = "visible", field = "nested.value", filterEjson = filter, maximumValues = 3,
+            maxTimeMs = 30_000 });
+
+        var result = await registry.InvokeAsync(Principal(98), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoDistinctToolName, arguments);
+
+        Assert.That(result.Succeeded, Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(source.LastQuery!.Field, Is.EqualTo("nested.value"));
+            Assert.That(source.LastQuery.FilterEjson, Is.EqualTo(filter));
+            Assert.That(source.LastQuery.MaximumValues, Is.EqualTo(3));
+            Assert.That(source.LastQuery.MaxTimeMs, Is.EqualTo(5_000));
+            Assert.That(audit.Events.Select(item => item.Outcome), Is.EqualTo(new[]
+                { AgentAuditOutcome.Intent, AgentAuditOutcome.Succeeded }));
+            Assert.That(audit.Events[1].ItemCount, Is.EqualTo(3));
+        });
+        using var output = JsonDocument.Parse(result.StructuredContentJson!);
+        Assert.That(output.RootElement.GetProperty("valuesEjson").EnumerateArray()
+            .Select(item => item.GetString()), Is.EqualTo(values));
+        Assert.That(output.RootElement.GetProperty("truncated").GetBoolean(), Is.False);
+    }
+
+    [Test]
+    public async Task MongoDistinctDeniesMissingGrantAndRejectsUnsafeFieldFilterAndBounds()
+    {
+        var profile = Connection("distinct");
+        var scope = AgentNamespaceScope.ForCollection(profile.Id, "allowed", "visible");
+        var grant = new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+            profile.SourceGenerationId!.Value, AgentPermission.ExecuteReadQueries, scope, LocalDestination,
+            AgentOutputDataScope.DocumentValues);
+        var provider = new SequencePolicyProvider(Policy(99, grant));
+        var source = new StubDistinctSource();
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), distinct: source);
+        var prefix = $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"allowed\",\"collection\":\"visible\"";
+
+        var denied = await registry.InvokeAsync(Principal(99), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoDistinctToolName,
+            prefix + ",\"field\":\"nested.value\"}");
+        Assert.That(denied.ErrorCode, Is.EqualTo("PermissionDenied"));
+        foreach (var field in new[] { "", "$where", "a..b", ".a", "a.", "a\n", "a.$ne" })
+        {
+            var invalid = await registry.InvokeAsync(Principal(99), Context(), LocalDestination,
+                AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoDistinctToolName,
+                JsonSerializer.Serialize(new { connectionId = profile.Id, database = "allowed",
+                    collection = "visible", field }));
+            Assert.That(invalid.ErrorCode, Is.EqualTo("InvalidArguments"), field);
+        }
+        foreach (var suffix in new[] { ",\"field\":\"x\",\"maximumValues\":101}",
+                     ",\"field\":\"x\",\"maximumValues\":0}",
+                     ",\"field\":\"x\",\"maxTimeMs\":30001}",
+                     ",\"field\":\"x\",\"filterEjson\":\"{\\\"$where\\\":\\\"true\\\"}\"}",
+                     ",\"field\":\"x\",\"approved\":true}" })
+        {
+            var invalid = await registry.InvokeAsync(Principal(99), Context(), LocalDestination,
+                AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoDistinctToolName, prefix + suffix);
+            Assert.That(invalid.ErrorCode, Is.EqualTo("InvalidArguments"), suffix);
+        }
+        Assert.That(source.Calls, Is.Zero);
+    }
+
+    [Test]
+    public async Task MongoDistinctTruncatesAtWholeValueBoundary()
+    {
+        var profile = Connection("distinct");
+        var scope = AgentNamespaceScope.ForCollection(profile.Id, "allowed", "visible");
+        var grants = new[] { AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments }
+            .Select(permission => new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+                profile.SourceGenerationId!.Value, permission, scope, LocalDestination,
+                AgentOutputDataScope.DocumentValues)).ToArray();
+        var provider = new SequencePolicyProvider(Policy(100, grants));
+        var large = JsonSerializer.Serialize(new string('x', 160_000));
+        var source = new StubDistinctSource { Page = new([large, large], false, true, false) };
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), distinct: source);
+
+        var result = await registry.InvokeAsync(Principal(100), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoDistinctToolName,
+            $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"allowed\",\"collection\":\"visible\",\"field\":\"value\"}}");
+
+        Assert.That(result.Succeeded, Is.True);
+        Assert.That(Encoding.UTF8.GetByteCount(result.StructuredContentJson!), Is.LessThanOrEqualTo(256 * 1024));
+        using var output = JsonDocument.Parse(result.StructuredContentJson!);
+        Assert.Multiple(() =>
+        {
+            Assert.That(output.RootElement.GetProperty("valuesEjson").GetArrayLength(), Is.EqualTo(1));
+            Assert.That(output.RootElement.GetProperty("truncated").GetBoolean(), Is.True);
+            Assert.That(output.RootElement.GetProperty("truncationReason").GetString(), Is.EqualTo("OutputLimit"));
+        });
+    }
+
+    [Test]
+    public async Task MongoDistinctSuppressesValuesAfterPolicyRevisionChanges()
+    {
+        var profile = Connection("distinct");
+        var scope = AgentNamespaceScope.ForCollection(profile.Id, "allowed", "visible");
+        var grants = new[] { AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments }
+            .Select(permission => new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+                profile.SourceGenerationId!.Value, permission, scope, LocalDestination,
+                AgentOutputDataScope.DocumentValues)).ToArray();
+        var allowed = Policy(101, grants);
+        var provider = new SequencePolicyProvider(allowed, allowed, allowed, allowed, Policy(102, grants));
+        var source = new StubDistinctSource { Page = new(["\"secret-canary\""], false, true, false) };
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), distinct: source);
+
+        var result = await registry.InvokeAsync(Principal(101), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoDistinctToolName,
+            $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"allowed\",\"collection\":\"visible\",\"field\":\"value\"}}");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(source.Calls, Is.EqualTo(1));
+            Assert.That(source.LastQuery!.MaximumValues, Is.EqualTo(20));
+            Assert.That(result.ErrorCode, Is.EqualTo("PermissionDenied"));
+            Assert.That(result.StructuredContentJson, Is.Null);
+        });
+    }
+
+    [Test]
+    public async Task SampleDocumentsRequiresBothGrantsAndClosedBoundedInput()
+    {
+        var profile = Connection("sample");
+        var scope = AgentNamespaceScope.ForCollection(profile.Id, "allowed", "visible");
+        var grant = new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+            profile.SourceGenerationId!.Value, AgentPermission.ExecuteReadQueries, scope, LocalDestination,
+            AgentOutputDataScope.DocumentValues);
+        var provider = new SequencePolicyProvider(Policy(91, grant));
+        var source = new StubFindSource();
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), find: source);
+        var prefix = $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"allowed\",\"collection\":\"visible\"";
+
+        var denied = await registry.InvokeAsync(Principal(91), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.SampleDocumentsToolName, prefix + "}");
+        Assert.That(denied.ErrorCode, Is.EqualTo("PermissionDenied"));
+        foreach (var suffix in new[]
+                 { ",\"filterEjson\":\"{}\"}", ",\"skip\":1}", ",\"sortEjson\":\"{}\"}",
+                   ",\"maxTimeMs\":1000}", ",\"limit\":21}", ",\"limit\":0}",
+                   ",\"projectionEjson\":\"{\\\"x\\\":{\\\"$where\\\":\\\"true\\\"}}\"}" })
+        {
+            var invalid = await registry.InvokeAsync(Principal(91), Context(), LocalDestination,
+                AgentOutputDataScope.DocumentValues, AgentToolRegistry.SampleDocumentsToolName, prefix + suffix);
+            Assert.That(invalid.ErrorCode, Is.EqualTo("InvalidArguments"), suffix);
+        }
+        Assert.That(source.Calls, Is.Zero);
+    }
+
+    [Test]
+    public async Task SampleDocumentsCapsOutputAtWholeDocumentBoundary()
+    {
+        var profile = Connection("sample");
+        var scope = AgentNamespaceScope.ForCollection(profile.Id, "allowed", "visible");
+        var grants = new[] { AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments }
+            .Select(permission => new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+                profile.SourceGenerationId!.Value, permission, scope, LocalDestination,
+                AgentOutputDataScope.DocumentValues)).ToArray();
+        var provider = new SequencePolicyProvider(Policy(92, grants));
+        var large = JsonSerializer.Serialize(new { value = new string('x', 160_000) });
+        var source = new StubFindSource { Page = new([large, large], false, false, true, false) };
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), find: source);
+
+        var result = await registry.InvokeAsync(Principal(92), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.SampleDocumentsToolName,
+            $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"allowed\",\"collection\":\"visible\"}}");
+
+        Assert.That(result.Succeeded, Is.True);
+        Assert.That(Encoding.UTF8.GetByteCount(result.StructuredContentJson!), Is.LessThanOrEqualTo(256 * 1024));
+        using var output = JsonDocument.Parse(result.StructuredContentJson!);
+        Assert.Multiple(() =>
+        {
+            Assert.That(output.RootElement.GetProperty("documentsEjson").GetArrayLength(), Is.EqualTo(1));
+            Assert.That(output.RootElement.GetProperty("truncated").GetBoolean(), Is.True);
+            Assert.That(output.RootElement.GetProperty("truncationReason").GetString(), Is.EqualTo("OutputLimit"));
+        });
+    }
 
     [Test]
     public async Task MongoFindRequiresBothDocumentGrantsAndPreservesLiteralEjson()
@@ -1112,6 +1690,331 @@ public sealed class AgentToolRegistryTests
         Assert.That(metadata.DatabaseCalls, Is.Zero);
     }
 
+    [Test]
+    public async Task GetIndexesProjectsMetadataAndWritesDurableOutcome()
+    {
+        var profile = Connection("indexes");
+        var grant = new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+            profile.SourceGenerationId!.Value, AgentPermission.ReadMetadata,
+            AgentNamespaceScope.ForCollection(profile.Id, "db", "items"), LocalDestination, Metadata);
+        var provider = new SequencePolicyProvider(Policy(95, grant));
+        var audit = new RecordingAuditRepository();
+        var source = new StubIndexSource { Page = new([
+            new("partial_1", ["a"], true, false, false)
+        ], false, true) };
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), audit: audit, indexes: source);
+
+        var result = await registry.InvokeAsync(Principal(95), Context(), LocalDestination, Metadata,
+            AgentToolRegistry.GetIndexesToolName,
+            $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"db\",\"collection\":\"items\"}}");
+
+        Assert.That(result.Succeeded, Is.True);
+        using var json = JsonDocument.Parse(result.StructuredContentJson!);
+        var index = json.RootElement.GetProperty("indexes")[0];
+        Assert.Multiple(() =>
+        {
+            Assert.That(index.EnumerateObject().Select(item => item.Name), Is.EquivalentTo(IndexSummaryPropertyNames));
+            Assert.That(index.GetProperty("keyFields")[0].GetString(), Is.EqualTo("a"));
+            Assert.That(audit.Events, Has.Count.EqualTo(2));
+            Assert.That(audit.Events[1].ItemCount, Is.EqualTo(1));
+            Assert.That(source.Calls, Is.EqualTo(1));
+            Assert.That(source.MaximumExecutionTime, Is.EqualTo(TimeSpan.FromSeconds(5)));
+        });
+    }
+
+    [Test]
+    public async Task GetIndexesRequiresCollectionMetadataGrantAndClosedInput()
+    {
+        var profile = Connection("indexes");
+        var provider = new SequencePolicyProvider(Policy(96));
+        var source = new StubIndexSource();
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), indexes: source);
+        var input = $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"db\",\"collection\":\"items\"}}";
+
+        var denied = await registry.InvokeAsync(Principal(96), Context(), LocalDestination, Metadata,
+            AgentToolRegistry.GetIndexesToolName, input);
+        var invalid = await registry.InvokeAsync(Principal(96), Context(), LocalDestination, Metadata,
+            AgentToolRegistry.GetIndexesToolName, input[..^1] + ",\"approved\":true}");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(denied.ErrorCode, Is.EqualTo("PermissionDenied"));
+            Assert.That(invalid.ErrorCode, Is.EqualTo("InvalidArguments"));
+            Assert.That(source.Calls, Is.Zero);
+        });
+    }
+
+    [Test]
+    public async Task GetIndexesSuppressesOutputWhenProfileChangesAfterRead()
+    {
+        var profile = Connection("indexes");
+        var changed = profile with { Name = "changed" };
+        var grant = new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+            profile.SourceGenerationId!.Value, AgentPermission.ReadMetadata,
+            AgentNamespaceScope.ForCollection(profile.Id, "db", "items"), LocalDestination, Metadata);
+        var provider = new SequencePolicyProvider(Policy(97, grant));
+        var source = new StubIndexSource { Page = new([new("_id_", ["_id"], false, false, false)], false, true) };
+        var profiles = new SequenceProfileRepository([profile], [changed]);
+        var registry = Registry(profiles, provider, new AgentPermissionEvaluator(provider), indexes: source);
+
+        var result = await registry.InvokeAsync(Principal(97), Context(), LocalDestination, Metadata,
+            AgentToolRegistry.GetIndexesToolName,
+            $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"db\",\"collection\":\"items\"}}");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ErrorCode, Is.EqualTo("PermissionDenied"));
+            Assert.That(result.StructuredContentJson, Is.Null);
+            Assert.That(source.Calls, Is.Zero);
+        });
+    }
+
+    [Test]
+    public async Task GetIndexesBoundsSerializedOutput()
+    {
+        var profile = Connection("indexes");
+        var grant = new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId),
+            profile.SourceGenerationId!.Value, AgentPermission.ReadMetadata,
+            AgentNamespaceScope.ForCollection(profile.Id, "db", "items"), LocalDestination, Metadata);
+        var provider = new SequencePolicyProvider(Policy(98, grant));
+        var longField = new string('x', 1_000);
+        var source = new StubIndexSource { Page = new(Enumerable.Range(0, 200)
+            .Select(number => new AgentMongoIndexSummary("idx" + number,
+                Enumerable.Repeat(longField, 16).ToArray(), false, false, false)).ToArray(), false, true) };
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), indexes: source);
+
+        var result = await registry.InvokeAsync(Principal(98), Context(), LocalDestination, Metadata,
+            AgentToolRegistry.GetIndexesToolName,
+            $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"db\",\"collection\":\"items\"}}");
+
+        Assert.That(result.Succeeded, Is.True);
+        Assert.That(Encoding.UTF8.GetByteCount(result.StructuredContentJson!), Is.LessThanOrEqualTo(256 * 1024));
+        using var json = JsonDocument.Parse(result.StructuredContentJson!);
+        Assert.That(json.RootElement.GetProperty("truncated").GetBoolean(), Is.True);
+        Assert.That(json.RootElement.GetProperty("truncationReason").GetString(), Is.EqualTo("OutputLimit"));
+    }
+
+    [TestCase("mongodb://${HOST}:27017")]
+    [TestCase("mongodb://${ENV.get('HOST')}:27017")]
+    public async Task DynamicMongoTargetIsDeniedAcrossReadHandlersBeforePermissionEvaluation(string uri)
+    {
+        var profile = Connection("dynamic") with { ConnectionString = uri };
+        var provider = new SequencePolicyProvider(Policy(99));
+        var permissions = new RejectEvaluation();
+        var metadata = new StubMetadataSource();
+        var find = new StubFindSource();
+        var count = new StubCountSource();
+        var distinct = new StubDistinctSource();
+        var indexes = new StubIndexSource();
+        var explain = new StubExplainSource();
+        var registry = new AgentToolRegistry(new StubProfileRepository([profile]), provider, permissions,
+            new RecordingAuditRepository(), metadata: metadata, schemaSamplingConsent: new AllowSchemaConsent(),
+            find: find, count: count, distinct: distinct, indexes: indexes, explain: explain);
+        var prefix = $"{{\"connectionId\":\"{profile.Id:D}\"";
+        var database = prefix + ",\"database\":\"db\"}";
+        var collection = prefix + ",\"database\":\"db\",\"collection\":\"items\"}";
+        var distinctInput = prefix + ",\"database\":\"db\",\"collection\":\"items\",\"field\":\"a\"}";
+        var cases = new (string Name, string Arguments, AgentOutputDataScope Scope)[]
+        {
+            (AgentToolRegistry.ListDatabasesToolName, prefix + "}", Metadata),
+            (AgentToolRegistry.ListCollectionsToolName, database, Metadata),
+            (AgentToolRegistry.GetCollectionSchemaToolName, collection, AgentOutputDataScope.Schema),
+            (AgentToolRegistry.MongoFindToolName, collection, AgentOutputDataScope.DocumentValues),
+            (AgentToolRegistry.MongoCountToolName, collection, AgentOutputDataScope.DocumentValues),
+            (AgentToolRegistry.MongoDistinctToolName, distinctInput, AgentOutputDataScope.DocumentValues),
+            (AgentToolRegistry.GetIndexesToolName, collection, Metadata),
+            (AgentToolRegistry.MongoExplainToolName, collection, AgentOutputDataScope.DocumentValues)
+        };
+        foreach (var (name, arguments, scope) in cases)
+        {
+            var result = await registry.InvokeAsync(Principal(99), Context(), LocalDestination, scope,
+                name, arguments);
+            Assert.That(result.ErrorCode, Is.EqualTo("PermissionDenied"), name);
+        }
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(permissions.Calls, Is.Zero);
+            Assert.That(metadata.BoundedDatabaseCalls + metadata.BoundedCollectionCalls, Is.Zero);
+            Assert.That(find.Calls + count.Calls + distinct.Calls + indexes.Calls + explain.Calls, Is.Zero);
+        });
+    }
+
+    private sealed class RejectEvaluation : IAgentPermissionEvaluator
+    {
+        public int Calls { get; private set; }
+        public Task<AgentPermissionDecision> EvaluateAsync(AgentPermissionRequest request,
+            CancellationToken cancellationToken)
+        {
+            Calls++;
+            throw new AssertionException("Dynamic target reached permission evaluation.");
+        }
+    }
+
+    private sealed class AllowSchemaConsent : IAgentSchemaSamplingConsentProvider
+    {
+        public Task<bool> HasLocalConsentAsync(AgentSchemaSamplingRequest request,
+            CancellationToken cancellationToken) => Task.FromResult(true);
+    }
+
+    private sealed class StubIndexSource : IAgentMongoIndexSource
+    {
+        public AgentMongoIndexPage Page { get; init; } = new([], false, true);
+        public int Calls { get; private set; }
+        public TimeSpan? MaximumExecutionTime { get; private set; }
+        public Task<AgentMongoIndexPage> GetIndexesAsync(ConnectionProfile profile, string database,
+            string collection, TimeSpan maximumExecutionTime, CancellationToken cancellationToken)
+        {
+            Calls++;
+            MaximumExecutionTime = maximumExecutionTime;
+            return Task.FromResult(Page);
+        }
+    }
+
+    [Test]
+    public async Task MongoExplainRequiresThreeGrantsAndAuditsSanitizedPlan()
+    {
+        var profile = Connection("explain");
+        var grants = new[] { AgentPermission.ReadDiagnostics, AgentPermission.ExecuteReadQueries,
+                AgentPermission.ReadDocuments }
+            .Select(permission => new AgentPermissionGrant(PrincipalId,
+                AgentInvocationScope.ForTurn(SessionId, TurnId), profile.SourceGenerationId!.Value,
+                permission, AgentNamespaceScope.ForCollection(profile.Id, "db", "items"),
+                LocalDestination, AgentOutputDataScope.DocumentValues)).ToArray();
+        var provider = new SequencePolicyProvider(Policy(100, grants));
+        var audit = new RecordingAuditRepository();
+        var source = new StubExplainSource();
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), audit: audit, explain: source);
+        var result = await registry.InvokeAsync(Principal(100), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoExplainToolName,
+            $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"db\",\"collection\":\"items\",\"maxTimeMs\":1200}}");
+
+        Assert.That(result.Succeeded, Is.True);
+        using var json = JsonDocument.Parse(result.StructuredContentJson!);
+        Assert.Multiple(() =>
+        {
+            Assert.That(json.RootElement.GetProperty("verbosity").GetString(), Is.EqualTo("queryPlanner"));
+            Assert.That(source.LastQuery?.MaxTimeMs, Is.EqualTo(1200));
+            Assert.That(audit.Events, Has.Count.EqualTo(2));
+            Assert.That(audit.Events[1].ItemCount, Is.EqualTo(1));
+            Assert.That(result.StructuredContentJson, Does.Not.Contain("private-canary"));
+        });
+    }
+
+    [TestCase(AgentPermission.ReadDiagnostics)]
+    [TestCase(AgentPermission.ExecuteReadQueries)]
+    [TestCase(AgentPermission.ReadDocuments)]
+    public async Task MongoExplainDeniesWhenAnyGrantIsMissing(AgentPermission missing)
+    {
+        var profile = Connection("explain");
+        var grants = new[] { AgentPermission.ReadDiagnostics, AgentPermission.ExecuteReadQueries,
+                AgentPermission.ReadDocuments }.Where(permission => permission != missing)
+            .Select(permission => new AgentPermissionGrant(PrincipalId,
+                AgentInvocationScope.ForTurn(SessionId, TurnId), profile.SourceGenerationId!.Value,
+                permission, AgentNamespaceScope.ForCollection(profile.Id, "db", "items"),
+                LocalDestination, AgentOutputDataScope.DocumentValues)).ToArray();
+        var provider = new SequencePolicyProvider(Policy(101, grants));
+        var source = new StubExplainSource();
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), explain: source);
+        var result = await registry.InvokeAsync(Principal(101), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoExplainToolName,
+            $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"db\",\"collection\":\"items\"}}");
+
+        Assert.That(result.ErrorCode, Is.EqualTo("PermissionDenied"));
+        Assert.That(source.Calls, Is.Zero);
+    }
+
+    [Test]
+    public async Task MongoExplainRejectsVerbosityOverrideAndUnsafePlan()
+    {
+        var profile = Connection("explain");
+        var grants = new[] { AgentPermission.ReadDiagnostics, AgentPermission.ExecuteReadQueries,
+                AgentPermission.ReadDocuments }
+            .Select(permission => new AgentPermissionGrant(PrincipalId,
+                AgentInvocationScope.ForTurn(SessionId, TurnId), profile.SourceGenerationId!.Value,
+                permission, AgentNamespaceScope.ForCollection(profile.Id, "db", "items"),
+                LocalDestination, AgentOutputDataScope.DocumentValues)).ToArray();
+        var provider = new SequencePolicyProvider(Policy(102, grants));
+        var source = new StubExplainSource { Result = new("{\"parsedQuery\":{\"password\":\"private-canary\"}}", true, false) };
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), explain: source);
+        var prefix = $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"db\",\"collection\":\"items\"";
+        var overrideResult = await registry.InvokeAsync(Principal(102), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoExplainToolName,
+            prefix + ",\"verbosity\":\"executionStats\"}");
+        var codeFilter = await registry.InvokeAsync(Principal(102), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoExplainToolName,
+            JsonSerializer.Serialize(new { connectionId = profile.Id, database = "db", collection = "items",
+                filterEjson = "{\"$where\":\"return true\"}" }));
+        var constructorFilter = await registry.InvokeAsync(Principal(102), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoExplainToolName,
+            JsonSerializer.Serialize(new { connectionId = profile.Id, database = "db", collection = "items",
+                filterEjson = "ObjectId('507f1f77bcf86cd799439011')" }));
+        var unsafeResult = await registry.InvokeAsync(Principal(102), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoExplainToolName, prefix + "}");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(overrideResult.ErrorCode, Is.EqualTo("InvalidArguments"));
+            Assert.That(codeFilter.ErrorCode, Is.EqualTo("InvalidArguments"));
+            Assert.That(constructorFilter.ErrorCode, Is.EqualTo("InvalidArguments"));
+            Assert.That(unsafeResult.ErrorCode, Is.EqualTo("PermissionDenied"));
+            Assert.That(unsafeResult.StructuredContentJson, Is.Null);
+            Assert.That(source.Calls, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public async Task MongoExplainServerPlanFailureIsSanitizedExecutionFailure()
+    {
+        var profile = Connection("explain");
+        var grants = new[] { AgentPermission.ReadDiagnostics, AgentPermission.ExecuteReadQueries,
+                AgentPermission.ReadDocuments }
+            .Select(permission => new AgentPermissionGrant(PrincipalId,
+                AgentInvocationScope.ForTurn(SessionId, TurnId), profile.SourceGenerationId!.Value,
+                permission, AgentNamespaceScope.ForCollection(profile.Id, "db", "items"),
+                LocalDestination, AgentOutputDataScope.DocumentValues)).ToArray();
+        var provider = new SequencePolicyProvider(Policy(103, grants));
+        var audit = new RecordingAuditRepository();
+        var source = new StubExplainSource { Failure = new InvalidDataException("private-canary") };
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), audit: audit, explain: source);
+        var result = await registry.InvokeAsync(Principal(103), Context(), LocalDestination,
+            AgentOutputDataScope.DocumentValues, AgentToolRegistry.MongoExplainToolName,
+            $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"db\",\"collection\":\"items\"}}");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ErrorCode, Is.EqualTo("PermissionDenied"));
+            Assert.That(result.ErrorCode, Is.Not.EqualTo("InvalidArguments"));
+            Assert.That(result.StructuredContentJson, Is.Null);
+            Assert.That(audit.Events, Has.Count.EqualTo(2));
+            Assert.That(audit.Events[1].DecisionReason, Is.EqualTo(AgentAuditDecisionReason.ExecutionFailed));
+            Assert.That(string.Join(" ", audit.Events), Does.Not.Contain("private-canary"));
+        });
+    }
+
+    private sealed class StubExplainSource : IAgentMongoExplainSource
+    {
+        public AgentMongoExplainResult Result { get; init; } = new("{\"stage\":\"IXSCAN\"}", true, false);
+        public Exception? Failure { get; init; }
+        public AgentMongoFindQuery? LastQuery { get; private set; }
+        public int Calls { get; private set; }
+        public Task<AgentMongoExplainResult> ExplainAsync(ConnectionProfile profile,
+            AgentMongoFindQuery query, CancellationToken cancellationToken)
+        {
+            Calls++;
+            LastQuery = query;
+            if (Failure is { } failure) throw failure;
+            return Task.FromResult(Result);
+        }
+    }
+
     private sealed class StubMetadataSource : IMongoMetadataSource
     {
         public IReadOnlyList<string> Databases { get; init; } = [];
@@ -1158,10 +2061,49 @@ public sealed class AgentToolRegistryTests
     {
         public int Calls { get; private set; }
         public AgentMongoFindQuery? LastQuery { get; private set; }
+        public AgentMongoFindByIdQuery? LastByIdQuery { get; private set; }
         public AgentMongoFindPage Page { get; init; } = new([], false, false, true, false);
 
         public Task<AgentMongoFindPage> FindAsync(ConnectionProfile profile, AgentMongoFindQuery query,
             CancellationToken cancellationToken)
+        {
+            Calls++;
+            LastQuery = query;
+            return Task.FromResult(Page);
+        }
+
+        public Task<AgentMongoFindPage> FindByIdAsync(ConnectionProfile profile, AgentMongoFindByIdQuery query,
+            CancellationToken cancellationToken)
+        {
+            Calls++;
+            LastByIdQuery = query;
+            return Task.FromResult(Page);
+        }
+    }
+
+    private sealed class StubCountSource : IAgentMongoCountSource
+    {
+        public int Calls { get; private set; }
+        public AgentMongoCountQuery? LastQuery { get; private set; }
+        public AgentMongoCountResult Result { get; init; } = new("{\"$numberLong\":\"0\"}", true);
+
+        public Task<AgentMongoCountResult> CountAsync(ConnectionProfile profile, AgentMongoCountQuery query,
+            CancellationToken cancellationToken)
+        {
+            Calls++;
+            LastQuery = query;
+            return Task.FromResult(Result);
+        }
+    }
+
+    private sealed class StubDistinctSource : IAgentMongoDistinctSource
+    {
+        public int Calls { get; private set; }
+        public AgentMongoDistinctQuery? LastQuery { get; private set; }
+        public AgentMongoDistinctPage Page { get; init; } = new([], false, true, false);
+
+        public Task<AgentMongoDistinctPage> DistinctAsync(ConnectionProfile profile,
+            AgentMongoDistinctQuery query, CancellationToken cancellationToken)
         {
             Calls++;
             LastQuery = query;
