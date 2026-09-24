@@ -21,6 +21,7 @@ public sealed partial class LiteDbConnectionProfileRepository :
     IEnvironmentVaultRepository,
     IConsoleHistoryRepository,
     IAgentAuthorizationPolicyRepository,
+    IAgentAuditRepository,
     IDisposable
 {
     private readonly LiteDatabase _database;

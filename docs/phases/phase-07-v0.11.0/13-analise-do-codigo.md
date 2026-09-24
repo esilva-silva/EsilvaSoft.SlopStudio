@@ -46,7 +46,7 @@ O registry deverá ter caso de uso explícito de schema que utiliza essa base, c
 
 [SessionConnectionSecretStore](../../../src/EsilvaSoft.SlopStudio.Infrastructure/SessionConnectionSecretStore.cs) é dicionário concorrente em memória; não é Windows Credential Manager nem Secret Service. Perfil pode conter URI e ambiente tem valores persistidos: não tratar o nome “vault” como prova de criptografia. A nova integração exige referências de segredos em storage de SO e redução explícita de DTOs. O pedido autoriza providers externos, mas não transforma IA local em serviço remoto.
 
-AuditEntry/IAuditRepository atuais não constituem ledger de autorização de agentes: faltam principal, tool call, identificador de aprovação, policy revision e resultado incerto. Acrescentar contrato/coleção versionada sem remover histórico. O hash da proposta serve ao ticket efêmero, não ao log persistente, conforme a política de privacidade. Falha ao registrar intenção de escrita bloqueia despacho; falha após despacho deve ser visível, preservando possível efeito MongoDB. Não abrir segundo workspace no processo MCP.
+`AuditEntry`/`IAuditRepository` continuam atendendo a auditoria local manual. A nova coleção `agentAuditEvents` adiciona principal, chamada, canal, tool, revisão, resultado e métricas sem conteúdo; está no owner LiteDB único e no DI, mas ainda não é consumida pelo registry. O schema v1 ainda não inclui namespace autorizado, motivo detalhado, approval ID/horário nem início/fim separados conforme o contrato de segurança; completar isso com migração versionada antes de afirmar gate de escrita. A revisão encontrou também correlação fraca de intents/desfechos que pode retirar indevidamente uma intenção pendente da retenção; correção pendente. Falha ao registrar intenção de escrita deve bloquear despacho; falha após despacho precisa preservar efeito MongoDB possível. Não abrir segundo workspace no processo MCP.
 
 ### Console, processos e arquivos
 
@@ -68,7 +68,7 @@ Workspace/WorkspaceTab ViewModels mantêm edição/contexto por aba; explorer na
 
 | Gap observado | Consequência | Gate antes da entrega |
 | --- | --- | --- |
-| Registry interno parcial; sem broker/identidade MCP, ledger de decisão ou integração chat | Ingress externo ainda não pode invocar tools com identidade confiável ou auditoria equivalente | Completar registry e identidade confiável, auditar cada chamada e provar equivalência chat/MCP antes de registrar ingressos |
+| Registry interno parcial; ledger v1 de chamada existe mas não está ligado ao registry e falha em correlacionar intents com segurança; sem broker/identidade MCP ou integração chat | Ingress externo ainda não pode invocar tools com identidade confiável ou auditoria equivalente | Corrigir correlação/evoluir schema, ligar auditoria fail-closed ao registry, completar identidade confiável e provar equivalência chat/MCP antes de registrar ingressos |
 | Parsing dinâmico de entradas | ENV/segredos podem sair por consulta | Modo literal separado, fixtures de strings e nenhuma resolução dinâmica externa |
 | Profiles/diagnósticos têm dados privados | Serialização automática vaza URI/host/ambiente | DTOs allowlist, cofre de SO, redator e testes de canários |
 | Sem ledger de aprovações | Replay, consentimento obsoleto, auditoria insuficiente | Hash alvo/args/revisão/principal, expiração, one-shot e status de certeza |

@@ -1,6 +1,6 @@
 # Catálogo de ferramentas — proposta ancorada no código
 
-Estado: **planejado**. Há serviços MongoDB existentes, mas nenhuma ferramenta MCP implementada por esta meta. A mesma definição, política e implementação de tool atende MCP e chat. Referência de código principal: [IMongoWorkspaceService](../../../src/EsilvaSoft.SlopStudio.Application/IMongoWorkspaceService.cs), [WorkspaceService](../../../src/EsilvaSoft.SlopStudio.Application/WorkspaceService.cs) e [MongoWorkspaceService](../../../src/EsilvaSoft.SlopStudio.Infrastructure/MongoWorkspaceService.cs).
+Estado: **parcial**. Há um registry interno de Application com `list_connections`, autorização default-deny, limites e revalidação do snapshot; ele não está registrado no DI nem exposto por MCP/chat. Nenhuma ferramenta MCP executável foi entregue por esta meta. A mesma definição, política e implementação de tool deve atender MCP e chat. Referência de código Mongo: [IMongoWorkspaceService](../../../src/EsilvaSoft.SlopStudio.Application/IMongoWorkspaceService.cs), [WorkspaceService](../../../src/EsilvaSoft.SlopStudio.Application/WorkspaceService.cs) e [MongoWorkspaceService](../../../src/EsilvaSoft.SlopStudio.Infrastructure/MongoWorkspaceService.cs).
 
 ## Contrato comum
 
