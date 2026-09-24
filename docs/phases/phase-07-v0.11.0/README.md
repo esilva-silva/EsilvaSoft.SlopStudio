@@ -35,6 +35,7 @@ Conectar uma conta não autoriza envio de dados. O usuário escolhe destino, con
 | [17 — Validação desta meta](17-validacao-da-meta.md) | Evidência documental e limites da revisão |
 | [18 — Persistência de autorização](18-persistencia-de-autorizacao.md) | Persistência versionada de grants no proprietário LiteDB único |
 | [19 — Persistência de auditoria](19-persistencia-auditoria.md) | Ledger local versionado, retenção e limites |
+| [20 — Agentes e execução](20-agentes-e-execucao.md) | Responsáveis por lote, revisão, handoffs, gates e preparação para Claude Code |
 
 ## Sequência e decisões
 

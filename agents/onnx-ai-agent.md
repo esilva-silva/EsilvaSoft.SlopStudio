@@ -7,6 +7,7 @@
 Especialista em inteligência artificial local embarcada, integração com o runtime `Microsoft.ML.OnnxRuntimeGenAI`, detecção e diagnóstico de aceleradores de hardware (CPU, GPU, NPU) e gestão de modelos neurais para o **EsilvaSoft.SlopStudio**.
 
 ## Responsibilities
+- **Fase 7:** Lote 9: implementar fachada local com agent-runtime-agent, preservando proprietário do modelo e Infrastructure.LocalAi. Não usar CancelGeneration global para cancelar chat; manter LoadedOnly/preempção do autocomplete. Modelo FIM não anuncia Chat/ToolCalling sem evidência; provar operação offline e ausência de fallback externo. Aplicar o [protocolo comum](phase-7-protocol.md) e a [matriz de lotes](../docs/phases/phase-07-v0.11.0/20-agentes-e-execucao.md).
 - Implementar e manter o adaptador de runtime neural em `Infrastructure/Onnx*`:
   - Ciclo de vida da sessão ONNX GenAI (`OnnxLocalModelRuntime`).
   - Gestão de memória do modelo, alocação de tensores e reutilização de KV-cache.

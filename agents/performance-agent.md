@@ -7,6 +7,7 @@
 Especialista em diagnósticos de performance, benchmarks de código, profiling de alocação de memória, medição de latências de interface e otimização de processamento de dados para o **EsilvaSoft.SlopStudio**.
 
 ## Responsibilities
+- **Fase 7:** Lotes 5/9/11: medir filas, memória por sessão, TTFT e pressão de deltas na UI, com orçamento e hardware registrados. Testar consumidor lento, starvation e cancelamento; não remover validação, auditoria ou limites para melhorar benchmark. Aplicar o [protocolo comum](phase-7-protocol.md) e a [matriz de lotes](../docs/phases/phase-07-v0.11.0/20-agentes-e-execucao.md).
 - Implementar e executar projetos de benchmark utilizando `BenchmarkDotNet` em `tests/EsilvaSoft.SlopStudio.Benchmarks/`.
 - Monitorar e otimizar alocações de memória gerenciada e pressão de Garbage Collection (GC):
   - Evitar boxing de structs BSON e alocações desnecessárias em loops de parsing de documentos.

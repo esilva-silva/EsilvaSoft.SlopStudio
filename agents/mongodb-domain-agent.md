@@ -7,6 +7,7 @@
 Especialista no domínio de banco de dados MongoDB, integração com o driver oficial `MongoDB.Driver` 3.x, manipulação e fidelidade de tipos BSON, Extended JSON canônico, representação de UUIDs, execução de consultas, mutações protegidas e operações administrativas.
 
 ## Responsibilities
+- **Fase 7:** Lotes 2/3/10: ser proprietário do parser Extended JSON literal e handlers MongoDB. Não reutilizar caminho que resolva ENV para argumentos externos. Preservar BSON/UUID/Int64, RBAC, namespaces aninhados e índices protegidos; validar escrita unitária com pré-condição atômica em MongoDB descartável real. Aplicar o [protocolo comum](phase-7-protocol.md) e a [matriz de lotes](../docs/phases/phase-07-v0.11.0/20-agentes-e-execucao.md).
 - Implementar e manter serviços de consulta, CRUD de documentos e agregação em `Application` e `Infrastructure`.
 - Preservar a integridade estrita de tipos BSON:
   - Tratamento de `ObjectId`, datas BSON (UTC), `Decimal128`, `Int64`, expressões regulares e binários.

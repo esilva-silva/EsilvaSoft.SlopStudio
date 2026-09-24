@@ -229,6 +229,8 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
             FindDescriptor(name) is not null;
         AgentAuditEvent? intent = null;
         var intentWritten = false;
+        var terminalWritten = false;
+        var successfulReadAudited = false;
         try
         {
             deadline.Token.ThrowIfCancellationRequested();
@@ -262,26 +264,53 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
                 : await InvokeWithQuotaLeaseAsync(quotaLease, principal, invocationContext, destination,
                     outputDataScope, name, argumentsJson, deadline.Token).ConfigureAwait(false);
             deadline.Token.ThrowIfCancellationRequested();
+            if (result.Succeeded)
+                result = await RevalidateReleaseAsync(result, principal!, invocationContext!, destination!,
+                    outputDataScope, name!, argumentsJson, deadline.Token).ConfigureAwait(false) ?? result;
             if (intentWritten && !await AppendOutcomeAsync(intent!, result).ConfigureAwait(false))
                 return AgentToolInvocationResult.Failure(PermissionDenied);
+            terminalWritten = intentWritten;
+            successfulReadAudited = terminalWritten && result.Succeeded;
+            if (result.Succeeded)
+            {
+                // Audit persistence can block. A result read before a revocation must not escape
+                // merely because its terminal audit was already written.
+                var lateDenial = await RevalidateReleaseAsync(result, principal!, invocationContext!, destination!,
+                    outputDataScope, name!, argumentsJson, deadline.Token).ConfigureAwait(false);
+                if (lateDenial is not null)
+                {
+                    if (!await AppendLateSuppressionAsync(intent!, lateDenial).ConfigureAwait(false))
+                        return AgentToolInvocationResult.Failure(PermissionDenied);
+                    return lateDenial;
+                }
+            }
+            deadline.Token.ThrowIfCancellationRequested();
             return result;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
         {
-            if (intentWritten && !await AppendOutcomeAsync(intent!,
+            if (successfulReadAudited && !await AppendLateSuppressionAsync(intent!,
+                    AgentToolInvocationResult.Failure(DeadlineExceeded)).ConfigureAwait(false))
+                return AgentToolInvocationResult.Failure(PermissionDenied);
+            if (intentWritten && !terminalWritten && !await AppendOutcomeAsync(intent!,
                     AgentToolInvocationResult.Failure(DeadlineExceeded)).ConfigureAwait(false))
                 return AgentToolInvocationResult.Failure(PermissionDenied);
             return AgentToolInvocationResult.Failure(DeadlineExceeded);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            if (intentWritten)
+            if (successfulReadAudited)
+                await AppendLateSuppressionAsync(intent!, null).ConfigureAwait(false);
+            else if (intentWritten && !terminalWritten)
                 await AppendOutcomeAsync(intent!, null).ConfigureAwait(false);
             throw;
         }
         catch
         {
-            if (intentWritten)
+            if (successfulReadAudited)
+                await AppendLateSuppressionAsync(intent!, AgentToolInvocationResult.Failure("ExecutionFailed"))
+                    .ConfigureAwait(false);
+            else if (intentWritten && !terminalWritten)
                 await AppendOutcomeAsync(intent!, AgentToolInvocationResult.Failure("ExecutionFailed"))
                     .ConfigureAwait(false);
             return AgentToolInvocationResult.Failure(PermissionDenied);
@@ -429,6 +458,15 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         }
     }
 
+    private Task<bool> AppendLateSuppressionAsync(AgentAuditEvent intent, AgentToolInvocationResult? result)
+    {
+        // The durable ledger allows one terminal per invocation. A second, terminal-only read
+        // event records that output was withheld after execution was already audited. It carries
+        // no result bytes and never implies the MongoDB read was rolled back.
+        var suppression = intent with { InvocationId = Guid.NewGuid() };
+        return AppendOutcomeAsync(suppression, result);
+    }
+
     private async Task<AgentToolInvocationResult> InvokeWithinDeadlineAsync(
         AgentPrincipal? principal,
         AgentInvocationContext? invocationContext,
@@ -511,6 +549,7 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         }
 
         var authorized = new List<ConnectionSummary>(MaximumConnections + 1);
+        var authorizedProfiles = new List<ConnectionProfile>(MaximumConnections + 1);
         var authorizedSnapshots = new Dictionary<Guid, AuthorizedConnectionSnapshot>(MaximumConnections);
         var outputBytes = Utf8ByteCount("{\"connections\":[") + Utf8ByteCount("],\"truncated\":false}");
         var truncated = false;
@@ -587,6 +626,7 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
             if (!authorizedSnapshots.TryAdd(profile.Id, new AuthorizedConnectionSnapshot(generationId, profile.Name, summary)))
                 return AgentToolInvocationResult.Failure(PermissionDenied);
             authorized.Add(summary);
+            authorizedProfiles.Add(profile);
             outputBytes += itemBytes;
         }
 
@@ -607,7 +647,7 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         if (Encoding.UTF8.GetByteCount(json) > MaximumOutputBytes)
             return AgentToolInvocationResult.Failure(ResultTooLarge);
         cancellationToken.ThrowIfCancellationRequested();
-        return AgentToolInvocationResult.Success(json);
+        return AgentToolInvocationResult.Success(json, authorizedProfiles);
     }
 
     private async Task<AgentToolInvocationResult> InvokeMetadataAsync(
@@ -738,7 +778,7 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         var json = JsonSerializer.Serialize(new NamesResponse(page, truncated), SerializerOptions);
         if (Utf8ByteCount(json) > MaximumOutputBytes) return AgentToolInvocationResult.Failure(ResultTooLarge);
         cancellationToken.ThrowIfCancellationRequested();
-        return AgentToolInvocationResult.Success(json);
+        return AgentToolInvocationResult.Success(json, profile);
     }
 
     private async Task<AgentAuditDecisionReason?> RevalidateMetadataProfileAsync(

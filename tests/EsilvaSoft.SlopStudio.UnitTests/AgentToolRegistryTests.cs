@@ -370,7 +370,7 @@ public sealed class AgentToolRegistryTests
         Assert.That(connections[0].GetProperty("name").GetString(), Is.EqualTo(first.Name));
         Assert.That(connections[1].GetProperty("name").GetString(), Is.EqualTo(second.Name));
         Assert.That(result.StructuredContentJson, Does.Not.Contain("não expor"));
-        Assert.That(profiles.GetAllCalls, Is.EqualTo(2));
+        Assert.That(profiles.GetAllCalls, Is.EqualTo(4));
     }
 
     [Test]
@@ -588,6 +588,75 @@ public sealed class AgentToolRegistryTests
         Assert.That(result.ErrorCode, Is.EqualTo("PermissionDenied"));
         Assert.That(result.StructuredContentJson, Is.Null);
         Assert.That(audit.Events.Select(item => item.Outcome), Is.EqualTo(new[] { AgentAuditOutcome.Intent }));
+    }
+
+    [Test]
+    public async Task RevocationDuringSuccessAuditSuppressesAlreadyReadOutput()
+    {
+        var profile = Connection("nome privado canary");
+        var provider = new MutablePolicyProvider(Policy(32, Grant(profile)));
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var audit = new RecordingAuditRepository
+        {
+            AppendHandler = async (entry, _) =>
+            {
+                if (entry.Outcome != AgentAuditOutcome.Succeeded) return;
+                entered.TrySetResult();
+                await release.Task;
+            }
+        };
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), audit: audit);
+
+        var pending = registry.InvokeAsync(Principal(32), Context(), LocalDestination, Metadata,
+            AgentToolRegistry.ListConnectionsToolName, "{}");
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        provider.Current = Policy(33);
+        release.TrySetResult();
+        var result = await pending.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ErrorCode, Is.EqualTo("PermissionDenied"));
+            Assert.That(result.StructuredContentJson, Is.Null);
+            Assert.That(audit.Events.Select(item => item.Outcome),
+                Is.EqualTo(new[] { AgentAuditOutcome.Intent, AgentAuditOutcome.Succeeded, AgentAuditOutcome.Denied }));
+            Assert.That(audit.Events[^1].DecisionReason,
+                Is.EqualTo(AgentAuditDecisionReason.PolicyRevisionMismatch));
+            Assert.That(audit.Events[^1].OutputBytes, Is.Zero);
+        });
+    }
+
+    [Test]
+    public async Task CancellationDuringSuccessAuditSuppressesAlreadyReadOutput()
+    {
+        var profile = Connection("permitida");
+        var provider = new MutablePolicyProvider(Policy(32, Grant(profile)));
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var audit = new RecordingAuditRepository
+        {
+            AppendHandler = async (entry, _) =>
+            {
+                if (entry.Outcome != AgentAuditOutcome.Succeeded) return;
+                entered.TrySetResult();
+                await release.Task;
+            }
+        };
+        var registry = Registry(new StubProfileRepository([profile]), provider,
+            new AgentPermissionEvaluator(provider), audit: audit);
+        using var cancellation = new CancellationTokenSource();
+
+        var pending = registry.InvokeAsync(Principal(32), Context(), LocalDestination, Metadata,
+            AgentToolRegistry.ListConnectionsToolName, "{}", cancellation.Token);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        cancellation.Cancel();
+        release.TrySetResult();
+        Assert.CatchAsync<OperationCanceledException>(async () => await pending.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.That(audit.Events.Select(item => item.Outcome),
+            Is.EqualTo(new[] { AgentAuditOutcome.Intent, AgentAuditOutcome.Succeeded, AgentAuditOutcome.Cancelled }));
+        Assert.That(audit.Events[^1].OutputBytes, Is.Zero);
     }
 
     [TestCase(true)]
@@ -2204,6 +2273,17 @@ public sealed class AgentToolRegistryTests
         {
             LoadCalls++;
             return Task.FromResult<AgentAuthorizationPolicySnapshot?>(policy);
+        }
+    }
+
+    private sealed class MutablePolicyProvider(AgentAuthorizationPolicySnapshot current) : IAgentAuthorizationPolicyProvider
+    {
+        public AgentAuthorizationPolicySnapshot Current { get; set; } = current;
+
+        public Task<AgentAuthorizationPolicySnapshot?> LoadAsync(Guid principalId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<AgentAuthorizationPolicySnapshot?>(Current);
         }
     }
 

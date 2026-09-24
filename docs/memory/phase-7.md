@@ -1,5 +1,11 @@
 # Memória de execução — Fase 7 / v0.11.0
 
+## Preparação dos agentes — 24/09/2026
+
+Perfis centrais ampliados com runtime, MCP, Tool Registry e providers; responsabilidades dos especialistas existentes incorporadas ao [plano 10](../phases/phase-07-v0.11.0/10-plano-de-implementacao.md) e à [matriz 20](../phases/phase-07-v0.11.0/20-agentes-e-execucao.md). [Protocolo comum](../../agents/phase-7-protocol.md) define propriedade de arquivos, handoffs e evidência por gate. [Claude Code](../../agents/claude-code.md) usa `CLAUDE.md` e adapters gerados, sem alterar permissões nem integrar o provider do produto.
+
+Esta atualização é de instruções/planejamento. Não reexecuta testes do produto nem aprova ACs. O registro abaixo preserva o histórico de 23/09; estado de branch, arquivos não commitados, pendências e restrições daquela sessão devem ser conferidos no checkout atual, especialmente a evolução posterior da auditoria descrita no documento 19.
+
 Atualizado em **23/09/2026**. Este arquivo é um ponto de retomada da meta de implementar MCP e integração com agentes externos no EsilvaSoft.SlopStudio. O [plano da fase](../phases/phase-07-v0.11.0/README.md), o [plano de implementação](../phases/phase-07-v0.11.0/10-plano-de-implementacao.md), os [critérios de aceite](../phases/phase-07-v0.11.0/12-criterios-de-aceite.md) e a [matriz de validação](../15-matriz-de-validacao.md) são as fontes detalhadas; este registro resume o estado observado neste checkout.
 
 ## Meta

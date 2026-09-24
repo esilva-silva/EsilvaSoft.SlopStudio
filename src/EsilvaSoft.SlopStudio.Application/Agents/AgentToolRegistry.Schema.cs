@@ -157,7 +157,7 @@ public sealed partial class AgentToolRegistry
             SerializerOptions);
         if (Utf8ByteCount(json) > MaximumOutputBytes) return AgentToolInvocationResult.Failure(ResultTooLarge);
         cancellationToken.ThrowIfCancellationRequested();
-        return AgentToolInvocationResult.Success(json);
+        return AgentToolInvocationResult.Success(json, profile);
     }
 
     private static bool TryParseSchemaArguments(string? json, out Guid connectionId, out string? database,

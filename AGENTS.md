@@ -11,6 +11,8 @@
 
 - O diretório central `/agents/` concentra todos os agentes especializados da solução e sua orquestração por metas (`agents/goal-orchestrator.md`).
 - A abstração de modelos e regras de escalonamento residem em `agents/capabilities.md`.
+- Fase 7: aplicar `agents/phase-7-protocol.md` e a matriz de responsáveis/gates em `docs/phases/phase-07-v0.11.0/20-agentes-e-execucao.md`; runtime, MCP, registry e providers têm especialistas próprios.
+- Claude Code: `CLAUDE.md` importa estas regras; `.claude/agents/` contém adapters gerados dos contratos centrais. Instruções em `agents/claude-code.md`. Agentes de desenvolvimento não habilitam a capability `SubAgents` do produto.
 - UI/UX: hierarquia, tokens, tipografia, teclado, foco, estados vazios/erro e evidência visual nos dois temas (`agents/ui-ux-agent.md`).
 - Arquitetura: contexto fixo por aba, snapshots antes de awaits, cancelamento isolado, contratos explícitos e persistência versionada (`agents/architecture-agent.md`).
 - Qualidade: cenários observáveis, fixtures independentes, integridade BSON, concorrência, privacidade e distinção entre teste automatizado e homologação real (`agents/qa-testing-agent.md`, `agents/code-review-agent.md`).

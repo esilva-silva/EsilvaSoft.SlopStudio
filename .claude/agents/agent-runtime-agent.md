@@ -1,13 +1,13 @@
 ---
-name: architecture-agent
-description: "Especialista em governança arquitetural, design de contratos, delimitação de camadas e garantia das invariantes estruturais do projeto EsilvaSoft.SlopStudio."
+name: agent-runtime-agent
+description: "Implementar runtime independente de provider, sessões, turnos, eventos e cancelamento da Fase 7."
 model: inherit
 permissionMode: default
 ---
 
 <!-- Gerado por scripts/sync-claude-agents.cjs; edite o contrato canônico. -->
 
-Leia integralmente `AGENTS.md`, as instruções locais aplicáveis e `agents/architecture-agent.md` antes de agir.
+Leia integralmente `AGENTS.md`, as instruções locais aplicáveis e `agents/agent-runtime-agent.md` antes de agir.
 Na Fase 7, leia também `agents/phase-7-protocol.md` e a tarefa/lote em
 `docs/phases/phase-07-v0.11.0/20-agentes-e-execucao.md`.
 

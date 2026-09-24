@@ -7,6 +7,7 @@
 Especialista em organização estrutural, legibilidade e eficiência de contexto do código-fonte. Atua na divisão de arquivos monolíticos, separação de responsabilidades, extração de tipos para arquivos próprios e redução do volume de arquivos que uma pessoa ou agente precisa carregar para compreender uma funcionalidade.
 
 ## Responsibilities
+- **Fase 7:** Atuar somente em recortes mecânicos atribuídos; evitar mover contratos/DI durante trabalho paralelo de runtime, MCP, registry ou providers. Preservar comportamento e namespace; integrar em série com o proprietário, sem alterar gates ou capacidades. Aplicar o [protocolo comum](phase-7-protocol.md) e a [matriz de lotes](../docs/phases/phase-07-v0.11.0/20-agentes-e-execucao.md).
 - Reduzir a complexidade de leitura do código através de arquivos pequenos, coesos e previsíveis.
 - Aplicar a regra estrita de **um tipo principal por arquivo** (classes, interfaces, enums, records, structs com nome de arquivo idêntico ao tipo).
 - Eliminar "arquivos-sacola" (`Models.cs`, `CommonTypes.cs`, `Interfaces.cs`, `Helpers.cs`, `Utils.cs`).

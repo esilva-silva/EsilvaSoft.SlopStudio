@@ -4,6 +4,8 @@ Bem-vindo à pasta central de agentes do **EsilvaSoft.SlopStudio**.
 
 Este diretório concentra todos os agentes de inteligência artificial especializados utilizados no desenvolvimento, manutenção, qualidade, arquitetura e evolução da solução.
 
+Para a Fase 7, aplicar o [protocolo comum](phase-7-protocol.md) e a [matriz de responsáveis por lote](../docs/phases/phase-07-v0.11.0/20-agentes-e-execucao.md). Para Claude Code, usar o [guia](claude-code.md) e os adapters gerados em `.claude/agents/`. Agentes de desenvolvimento não habilitam subagentes do produto.
+
 ---
 
 ## 1. Princípio de Especialização
@@ -33,6 +35,10 @@ Nenhum agente opera de forma isolada sem coordenação ou tenta assumir tarefas 
 | **QA & Testing** | [`qa-testing-agent.md`](qa-testing-agent.md) | Testes NUnit, Avalonia.Headless, fixtures independentes, testes de concorrência com CTS e matriz de validação. | `balanced` | `reasoning` |
 | **Performance** | [`performance-agent.md`](performance-agent.md) | Benchmarks com BenchmarkDotNet, profiling de memória/GC, latência de renderização UI e tempo de primeiro token (TTFT). | `reasoning` | `advanced-reasoning` |
 | **Documentation** | [`documentation-agent.md`](documentation-agent.md) | Manutenção de `docs/`, rastreabilidade do catálogo funcional (CON/DAT/...), sincronização do índice HTML e pt-BR. | `balanced` | `large-context` |
+| **Agent Runtime** | [`agent-runtime-agent.md`](agent-runtime-agent.md) | Sessões, turnos, eventos, tool loop, filas e cancelamento isolado; lote 5. | `reasoning` | `advanced-reasoning` |
+| **MCP Integration** | [`mcp-integration-agent.md`](mcp-integration-agent.md) | Proxy STDIO, broker/IPC autenticado e interoperabilidade; lotes 0/3/4. | `reasoning` | `advanced-reasoning` |
+| **Tool Registry** | [`tool-registry-agent.md`](tool-registry-agent.md) | Pipeline único de tools, políticas, aprovação e saída; lotes 2/10. | `reasoning` | `advanced-reasoning` |
+| **Agent Provider** | [`agent-provider-agent.md`](agent-provider-agent.md) | Adapters OpenAI/Codex e Claude, streaming e capabilities verificadas; lotes 0/7/8. | `reasoning` | `advanced-reasoning` |
 
 ---
 
@@ -65,7 +71,7 @@ $$\text{fast} \xrightarrow{\text{falha}} \text{balanced} \xrightarrow{\text{falh
 
 ## 4. Contrato Padronizado de Agente
 
-Todos os arquivos em `/agents/` seguem rigorosamente a estrutura obrigatória de 13 seções:
+Todos os perfis de agentes em `/agents/` seguem a estrutura obrigatória de 14 seções (guias, catálogo e protocolos não são perfis):
 
 ```markdown
 # [Nome do Agente]
@@ -100,6 +106,10 @@ Expected Output: [Formato e conteúdo da entrega]
 Acceptance Criteria: [Critérios mensuráveis de aceite]
 Preferred Capability: [fast | balanced | reasoning | advanced-reasoning | large-context]
 Suggested Models: [Modelos recomendados]
+Batch / Requirements / ACs: [Lote, requisitos e aceites relacionados]
+Dependencies / Gate: [Pré-condições e evidências exigidas antes de liberar]
+File Ownership: [Arquivos exclusivos; responsável por contratos/DI/documentação compartilhados]
+Environment Constraints: [Limitações atuais, credenciais e plataformas disponíveis sem dados secretos]
 ```
 
 ### Retorno da Tarefa (Especialista ➔ Orquestrador)
@@ -112,6 +122,8 @@ Problems: [Problemas encontrados ou limitações]
 Pending Items: [Itens pendentes]
 Validation Performed: [Comandos executados e evidências]
 Recommended Next Step: [Sugestão de próximo passo]
+Gate Status: [pendente | parcial | aprovado; separado do status da tarefa]
+Evidence: [Revisão/data, comandos e exit codes, contagens, artefatos, testes ignorados e limites]
 ```
 
 ---

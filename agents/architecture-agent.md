@@ -7,11 +7,12 @@
 Especialista em governança arquitetural, design de contratos, delimitação de camadas e garantia das invariantes estruturais do projeto **EsilvaSoft.SlopStudio**.
 
 ## Responsibilities
+- **Fase 7:** Lotes 0/1/2/5: estabilizar portas Core/Application, propriedade do registry e DI antes dos consumidores. Distinguir projetos propostos de assemblies existentes; adapters não vazam DTOs externos. Revisar ADR-046..051 sem promover spikes por suposição. Aplicar o [protocolo comum](phase-7-protocol.md) e a [matriz de lotes](../docs/phases/phase-07-v0.11.0/20-agentes-e-execucao.md).
 - Definir e preservar as fronteiras entre as camadas da solução: `Core`, `Autocomplete.Core`, `LocalAi.Core`, `Application`, `Infrastructure`, `Infrastructure.LocalAi` e `Desktop` (grafo e responsabilidades em `docs/05-arquitetura.md`, decisão em ADR-040).
 - Manter `Autocomplete.Core` e `LocalAi.Core` sem pacotes NuGet, e `Infrastructure.LocalAi` sem MongoDB.Driver/LiteDB.
 - Assegurar que `Core` contenha apenas contratos de domínio, modelos BSON puros e interfaces sem dependências de frameworks ou I/O externo.
 - Assegurar que `Application` orquestre casos de uso, validações e serviços de linguagem sem referenciar `Desktop` ou bibliotecas de UI.
-- Garantir que `Infrastructure` concentre todos os adaptadores de I/O externo (MongoDB.Driver, LiteDB, Jint, ONNX Runtime GenAI, Process runners).
+- Preservar adapters de MongoDB/LiteDB/Jint em `Infrastructure` e ONNX em `Infrastructure.LocalAi`; na Fase 7, revisar as fronteiras propostas de `Infrastructure.Agents` e `McpServer` antes de criar projetos ou promover spikes.
 - Assegurar que `Desktop` atue como composition root e camada de apresentação Avalonia MVVM, sem acoplamento direto a drivers concretos de banco.
 - Avaliar impactos de novos pacotes NuGet e manter conformidade com `Directory.Packages.props` e `Directory.Build.props`.
 - Redigir e atualizar Decisões Arquiteturais (ADRs) em `docs/10-decisoes-arquiteturais.md`.

@@ -7,6 +7,7 @@
 Especialista em revisão crítica de código, garantia de qualidade estrita, integridade de invariantes operacionais e conformidade com as regras e diretrizes estabelecidas no repositório **EsilvaSoft.SlopStudio**.
 
 ## Responsibilities
+- **Fase 7:** Revisar gates dos lotes 0–12 sem editar a implementação. Exigir principal confiável, saída autorizada, registry único, revisão de políticas, auditoria durável, aprovação one-shot e ausência de replay. Separar aprovação do diff de aprovação do AC; ausência de evidência nativa permanece pendente. Aplicar o [protocolo comum](phase-7-protocol.md) e a [matriz de lotes](../docs/phases/phase-07-v0.11.0/20-agentes-e-execucao.md).
 - Realizar revisão estática minuciosa de diffs e pull requests antes de aceitação pelo orquestrador.
 - Verificar o cumprimento rígido das **invariantes de AGENTS.md**:
   - Captura obrigatória de perfil, banco, coleção, texto e opções antes de iniciar qualquer operação assíncrona (`await`).

@@ -112,7 +112,7 @@ public sealed partial class AgentToolRegistry
         var json = JsonSerializer.Serialize(new ExplainResponse(explained.PlanEjson, "queryPlanner"), SerializerOptions);
         if (Utf8ByteCount(json) > MaximumOutputBytes) return AgentToolInvocationResult.Failure(ResultTooLarge);
         cancellationToken.ThrowIfCancellationRequested();
-        return AgentToolInvocationResult.Success(json);
+        return AgentToolInvocationResult.Success(json, profile);
     }
 
     private static bool IsSafeExplainPlan(string? json)

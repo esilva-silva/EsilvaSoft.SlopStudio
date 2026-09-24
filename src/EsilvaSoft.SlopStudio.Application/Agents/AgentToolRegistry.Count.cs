@@ -109,7 +109,7 @@ public sealed partial class AgentToolRegistry
         var json = JsonSerializer.Serialize(new CountResponse(counted.CountEjson, false), SerializerOptions);
         if (Utf8ByteCount(json) > MaximumOutputBytes) return AgentToolInvocationResult.Failure(ResultTooLarge);
         cancellationToken.ThrowIfCancellationRequested();
-        return AgentToolInvocationResult.Success(json);
+        return AgentToolInvocationResult.Success(json, profile);
     }
 
     private static bool TryParseCountArguments(string? json, out Guid connectionId, out string? database,

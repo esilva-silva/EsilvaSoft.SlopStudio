@@ -7,6 +7,7 @@
 Especialista nos motores de execução de scripts, console JavaScript interativo embarcado com Jint e integração externa com o shell oficial `mongosh` para o **EsilvaSoft.SlopStudio**.
 
 ## Responsibilities
+- **Fase 7:** Revisar fronteiras Jint/mongosh quando os lotes 2/10 tocarem serviços existentes. Tools externas não herdam ENV, execução JavaScript, shell ou comandos arbitrários. Não confundir permissões do console atual com grants de agentes. Aplicar o [protocolo comum](phase-7-protocol.md) e a [matriz de lotes](../docs/phases/phase-07-v0.11.0/20-agentes-e-execucao.md).
 - Implementar e manter o motor de execução do Console interativo (`IConsoleRuntime`, `ConsoleRuntime`, `ConsoleDatabaseSession`):
   - Utilizar Jint com parser Acornima para avaliação segura de JavaScript.
   - Disponibilizar objetos globais de contexto: `db`, `getConnection(name)`, `UUID(str)`, `ObjectId(str)`, etc.

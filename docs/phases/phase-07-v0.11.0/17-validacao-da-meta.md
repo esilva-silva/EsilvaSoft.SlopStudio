@@ -1,5 +1,17 @@
 # Validação da meta de planejamento
 
+## Preparação dos agentes — 24/09/2026
+
+Validação documental da [matriz 20](20-agentes-e-execucao.md) e dos contratos de desenvolvimento, sem implementar features nem aprovar ACs:
+
+- `node scripts/sync-claude-agents.cjs` e `--check`: 16 adapters gerados/verificados a partir de 17 perfis canônicos (coordenador na sessão principal); estrutura obrigatória de 14 seções conferida.
+- Checagem local de 62 documentos e 370 links relativos: nenhum destino ausente; matriz cobre lotes 0–12 e AC-01..20.
+- `node scripts/build-docs-index.cjs`: snapshot offline atualizado com 114 documentos. `git diff --check` do escopo documental passou.
+- Formato Claude conferido contra [subagents](https://code.claude.com/docs/en/sub-agents) e [memória](https://code.claude.com/docs/en/memory) oficiais. Executável `claude` ausente no PATH desta sessão: descoberta e execução real dos adapters **não homologadas**.
+- Restore/build/testes .NET não reexecutados nesta alteração de instruções; resultados históricos abaixo continuam limitados aos respectivos incrementos. Nenhuma mudança de UI exige nova evidência visual neste recorte.
+
+## Histórico de implementação e evidências
+
 Data-base: **22/09/2026**; atualização de andamento: **23/09/2026**. A v0.11.0 está em desenvolvimento inicial: o lote 0 reúne spikes isolados; o lote 1 possui adapters de cofre Windows/Linux e composição singleton dos stores e de `IAgentCredentialProvider` no DI da aplicação; e o lote 2 iniciou contratos de política, avaliador e registry interno de `list_connections`. Não há migração de credenciais, broker/servidor MCP ou DI de broker, protocolo externo, runtime, chat, provider, integração de API Key ou ferramenta MongoDB exposta nesta fase; **AC-01 a AC-20 permanecem pendentes**.
 
 ## Evidência executada

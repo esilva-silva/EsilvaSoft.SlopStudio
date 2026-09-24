@@ -1,5 +1,9 @@
 # Acompanhamento da implementação
 
+## Preparação operacional da Fase 7 — 24/09/2026
+
+Agentes de desenvolvimento atualizados, com especialistas de runtime, MCP, Tool Registry e providers; responsabilidades, revisores e evidências vinculados aos lotes 0–12 no [plano](phases/phase-07-v0.11.0/10-plano-de-implementacao.md) e na [matriz de execução](phases/phase-07-v0.11.0/20-agentes-e-execucao.md). [Guia Claude Code](../agents/claude-code.md), `CLAUDE.md` e adapters locais preparados. Alteração documental e de geração dos adapters; não implementa integração externa nem fecha AC-01..20. Homologação no Claude Code e testes funcionais do produto permanecem evidências separadas.
+
 ## Fase 5 / v0.9.0 — escopo automatizável concluído — 22/09/2026
 
 Build da solução: **0 avisos, 0 erros**. Suíte completa: **2.742 aprovados, 0 falhas, 20 ignorados**. Implementados consentimento local de contexto global/por conexão, opt-in separado de Input JSON e prévia obrigatória antes da inferência, com invalidação por edição/política/destino; respostas são vinculadas à revisão de origem e propostas continuam revisáveis, undoáveis e sem execução Mongo. Runtime agora invalida chamadas obsoletas que aguardam fila/carga sem interromper contexto válido; autocomplete imediato determinístico e fallback/IA debounced; editor publica ciclo de composição IME. Quatro execuções Headless do gate edição→ghost deram p95 3,85–8,42 ms. Imagens de chat e prévia nos quatro idiomas/temas foram geradas e inspecionadas.

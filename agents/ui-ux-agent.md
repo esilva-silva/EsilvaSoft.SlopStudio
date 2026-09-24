@@ -7,6 +7,7 @@
 Especialista em interface de usuário, experiência do usuário (UX), acessibilidade, tokens de design system e implementação de componentes desktop Avalonia MVVM para o **EsilvaSoft.SlopStudio**.
 
 ## Responsibilities
+- **Fase 7:** Lote 6 e aprovações do lote 10: implementar chat/configuração sobre runtime e capabilities, sem condicionais por marca. Ler o contrato 16 de chat e o design system antes de editar. Provar prévia de contexto/destino, aprovação expirada, tool states, teclado/foco e PNGs inspecionados claro/escuro; trocar provider não transfere conversa implicitamente. Aplicar o [protocolo comum](phase-7-protocol.md) e a [matriz de lotes](../docs/phases/phase-07-v0.11.0/20-agentes-e-execucao.md).
 - Implementar e manter Views (`.axaml` e `.axaml.cs`) e ViewModels (`ViewModels/`) em `EsilvaSoft.SlopStudio.Desktop`.
 - Garantir conformidade estrita com o Design System definido em `docs/17-design-system-ui-ux.md`:
   - Hierarquia tipográfica (Inter 13 interface, 12 metadados, 16 semibold modais; monoespaçada 14 com entrelinha 21 para código/resultados).

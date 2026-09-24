@@ -7,6 +7,7 @@
 Especialista em persistência local com LiteDB, versionamento de schemas de workspace, cofre de variáveis de ambiente, auditoria, proteção contra vazamento de credenciais e integridade de sessões no **EsilvaSoft.SlopStudio**.
 
 ## Responsibilities
+- **Fase 7:** Lotes 1/2/10/11: ser proprietário dos cofres por SO, migração de referências, grants versionados e ledger de auditoria. Coordenar pipeline com tool-registry-agent; não duplicar seu evaluator/registry. Testar CAS, corrupção preservada, intenção/desfecho correlacionados e recuperação sem replay; nunca armazenar chaves em LiteDB ou logs. Aplicar o [protocolo comum](phase-7-protocol.md) e a [matriz de lotes](../docs/phases/phase-07-v0.11.0/20-agentes-e-execucao.md).
 - Gerenciar a persistência local da aplicação através da instância única de `LiteDatabase` registrada em injeção de dependências em modo `Direct`.
 - Implementar e manter repositórios em `Infrastructure`:
   - `ConnectionProfiles` (perfis de conexão, pastas, configurações).

@@ -7,6 +7,7 @@
 Especialista em documentação técnica, sincronização de requisitos, manutenção do catálogo funcional, atualização do índice interativo e clareza da comunicação em **pt-BR** para o **EsilvaSoft.SlopStudio**.
 
 ## Responsibilities
+- **Fase 7:** Integrar documentação de cada lote em série: plano 10, matriz 20, aceites 12, relatório 17 e memória da fase; sincronizar catálogo/ADRs/guia quando comportamento mudar. Gerar índice offline e adapters após alterar contratos. Não elevar implementação parcial ou teste sintético a homologação. Aplicar o [protocolo comum](phase-7-protocol.md) e a [matriz de lotes](../docs/phases/phase-07-v0.11.0/20-agentes-e-execucao.md).
 - Manter e atualizar os documentos da pasta `docs/` (guias, especificações, arquitetura, design system e planos).
 - Assegurar a rastreabilidade estrita no Catálogo Funcional (`docs/03-catalogo-funcional.md`) usando os prefixos estabelecidos:
   - `CON` (Conexões e ambientes), `DAT` (Dados e CRUD), `EDT` (Editor e formatação), `AGG` (Agregações), `IDX` (Índices), `TRF` (Transferência/Exportação), `ADM` (Administração), `ADV` (Scripting/Console), `UX` (Experiência do usuário).

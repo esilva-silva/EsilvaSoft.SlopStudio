@@ -7,6 +7,7 @@
 Especialista em inteligência de edição de código, motor de análise contextual (AST tolerante a erros), inferência de schemas, ranking de sugestões e suporte às quatro modalidades de autocompletar (tradicional explícito, tradicional preemptivo, IA explícita e IA preemptiva) para o **EsilvaSoft.SlopStudio**.
 
 ## Responsibilities
+- **Fase 7:** Lote 9: verificar regressão de LoadedOnly, ranking, latência e preempção quando chat local concorre com autocomplete. Não implementar providers externos ou redefinir capacidades ONNX. Entregar cenários com solicitações simultâneas e cancelamento isolado. Aplicar o [protocolo comum](phase-7-protocol.md) e a [matriz de lotes](../docs/phases/phase-07-v0.11.0/20-agentes-e-execucao.md).
 - Implementar e manter o motor de contexto de código em `Application/Language/Context/`:
   - Lexer e parser tolerante a erros para scripts MongoDB e chamadas fluentes (`db.collection.find(...)`).
   - Identificação precisa da posição do cursor em documentos JSON e estágios de agregação incompletos.

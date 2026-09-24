@@ -4,6 +4,14 @@ Este documento estabelece o sistema de abstração por **níveis de capacidade d
 
 Os agentes **não dependem diretamente de nomes específicos de modelos**. Eles solicitam uma capacidade desejada (`Preferred Model Capability`) e uma alternativa (`Alternative Model Capability`). O mapeamento para modelos concretos é resolvido centralmente por esta configuração e pelo `goal-orchestrator`.
 
+## Seleção operacional para Fase 7 e Claude Code
+
+Herdar o modelo da sessão por padrão. Os nomes abaixo são exemplos históricos ilustrativos, não IDs de API, garantia de disponibilidade, qualidade ou custo. Não passá-los a ferramentas. A seleção explícita depende dos modelos realmente expostos pelo ambiente e das preferências do usuário; escalonamento não concede permissões extras nem resolve ausência de credencial, SO ou evidência.
+
+Os adapters Claude usam `model: inherit`. `fast`/`balanced`/`reasoning` são categorias internas, não valores do frontmatter. Não substituir automaticamente o modelo do usuário. Na falta da capacidade necessária, registrar risco e solicitar revisão disponível; não alegar execução por outro modelo.
+
+Na Fase 7, mudanças em registry, autorização, cofre, IPC, aprovação e concorrência exigem análise `reasoning` e revisão proporcional `advanced-reasoning`. Documentação e UI partem de `balanced`; refatoração mecânica pode usar `fast`. `large-context` descreve volume de leitura, não dispensa revisão de segurança. O revisor deve ser uma execução distinta do autor quando houver delegação, mesmo com o mesmo modelo.
+
 ---
 
 ## 1. Níveis de Capacidade
