@@ -9,8 +9,10 @@ public sealed partial class LiteDbConnectionProfileRepository
 
     /// <summary>
     /// Trusted local read used by the tool registry. Denies whenever the request is malformed, no consent document
-    /// exists, no entry matches this exact profile generation, the matching entry's scope does not cover the
-    /// requested namespace, or the matching entry expired. A corrupt or unknown-version document surfaces as
+    /// exists, or no single entry matches every binding at once: this exact profile generation, a scope covering the
+    /// requested namespace, the same output destination, a sample no larger than the consented ceiling, the same
+    /// authorization policy revision, and not expired (see <see cref="AgentSchemaSamplingConsentGrant.Authorizes"/>).
+    /// Legacy schema v1 entries carry none of these bindings and never match. A corrupt or unknown-version document surfaces as
     /// <see cref="InvalidDataException"/> from <see cref="AgentSchemaSamplingConsentDocumentCodec.Decode"/>, which
     /// this method does not catch: the registry's generic failure handling around this call already denies on any
     /// exception, so corruption can only ever deny, never grant, and is never rewritten from here.
@@ -20,7 +22,9 @@ public sealed partial class LiteDbConnectionProfileRepository
     {
         ArgumentNullException.ThrowIfNull(request);
         if (request.PrincipalId == Guid.Empty || request.ConnectionId == Guid.Empty ||
-            request.SourceGenerationId == Guid.Empty)
+            request.SourceGenerationId == Guid.Empty || request.Destination is null ||
+            request.SampleSize is < 1 or > AgentSchemaSamplingConsentGrant.MaximumAllowedSampleSize ||
+            request.PolicyRevision < 1)
             return Task.FromResult(false);
         AgentNamespaceScope requestedScope;
         try
@@ -37,10 +41,8 @@ public sealed partial class LiteDbConnectionProfileRepository
             var consent = ReadAgentSchemaSamplingConsent(request.PrincipalId);
             if (consent is null) return false;
             var now = DateTimeOffset.UtcNow;
-            return consent.Consents.Any(grant =>
-                grant.SourceGenerationId == request.SourceGenerationId &&
-                grant.Scope.Covers(requestedScope) &&
-                !grant.IsExpired(now));
+            return consent.Consents.Any(grant => grant.Authorizes(request.PrincipalId, request.SourceGenerationId,
+                requestedScope, request.Destination, request.SampleSize, request.PolicyRevision, now));
         }, cancellationToken);
     }
 
@@ -118,8 +120,10 @@ public sealed partial class LiteDbConnectionProfileRepository
             }
             var remaining = snapshot.Consents.Where(consent => consent.Scope.ConnectionId != connectionId).ToArray();
             if (remaining.Length == snapshot.Consents.Count) continue;
+            // Keeps the stored schema version: a legacy v1 document stays v1 (its grants cannot be expressed as v2),
+            // so the cascade removes grants without silently migrating or discarding the others.
             var next = AgentSchemaSamplingConsentSnapshot.Load(
-                principalId, AgentSchemaSamplingConsentSnapshot.CurrentSchemaVersion, snapshot.Revision + 1, remaining);
+                principalId, snapshot.SchemaVersion, snapshot.Revision + 1, remaining);
             collection.Upsert(AgentSchemaSamplingConsentDocumentCodec.Encode(next));
         }
     }

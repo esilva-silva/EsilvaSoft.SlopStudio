@@ -1,3 +1,4 @@
+using System.Globalization;
 using EsilvaSoft.SlopStudio.Application;
 using EsilvaSoft.SlopStudio.Application.Agents;
 using EsilvaSoft.SlopStudio.Infrastructure.Agents.Anthropic;
@@ -27,8 +28,13 @@ public static class AgentProviderServiceCollectionExtensions
 
         var configured = options ?? new OpenAiAgentProviderOptions();
         configured.Validate();
-        services.AddSingleton(provider => new OpenAiAgentProvider(
-            provider.GetRequiredService<IAgentCredentialProvider>(), configured, provider.GetService<IAgentToolRegistry>()));
+        EnsureToolResultWaitCovers(configured.ToolResultTimeout, RuntimeOptionsOf(services), "OpenAI");
+        services.AddSingleton(provider =>
+        {
+            EnsureToolResultWaitCovers(configured.ToolResultTimeout, RuntimeOptionsOf(provider), "OpenAI");
+            return new OpenAiAgentProvider(
+                provider.GetRequiredService<IAgentCredentialProvider>(), configured, provider.GetService<IAgentToolRegistry>());
+        });
         services.AddSingleton<IAgentProvider>(provider => provider.GetRequiredService<OpenAiAgentProvider>());
         return services;
     }
@@ -54,9 +60,65 @@ public static class AgentProviderServiceCollectionExtensions
 
         var configured = options ?? new ClaudeAgentProviderOptions();
         configured.Validate();
-        services.AddSingleton(provider => new ClaudeAgentProvider(
-            provider.GetRequiredService<IAgentCredentialProvider>(), configured, provider.GetService<IAgentToolRegistry>()));
+        EnsureToolResultWaitCovers(configured.Budget.ToolResultTimeout, RuntimeOptionsOf(services), "Claude");
+        services.AddSingleton(provider =>
+        {
+            EnsureToolResultWaitCovers(configured.Budget.ToolResultTimeout, RuntimeOptionsOf(provider), "Claude");
+            return new ClaudeAgentProvider(
+                provider.GetRequiredService<IAgentCredentialProvider>(), configured, provider.GetService<IAgentToolRegistry>());
+        });
         services.AddSingleton<IAgentProvider>(provider => provider.GetRequiredService<ClaudeAgentProvider>());
         return services;
+    }
+
+    /// <summary>
+    /// Margin above <see cref="AgentRuntimeOptions.MaxToolCallDuration"/> for delivering the result to the adapter,
+    /// scheduling and the cooperative return of a cancelled call (including the registry's bounded closing of a
+    /// cancelled write intent, at most 5 s + 5 s).
+    /// </summary>
+    public static readonly TimeSpan ToolResultWaitMargin = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// The adapter's wait for tool results must outlast the runtime's worst-case tool call (a write waiting for human
+    /// approval), or the model would see a timeout while the approval is still open and the runtime could still apply
+    /// the write. Checked at registration against the runtime options already composed and again at resolution, so
+    /// the registration order does not matter; without a composed runtime the defaults apply.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The wait does not cover the runtime budget plus the margin.</exception>
+    internal static void EnsureToolResultWaitCovers(TimeSpan toolResultTimeout, AgentRuntimeOptions runtime, string provider)
+    {
+        var required = runtime.MaxToolCallDuration + ToolResultWaitMargin;
+        if (toolResultTimeout < required)
+        {
+            throw new InvalidOperationException(string.Create(CultureInfo.InvariantCulture,
+                $"A espera por resultados de tool do provider {provider} ({toolResultTimeout.TotalSeconds:0} s) é menor que o pior caso de uma chamada do runtime com folga ({required.TotalSeconds:0} s)."));
+        }
+    }
+
+    /// <summary>
+    /// The runtime budget composed by <c>AddSlopStudioInfrastructure</c> (the same <c>AgentPlatformOptions.Runtime</c>
+    /// instance the runtime host uses, registered exactly once). A second registration would make the budget the
+    /// runtime enforces ambiguous, so it is refused instead of picking the last one.
+    /// </summary>
+    private static AgentRuntimeOptions RuntimeOptionsOf(IServiceCollection services)
+    {
+        var registered = services.Where(static descriptor => descriptor.ServiceType == typeof(AgentRuntimeOptions)).ToArray();
+        return registered.Length switch
+        {
+            0 => AgentRuntimeOptions.Default,
+            1 when registered[0].ImplementationInstance is AgentRuntimeOptions options => options,
+            _ => throw new InvalidOperationException("As opções do runtime de agentes precisam ser uma única instância composta."),
+        };
+    }
+
+    private static AgentRuntimeOptions RuntimeOptionsOf(IServiceProvider provider)
+    {
+        var registered = provider.GetServices<AgentRuntimeOptions>().ToArray();
+        return registered.Length switch
+        {
+            0 => AgentRuntimeOptions.Default,
+            1 => registered[0],
+            _ => throw new InvalidOperationException("As opções do runtime de agentes precisam ser uma única instância composta."),
+        };
     }
 }

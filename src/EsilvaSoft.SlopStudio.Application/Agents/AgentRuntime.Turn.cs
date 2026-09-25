@@ -251,6 +251,8 @@ public sealed partial class AgentRuntime
                 foreach (var (approvalId, approval) in turn.Approvals.Where(static item => !item.Value.Terminal))
                 {
                     approval.Terminal = true;
+                    // A registry write approval still waiting answers the coordinator denied: no ticket, no write.
+                    approval.RegistryDecision?.TrySetResult(AgentApprovalOutcome.Denied);
                     terminals.Add(sequence => turn.Create(sequence, AgentEventKind.ApprovalDenied,
                         errorCode: "ApprovalCancelled", approvalId: approvalId));
                 }
@@ -279,6 +281,13 @@ public sealed partial class AgentRuntime
             return (AgentTurnOutcome.OutcomeUnknown, "InterruptionUnconfirmed");
         }
 
+        // A tool whose effect is uncertain (sent write, applied-but-withheld output) makes the whole turn uncertain,
+        // however it ended: a natural end, a failure or a cancellation never reads as a clean outcome.
+        if (turn.ToolOutcomeUnknown)
+        {
+            return (AgentTurnOutcome.OutcomeUnknown, turn.FailureCode ?? "ToolOutcomeUnknown");
+        }
+
         if (turn.FailureCode is { } failure)
         {
             return (AgentTurnOutcome.Failed, failure);
@@ -292,8 +301,6 @@ public sealed partial class AgentRuntime
         return turn.Reason switch
         {
             TurnCancelReason.None or TurnCancelReason.Finished => (AgentTurnOutcome.Completed, null),
-            // A dispatched call interrupted by any stop cause may have run: never report a clean cancel or timeout.
-            _ when turn.ToolOutcomeUnknown => (AgentTurnOutcome.OutcomeUnknown, "ToolOutcomeUnknown"),
             TurnCancelReason.TimedOut => (AgentTurnOutcome.TimedOut, "TurnTimedOut"),
             TurnCancelReason.ConsumerUnavailable => (AgentTurnOutcome.Cancelled, "ConsumerUnavailable"),
             _ => (AgentTurnOutcome.Cancelled, null),

@@ -24,7 +24,7 @@ Contrato compartilhado é estabilizado por arquitetura antes dos consumidores. L
 - Migrações aditivas no proprietário LiteDB único; cofre do SO armazena segredos, banco guarda referências. Falhas de persistência visíveis e recuperáveis, sem fallback plaintext.
 - Aprovação de escrita imutável, expira e é consumida uma vez. Intenção durável antes de executar; falha após envio pode ser `OutcomeUnknown`, sem replay nem promessa de rollback.
 - Snapshot antes de awaits, CTS por execução, filas/bytes/deadlines limitados, evento tardio descartado e tool result sem lock do consumidor do stream.
-- Sem workflows da fase 8, transcript persistido, shell/file editing ou subagentes do produto. ONNX e autocomplete continuam independentes e offline.
+- Sem workflows da fase 8, transcript persistido, shell/file editing ou subagentes do produto, exceto ferramentas nativas do modo Claude Code com aprovação por chamada (ADR-054) e o transcript gravado pelo próprio Claude Code; o Slop continua sem persistir transcript. ONNX e autocomplete continuam independentes e offline.
 
 ## Entrega e gate
 

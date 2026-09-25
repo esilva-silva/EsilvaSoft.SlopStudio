@@ -205,7 +205,7 @@ O [plano da Fase 7](phases/phase-07-v0.11.0/README.md) acrescenta os recortes ab
 | --- | --- | --- |
 | ADV-09, UX-01/02 | Agent Runtime, sessões, streaming, cancelamento e chat Avalonia por capabilities | UI independente do fornecedor, eventos normalizados, destino fixo e degradação sem serviços externos |
 | ADV-09, DAT-01/03/09/10, IDX-01 | MCP e registro único de ferramentas | Cliente externo descobre/executa leituras limitadas; MCP e chat usam a mesma implementação e autorização |
-| ADV-09, CON-07 | OpenAI/Codex e Claude por adaptadores; autenticação e cofre de SO | Apenas fluxos oficiais; referências a segredos persistidas, nenhuma API key/token em texto puro no workspace |
+| ADV-09, CON-07 | OpenAI/Codex e Claude por adaptadores; autenticação e cofre de SO | Contas próprias Codex/ChatGPT (7B) e Claude (8B) são prioridade condicional planejada; API Key permanece alternativa. Apenas fluxos oficiais e gates por SO; nenhum token copiado ou segredo plaintext |
 | CON-07, ADM-11, DAT-04/05/06, IDX-01 | Permissões, aprovações, auditoria e limite de dados externos | Nenhuma escrita sem autorização vinculada à ação; nenhum dado enviado só por conectar um provider; segredos não retornados |
 | ADV-09, EDT-02 | Preservação do modo local | Autocomplete/ONNX funcionam offline e sem conta externa; capabilities locais não prometem ferramentas ou autonomia inexistentes |
 

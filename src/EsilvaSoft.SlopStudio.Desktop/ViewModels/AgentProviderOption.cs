@@ -18,7 +18,25 @@ public sealed class AgentProviderOption(AgentProviderPresentation presentation)
 
     public string DestinationHint => Text.Resolve(IsExternal ? "agentDestinationExternalHint" : "agentDestinationLocalHint");
 
-    public string AvailabilityText => Text.Resolve(Presentation.IsAvailable ? "agentSettingsAvailable" : "agentSettingsUnavailable");
+    /// <summary>The catalog has not checked this provider yet (listing never reads the vault or the network).</summary>
+    public bool IsNotChecked => !Presentation.IsAvailable &&
+        string.Equals(Presentation.UnavailableReason, AgentProviderStatus.NotReported.UnavailableCode, StringComparison.Ordinal);
+
+    public string AvailabilityText => Text.Resolve(Presentation.IsAvailable ? "agentSettingsAvailable"
+        : IsNotChecked ? "agentSettingsNotChecked" : "agentSettingsUnavailable");
+
+    /// <summary>
+    /// Readable reason for an unavailable provider. Generic status codes of the catalog are localized; any other safe
+    /// code reported by the adapter is shown as-is (never a provider message or secret).
+    /// </summary>
+    public string UnavailableText => Presentation.UnavailableReason switch
+    {
+        null or "" => Text.Resolve("agentSettingsUnavailable"),
+        "StatusNotReported" => Text.Resolve("agentUnavailableNotChecked"),
+        "StatusTimedOut" => Text.Resolve("agentUnavailableTimedOut"),
+        "StatusFailed" => Text.Resolve("agentUnavailableCheckFailed"),
+        var code => code,
+    };
 
     /// <summary>"Name · Externo" or "Name · Indisponível"; destination and availability are text, not color.</summary>
     public string Label => Text.Format("agentProviderItem", Presentation.DisplayName,

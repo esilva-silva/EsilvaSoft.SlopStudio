@@ -35,6 +35,10 @@ public partial class WorkspaceTabView : UserControl
         InitializeResults();
         DataContextChanged += (_, _) =>
         {
+            // The agent chat reads the selection synchronously when the user reviews a send; the guard keeps a tab
+            // whose view now shows another tab from reading someone else's selection.
+            if (DataContext is WorkspaceTabViewModel shown)
+                shown.EditorSelectionProvider = () => ReferenceEquals(DataContext, shown) ? CodeEditor.SelectedText : null;
             if (DataContext is WorkspaceTabViewModel tab) tab.ConfirmConsoleWrite = async (request, token) =>
                 await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
                 {

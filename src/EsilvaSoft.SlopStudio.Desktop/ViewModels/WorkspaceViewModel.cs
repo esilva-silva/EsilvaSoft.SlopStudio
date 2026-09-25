@@ -84,9 +84,14 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public WorkspaceViewModel(WorkspaceService workspace, IWorkspaceSessionRepository sessions, IAutocompleteService? autocomplete = null, ILocalModelCatalog? modelCatalog = null, IAiChatService? aiChat = null,
         IKnowledgeCatalog? knowledgeCatalog = null,
         ILocalAiModelService? localModels = null, IAppUpdateService? updates = null, IRemoteModelSource? remoteModels = null, IMetadataCache? metadata = null,
-        ILearnedSchemaOptOut? learnedSchemaOptOut = null, IAiCompletionProvider? aiCompletion = null, IWorkspaceFileService? workspaceFiles = null)
+        ILearnedSchemaOptOut? learnedSchemaOptOut = null, IAiCompletionProvider? aiCompletion = null, IWorkspaceFileService? workspaceFiles = null,
+        Agents.AgentChatServicesFactory? agentChat = null, IConnectionProfileCredentialStatusProvider? credentialStatus = null)
     {
         _workspace = workspace;
+        // P7-L06-HOST: both optional. The chat factory is only invoked when the agent panel is opened; the credential
+        // status is read once in the background after startup, through the operation coordinator.
+        _agentChatServices = agentChat;
+        _credentialStatus = credentialStatus;
         WorkspaceFileService = workspaceFiles;
         _workspace.OperationLocalizer = LocalizationViewModel.Current.ResolveOperationText;
         _workspace.SetLocalization(LocalizationViewModel.Current.Resolve);
@@ -145,6 +150,8 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
             }
             Language = ApplicationLanguages.Normalize(session.Preferences.Language);
             await ReloadProfilesAsync();
+            // Not awaited: the count is reported in the status bar whenever it arrives; startup never waits for it.
+            CredentialRecoveryCheck = ReportCredentialRecoveryAsync();
             _autocompleteSettings = session.Preferences.Autocomplete.Validate();
             // Invalid shortcuts fail here too, before _initialized, so no save path can replace the snapshot.
             KeyBindings = EditorKeyBindings.Resolve(session.Preferences.EditorKeyBindings);
@@ -264,12 +271,13 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        CancelCredentialRecoveryCheck();
         Operations.Dispose();
         Updates.Dispose();
         _debounce?.Cancel(); _debounce?.Dispose();
         foreach (var root in Roots) root.Invalidate();
         Details.Clear();
-        foreach (var tab in Tabs) { tab.DraftChanged -= OnDraftChanged; tab.CancelCommand.Execute(null); tab.Dispose(); }
+        foreach (var tab in Tabs) { tab.DraftChanged -= OnDraftChanged; tab.CancelCommand.Execute(null); ReleaseAgentChat(tab); tab.Dispose(); }
         Metadata.Changed -= OnMetadataChanged;
         if (_ownsMetadata && Metadata is IDisposable metadata) metadata.Dispose();
         _saveGate.Dispose();

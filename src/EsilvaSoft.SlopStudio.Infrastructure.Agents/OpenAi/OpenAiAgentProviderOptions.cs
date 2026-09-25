@@ -60,7 +60,11 @@ public sealed partial record OpenAiAgentProviderOptions
     /// <summary>Deadline of one streamed request, from send to the terminal chunk.</summary>
     public TimeSpan RoundTimeout { get; init; } = TimeSpan.FromMinutes(3);
 
-    /// <summary>How long a turn waits for the runtime to answer the tool calls of one round.</summary>
+    /// <summary>
+    /// How long a turn waits for the runtime to answer the tool calls of one round. Must cover
+    /// <c>AgentRuntimeOptions.MaxToolCallDuration</c> (200 s by default, a write waiting for human approval) plus a
+    /// 30 s margin; the composition refuses less. <see cref="RoundTimeout"/> bounds only the streamed request.
+    /// </summary>
     public TimeSpan ToolResultTimeout { get; init; } = TimeSpan.FromMinutes(5);
 
     /// <summary>Bound to confirm that the turn producer stopped after cancellation or disposal.</summary>

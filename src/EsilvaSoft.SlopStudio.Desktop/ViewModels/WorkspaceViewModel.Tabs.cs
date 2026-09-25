@@ -108,6 +108,7 @@ public sealed partial class WorkspaceViewModel
         tab.DraftChanged -= OnDraftChanged;
         Tabs.Remove(tab);
         if (ActiveTab == tab) ActiveTab = Tabs.LastOrDefault();
+        ReleaseAgentChat(tab);
         tab.Dispose();
         ScheduleSave();
     }
@@ -136,6 +137,7 @@ public sealed partial class WorkspaceViewModel
     {
         OnPropertyChanged(nameof(HasActiveTab)); OnPropertyChanged(nameof(CanSetProfileRecovery));
         UpdateProfileRecovery(); ScheduleSave();
+        OnActiveTabChangedForAgent(value);
     }
     private void UpdateProfileRecovery()
     {

@@ -25,6 +25,7 @@ internal sealed class AgentBrokerConnection : IDisposable
     private readonly IAgentPrincipalAuthority _authority;
     private readonly AgentBrokerOptions _options;
     private readonly AgentBrokerAuthenticationLimiter _limiter;
+    private readonly AgentBrokerCallAdmission _admission;
     private readonly IReadOnlyList<AgentBrokerToolDescriptor> _tools;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly SemaphoreSlim _principalLock = new(1, 1);
@@ -36,7 +37,7 @@ internal sealed class AgentBrokerConnection : IDisposable
     private AgentPrincipal? _principal;
 
     public AgentBrokerConnection(Stream stream, IAgentToolRegistry registry, IAgentPrincipalAuthority authority,
-        AgentBrokerOptions options, AgentBrokerAuthenticationLimiter limiter,
+        AgentBrokerOptions options, AgentBrokerAuthenticationLimiter limiter, AgentBrokerCallAdmission admission,
         IReadOnlyList<AgentBrokerToolDescriptor> tools)
     {
         _stream = stream;
@@ -44,6 +45,7 @@ internal sealed class AgentBrokerConnection : IDisposable
         _authority = authority;
         _options = options;
         _limiter = limiter;
+        _admission = admission;
         _tools = tools;
     }
 
@@ -232,9 +234,20 @@ internal sealed class AgentBrokerConnection : IDisposable
             return;
         }
 
+        // Channel-wide rate and concurrency admission happens here, before the registry writes any audit intent.
+        var admission = _admission.TryAdmit(_channelId, out var release);
+        if (admission != AgentBrokerAdmission.Admitted)
+        {
+            var code = admission == AgentBrokerAdmission.RateLimited
+                ? AgentBrokerProtocol.ErrorCodes.RateLimited
+                : AgentBrokerProtocol.ErrorCodes.Busy;
+            Track(TryWriteAsync(Failure(id, code, dispatched: false), token));
+            return;
+        }
+
         var call = CancellationTokenSource.CreateLinkedTokenSource(token);
         _inFlight[id] = call;
-        Track(Task.Run(() => HandleCallAsync(message, id, call, token), CancellationToken.None));
+        Track(Task.Run(() => HandleCallAsync(message, id, call, release!, token), CancellationToken.None));
     }
 
     private void Track(Task task)
@@ -247,7 +260,7 @@ internal sealed class AgentBrokerConnection : IDisposable
     }
 
     private async Task HandleCallAsync(AgentBrokerMessage message, long id, CancellationTokenSource call,
-        CancellationToken connection)
+        Action releaseAdmission, CancellationToken connection)
     {
         AgentBrokerMessage response;
         var closeAfterResponse = false;
@@ -286,7 +299,9 @@ internal sealed class AgentBrokerConnection : IDisposable
         }
         finally
         {
+            // Released before the response is written, so a client that waits for it is never refused as busy.
             _inFlight.TryRemove(id, out _);
+            releaseAdmission();
             call.Dispose();
         }
 

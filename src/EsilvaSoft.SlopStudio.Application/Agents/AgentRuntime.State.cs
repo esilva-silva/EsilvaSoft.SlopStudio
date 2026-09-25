@@ -51,6 +51,9 @@ public sealed partial class AgentRuntime
 
         public TurnState? ActiveTurn { get; set; }
 
+        /// <summary>The single registry write of this session in flight (lote 10); guarded by <see cref="Gate"/>.</summary>
+        public WriteCallState? ActiveWrite { get; set; }
+
         public Task TurnDrained { get; set; } = Task.CompletedTask;
 
         public Task? LifetimeCancellationTask { get; set; }
@@ -73,11 +76,14 @@ public sealed partial class AgentRuntime
         public bool Open { get; set; } = true;
     }
 
-    private sealed class ToolCallState(string? descriptorName, bool runtimeDispatch)
+    private sealed class ToolCallState(string? descriptorName, bool runtimeDispatch, bool isWrite = false)
     {
         public string? DescriptorName { get; } = descriptorName;
 
         public bool RuntimeDispatch { get; } = runtimeDispatch;
+
+        /// <summary>Registry descriptor risk is not read-only: human approval, one per session, separate deadline.</summary>
+        public bool IsWrite { get; } = isWrite;
 
         public InteractionState State { get; set; } = InteractionState.Announcing;
 
@@ -97,6 +103,103 @@ public sealed partial class AgentRuntime
         public int ExpiredFlag;
 
         public bool Terminal { get; set; }
+
+        /// <summary>Enforced window on the monotonic clock (runtime timeout, or less when the registry expires sooner).</summary>
+        public TimeSpan Window { get; init; }
+
+        /// <summary>
+        /// Extra delay of the runtime expiry timer. Non-zero when the registry coordinator owns the binding deadline: its
+        /// own expiry (audited as expired) cancels the wait first, and the runtime timer is only the backstop.
+        /// </summary>
+        public TimeSpan TimerGrace { get; init; }
+
+        /// <summary>
+        /// Non-null only for an approval requested by the registry through <see cref="AgentRuntimeWriteApprovalBridge"/>:
+        /// the verified human decision completes it and is never forwarded to the provider.
+        /// </summary>
+        public TaskCompletionSource<AgentApprovalOutcome>? RegistryDecision { get; init; }
+
+        public WriteCallState? Write { get; init; }
+    }
+
+    private enum WriteApprovalPhase
+    {
+        None,
+        Pending,
+        Granted,
+        Denied,
+    }
+
+    /// <summary>
+    /// One registry write dispatched by the runtime. Its deadline is re-armed around the human wait: before approval the
+    /// call has only the tool budget for intent and preflight when the approval bridge is composed (the combined budget,
+    /// execution + approval, without it), during approval only the approval window plus two stop margins, and after the
+    /// decision a fresh execution budget; the whole call stays within <see cref="AgentRuntimeOptions.MaxToolCallDuration"/>.
+    /// Every phase is finite; cancelling the turn cancels the deadline and therefore the pending approval.
+    /// </summary>
+    private sealed class WriteCallState(TurnState turn, AgentToolCallId callId, CancellationTokenSource deadline)
+    {
+        private readonly object _gate = new();
+        private bool _released;
+        private WriteApprovalPhase _phase;
+
+        public TurnState Turn { get; } = turn;
+
+        public AgentToolCallId CallId { get; } = callId;
+
+        public WriteApprovalPhase Phase
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _phase;
+                }
+            }
+        }
+
+        /// <summary>Only one approval per write call; false when the call already finished or asked before.</summary>
+        public bool TryBeginApproval(TimeSpan approvalBudget)
+        {
+            lock (_gate)
+            {
+                if (_released || _phase != WriteApprovalPhase.None)
+                {
+                    return false;
+                }
+
+                _phase = WriteApprovalPhase.Pending;
+                deadline.CancelAfter(approvalBudget);
+                return true;
+            }
+        }
+
+        public void EndApproval(bool granted, TimeSpan executionBudget)
+        {
+            lock (_gate)
+            {
+                if (_phase != WriteApprovalPhase.Pending)
+                {
+                    return;
+                }
+
+                _phase = granted ? WriteApprovalPhase.Granted : WriteApprovalPhase.Denied;
+                if (!_released)
+                {
+                    // Execution time only starts after the human decision.
+                    deadline.CancelAfter(executionBudget);
+                }
+            }
+        }
+
+        /// <summary>Called before the deadline is disposed; later bridge calls no longer touch it.</summary>
+        public void Release()
+        {
+            lock (_gate)
+            {
+                _released = true;
+            }
+        }
     }
 
     /// <summary>

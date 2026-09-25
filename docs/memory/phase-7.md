@@ -1,5 +1,23 @@
 # Memória de execução — Fase 7 / v0.11.0
 
+## Prioridade vigente — Integração Claude, 25/09/2026 (P7-PLAN-CLAUDE; LEIA PRIMEIRO)
+
+Decisão do usuário: **finalizar a integração com Claude**, priorizando a assinatura Claude Pro pelo binário oficial do Claude Code como subprocesso; modo Anthropic API separado; nunca fallback silencioso para API Key; ferramentas nativas com aprovação por chamada (mudança de escopo, ADR-054, bloqueada até o [threat model — documento 22](../phases/phase-07-v0.11.0/22-threat-model.md)); `--resume` com `session_id` só em memória e transcript do Claude Code em `~/.claude/projects` aceito como limitação visível. Substitui o 8B; 7B e lotes 10/11/12 ficam subordinados. Plano: [23](../phases/phase-07-v0.11.0/23-integracao-claude.md), tarefas P7-CL0-01..P7-CL6-03, gates GCL-1..8, casos manuais C-01..C-34 no [roteiro 21](../phases/phase-07-v0.11.0/21-homologacao-manual-login.md#casos-do-modo-claude-code-assinatura). **Atualização (P7-PLAN-CLAUDE-FIX):** o [documento 22](../phases/phase-07-v0.11.0/22-threat-model.md) foi escrito (P7-CL0-02) como rascunho anterior ao spike, com STRIDE por fronteira, hipóteses H-01..H-25 e casos manuais propostos CP-01..CP-08, já integrados ao [roteiro 21](../phases/phase-07-v0.11.0/21-homologacao-manual-login.md#casos-do-modo-claude-code-assinatura) como C-19..C-32; GCL-3 continua **pendente** até o spike P7-CL0-01 confirmar/refutar as hipóteses, o documento ser revisado com os resultados e passar por revisão independente do code-review-agent. Próximo passo: P7-CL0-01 (spike reproduzível do CLI instalado). Somente documentação alterada; **nenhum código, gate ou AC aprovado**. As seções abaixo sobre prioridade 7B/8B são histórico.
+
+## Prioridade anterior — contas próprias 7B/8B, 25/09/2026 (histórico; substituída pela seção acima)
+
+Por pedido do usuário, incluir o **8B condicional para Claude** e priorizar conjuntamente contas **Codex/ChatGPT (7B)** e **Claude (8B)**. A exclusão anterior de assinatura Claude, registrada abaixo como histórico, foi substituída. [Plano](../phases/phase-07-v0.11.0/10-plano-de-implementacao.md): primeiro provas de modalidade oficial, confinamento e armazenamento por SO, depois adapters/UI e homologação manual H-01..H-17. API Key continua alternativa explícita; não conclui a prioridade. Ambas as vias estão **não implementadas e não homologadas**, com gates pendentes; adiar uma delas exige impedimento documentado e decisão explícita. Não copiar tokens, portar protocolo interno ou persistir transcript. Nenhum AC aprovado por este planejamento.
+
+## Decisão de escopo anterior — 25/09/2026 (P7-PLAN-UPDATE, histórico parcialmente substituído)
+
+Decisão do usuário registrada no plano; **nenhum código foi alterado e nenhum AC (01–20) foi aprovado**:
+
+- **Login por conta OpenAI** entra como sublote **7B condicional** (Codex App Server; `CodexAppServerClient`/`CodexAgentSession`). Gates G7B-1..7 em [10](../phases/phase-07-v0.11.0/10-plano-de-implementacao.md#sublote-7b--login-por-conta-openai-condicional): suporte oficial ou risco aceito registrado, confinamento (sem shell/edição de arquivos nativos), keyring (nunca plaintext), ciclo de vida, capabilities, UI honesta e homologação manual. API Key continua baseline e fallback. Estado: não implementado, não homologado.
+- **Chat completo na UI** amplia o lote 6 (hospedagem na `MainWindow`, contexto por aba, streaming, cartões de tool, aprovação/consentimento, configuração, MCP opt-in, acessibilidade, localização, PNGs nos dois temas em 960/1366/1920, homologação nativa). Sem transcript persistido.
+- **Testes de login manuais**: [roteiro 21](../phases/phase-07-v0.11.0/21-homologacao-manual-login.md), casos H-01..H-14, contas próprias, dados sintéticos, nunca automatizados com credenciais nem em CI. Registro de execução vazio.
+- **Claude** permanece somente API Key; login de assinatura e importação de sessão Claude Desktop/Code fora do escopo (sem fluxo oficial/termos para terceiros); fluxo futuro exige novo requisito.
+- Documentos atualizados: README, 01, 04, 07, 10, 11, 12, 16, 20 da fase, 21 (novo), [matriz 15](../15-matriz-de-validacao.md) e índice offline. O ponto de retomada abaixo e seu histórico não foram alterados.
+
 ## Ponto de retomada — encerramento da sessão de 25/09/2026 (LEIA PRIMEIRO)
 
 **Estado do remoto:** `phase-7-i6v8dr` em `7e902f6`, tudo enviado. Meta **não concluída**; nenhum AC (01–20) aprovado.

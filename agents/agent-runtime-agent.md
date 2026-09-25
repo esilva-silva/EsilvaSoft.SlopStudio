@@ -24,7 +24,7 @@ Implementar runtime independente de provider, sessões, turnos, eventos e cancel
 
 ## Restrictions
 - Sem SDK externo em Core/Application, I/O na UI, CTS global, reexecução de tool já executada pelo broker ou transferência implícita ao trocar provider.
-- Não implementar autorização paralela, transcript persistido ou subagentes do produto.
+- Não implementar autorização paralela, transcript persistido ou subagentes do produto, exceto ferramentas nativas do modo Claude Code com aprovação por chamada (ADR-054) e o transcript gravado pelo próprio Claude Code; o Slop continua sem persistir transcript.
 
 ## Preferred Model Capability
 `reasoning`

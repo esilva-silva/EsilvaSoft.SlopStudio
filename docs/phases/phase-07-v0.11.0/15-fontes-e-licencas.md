@@ -2,6 +2,19 @@
 
 Pesquisa documental realizada em **22/09/2026**, abrindo páginas oficiais e arquivos de licença, além de pesquisar os tópicos. Fontes `latest` e branches `main` são móveis; esta lista não fixa dependências do produto. Pacotes candidatos foram restaurados somente em spikes isolados. Até 23/09 nenhum pacote foi adicionado à solução; em 24/09 o lote 3 incorporou apenas `ModelContextProtocol.Core` 2.2.0 no proxy MCP (seção abaixo). Não houve login ou chamada paga. A licença do **EsilvaSoft.SlopStudio permanece MIT**.
 
+## Revisão de contas próprias — 25/09/2026
+
+O sublote 7B e o bloco CL — Integração Claude (substitui o antigo sublote 8B) são prioridade por decisão do usuário, ainda sem implementação/homologação. A documentação oficial foi reconferida nesta data:
+
+- [Codex App Server](https://learn.chatgpt.com/docs/app-server) documenta integração em produtos e autenticação ChatGPT gerenciada pelo Codex; ainda declara o comando experimental e sem suporte a produção. G7B-1 continua pendente. [Authentication](https://learn.chatgpt.com/docs/auth) fundamenta o gate de armazenamento; não usar tokens externos no Slop.
+- [Assinatura e Agent SDK](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan): página de 16/06 com atualização de 15/06 suspendendo a mudança; SDK, CLI não interativa e apps terceiros continuam consumindo limites da assinatura. O texto antigo abaixo está suspenso; não planejar com base nos créditos mensais ali descritos.
+- [Conformidade Claude Code](https://code.claude.com/docs/en/legal-and-compliance#can-customers-offer-claude-code-in-their-products): execução/pré-instalação em produtos sob condições, binário intacto, métodos de autenticação preservados e uso pago diretamente pelo próprio usuário.
+- [Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview): Python/TypeScript, CLI como subprocesso para outras linguagens; mantém restrição de oferta de login claude.ai sem aprovação. [Login Claude](https://support.claude.com/en/articles/13189465-log-in-to-your-claude-account) também orienta desenvolvedores a API Key e proíbe disfarçar identidade/tráfego.
+
+Atualização posterior de 25/09/2026: a modalidade foi fixada no binário oficial do Claude Code como subprocesso; fatos verificados de [legal and compliance](https://code.claude.com/docs/en/legal-and-compliance), [Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview), [CLI](https://code.claude.com/docs/en/cli-reference), [headless](https://code.claude.com/docs/en/headless) e [autenticação](https://code.claude.com/docs/en/authentication) estão em [23](23-integracao-claude.md#fatos-oficiais-verificados-em-25092026). O binário é instalado pelo usuário e não redistribuído pelo Slop; garantia formal para distribuição ampla continua pendente (contato comercial), sem afirmar aprovação.
+
+Conclusão de planejamento: há caminho técnico oficial a avaliar, mas cobrança por assinatura não demonstra autorização irrestrita. GCL-1 exige registrar a modalidade concreta e resolver as condições aplicáveis antes da liberação (critério de fechamento em [23](23-integracao-claude.md#gates)). Não copiar OAuth, usar endpoints privados ou prometer elegibilidade de todos os planos. A decisão autoriza avaliar o runtime oficial; não incorpora dependência comercial nem autoriza redistribuição sem revisão de versão/licenças.
+
 ## Registro de fontes
 
 | Fonte primária consultada | Evidência usada | Consequência no plano |
@@ -10,7 +23,7 @@ Pesquisa documental realizada em **22/09/2026**, abrindo páginas oficiais e arq
 | [Codex SDK](https://learn.chatgpt.com/docs/codex-sdk) | Distinção SDK/App Server | Avaliar API OpenAI direta como fallback com capabilities reduzidas e sem login ChatGPT |
 | [Codex Authentication](https://learn.chatgpt.com/docs/auth) | Login e backend de credenciais | Cofre obrigatório ou memória explícita |
 | [OpenAI SDKs](https://developers.openai.com/api/docs/libraries) e [function calling](https://developers.openai.com/api/docs/guides/function-calling) | Cliente API e execução de tools pela aplicação | Baseline inicial API .NET com API Key; política continua no Slop |
-| [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview) | Python/TypeScript e restrição de login de terceiros | Sidecar avaliado; não ofertar login de assinatura no chat |
+| [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview) | Python/TypeScript e restrição de login de terceiros | Rejeitado como sidecar pelo ADR-053 (bloco CL usa o binário oficial como subprocesso); restrição de oferta de login deve ser conciliada com a modalidade do binário oficial |
 | [Claude legal and compliance](https://code.claude.com/docs/en/legal-and-compliance) | Distinção entre produto terceiro e binário Claude Code intacto | Não coletar/reutilizar tokens de aplicações Anthropic |
 | [Claude C# SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/csharp) | Cliente C# oficial e mudança de origem do pacote | API .NET é opção concreta, separada do Agent SDK |
 | [MCP 2026-07-28 — transportes](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) | STDIO e Streamable HTTP | Fixar revisão explícita e testar compatibilidade |

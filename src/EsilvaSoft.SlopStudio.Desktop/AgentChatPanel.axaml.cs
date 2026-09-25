@@ -28,6 +28,53 @@ public partial class AgentChatPanel : UserControl
         History.LayoutUpdated += (_, _) => AttachHistoryScroll();
     }
 
+    /// <summary>
+    /// Set by a host that can collapse the panel (the main window): shows the header "×" with this accessible name and
+    /// tooltip, and raises <see cref="CloseRequested"/> when activated. Null hides the button (standalone use).
+    /// </summary>
+    public static readonly StyledProperty<string?> CloseLabelProperty =
+        AvaloniaProperty.Register<AgentChatPanel, string?>(nameof(CloseLabel));
+
+    public string? CloseLabel
+    {
+        get => GetValue(CloseLabelProperty);
+        set => SetValue(CloseLabelProperty, value);
+    }
+
+    /// <summary>Visible content of the host close button: "×" when docked, a text such as "Voltar ao editor" when the
+    /// panel replaces the editor area.</summary>
+    public static readonly StyledProperty<string> CloseContentProperty =
+        AvaloniaProperty.Register<AgentChatPanel, string>(nameof(CloseContent), "×");
+
+    public string CloseContent
+    {
+        get => GetValue(CloseContentProperty);
+        set => SetValue(CloseContentProperty, value);
+    }
+
+    /// <summary>The user asked the host to collapse the panel (or return to the editor in the compact layout).</summary>
+    public event EventHandler? CloseRequested;
+
+    public Button ClosePanel => ClosePanelButton;
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == CloseLabelProperty && ClosePanelButton is not null)
+        {
+            var label = CloseLabel;
+            ClosePanelButton.IsVisible = !string.IsNullOrEmpty(label);
+            ToolTip.SetTip(ClosePanelButton, label);
+            Avalonia.Automation.AutomationProperties.SetName(ClosePanelButton, label ?? "");
+        }
+        else if (change.Property == CloseContentProperty && ClosePanelButton is not null)
+        {
+            ClosePanelButton.Content = CloseContent;
+        }
+    }
+
+    private void OnClosePanelClick(object? sender, RoutedEventArgs e) => CloseRequested?.Invoke(this, EventArgs.Empty);
+
     /// <summary>The approval dialog currently open from this panel, if any.</summary>
     public AgentApprovalWindow? OpenApprovalWindow { get; private set; }
 

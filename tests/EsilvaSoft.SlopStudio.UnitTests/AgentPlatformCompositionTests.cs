@@ -61,7 +61,8 @@ public sealed class AgentPlatformCompositionTests
             Assert.That(provider.GetRequiredService<IAgentToolBindingProvider>(), Is.InstanceOf<InternalAgentToolBindingProvider>());
             Assert.That(provider.GetRequiredService<IAgentContextProvider>(), Is.InstanceOf<AgentContextProvider>());
             Assert.That(catalog.List().Select(entry => entry.Descriptor.ProviderId), Is.EqualTo(new[] { LocalAgentProvider.Id }));
-            Assert.That(authority, Is.InstanceOf<FailClosedAgentInteractionAuthority>());
+            // P7-L10-WIRE: recognizes only approvals frozen by the write coordinator; everything else stays fail-closed.
+            Assert.That(authority, Is.InstanceOf<AgentWriteApprovalInteractionAuthority>());
             Assert.That(consent, Is.InstanceOf<FailClosedAgentSchemaSamplingConsentProvider>());
         });
 

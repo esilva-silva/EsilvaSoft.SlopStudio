@@ -33,6 +33,17 @@ public sealed record AgentRuntimeOptions
     /// <summary>Total deadline of one tool call dispatched by the runtime, including queueing for a slot.</summary>
     public TimeSpan ToolTimeout { get; init; } = TimeSpan.FromSeconds(35);
 
+    /// <summary>
+    /// Longest time the runtime takes to answer one tool call to the provider (contract 03). A registry write through
+    /// <see cref="AgentRuntimeWriteApprovalBridge"/> has <see cref="ToolTimeout"/> before its approval starts
+    /// (intent + preflight), the approval window (at most <see cref="ApprovalTimeout"/>) plus two
+    /// <see cref="StopTimeout"/> grace periods, and <see cref="ToolTimeout"/> again for execution after the decision;
+    /// without the bridge a write is bounded by <see cref="ToolTimeout"/> + <see cref="ApprovalTimeout"/>, and a read by
+    /// <see cref="ToolTimeout"/>. Adapters that wait for tool results must wait at least this long plus a margin, or a
+    /// pending human approval would reach the model as a timeout (defaults: 35 + 120 + 2×5 + 35 = 200 s).
+    /// </summary>
+    public TimeSpan MaxToolCallDuration => ToolTimeout + ApprovalTimeout + StopTimeout + StopTimeout + ToolTimeout;
+
     public int MaxToolCallsPerTurn { get; init; } = 32;
 
     public int MaxApprovalsPerTurn { get; init; } = 8;

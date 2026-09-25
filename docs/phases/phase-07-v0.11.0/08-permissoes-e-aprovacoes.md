@@ -50,4 +50,30 @@ Antes de executar, persistir intenção de escrita com identificador de operaç�
 
 READ_ONLY limita efeitos de escrita, mas pode expor dados e causar carga: deadline/bytes/rate limit e escopo de privacidade permanecem. WRITE sempre pede aprovação; DESTRUCTIVE exige confirmação explícita e nome do destino. ADMINISTRATIVE fica bloqueado até catálogo específico e homologação RBAC. `$out`, `$merge`, execução JS, `mapReduce`, `$where`, `$function`, comandos arbitrários e resoluções `ENV` não entram nas tools de leitura. Lookup/union e pipelines aninhados validam todos os namespaces; se o parser não prova a autorização, negar.
 
-As mesmas regras valem para tool interna, MCP, adapter OpenAI e adapter Claude. Tools nativas de arquivo/shell dos providers ficam desativadas no primeiro escopo; ligar um MCP protegido e deixar um terminal com acesso aos segredos seria uma rota de contorno inaceitável.
+As mesmas regras valem para tool interna, MCP, adapter OpenAI e adapter Claude. Tools nativas de arquivo/shell dos providers ficam desativadas no primeiro escopo; ligar um MCP protegido e deixar um terminal com acesso aos segredos seria uma rota de contorno inaceitável. **Exceção decidida pelo usuário em 25/09/2026, somente no modo Claude Code**, regida pela seção seguinte e bloqueada até o threat model e o gate de segurança.
+
+## Ferramentas nativas do Claude Code — aprovação por chamada (ADR-054)
+
+**Planejado, não implementado.** Mudança de escopo decidida pelo usuário ([ADR-054](../../10-decisoes-arquiteturais.md#adr-054--ferramentas-nativas-do-claude-code-com-aprovação-por-chamada-25092026)); vale apenas para `ClaudeCodeAgentProvider`. As tools do produto (registry/MCP Mongo) mantêm todas as regras acima, inclusive aprovação única sem "sempre" para escrita.
+
+| Categoria | Exemplos de ferramenta da CLI | Padrão | "Sempre permitir nesta sessão" |
+| --- | --- | --- | --- |
+| `ReadFile` | Read, Grep, Glob | Pedir aprovação quando a CLI consultar | Permitido, por ferramenta e escopo de caminho |
+| `WriteFile` | Edit, Write | Pedir aprovação | Permitido apenas dentro do cwd; sobrescrita fora dele é destrutiva |
+| `DeleteFile` | exclusões por comando ou ferramenta | **Destrutiva**: sempre pedir | Só após confirmação específica do alvo |
+| `ExecuteCommand` | Bash | Pedir aprovação; comando não classificável como seguro é destrutivo | Comando exato normalizado; destrutivo só com confirmação específica |
+| `Network` | WebFetch, WebSearch | Pedir aprovação, mostrando domínio | Por domínio |
+| `MCP` | tools MCP que não sejam do McpServer Slop | Negadas por `--strict-mcp-config`; se aparecerem, pedir | Não |
+| `ExternalTool` | outras ferramentas nativas conhecidas | Pedir aprovação | Por ferramenta |
+| (sem categoria) | ferramenta desconhecida, subagentes nativos | **Negar** | Não |
+
+Regras:
+
+- O pedido chega por `--permission-prompt-tool` a uma tool MCP do McpServer/broker Slop, vinculada ao canal autenticado da sessão do chat; o diálogo mostra "Claude deseja executar: <comando/alvo>", categoria, cwd e risco, com **Permitir**, **Sempre permitir nesta sessão** e **Negar**. Reutiliza `AgentWriteApprovalCoordinator`, a bridge do runtime e `AgentApprovalWindow`.
+- **Negar** recebe o foco inicial e é a ação segura; Escape, fechar, timeout, cancelamento do turno e broker indisponível negam. Texto do modelo nunca aprova.
+- "Sempre nesta sessão" é mantido **só em memória** da sessão/aba, com escopo exato; some ao fechar a sessão/aba, trocar de modo/provider, fazer logout ou reiniciar. Não é persistido nem copiado para outra aba.
+- Destrutivas nunca são aprovadas automaticamente por padrão e só se tornam elegíveis a "sempre" após confirmação específica (identificação do alvo). Classificação conservadora: na dúvida, destrutiva.
+- Modos `bypassPermissions`, `acceptEdits`, `auto` e `dontAsk` são proibidos; usa-se `--permission-mode default`.
+- A tool de permissão não pode ser chamada pelo modelo como tool comum (validar no spike); argumentos são dados não confiáveis e aparecem saneados.
+- Exceções que a CLI não submete ao diálogo (regras `permissions.allow` do usuário, configurações gerenciadas, leituras permitidas sem prompt) são neutralizadas por `--setting-sources`/cwd ou exibidas como limitação; nunca omitidas.
+- Cada decisão gera evento de auditoria sem comando completo, conteúdo de arquivo ou saída.

@@ -105,8 +105,9 @@ public static class ServiceCollectionExtensions
     /// ports, all singletons over the LiteDB owner facets registered above (no second database connection). The
     /// registry is the only execution boundary for every ingress; the native runtime consumes it here and the opt-in
     /// MCP broker (<see cref="AddSlopStudioAgentBroker"/>) consumes the same instance. Nothing is resolved at
-    /// startup, no provider, vault or network is touched, and the default stage exposes no tool. Approvals and schema
-    /// sampling consent are fail-closed until a real trusted mechanism exists.
+    /// startup, no provider, vault or network is touched, and the default stage exposes no tool. Registry write
+    /// approvals are wired to the runtime stream (bridge + coordinator + interaction authority), but no write source is
+    /// composed, so no write tool exists; provider-originated approvals and schema sampling consent stay fail-closed.
     /// </summary>
     private static void AddAgentPlatform(IServiceCollection services, AgentPlatformOptions options)
     {
@@ -118,6 +119,25 @@ public static class ServiceCollectionExtensions
             provider.GetRequiredService<IConnectionSecretStore>(), provider.GetService<IEnvironmentVaultRepository>(),
             provider.GetRequiredService<MongoClientPool>()));
         services.AddSingleton<IAgentSchemaSamplingConsentProvider, FailClosedAgentSchemaSamplingConsentProvider>();
+        // The runtime host below uses options.Runtime; the same instance is registered, once, so the provider adapters
+        // check their tool-result wait against exactly that budget (they refuse an ambiguous second registration).
+        if (services.Any(descriptor => descriptor.ServiceType == typeof(AgentRuntimeOptions)))
+            throw new InvalidOperationException("As opções do runtime de agentes já foram compostas.");
+        services.AddSingleton(options.Runtime);
+        // Human approval chain for registry writes (lote 10), composed once and shared: the bridge breaks the cycle
+        // coordinator -> prompt -> runtime -> registry -> coordinator; the coordinator uses the runtime's approval
+        // window, so an unanswered request is audited as Expired, not Rejected. It is the registry's approval authority
+        // and the chat's trusted approval-details source. Writes stay closed: no IAgentMongoWriteSource is composed
+        // (MongoAgentWriteSource is not registered) and the stage stops at LiteralQueries, so no write tool is exposed.
+        // Premise relied on by the runtime (a write that never reached its approval had no ticket, so it is reported as
+        // not sent) and by the interaction authority: registry, coordinator, bridge and runtime are these singletons.
+        // Any composition that swaps one of them must swap them together.
+        services.AddSingleton<AgentRuntimeWriteApprovalBridge>();
+        services.AddSingleton<AgentWriteApprovalCoordinator>(provider => new AgentWriteApprovalCoordinator(
+            provider.GetRequiredService<AgentRuntimeWriteApprovalBridge>(),
+            approvalTimeout: options.Runtime.ApprovalTimeout));
+        services.AddSingleton<IAgentWriteApprovalAuthority>(provider => provider.GetRequiredService<AgentWriteApprovalCoordinator>());
+        services.AddSingleton<IAgentApprovalDetailsSource>(provider => provider.GetRequiredService<AgentWriteApprovalCoordinator>());
         services.AddSingleton<IAgentToolRegistry>(provider =>
         {
             var literalQueries = options.ToolExposureStage >= AgentToolExposureStage.LiteralQueries
@@ -134,9 +154,14 @@ public static class ServiceCollectionExtensions
                 find: literalQueries,
                 count: literalQueries,
                 exposure: AgentToolExposure.Through(options.ToolExposureStage),
-                principalAuthority: provider.GetRequiredService<IAgentPrincipalAuthority>());
+                principalAuthority: provider.GetRequiredService<IAgentPrincipalAuthority>(),
+                write: null,
+                writeApprovals: provider.GetRequiredService<IAgentWriteApprovalAuthority>());
         });
-        services.AddSingleton<IAgentInteractionAuthority, FailClosedAgentInteractionAuthority>();
+        // Recognizes only approvals frozen by the coordinator (identity check, never a grant); everything else keeps
+        // the fail-closed answer.
+        services.AddSingleton<IAgentInteractionAuthority>(provider => new AgentWriteApprovalInteractionAuthority(
+            provider.GetRequiredService<AgentWriteApprovalCoordinator>(), new FailClosedAgentInteractionAuthority()));
         services.AddSingleton<IAgentToolBindingProvider>(provider => new InternalAgentToolBindingProvider(
             provider.GetRequiredService<IAgentPrincipalAuthority>(), provider.GetServices<IAgentProvider>()));
         services.AddSingleton<IAgentContextProvider>(provider => new AgentContextProvider(
@@ -148,7 +173,8 @@ public static class ServiceCollectionExtensions
             options.Runtime,
             provider.GetRequiredService<IAgentToolRegistry>(),
             provider.GetRequiredService<IAgentToolBindingProvider>(),
-            provider.GetRequiredService<IAgentPrincipalAuthority>()));
+            provider.GetRequiredService<IAgentPrincipalAuthority>(),
+            provider.GetRequiredService<AgentRuntimeWriteApprovalBridge>()));
         services.AddSingleton<IAgentRuntime>(provider => provider.GetRequiredService<AgentRuntimeHost>());
     }
 

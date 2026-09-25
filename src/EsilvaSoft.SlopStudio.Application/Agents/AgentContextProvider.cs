@@ -8,9 +8,13 @@ namespace EsilvaSoft.SlopStudio.Application.Agents;
 /// <summary>
 /// Production context capture of one turn. It works only on the immutable request the tab captured before awaiting,
 /// shares exactly the fields the caller included (consent is expressed by what is present), and publishes the
-/// connection only by its logical ID after confirming that ID belongs to a registered profile. Profile names, URIs,
-/// credentials and query results never enter the snapshot; connection strings typed in the shared text are redacted.
-/// Namespace parts without their parent are dropped, never guessed. Failures are visible as
+/// connection only by its logical ID after confirming that ID belongs to a registered profile. Profile fields (name,
+/// URI, stored credentials) and query results are never read into the snapshot. Editor text the user chose to share is
+/// different: it is forwarded after a <b>best-effort</b> redaction of recognizable secrets (MongoDB URIs, also JSON- or
+/// URL-escaped; password/pwd/secret/token/API-key values in JSON or assignments; <c>.auth(...)</c> arguments; common
+/// API-key, bearer, JWT and private-key formats). Redaction cannot recognize every secret a user may type, so it is a
+/// safety net, not a guarantee. The size limit is enforced on the redacted text, since a marker may be longer than
+/// what it replaces. Namespace parts without their parent are dropped, never guessed. Failures are visible as
 /// <see cref="AgentRuntimeException"/> with a safe code.
 /// </summary>
 public sealed partial class AgentContextProvider : IAgentContextProvider
@@ -21,6 +25,7 @@ public sealed partial class AgentContextProvider : IAgentContextProvider
     private const int MaximumNameChars = 255;
     private const int MaximumTabIdChars = 128;
     private const string RedactedConnectionString = "[connection string removida]";
+    private const string RedactedSecret = "[segredo removido]";
 
     private readonly IConnectionProfileRepository _profiles;
     private readonly TimeProvider _time;
@@ -48,6 +53,14 @@ public sealed partial class AgentContextProvider : IAgentContextProvider
             throw new AgentRuntimeException("ContextInvalid", "Context request is invalid.");
         }
 
+        // Input bound (also caps the redaction work); the shared limit is checked again after redaction below.
+        if ((selection?.Length ?? 0) + (editor?.Length ?? 0) > MaximumSharedTextChars)
+        {
+            throw new AgentRuntimeException("ContextTooLarge", "Shared text exceeds the context limit.");
+        }
+
+        selection = Redact(selection);
+        editor = Redact(editor);
         if ((selection?.Length ?? 0) + (editor?.Length ?? 0) > MaximumSharedTextChars)
         {
             throw new AgentRuntimeException("ContextTooLarge", "Shared text exceeds the context limit.");
@@ -75,7 +88,7 @@ public sealed partial class AgentContextProvider : IAgentContextProvider
 
         var connection = connectionId?.ToString("D", CultureInfo.InvariantCulture);
         return new AgentContextSnapshot(tabId, version, _time.GetUtcNow(), connection, database, collection,
-            BuildAuthorizedContext(connection, database, collection, Redact(selection), Redact(editor)));
+            BuildAuthorizedContext(connection, database, collection, selection, editor));
     }
 
     private async Task<bool> IsRegisteredAsync(Guid connectionId, CancellationToken cancellationToken)
@@ -110,7 +123,12 @@ public sealed partial class AgentContextProvider : IAgentContextProvider
 
         try
         {
-            return ConnectionStringPattern().Replace(text, RedactedConnectionString);
+            // Order matters: whole blocks and URIs first, then key/value pairs, then free-standing token formats.
+            text = PrivateKeyBlockPattern().Replace(text, RedactedSecret);
+            text = ConnectionStringPattern().Replace(text, RedactedConnectionString);
+            text = AuthCallPattern().Replace(text, ".auth(" + RedactedSecret + ")");
+            text = SecretAssignmentPattern().Replace(text, match => match.Groups["key"].Value + RedactedSecret);
+            return KnownTokenPattern().Replace(text, RedactedSecret);
         }
         catch (RegexMatchTimeoutException)
         {
@@ -161,6 +179,28 @@ public sealed partial class AgentContextProvider : IAgentContextProvider
         builder.Append(label).Append('\n').Append(text).Append('\n');
     }
 
-    [GeneratedRegex(@"mongodb(?:\+srv)?://[^\s""'`<>]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 1000)]
+    // mongodb:// and mongodb+srv://, also with JSON-escaped slashes (mongodb:\/\/) or URL-encoded (mongodb%3A%2F%2F).
+    [GeneratedRegex(@"mongodb(?:\+|%2B)?(?:srv)?(?::|%3A)(?:\\?/|%2F){2}[^\s""'`<>]+",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 1000)]
     private static partial Regex ConnectionStringPattern();
+
+    // Arguments of db.auth(...) / x.auth(...): user and password are positional or an object.
+    [GeneratedRegex(@"\.\s*auth\s*\([^)]*\)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 1000)]
+    private static partial Regex AuthCallPattern();
+
+    // "password": "x", pwd: 'x', password=x, apiKey: x, client_secret=..., access_token: ... (JSON, JS, env, query).
+    [GeneratedRegex(
+        @"(?<key>(?<![A-Za-z0-9])(?:password|passwd|pwd|secret|client[_-]?secret|api[_-]?key|access[_-]?key|secret[_-]?key|private[_-]?key|access[_-]?token|auth[_-]?token|refresh[_-]?token|token)(?:\\?[""'])?\s*[:=]\s*)(?<value>""(?:[^""\\]|\\.)*""|'(?:[^'\\]|\\.)*'|`[^`]*`|[^\s,;}&)\]]+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 1000)]
+    private static partial Regex SecretAssignmentPattern();
+
+    // Recognizable credential formats: OpenAI/Anthropic sk-, GitHub, AWS access key, Google API key, Slack, bearer, JWT.
+    [GeneratedRegex(
+        @"\bsk-[A-Za-z0-9_-]{16,}|\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{22,})|\b(?:AKIA|ASIA)[0-9A-Z]{16}\b|\bAIza[0-9A-Za-z_-]{35}|\bxox[abprs]-[A-Za-z0-9-]{10,}|\bBearer\s+[A-Za-z0-9._~+/=-]{16,}|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}",
+        RegexOptions.CultureInvariant, 1000)]
+    private static partial Regex KnownTokenPattern();
+
+    [GeneratedRegex(@"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|$)",
+        RegexOptions.CultureInvariant, 1000)]
+    private static partial Regex PrivateKeyBlockPattern();
 }

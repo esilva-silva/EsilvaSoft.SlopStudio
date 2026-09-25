@@ -20,6 +20,10 @@ public static class AgentToolOutputScopes
             AgentToolRegistry.SampleDocumentsToolName or AgentToolRegistry.MongoFindOneToolName or
             AgentToolRegistry.GetDocumentToolName or AgentToolRegistry.MongoDistinctToolName =>
             AgentOutputDataScope.DocumentValues,
+        // Lote 10: document writes return the document identifier (a value); index writes return only metadata.
+        AgentToolRegistry.InsertOneToolName or AgentToolRegistry.UpdateOneToolName or
+            AgentToolRegistry.DeleteOneToolName => AgentOutputDataScope.DocumentValues,
+        AgentToolRegistry.CreateIndexToolName or AgentToolRegistry.DropIndexToolName => AgentOutputDataScope.Metadata,
         _ => null
     };
 }

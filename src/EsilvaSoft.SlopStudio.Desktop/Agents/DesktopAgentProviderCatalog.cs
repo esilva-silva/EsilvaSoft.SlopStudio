@@ -22,6 +22,7 @@ public sealed class DesktopAgentProviderCatalog : IAgentProviderCatalog
 {
     private readonly AgentProviderCatalog _catalog;
     private volatile IReadOnlyList<AgentProviderPresentation> _snapshot;
+    private long _refreshGeneration;
 
     public DesktopAgentProviderCatalog(AgentProviderCatalog catalog)
     {
@@ -39,6 +40,9 @@ public sealed class DesktopAgentProviderCatalog : IAgentProviderCatalog
     /// </summary>
     public async Task RefreshAsync(CancellationToken cancellationToken)
     {
+        // Two tabs may refresh concurrently: only the most recently started refresh publishes, so an older, slower
+        // check never overwrites a newer result (e.g. a key saved between both checks).
+        var generation = Interlocked.Increment(ref _refreshGeneration);
         var entries = _catalog.List();
         var statuses = new Dictionary<string, AgentProviderStatus>(entries.Count, StringComparer.Ordinal);
         foreach (var entry in entries)
@@ -47,7 +51,10 @@ public sealed class DesktopAgentProviderCatalog : IAgentProviderCatalog
                 await _catalog.GetStatusAsync(entry.Descriptor.ProviderId, cancellationToken).ConfigureAwait(false);
         }
 
-        _snapshot = Present(entries, id => statuses[id]);
+        if (generation == Interlocked.Read(ref _refreshGeneration))
+        {
+            _snapshot = Present(entries, id => statuses[id]);
+        }
     }
 
     private static IReadOnlyList<AgentProviderPresentation> Present(

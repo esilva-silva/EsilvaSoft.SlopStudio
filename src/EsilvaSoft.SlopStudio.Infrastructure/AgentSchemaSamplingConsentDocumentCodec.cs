@@ -3,36 +3,58 @@ using LiteDB;
 
 namespace EsilvaSoft.SlopStudio.Infrastructure;
 
-/// <summary>Closed version-one schema. No tolerant/defaulting deserialization at the consent boundary.</summary>
+/// <summary>
+/// Closed schema, no tolerant/defaulting deserialization at the consent boundary. Version 2 is written; version 1 is
+/// still read (additive migration) into legacy grants that never authorize, and is never rewritten as version 2.
+/// </summary>
 internal static class AgentSchemaSamplingConsentDocumentCodec
 {
     internal const int MaximumConsents = 1024;
 
-    internal static BsonDocument Encode(AgentSchemaSamplingConsentSnapshot consent) => new()
+    private static readonly string[] DocumentFields = ["_id", "schemaVersion", "revision", "updatedAtUtc", "consents"];
+
+    private static readonly string[] LegacyConsentFields =
+    [
+        "principalId", "sourceGenerationId", "connectionId", "databaseName", "collectionName", "grantedAtUtc",
+        "expiresAtUtc"
+    ];
+
+    private static readonly string[] CurrentConsentFields =
+    [
+        .. LegacyConsentFields, "destinationKind", "providerId", "maximumSampleSize", "policyRevision"
+    ];
+
+    internal static BsonDocument Encode(AgentSchemaSamplingConsentSnapshot consent)
     {
-        ["_id"] = consent.PrincipalId,
-        ["schemaVersion"] = consent.SchemaVersion,
-        ["revision"] = consent.Revision,
-        ["updatedAtUtc"] = DateTime.UtcNow,
-        ["consents"] = new BsonArray(consent.Consents.Select(EncodeConsent))
-    };
+        if (!consent.IsValid) throw new ArgumentException("Snapshot de consentimento inválido.", nameof(consent));
+        return new()
+        {
+            ["_id"] = consent.PrincipalId,
+            ["schemaVersion"] = consent.SchemaVersion,
+            ["revision"] = consent.Revision,
+            ["updatedAtUtc"] = DateTime.UtcNow,
+            ["consents"] = new BsonArray(consent.Consents.Select(EncodeConsent))
+        };
+    }
 
     internal static AgentSchemaSamplingConsentSnapshot Decode(BsonDocument document, Guid principalId)
     {
         try
         {
-            RequireFields(document, "_id", "schemaVersion", "revision", "updatedAtUtc", "consents");
+            RequireFields(document, DocumentFields);
             if (ReadGuid(document, "_id") != principalId ||
                 !document["schemaVersion"].IsInt32 ||
-                document["schemaVersion"].AsInt32 != AgentSchemaSamplingConsentSnapshot.CurrentSchemaVersion ||
+                document["schemaVersion"].AsInt32 is not (AgentSchemaSamplingConsentSnapshot.LegacySchemaVersion or
+                    AgentSchemaSamplingConsentSnapshot.CurrentSchemaVersion) ||
                 !document["revision"].IsInt64 || document["revision"].AsInt64 < 1 ||
                 !document["updatedAtUtc"].IsDateTime ||
                 !document["consents"].IsArray || document["consents"].AsArray.Count > MaximumConsents)
                 throw InvalidConsent();
+            var schemaVersion = document["schemaVersion"].AsInt32;
             var consents = document["consents"].AsArray.Select(value =>
-                value.IsDocument ? DecodeConsent(value.AsDocument, principalId) : throw InvalidConsent()).ToArray();
+                value.IsDocument ? DecodeConsent(value.AsDocument, principalId, schemaVersion) : throw InvalidConsent()).ToArray();
             var snapshot = AgentSchemaSamplingConsentSnapshot.Load(
-                principalId, document["schemaVersion"].AsInt32, document["revision"].AsInt64, consents);
+                principalId, schemaVersion, document["revision"].AsInt64, consents);
             if (!snapshot.IsValid) throw InvalidConsent();
             return snapshot;
         }
@@ -43,21 +65,32 @@ internal static class AgentSchemaSamplingConsentDocumentCodec
         }
     }
 
-    private static BsonDocument EncodeConsent(AgentSchemaSamplingConsentGrant consent) => new()
+    private static BsonDocument EncodeConsent(AgentSchemaSamplingConsentGrant consent)
     {
-        ["principalId"] = consent.PrincipalId,
-        ["sourceGenerationId"] = consent.SourceGenerationId,
-        ["connectionId"] = consent.Scope.ConnectionId,
-        ["databaseName"] = consent.Scope.DatabaseName is { } database ? new BsonValue(database) : BsonValue.Null,
-        ["collectionName"] = consent.Scope.CollectionName is { } collection ? new BsonValue(collection) : BsonValue.Null,
-        ["grantedAtUtc"] = consent.GrantedAtUtc.UtcDateTime,
-        ["expiresAtUtc"] = consent.ExpiresAtUtc is { } expires ? new BsonValue(expires.UtcDateTime) : BsonValue.Null
-    };
+        var document = new BsonDocument
+        {
+            ["principalId"] = consent.PrincipalId,
+            ["sourceGenerationId"] = consent.SourceGenerationId,
+            ["connectionId"] = consent.Scope.ConnectionId,
+            ["databaseName"] = consent.Scope.DatabaseName is { } database ? new BsonValue(database) : BsonValue.Null,
+            ["collectionName"] = consent.Scope.CollectionName is { } collection ? new BsonValue(collection) : BsonValue.Null,
+            ["grantedAtUtc"] = consent.GrantedAtUtc.UtcDateTime,
+            ["expiresAtUtc"] = consent.ExpiresAtUtc is { } expires ? new BsonValue(expires.UtcDateTime) : BsonValue.Null
+        };
+        if (consent.Destination is { } destination)
+        {
+            document["destinationKind"] = (int)destination.Kind;
+            document["providerId"] = destination.ProviderId is { } providerId ? new BsonValue(providerId) : BsonValue.Null;
+            document["maximumSampleSize"] = consent.MaximumSampleSize;
+            document["policyRevision"] = consent.PolicyRevision;
+        }
+        return document;
+    }
 
-    private static AgentSchemaSamplingConsentGrant DecodeConsent(BsonDocument document, Guid principalId)
+    private static AgentSchemaSamplingConsentGrant DecodeConsent(BsonDocument document, Guid principalId, int schemaVersion)
     {
-        RequireFields(document, "principalId", "sourceGenerationId", "connectionId", "databaseName", "collectionName",
-            "grantedAtUtc", "expiresAtUtc");
+        var legacy = schemaVersion == AgentSchemaSamplingConsentSnapshot.LegacySchemaVersion;
+        RequireFields(document, legacy ? LegacyConsentFields : CurrentConsentFields);
         if (ReadGuid(document, "principalId") != principalId) throw InvalidConsent();
         var connectionId = ReadGuid(document, "connectionId");
         var databaseName = ReadNullableString(document, "databaseName");
@@ -69,11 +102,30 @@ internal static class AgentSchemaSamplingConsentDocumentCodec
             (not null, not null) => AgentNamespaceScope.ForCollection(connectionId, databaseName, collectionName),
             _ => throw InvalidConsent()
         };
-        return new AgentSchemaSamplingConsentGrant(principalId, ReadGuid(document, "sourceGenerationId"), scope,
-            ReadDateTime(document, "grantedAtUtc"), ReadNullableDateTime(document, "expiresAtUtc"));
+        var generationId = ReadGuid(document, "sourceGenerationId");
+        var grantedAt = ReadDateTime(document, "grantedAtUtc");
+        var expiresAt = ReadNullableDateTime(document, "expiresAtUtc");
+        if (legacy)
+            return AgentSchemaSamplingConsentGrant.Legacy(principalId, generationId, scope, grantedAt, expiresAt);
+
+        if (!document["destinationKind"].IsInt32 || !document["maximumSampleSize"].IsInt32 ||
+            !document["policyRevision"].IsInt64)
+            throw InvalidConsent();
+        var destinationKind = (AgentOutputDestinationKind)document["destinationKind"].AsInt32;
+        var providerId = ReadNullableString(document, "providerId");
+        var destination = destinationKind switch
+        {
+            AgentOutputDestinationKind.Local when providerId is null => AgentOutputDestination.Local(),
+            AgentOutputDestinationKind.ProviderExternal when providerId is not null =>
+                AgentOutputDestination.ProviderExternal(providerId),
+            AgentOutputDestinationKind.McpExternal when providerId is not null => AgentOutputDestination.McpExternal(providerId),
+            _ => throw InvalidConsent()
+        };
+        return new AgentSchemaSamplingConsentGrant(principalId, generationId, scope, destination,
+            document["maximumSampleSize"].AsInt32, document["policyRevision"].AsInt64, grantedAt, expiresAt);
     }
 
-    private static void RequireFields(BsonDocument document, params string[] names)
+    private static void RequireFields(BsonDocument document, string[] names)
     {
         if (document.Count != names.Length || !document.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(names))
             throw InvalidConsent();
@@ -86,9 +138,7 @@ internal static class AgentSchemaSamplingConsentDocumentCodec
         document[field].IsNull ? null : document[field].IsString ? document[field].AsString : throw InvalidConsent();
 
     private static DateTimeOffset ReadDateTime(BsonDocument document, string field) =>
-        document[field].IsDateTime
-            ? new DateTimeOffset(DateTime.SpecifyKind(document[field].AsDateTime, DateTimeKind.Utc))
-            : throw InvalidConsent();
+        document[field].IsDateTime ? LiteDbDates.ToUtcInstant(document[field].AsDateTime) : throw InvalidConsent();
 
     private static DateTimeOffset? ReadNullableDateTime(BsonDocument document, string field) =>
         document[field].IsNull ? null : ReadDateTime(document, field);

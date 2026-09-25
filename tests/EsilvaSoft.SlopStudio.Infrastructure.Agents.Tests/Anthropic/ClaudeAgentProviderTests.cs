@@ -345,7 +345,8 @@ public sealed class ClaudeAgentProviderTests
         var credentials = new FakeCredentialProvider();
         var services = new ServiceCollection();
         services.AddSingleton<IAgentCredentialProvider>(credentials);
-        services.AddSlopStudioClaudeAgentProvider(ClaudeFixture.Options());
+        // Default budget: the fixture's short tool-result wait would not cover the runtime's worst-case tool call.
+        services.AddSlopStudioClaudeAgentProvider(ClaudeFixture.Options(ClaudeAgentBudget.Default));
 
         using var container = services.BuildServiceProvider();
         var providers = container.GetServices<IAgentProvider>().ToArray();
@@ -354,5 +355,42 @@ public sealed class ClaudeAgentProviderTests
         Assert.That(providers[0].IsLocal, Is.False);
         Assert.That(credentials.Calls, Is.Zero);
         Assert.Throws<InvalidOperationException>(() => services.AddSlopStudioClaudeAgentProvider());
+    }
+
+    [Test]
+    public void DefaultToolResultWaitCoversTheRuntimeWorstCaseToolCallWithMargin()
+    {
+        // A write waiting for human approval: 35 s preflight + 120 s approval + 2x5 s stop + 35 s execution = 200 s.
+        var required = AgentRuntimeOptions.Default.MaxToolCallDuration + AgentProviderServiceCollectionExtensions.ToolResultWaitMargin;
+
+        Assert.That(ClaudeAgentBudget.Default.ToolResultTimeout, Is.GreaterThanOrEqualTo(required));
+        Assert.DoesNotThrow(() => new ServiceCollection().AddSingleton(AgentRuntimeOptions.Default)
+            .AddSlopStudioClaudeAgentProvider(ClaudeFixture.Options(ClaudeAgentBudget.Default)));
+    }
+
+    [Test]
+    public void RegistrationRefusesAToolResultWaitShorterThanTheComposedRuntimeBudget()
+    {
+        var shortWait = ClaudeFixture.Options(ClaudeAgentBudget.Default with { ToolResultTimeout = TimeSpan.FromSeconds(170) });
+        var tighterRuntime = new AgentRuntimeOptions { ApprovalTimeout = TimeSpan.FromSeconds(60) };
+        var slowerRuntime = new AgentRuntimeOptions { ToolTimeout = TimeSpan.FromSeconds(90) };
+
+        Assert.Multiple(() =>
+        {
+            // The old 170 s default: shorter than the default runtime's 200 s worst case plus margin.
+            Assert.Throws<InvalidOperationException>(() => new ServiceCollection().AddSingleton(AgentRuntimeOptions.Default)
+                .AddSlopStudioClaudeAgentProvider(shortWait));
+            // Derived from the composed runtime, not a fixed number: a shorter approval window fits in 170 s.
+            Assert.DoesNotThrow(() => new ServiceCollection().AddSingleton(tighterRuntime)
+                .AddSlopStudioClaudeAgentProvider(shortWait));
+        });
+
+        // Order-independent: runtime options composed after the provider are checked when the provider is resolved.
+        var services = new ServiceCollection();
+        services.AddSingleton<IAgentCredentialProvider>(new FakeCredentialProvider());
+        services.AddSlopStudioClaudeAgentProvider(ClaudeFixture.Options(ClaudeAgentBudget.Default));
+        services.AddSingleton(slowerRuntime);
+        using var container = services.BuildServiceProvider();
+        Assert.Throws<InvalidOperationException>(() => container.GetRequiredService<ClaudeAgentProvider>());
     }
 }

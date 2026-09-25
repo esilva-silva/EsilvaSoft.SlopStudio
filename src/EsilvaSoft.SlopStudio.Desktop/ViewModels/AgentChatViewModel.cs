@@ -62,6 +62,7 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
     private readonly CancellationTokenSource _lifetime = new();
     private long _reviewGeneration;
     private bool _suppressInvalidation;
+    private IReadOnlyList<AgentProviderPresentation>? _lastListing;
 
     public AgentChatViewModel(AgentChatServices services, Func<AgentChatTabSnapshot> captureTab)
     {
@@ -114,7 +115,7 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsExternalDestination), nameof(DestinationText), nameof(DestinationHint),
-        nameof(ConsentText), nameof(HasModels))]
+        nameof(ConsentText), nameof(HasModels), nameof(IsStatusError))]
     private AgentProviderOption? _selectedProvider;
 
     [ObservableProperty] private string? _selectedModel;
@@ -142,6 +143,8 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
 
     [ObservableProperty] private bool _isPreparingPreview;
 
+    [ObservableProperty] private bool _isRefreshingProviders;
+
     public bool HasPreview => Preview is not null;
 
     public bool HasModels => Models.Count > 0;
@@ -161,8 +164,12 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
 
     public bool CanChangeProvider => IsIdle && IsFeatureAvailable;
 
-    public bool IsStatusError => State is AgentChatState.Unavailable or AgentChatState.NoProvider or
-        AgentChatState.ProviderUnavailable or AgentChatState.NotAuthenticated or AgentChatState.CredentialExpired or
+    /// <summary>
+    /// Error styling accompanies the text of failure states; a provider whose availability was simply not checked yet
+    /// is a neutral state with its own action (Check availability), not an error.
+    /// </summary>
+    public bool IsStatusError => (State == AgentChatState.ProviderUnavailable && SelectedProvider?.IsNotChecked != true) ||
+        State is AgentChatState.Unavailable or AgentChatState.NoProvider or AgentChatState.NotAuthenticated or AgentChatState.CredentialExpired or
         AgentChatState.VaultUnavailable or AgentChatState.OutcomeUnknown or AgentChatState.TimedOut or
         AgentChatState.Failed or AgentChatState.ContextFailed;
 
@@ -176,7 +183,7 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
                 AgentChatState.Unavailable => Text.Resolve("agentStateUnavailable"),
                 AgentChatState.NoProvider => Text.Resolve("agentStateNoProvider"),
                 AgentChatState.ProviderUnavailable => Text.Format("agentStateProviderUnavailable", name,
-                    SelectedProvider?.Presentation.UnavailableReason ?? Text.Resolve("agentSettingsUnavailable")),
+                    SelectedProvider?.UnavailableText ?? Text.Resolve("agentSettingsUnavailable")),
                 AgentChatState.NotAuthenticated => Text.Format("agentStateNotAuthenticated", name),
                 AgentChatState.CredentialExpired => Text.Format("agentStateCredentialExpired", name),
                 AgentChatState.VaultUnavailable => Text.Format("agentStateVaultUnavailable", name),
@@ -214,6 +221,33 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
     /// <summary>Re-reads provider availability, e.g. after the settings window closed. Keeps the current session.</summary>
     public void ReloadProviders() => LoadProviders(SelectedProvider?.ProviderId);
 
+    /// <summary>
+    /// Re-reads the catalog only when its cached listing changed since the last load (e.g. another tab checked
+    /// availability), so returning to a tab does not reset a terminal status such as "Completed" for nothing.
+    /// </summary>
+    public void ReloadProvidersIfChanged()
+    {
+        if (!IsIdle || !_services.IsComplete)
+        {
+            return;
+        }
+
+        IReadOnlyList<AgentProviderPresentation> current;
+        try
+        {
+            current = _services.Catalog!.List();
+        }
+        catch (Exception)
+        {
+            return;
+        }
+
+        if (!ReferenceEquals(current, _lastListing))
+        {
+            ReloadProviders();
+        }
+    }
+
     public AgentSettingsViewModel CreateSettingsViewModel() =>
         new(_services.Catalog, _services.Credentials, SelectedProvider?.ProviderId);
 
@@ -237,6 +271,7 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
                 try
                 {
                     listed = _services.Catalog!.List();
+                    _lastListing = listed;
                 }
                 catch (Exception)
                 {
@@ -349,6 +384,8 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
         CancelTurnCommand.NotifyCanExecuteChanged();
         PrimaryActionCommand.NotifyCanExecuteChanged();
         ConfigureCommand.NotifyCanExecuteChanged();
+        RefreshProvidersCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(ShowRefreshProviders));
     }
 
     private void InvalidatePreview()
@@ -382,17 +419,61 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
             return;
         }
 
+        // A credential problem is reported before generic unavailability because it has a concrete action
+        // (Configure…), even when the provider is also unavailable for that very reason.
         State = !IsFeatureAvailable ? AgentChatState.Unavailable
             : SelectedProvider is not { } provider ? AgentChatState.NoProvider
-            : !provider.Presentation.IsAvailable ? AgentChatState.ProviderUnavailable
             : provider.Presentation.AuthState switch
             {
                 AgentProviderAuthState.NotConfigured => AgentChatState.NotAuthenticated,
                 AgentProviderAuthState.Invalid or AgentProviderAuthState.Expired => AgentChatState.CredentialExpired,
                 AgentProviderAuthState.VaultUnavailable => AgentChatState.VaultUnavailable,
+                _ when !provider.Presentation.IsAvailable => AgentChatState.ProviderUnavailable,
                 _ => Preview is null ? AgentChatState.Ready : AgentChatState.Reviewing,
             };
+        OnPropertyChanged(nameof(ShowRefreshProviders));
     }
+
+    /// <summary>"Check availability" is offered only while no usable provider is selected and nothing runs.</summary>
+    public bool ShowRefreshProviders => IsFeatureAvailable && IsIdle && !IsProviderUsable;
+
+    private bool CanRefreshProviders() => IsFeatureAvailable && IsIdle && !IsRefreshingProviders;
+
+    /// <summary>
+    /// Explicit user action: re-checks local configuration and vault presence of every provider (never network or
+    /// authentication). Reading the vault may show an unlock prompt, which is why listing alone never does it.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanRefreshProviders))]
+    private async Task RefreshProvidersAsync()
+    {
+        IsRefreshingProviders = true;
+        StatusDetail = null;
+        var failed = false;
+        try
+        {
+            await _services.Catalog!.RefreshAsync(_lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception)
+        {
+            failed = true;
+        }
+        finally
+        {
+            IsRefreshingProviders = false;
+        }
+
+        ReloadProviders();
+        if (failed)
+        {
+            StatusDetail = Text.Resolve("agentRefreshFailed");
+        }
+    }
+
+    partial void OnIsRefreshingProvidersChanged(bool value) => RefreshProvidersCommand.NotifyCanExecuteChanged();
 
     private bool IsProviderUsable =>
         IsFeatureAvailable && SelectedProvider is { Presentation: { IsAvailable: true } presentation } &&

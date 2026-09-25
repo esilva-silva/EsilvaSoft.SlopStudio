@@ -1,5 +1,13 @@
 # Validação da meta de planejamento
 
+## Prioridade de contas 7B/8B — 25/09/2026
+
+Planejamento atualizado por pedido do usuário: conta Claude entra no 8B condicional e passa a prioridade junto de Codex/ChatGPT (7B). Requisitos, providers, autenticação, plano, testes, aceites, fontes, roteiro manual, matriz, catálogo, ADRs, guia, design system e memória sincronizados. Nenhum código de produto ou credencial alterado; nenhum login executado ou AC aprovado.
+
+Validação desta rodada: índice offline regenerado com 115 documentos; comparação de conteúdo do snapshot com arquivos passou; 332 destinos de links locais nos 18 documentos/contratos da alteração conferidos, nenhum ausente (âncoras não validadas automaticamente); 16 adapters Claude conferidos por `node scripts/sync-claude-agents.cjs --check`; `git diff --check` sem erros. Revisão independente dos diffs de 01/04/07/10/12/15 e contrato agent-provider-agent não encontrou problemas concretos; roteiro 21 revisado sequencialmente pelo autor, sem alegar revisão independente desse arquivo.
+
+Limitação: `node scripts/check-docs-reader.cjs` falhou com `MODULE_NOT_FOUND: playwright`; não houve smoke visual do leitor. Nenhuma asserção foi alterada. Build/test .NET não executados nesta mudança exclusivamente documental. Todos os gates funcionais 7B/8B e a homologação manual H-01..H-17 permanecem pendentes.
+
 ## Preparação dos agentes — 24/09/2026
 
 Validação documental da [matriz 20](20-agentes-e-execucao.md) e dos contratos de desenvolvimento, sem implementar features nem aprovar ACs:

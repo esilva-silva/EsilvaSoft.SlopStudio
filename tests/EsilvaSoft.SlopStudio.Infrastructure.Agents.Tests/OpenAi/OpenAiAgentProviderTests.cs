@@ -562,6 +562,74 @@ public sealed class OpenAiAgentProviderTests
     }
 
     [Test]
+    public void ToolResultWaitMustCoverTheComposedRuntimeWorstCaseToolCall()
+    {
+        var required = AgentRuntimeOptions.Default.MaxToolCallDuration + AgentProviderServiceCollectionExtensions.ToolResultWaitMargin;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(new OpenAiAgentProviderOptions().ToolResultTimeout, Is.GreaterThanOrEqualTo(required));
+            Assert.Throws<InvalidOperationException>(() => new ServiceCollection().AddSingleton(AgentRuntimeOptions.Default)
+                .AddSlopStudioOpenAiAgentProvider(new OpenAiAgentProviderOptions
+                {
+                    DefaultModel = "fixture-model", ToolResultTimeout = TimeSpan.FromSeconds(200),
+                }));
+        });
+    }
+
+    [Test]
+    public void ToolResultWaitIsDerivedFromTheComposedRuntimeWhateverTheRegistrationOrder()
+    {
+        var wait200 = new OpenAiAgentProviderOptions { DefaultModel = "fixture-model", ToolResultTimeout = TimeSpan.FromSeconds(200) };
+        var tighterRuntime = new AgentRuntimeOptions { ApprovalTimeout = TimeSpan.FromSeconds(60) };
+
+        Assert.Multiple(() =>
+        {
+            // 35 + 60 + 10 + 35 + 30 s margin = 170 s: a 200 s wait fits this runtime, not the default one.
+            Assert.DoesNotThrow(() => new ServiceCollection().AddSingleton(tighterRuntime).AddSlopStudioOpenAiAgentProvider(wait200));
+            // A second runtime budget would be ambiguous: refused, never "the last one wins".
+            Assert.Throws<InvalidOperationException>(() => new ServiceCollection().AddSingleton(tighterRuntime)
+                .AddSingleton(AgentRuntimeOptions.Default).AddSlopStudioOpenAiAgentProvider(wait200));
+        });
+
+        // Provider first, runtime budget later: checked again when the provider is resolved.
+        var services = new ServiceCollection();
+        services.AddSingleton<IAgentCredentialProvider>(FakeCredentialProvider.WithKey());
+        services.AddSlopStudioOpenAiAgentProvider(new OpenAiAgentProviderOptions { DefaultModel = "fixture-model" });
+        services.AddSingleton(new AgentRuntimeOptions { ToolTimeout = TimeSpan.FromSeconds(120) });
+        using var container = services.BuildServiceProvider();
+        Assert.Throws<InvalidOperationException>(() => container.GetRequiredService<OpenAiAgentProvider>());
+    }
+
+    [Test]
+    public async Task RoundDeadlineDoesNotRunWhileTheTurnWaitsForAToolResult()
+    {
+        // A human approval can keep a tool result pending far longer than the deadline of one streamed request.
+        var registry = new FakeToolRegistry("list_collections");
+        var handler = new OpenAiOfflineHandler()
+            .Sse(Sse.ToolCall("call_wait_1", "list_collections", "{}"))
+            .Sse(Sse.Text("Concluído."));
+        var options = new OpenAiAgentProviderOptions { RoundTimeout = TimeSpan.FromMilliseconds(300) };
+        var provider = OpenAiTestFactory.Provider(handler, tools: registry, options: options);
+        await using var session = await provider.CreateSessionAsync(new(OpenAiAgentProvider.Id, OpenAiTestFactory.Model), CancellationToken.None);
+        var turn = OpenAiTestFactory.Turn();
+
+        var events = await OpenAiTestFactory.CollectAsync(session.RunTurnAsync(turn, CancellationToken.None), async item =>
+        {
+            if (item.Kind == AgentEventKind.ToolRequested)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(900));
+                await session.SubmitToolResultAsync(new AgentToolResult(AgentSessionId.New(), turn.TurnId, item.ToolCallId!.Value,
+                    AgentToolResultStatus.Succeeded, "{\"names\":[]}"), CancellationToken.None);
+            }
+        }).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.That(events.Any(static item => item.Kind == AgentEventKind.AgentError), Is.False);
+        Assert.That(OpenAiTestFactory.Text(events), Is.EqualTo("Concluído."));
+        Assert.That(handler.Requests, Has.Count.EqualTo(2));
+    }
+
+    [Test]
     public async Task RuntimeNormalizesTheAdapterStreamIntoACompletedTurn()
     {
         var handler = new OpenAiOfflineHandler().Sse(Sse.Text("Olá", " mundo"));

@@ -103,8 +103,13 @@ public sealed record ClaudeAgentBudget
     /// <summary>Intervalo máximo sem eventos durante o stream.</summary>
     public TimeSpan StreamIdleTimeout { get; init; } = TimeSpan.FromSeconds(90);
 
-    /// <summary>Espera pelos resultados de tool (aprovação 120 s + execução 35 s do runtime, com folga).</summary>
-    public TimeSpan ToolResultTimeout { get; init; } = TimeSpan.FromSeconds(170);
+    /// <summary>
+    /// Espera pelos resultados de tool de uma rodada. Precisa cobrir o pior caso de uma chamada do runtime
+    /// (<c>AgentRuntimeOptions.MaxToolCallDuration</c>: preparo 35 s + aprovação 120 s + 2×5 s de parada + execução
+    /// 35 s = 200 s) mais a folga de 30 s; a composição recusa valores menores. O watchdog de inatividade do stream
+    /// (<see cref="StreamIdleTimeout"/>) vale só durante a leitura de cada rodada, não durante esta espera.
+    /// </summary>
+    public TimeSpan ToolResultTimeout { get; init; } = TimeSpan.FromSeconds(240);
 
     /// <summary>Duração máxima do turno no adapter; o runtime aplica seu próprio orçamento.</summary>
     public TimeSpan MaxTurnDuration { get; init; } = TimeSpan.FromMinutes(10);

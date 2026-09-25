@@ -9,6 +9,9 @@ public sealed partial class LiteDbConnectionProfileRepository
 {
     private const string AgentAuditCollectionName = "agentAuditEvents";
     private const int MaximumStoredAgentAuditEvents = 10_000;
+
+    /// <summary>Share of <see cref="MaximumStoredAgentAuditEvents"/> that external MCP reads may occupy.</summary>
+    private const int MaximumStoredExternalReadAuditEvents = 5_000;
     private const int MaximumReadOnlyRecoveryBatch = 64;
     private static readonly TimeSpan AgentAuditRetention = TimeSpan.FromDays(30);
     private static readonly TimeSpan ReadOnlyRecoveryAge = TimeSpan.FromHours(1);
@@ -79,12 +82,35 @@ public sealed partial class LiteDbConnectionProfileRepository
                 .Select(group => group.ToArray()).ToArray();
             var deletions = removableGroups.Where(group => group.All(item => item.OccurredAtUtc < cutoff))
                 .SelectMany(group => group).Select(item => item.Id).ToHashSet();
+
+            // Count-based rotation never evicts write evidence (only the 30-day retention does), and external MCP
+            // reads rotate inside their own quota first: a flood from an MCP client can only push out older MCP reads,
+            // never the internal chat's reads or any write/approval record.
+            var rotatable = removableGroups.Where(group => group.All(item => item.Risk == AgentToolRisk.ReadOnly))
+                .OrderBy(group => IsExternalMcpAudit(group[0]) ? 0 : 1)
+                .ThenBy(group => group.Min(item => item.OccurredAtUtc))
+                .ToArray();
+            if (IsExternalMcpAudit(entry))
+            {
+                var externalExcess = existing.Count(item => IsExternalMcpAudit(item) && !deletions.Contains(item.Id)) +
+                    recovered.Count(IsExternalMcpAudit) + 1 - MaximumStoredExternalReadAuditEvents;
+                foreach (var group in rotatable.Where(group => IsExternalMcpAudit(group[0])))
+                {
+                    if (externalExcess <= 0) break;
+                    if (deletions.Contains(group[0].Id)) continue;
+                    foreach (var candidate in group) deletions.Add(candidate.Id);
+                    externalExcess -= group.Length;
+                }
+                if (externalExcess > 0)
+                    throw new IOException("Cota de auditoria de leituras MCP atingida com intenções pendentes.");
+            }
+
             var excess = existing.Length - deletions.Count + recovered.Length + 1 - MaximumStoredAgentAuditEvents;
             if (excess > 0)
             {
                 // Remove a resolved invocation as a unit. Never manufacture an orphan terminal or pending
                 // intent by pruning only one member of its pair.
-                foreach (var group in removableGroups.OrderBy(group => group.Min(item => item.OccurredAtUtc)))
+                foreach (var group in rotatable)
                 {
                     if (excess <= 0) break;
                     if (deletions.Contains(group[0].Id)) continue;
@@ -92,7 +118,7 @@ public sealed partial class LiteDbConnectionProfileRepository
                     excess -= group.Length;
                 }
                 if (excess > 0)
-                    throw new IOException("Limite de auditoria atingido com intenções de escrita pendentes.");
+                    throw new IOException("Limite de auditoria atingido com intenções ou escritas protegidas.");
             }
 
             InTransaction(() =>
@@ -133,6 +159,10 @@ public sealed partial class LiteDbConnectionProfileRepository
                 .OrderBy(item => item.OccurredAtUtc).Take(maximum).ToArray();
         }, cancellationToken);
     }
+
+    /// <summary>Read evidence produced by an external MCP client; it rotates inside its own quota.</summary>
+    private static bool IsExternalMcpAudit(AgentAuditEvent item) =>
+        item.Channel == AgentAuditChannel.McpExternal && item.Risk == AgentToolRisk.ReadOnly;
 
     private static AgentAuditEvent CreateIncompleteReadAudit(AgentAuditEvent intent, DateTimeOffset now)
     {

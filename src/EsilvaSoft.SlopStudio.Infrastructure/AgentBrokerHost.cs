@@ -24,6 +24,7 @@ public sealed class AgentBrokerHost : IAsyncDisposable
     private readonly IAgentPrincipalAuthority _authority;
     private readonly AgentBrokerOptions _options;
     private readonly AgentBrokerAuthenticationLimiter _limiter;
+    private readonly AgentBrokerCallAdmission _admission;
     private readonly ConcurrentDictionary<AgentBrokerConnection, Task> _connections = new();
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
     private SemaphoreSlim? _slots;
@@ -41,6 +42,9 @@ public sealed class AgentBrokerHost : IAsyncDisposable
         _limiter = new AgentBrokerAuthenticationLimiter(options.MaximumAuthenticationFailuresPerChannel,
             options.MaximumAuthenticationFailuresGlobal, options.AuthenticationFailureWindow,
             timeProvider ?? TimeProvider.System);
+        // Host-wide, keyed by channel: reconnecting never refills a channel's budget.
+        _admission = new AgentBrokerCallAdmission(options.CallBurstPerChannel, options.CallsPerMinutePerChannel,
+            AgentToolRegistry.MaximumConcurrentCallsPerSession, timeProvider ?? TimeProvider.System);
         Endpoint = AgentBrokerEndpoint.ForWorkspace(options.WorkspaceId);
     }
 
@@ -153,7 +157,8 @@ public sealed class AgentBrokerHost : IAsyncDisposable
                 continue;
             }
 
-            var connection = new AgentBrokerConnection(instance, _registry, _authority, _options, _limiter, _tools!);
+            var connection = new AgentBrokerConnection(instance, _registry, _authority, _options, _limiter,
+                _admission, _tools!);
             var registered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             _connections[connection] = ServeAsync(connection, slots, registered.Task, stop);
             registered.SetResult();

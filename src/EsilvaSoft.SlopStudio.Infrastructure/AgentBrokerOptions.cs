@@ -39,6 +39,20 @@ public sealed record AgentBrokerOptions
     /// <summary>Registry execution ceiling (the registry itself caps at 30 s).</summary>
     public TimeSpan ToolExecutionTimeout { get; init; } = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// Token bucket of MCP calls per authenticated channel, shared by all its connections and applied before the
+    /// registry (answers <c>RateLimited</c> without audit or dispatch). Burst is the bucket size.
+    /// </summary>
+    /// <remarks>
+    /// Sized against the audit ledger: each admitted call appends intent and outcome, and an append currently decodes
+    /// the whole ledger under the owner's gate (~90-150 ms near the 10.000-event cap in the 25/09/2026 measurement).
+    /// One call per second keeps a full ledger's owner mostly free for the other facets.
+    /// </remarks>
+    public int CallBurstPerChannel { get; init; } = 10;
+
+    /// <summary>Sustained refill of <see cref="CallBurstPerChannel"/>.</summary>
+    public int CallsPerMinutePerChannel { get; init; } = 60;
+
     public int MaximumAuthenticationFailuresPerChannel { get; init; } = 5;
     public int MaximumAuthenticationFailuresGlobal { get; init; } = 20;
     public TimeSpan AuthenticationFailureWindow { get; init; } = TimeSpan.FromMinutes(1);
@@ -55,6 +69,10 @@ public sealed record AgentBrokerOptions
         if (MaximumConcurrentCallsPerConnection < 1 ||
             MaximumConcurrentCallsPerConnection > AgentToolRegistry.MaximumConcurrentCallsPerSession)
             throw new ArgumentException("Limite de chamadas simultâneas inválido.", nameof(MaximumConcurrentCallsPerConnection));
+        if (CallBurstPerChannel is < 1 or > 1_000)
+            throw new ArgumentException("Rajada de chamadas por canal inválida.", nameof(CallBurstPerChannel));
+        if (CallsPerMinutePerChannel is < 1 or > 6_000)
+            throw new ArgumentException("Taxa de chamadas por canal inválida.", nameof(CallsPerMinutePerChannel));
         if (HandshakeTimeout <= TimeSpan.Zero || HandshakeTimeout > TimeSpan.FromSeconds(30))
             throw new ArgumentException("Prazo de handshake inválido.", nameof(HandshakeTimeout));
         if (ToolExecutionTimeout <= TimeSpan.Zero || ToolExecutionTimeout > TimeSpan.FromSeconds(30))

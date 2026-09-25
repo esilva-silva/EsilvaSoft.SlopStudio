@@ -12,7 +12,7 @@ namespace EsilvaSoft.SlopStudio.Application.Agents;
 /// construct the parser cannot prove safe is denied. It never evaluates or rewrites the input; the caller parses
 /// the same text into BSON afterwards, preserving Int64, Decimal128, dates and binary UUID subtypes.
 /// </summary>
-public static class AgentToolLiteralEjson
+public static partial class AgentToolLiteralEjson
 {
     public const int MaximumInputBytes = 64 * 1024;
     public const int MaximumDepth = 64;

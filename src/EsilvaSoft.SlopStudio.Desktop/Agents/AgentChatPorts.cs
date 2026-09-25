@@ -13,10 +13,17 @@ namespace EsilvaSoft.SlopStudio.Desktop.Agents;
 // (Infrastructure.Agents) and a production IAgentProviderCatalog (DesktopAgentProviderCatalog, this folder), built
 // only from IAgentRuntime/AgentProviderCatalog/capabilities — no branch by provider brand. ViewModels and Views keep
 // depending only on these ports; only the composition root references Infrastructure.Agents, OpenAI, Anthropic or
-// ModelContextProtocol (AC-04). IAgentApiKeyStore and IAgentApprovalDetailsSource still have no production
-// implementation registered. The feature stays unavailable in the running IDE because AgentChatPanel/AgentChatServices
-// are not wired into the main window yet — that hosting step needs PNG-inspected evidence in both themes and is out
-// of this round's scope.
+// ModelContextProtocol (AC-04).
+//
+// P7-L06-HOST (25/09/2026): the main window hosts AgentChatPanel as a collapsible right-hand surface (Ctrl+Shift+A),
+// one AgentChatViewModel per workspace tab, created only when the panel is shown. AgentChatServices come from
+// AgentChatServicesFactory, invoked lazily on that first explicit opening, so starting the IDE resolves no runtime,
+// vault or network. IAgentApiKeyStore has a production implementation (DesktopAgentApiKeyStore, OS vault slots mapped
+// by the composition root).
+//
+// P7-L10-WIRE (25/09/2026): IAgentApprovalDetailsSource is the AgentWriteApprovalCoordinator composed by the
+// infrastructure (pending registry write proposals only); unknown or decided approvals still yield no details and the
+// dialog stays fail-closed. No write tool is exposed yet (no IAgentMongoWriteSource composed).
 
 /// <summary>
 /// Capability-oriented view of a registered provider. The chat reacts to these fields; it never branches on a provider
@@ -59,6 +66,61 @@ public sealed record AgentProviderPresentation(
 public interface IAgentProviderCatalog
 {
     IReadOnlyList<AgentProviderPresentation> List();
+
+    /// <summary>
+    /// Explicit re-check of every provider's local configuration and vault presence, never network or authentication.
+    /// Callers invoke it only from a user action (e.g. "Check availability", saving a key), because reading the vault
+    /// may show an unlock prompt. The default does nothing: a catalog without live status keeps its listing.
+    /// </summary>
+    Task RefreshAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
+/// <summary>
+/// Deferred source of <see cref="AgentChatServices"/>. The composition root supplies a factory that resolves the runtime
+/// and ports; nothing is resolved until the chat panel is opened for the first time by an explicit user action, so the
+/// IDE starts without composing the runtime, touching the vault or the network (AC-15). A failing factory degrades to
+/// <see cref="AgentChatServices.Unavailable"/> instead of breaking the workspace.
+/// </summary>
+public sealed class AgentChatServicesFactory(Func<AgentChatServices> create)
+{
+    private readonly Func<AgentChatServices> _create = create ?? throw new ArgumentNullException(nameof(create));
+    private readonly object _gate = new();
+    private AgentChatServices? _services;
+
+    /// <summary>Whether the services were already requested (for startup-without-I/O evidence).</summary>
+    public bool IsCreated
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _services is not null;
+            }
+        }
+    }
+
+    public AgentChatServices GetServices()
+    {
+        lock (_gate)
+        {
+            if (_services is not null)
+            {
+                return _services;
+            }
+
+            try
+            {
+                _services = _create() ?? AgentChatServices.Unavailable;
+            }
+            catch (Exception)
+            {
+                // Composition defect: the chat is shown as unavailable; the IDE keeps working.
+                _services = AgentChatServices.Unavailable;
+            }
+
+            return _services;
+        }
+    }
 }
 
 /// <summary>

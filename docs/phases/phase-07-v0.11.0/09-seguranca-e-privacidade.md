@@ -55,3 +55,21 @@ Conversas e resultados de tools são efêmeros na v0.11.0; metadados de sessão 
 | Replay após crash | Sem retry de escrita, intenção auditada e estado incerto | Falha após commit não duplica documento |
 
 Windows/Linux, cofre bloqueado, ausência de D-Bus/Secret Service e ambiente sem internet fazem parte do aceite. Degradação não deve paralisar navegação, consultas manuais, arquivos nem autocomplete determinístico.
+
+## Modo Claude Code — threat model obrigatório (25/09/2026)
+
+A liberação de ferramentas nativas com aprovação ([ADR-054](../../10-decisoes-arquiteturais.md#adr-054--ferramentas-nativas-do-claude-code-com-aprovação-por-chamada-25092026)) muda a linha "Processos nativos do provider" da tabela acima **somente no modo Claude Code**. O threat model completo está no [documento 22](22-threat-model.md) (tarefa P7-CL0-02; rascunho anterior ao spike P7-CL0-01, ainda sem revisão independente) e é gate (GCL-3, pendente) antes de habilitar essas ferramentas. Resumo das ameaças que ele deve cobrir:
+
+| Ameaça | Controle previsto | Evidência exigida |
+| --- | --- | --- |
+| Prompt injection (documento, CLAUDE.md do cwd, página web) levando a comando ou escrita | Aprovação por chamada com alvo visível; destrutivas sem "sempre"; registry inalterado para MongoDB | Fixture hostil pede `rm`/exfiltração e nada executa sem aprovação |
+| Exfiltração por rede (WebFetch, comando) | Categoria `Network` aprovada por domínio; cwd sem segredos | Canário não sai sem aprovação explícita |
+| Acesso a LiteDB, cofre ou dados do app pelo shell | cwd escolhido fora do diretório de dados; aviso de que o shell roda com o usuário do SO | Tentativa de ler o diretório de dados exige aprovação e é destacada |
+| Hooks e MCPs de usuário/projeto executados em `-p` sem diálogo de confiança | `--setting-sources` restrito, `--strict-mcp-config`, cwd controlado | Canários de hook/MCP sintéticos não disparam (C-15) |
+| Regras `permissions.allow` e configurações gerenciadas aprovando fora do diálogo | Excluir fontes quando possível; exibir exceções restantes | Regra sintética não auto-aprova ou aparece como exceção visível |
+| Cobrança por API em vez da assinatura | Detecção do método efetivo e bloqueio | `ANTHROPIC_API_KEY` sintética bloqueia envio (C-06) |
+| Tokens da conta expostos pelo Slop | Slop não lê stdout de login, arquivos de `~/.claude` nem guarda credenciais | Varredura sem tokens em LiteDB/logs/temporários/PNGs (C-14) |
+| Transcript persistido pelo Claude Code em `~/.claude/projects` | Limitação aceita pelo usuário e visível nas configurações; Slop não persiste transcript | Aviso presente (C-16) |
+| Spoof da tool de permissão ou do canal MCP | Canal autenticado por sessão; tool não chamável pelo modelo | Chamada direta da tool é negada |
+| Processo órfão ou turno inacabado | Interrupt/SIGINT; kill com `OutcomeUnknown`; limites de fila/stderr | Cancelamento e crash sem processo residual (C-12) |
+

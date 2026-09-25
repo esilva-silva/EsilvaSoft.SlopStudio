@@ -80,12 +80,56 @@ public sealed class AgentToolRegistrySchemaSamplingConsentIntegrationTests
         });
     }
 
+    [TestCase("destination")]
+    [TestCase("sampleSize")]
+    [TestCase("policyRevision")]
+    public async Task ConsentWithADivergentBindingDoesNotReachTheSampler(string divergence)
+    {
+        using var fixture = new Workspace();
+        using var owner = new LiteDbConnectionProfileRepository(fixture.Path);
+        var profile = ConnectionProfile.Create("schema-consent", "mongodb://localhost:27017")
+            with
+        { SourceGenerationId = Guid.NewGuid() };
+        await owner.SaveAsync(profile);
+        var scope = AgentNamespaceScope.ForCollection(profile.Id, "db", "items");
+        var policies = new StaticPolicyProvider(AgentAuthorizationPolicySnapshot.Load(PrincipalId,
+            AgentAuthorizationPolicySnapshot.CurrentSchemaVersion, 1,
+            [SchemaGrant(profile, scope, AgentPermission.ReadSchema), SchemaGrant(profile, scope, AgentPermission.ExecuteReadQueries)]));
+        var metadata = new FakeSchemaMetadataSource();
+        var registry = new AgentToolRegistry(
+            new StaticProfileRepository([profile]), policies, new AgentPermissionEvaluator(policies), new MemoryAudit(),
+            metadata: metadata, schemaSamplingConsent: owner,
+            exposure: AgentToolExposure.Through(AgentToolExposureStage.DerivedReads),
+            principalAuthority: new TestAgentPrincipalAuthority());
+        var consent = divergence switch
+        {
+            "destination" => ConsentFor(profile, scope, destination: AgentOutputDestination.ProviderExternal("openai")),
+            "sampleSize" => ConsentFor(profile, scope, maximumSampleSize: 10),
+            "policyRevision" => ConsentFor(profile, scope, policyRevision: 2),
+            _ => throw new ArgumentOutOfRangeException(nameof(divergence))
+        };
+        await ((IAgentSchemaSamplingConsentRepository)owner).SaveAsync(PrincipalId, [consent], 0);
+        // No sampleSize argument: the registry requests its default of 20 documents.
+        var input = $"{{\"connectionId\":\"{profile.Id:D}\",\"database\":\"db\",\"collection\":\"items\"}}";
+
+        var result = await registry.InvokeAsync(Principal(1), Context(), LocalDestination,
+            AgentOutputDataScope.Schema, AgentToolRegistry.GetCollectionSchemaToolName, input);
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.ErrorCode, Is.EqualTo("PermissionDenied"));
+            Assert.That(metadata.Calls, Is.Zero);
+        });
+    }
+
     private static AgentPermissionGrant SchemaGrant(ConnectionProfile profile, AgentNamespaceScope scope, AgentPermission permission) =>
         new(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId), profile.SourceGenerationId!.Value, permission,
             scope, LocalDestination, AgentOutputDataScope.Schema);
 
-    private static AgentSchemaSamplingConsentGrant ConsentFor(ConnectionProfile profile, AgentNamespaceScope scope) =>
-        new(PrincipalId, profile.SourceGenerationId!.Value, scope, DateTimeOffset.UtcNow, null);
+    private static AgentSchemaSamplingConsentGrant ConsentFor(
+        ConnectionProfile profile, AgentNamespaceScope scope, AgentOutputDestination? destination = null,
+        int maximumSampleSize = 20, long policyRevision = 1) =>
+        new(PrincipalId, profile.SourceGenerationId!.Value, scope, destination ?? LocalDestination, maximumSampleSize,
+            policyRevision, DateTimeOffset.UtcNow, null);
 
     private static AgentPrincipal Principal(long revision) => new(PrincipalId, AgentPrincipalOrigin.Internal, revision);
 

@@ -345,9 +345,12 @@ public sealed class AgentBrokerHostTests
             Assert.That(cancelled.Select(item => item?.ErrorCode),
                 Has.All.EqualTo(AgentBrokerProtocol.ErrorCodes.Cancelled));
             Assert.That(recovered?.Status, Is.EqualTo(AgentBrokerMessage.SucceededStatus));
-            Assert.That(audit.Any(item => item.Outcome == Core.AgentAuditOutcome.Denied &&
-                item.DecisionReason == Core.AgentAuditDecisionReason.LimitExceeded), Is.True,
-                "A recusa do registry continua auditada como limite.");
+            // M1 (revisão 25/09): a saturação do canal é recusada pelo broker antes do registry, logo sem intenção
+            // de auditoria; um flood de Busy não cresce o ledger nem ocupa o proprietário LiteDB.
+            Assert.That(audit.Any(item => item.DecisionReason == Core.AgentAuditDecisionReason.LimitExceeded), Is.False,
+                "Busy do canal não chega ao registry nem grava auditoria.");
+            Assert.That(audit.Count(item => item.Outcome == Core.AgentAuditOutcome.Intent), Is.EqualTo(3),
+                "Só as duas chamadas bloqueadas e a recuperada geraram intenção.");
         });
     }
 

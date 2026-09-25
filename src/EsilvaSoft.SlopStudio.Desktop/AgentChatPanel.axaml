@@ -32,12 +32,13 @@
   <Border Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1,0,0,0">
     <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8" Margin="12">
       <StackPanel Spacing="6">
-        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
           <TextBlock Text="{local:Loc Key=agentPanelTitle}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
           <Border Grid.Column="1" Classes="type-chip" IsVisible="{Binding SelectedProvider, Converter={x:Static ObjectConverters.IsNotNull}}" ToolTip.Tip="{Binding DestinationHint}">
             <TextBlock x:Name="DestinationBadge" Text="{Binding DestinationText}" Classes="metadata" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryText}" />
           </Border>
           <Button Grid.Column="2" x:Name="ConfigureButton" Content="{local:Loc Key=agentConfigure}" Command="{Binding ConfigureCommand}" AutomationProperties.Name="{local:Loc Key=agentConfigure}" />
+          <Button Grid.Column="3" x:Name="ClosePanelButton" Content="×" Classes="quiet" Padding="8,0" MinWidth="32" IsVisible="False" Click="OnClosePanelClick" />
         </Grid>
         <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
           <ComboBox x:Name="ProviderSelector" ItemsSource="{Binding Providers}" SelectedItem="{Binding SelectedProvider}" IsEnabled="{Binding CanChangeProvider}" PlaceholderText="{local:Loc Key=agentProvider}" AutomationProperties.Name="{local:Loc Key=agentProvider}" ToolTip.Tip="{local:Loc Key=agentProvider}">
@@ -52,7 +53,10 @@
         <TextBlock x:Name="TabContextText" Text="{Binding TabContextText}" Classes="metadata" TextTrimming="CharacterEllipsis" ToolTip.Tip="{local:Loc Key=agentFixedContextHint}" />
       </StackPanel>
       <Border Grid.Row="1" Classes="card" Padding="8,6">
-        <TextBlock x:Name="StatusLine" Text="{Binding StatusText}" TextWrapping="Wrap" Classes.error="{Binding IsStatusError}" AutomationProperties.LiveSetting="Polite" />
+        <StackPanel Spacing="6">
+          <TextBlock x:Name="StatusLine" Text="{Binding StatusText}" TextWrapping="Wrap" Classes.error="{Binding IsStatusError}" AutomationProperties.LiveSetting="Polite" />
+          <Button x:Name="RefreshProvidersButton" HorizontalAlignment="Right" Content="{local:Loc Key=agentRefreshProviders}" Command="{Binding RefreshProvidersCommand}" IsVisible="{Binding ShowRefreshProviders}" ToolTip.Tip="{local:Loc Key=agentRefreshProvidersHint}" AutomationProperties.Name="{local:Loc Key=agentRefreshProviders}" AutomationProperties.HelpText="{local:Loc Key=agentRefreshProvidersHint}" />
+        </StackPanel>
       </Border>
       <Grid Grid.Row="2" MinHeight="120">
         <ListBox x:Name="History" ItemsSource="{Binding Items}" AutomationProperties.Name="{local:Loc Key=agentHistory}" Background="{DynamicResource WorkspaceBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="4" ScrollViewer.HorizontalScrollBarVisibility="Disabled">

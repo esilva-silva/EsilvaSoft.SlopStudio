@@ -21,13 +21,17 @@ public sealed class AgentRuntimeHost : IAgentRuntime, IDisposable
         AgentRuntimeOptions options,
         IAgentToolRegistry toolRegistry,
         IAgentToolBindingProvider toolBindings,
-        IAgentPrincipalAuthority principalAuthority)
+        IAgentPrincipalAuthority principalAuthority,
+        AgentRuntimeWriteApprovalBridge? writeApprovalBridge = null)
     {
         ArgumentNullException.ThrowIfNull(interactionAuthority);
         ArgumentNullException.ThrowIfNull(toolRegistry);
         ArgumentNullException.ThrowIfNull(toolBindings);
         ArgumentNullException.ThrowIfNull(principalAuthority);
-        Runtime = new AgentRuntime(providers, interactionAuthority, options, toolRegistry, toolBindings, principalAuthority);
+        // Optional: only a composition that also builds the write approval coordinator on this bridge routes registry
+        // approvals through the runtime stream. Without it, write approvals stay unavailable (fail closed).
+        Runtime = new AgentRuntime(providers, interactionAuthority, options, toolRegistry, toolBindings, principalAuthority,
+            writeApprovalBridge);
     }
 
     /// <summary>The owned runtime; disposed with this host.</summary>

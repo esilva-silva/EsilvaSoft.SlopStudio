@@ -115,19 +115,48 @@ public sealed partial class AgentSettingsViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            var outcome = await _credentials!.SaveApiKeyAsync(providerId, buffer, CancellationToken.None);
-            Report(outcome);
-        }
-        catch (Exception)
-        {
-            // Exception text could echo the secret or vault internals; only a fixed message is shown.
-            Report(AgentCredentialSetupOutcome.Failed);
+            try
+            {
+                var outcome = await _credentials!.SaveApiKeyAsync(providerId, buffer, CancellationToken.None);
+                Report(outcome);
+            }
+            catch (Exception)
+            {
+                // Exception text could echo the secret or vault internals; only a fixed message is shown.
+                Report(AgentCredentialSetupOutcome.Failed);
+            }
+            finally
+            {
+                Array.Clear(buffer);
+            }
+
+            await RefreshCatalogAsync();
         }
         finally
         {
-            Array.Clear(buffer);
             IsBusy = false;
             Reload(providerId);
+        }
+    }
+
+    /// <summary>
+    /// After an explicit save/removal the provider status is re-checked (vault presence only, no network), so the
+    /// availability shown here and in the chat reflects the change. A failing check keeps the previous listing.
+    /// </summary>
+    private async Task RefreshCatalogAsync()
+    {
+        if (_catalog is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _catalog.RefreshAsync(CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            // The outcome of the key operation was already reported; the listing simply stays as it was.
         }
     }
 
@@ -140,11 +169,16 @@ public sealed partial class AgentSettingsViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            Report(await _credentials!.RemoveApiKeyAsync(providerId, CancellationToken.None));
-        }
-        catch (Exception)
-        {
-            Report(AgentCredentialSetupOutcome.Failed);
+            try
+            {
+                Report(await _credentials!.RemoveApiKeyAsync(providerId, CancellationToken.None));
+            }
+            catch (Exception)
+            {
+                Report(AgentCredentialSetupOutcome.Failed);
+            }
+
+            await RefreshCatalogAsync();
         }
         finally
         {
@@ -162,6 +196,7 @@ public sealed partial class AgentSettingsViewModel : ObservableObject
             AgentCredentialSetupOutcome.VaultUnavailable => ("agentKeyVaultUnavailable", true),
             AgentCredentialSetupOutcome.Cancelled => ("agentKeyCancelled", false),
             AgentCredentialSetupOutcome.Rejected => ("agentKeyRejected", true),
+            AgentCredentialSetupOutcome.UnknownProvider => ("agentKeySetupUnavailable", true),
             _ => ("agentKeyFailed", true),
         };
         StatusText = Text.Resolve(key);

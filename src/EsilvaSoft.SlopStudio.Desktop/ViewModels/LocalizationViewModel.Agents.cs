@@ -151,5 +151,23 @@ public sealed partial class LocalizationViewModel
         ("agentNo", "no", "não", "no", "否"),
         ("agentSettingsDestination", "Data destination", "Destino dos dados", "Destino de los datos", "数据目标"),
         ("agentProviderItem", "{0} · {1}", "{0} · {1}", "{0} · {1}", "{0} · {1}"),
+        // P7-L06-HOST: hosting in the main window, explicit availability check and startup credential report.
+        ("agentPanelToggle", "AI Agent", "Agente IA", "Agente IA", "AI 智能体"),
+        ("agentPanelToggleHint", "Show or hide the AI Agent panel of the active tab (Ctrl+Shift+A)", "Mostrar ou recolher o painel Agente IA da aba ativa (Ctrl+Shift+A)", "Mostrar u ocultar el panel Agente IA de la pestaña activa (Ctrl+Shift+A)", "显示或隐藏当前标签页的 AI 智能体面板（Ctrl+Shift+A）"),
+        ("agentPanelClose", "Collapse the AI Agent panel (Ctrl+Shift+A)", "Recolher o painel Agente IA (Ctrl+Shift+A)", "Ocultar el panel Agente IA (Ctrl+Shift+A)", "收起 AI 智能体面板（Ctrl+Shift+A）"),
+        ("agentPanelBackToEditor", "Back to the editor (Ctrl+Shift+A)", "Voltar ao editor (Ctrl+Shift+A)", "Volver al editor (Ctrl+Shift+A)", "返回编辑器（Ctrl+Shift+A）"),
+        ("agentPanelBackToEditorShort", "Back to editor", "Voltar ao editor", "Volver al editor", "返回编辑器"),
+        ("agentSettingsNotChecked", "Not checked", "Não verificado", "No verificado", "未检查"),
+        ("agentUnavailableNotChecked", "availability not checked yet. Use Check availability; nothing is sent.", "disponibilidade ainda não verificada. Use Verificar disponibilidade; nada é enviado.", "disponibilidad aún no verificada. Use Verificar disponibilidad; no se envía nada.", "尚未检查可用性。请使用“检查可用性”；不会发送任何内容。"),
+        ("agentUnavailableTimedOut", "the availability check timed out.", "a verificação de disponibilidade excedeu o tempo.", "la verificación de disponibilidad superó el tiempo límite.", "可用性检查超时。"),
+        ("agentUnavailableCheckFailed", "the availability check failed.", "a verificação de disponibilidade falhou.", "la verificación de disponibilidad falló.", "可用性检查失败。"),
+        ("agentRefreshProviders", "Check availability", "Verificar disponibilidade", "Verificar disponibilidad", "检查可用性"),
+        ("agentRefreshProvidersHint", "Checks configuration and the system vault on this machine; it does not connect to the provider or send data.", "Verifica a configuração e o cofre do sistema nesta máquina; não conecta ao provider nem envia dados.", "Comprueba la configuración y el almacén del sistema en este equipo; no se conecta al proveedor ni envía datos.", "检查本机上的配置和系统保管库；不会连接提供程序或发送数据。"),
+        ("agentRefreshFailed", "The availability check could not be completed. Nothing was sent.", "Não foi possível concluir a verificação de disponibilidade. Nada foi enviado.", "No se pudo completar la verificación de disponibilidad. No se envió nada.", "无法完成可用性检查。未发送任何内容。"),
+        ("credentialRecoveryChecking", "Checking pending credential recovery…", "Verificando recuperação pendente de credenciais…", "Verificando la recuperación pendiente de credenciales…", "正在检查待恢复的凭据…"),
+        ("credentialRecoveryPending", "{0} credential recovery record(s) pending in the system vault. The IDE keeps working; recovery resumes in the background.", "{0} registro(s) de recuperação de credenciais pendente(s) no cofre do sistema. A IDE continua operacional; a recuperação prossegue em segundo plano.", "{0} registro(s) de recuperación de credenciales pendiente(s) en el almacén del sistema. El IDE sigue operativo; la recuperación continúa en segundo plano.", "系统保管库中有 {0} 条待恢复的凭据记录。IDE 仍可正常使用；恢复将在后台继续。"),
+        ("credentialRecoveryNone", "No pending credential recovery.", "Nenhuma recuperação de credenciais pendente.", "No hay recuperación de credenciales pendiente.", "没有待恢复的凭据。"),
+        ("credentialRecoveryCancelled", "Credential recovery check cancelled.", "Verificação de recuperação de credenciais cancelada.", "Verificación de recuperación de credenciales cancelada.", "已取消凭据恢复检查。"),
+        ("credentialRecoveryFailed", "Could not check pending credential recovery. Profiles and drafts were not changed.", "Não foi possível verificar a recuperação pendente de credenciais. Perfis e rascunhos não foram alterados.", "No se pudo verificar la recuperación pendiente de credenciales. No se cambiaron perfiles ni borradores.", "无法检查待恢复的凭据。配置文件和草稿未被更改。"),
     ];
 }

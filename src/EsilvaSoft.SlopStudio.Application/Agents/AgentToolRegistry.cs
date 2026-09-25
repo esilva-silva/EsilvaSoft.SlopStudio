@@ -130,7 +130,14 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
          new AgentToolDescriptor(GetIndexesToolName, 1, AgentToolRisk.ReadOnly,
              [AgentPermission.ReadMetadata]),
          new AgentToolDescriptor(MongoExplainToolName, 1, AgentToolRisk.ReadOnly,
-             [AgentPermission.ReadDiagnostics, AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments])]);
+             [AgentPermission.ReadDiagnostics, AgentPermission.ExecuteReadQueries, AgentPermission.ReadDocuments]),
+         // Lote 10: each write is released separately (AgentToolExposure.WithWriteTools) and only for the
+         // internal chat under a human, operation-bound approval.
+         new AgentToolDescriptor(InsertOneToolName, 1, AgentToolRisk.Write, [AgentPermission.InsertDocuments]),
+         new AgentToolDescriptor(UpdateOneToolName, 1, AgentToolRisk.Write, [AgentPermission.UpdateDocuments]),
+         new AgentToolDescriptor(DeleteOneToolName, 1, AgentToolRisk.Destructive, [AgentPermission.DeleteDocuments]),
+         new AgentToolDescriptor(CreateIndexToolName, 1, AgentToolRisk.Write, [AgentPermission.CreateIndexes]),
+         new AgentToolDescriptor(DropIndexToolName, 1, AgentToolRisk.Destructive, [AgentPermission.DropIndexes])]);
 
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
@@ -145,6 +152,8 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
     private readonly IAgentMongoDistinctSource? _distinct;
     private readonly IAgentMongoIndexSource? _indexes;
     private readonly IAgentMongoExplainSource? _explain;
+    private readonly IAgentMongoWriteSource? _write;
+    private readonly IAgentWriteApprovalAuthority? _writeApprovals;
     private readonly AgentToolInvocationQuota _quota = new();
     private readonly AsyncLocal<AgentToolInvocationQuota.Lease?> _activeQuotaLease = new();
     private readonly TimeSpan _executionTimeout;
@@ -165,7 +174,9 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         IAgentMongoIndexSource? indexes = null,
         IAgentMongoExplainSource? explain = null,
         AgentToolExposure? exposure = null,
-        IAgentPrincipalAuthority? principalAuthority = null)
+        IAgentPrincipalAuthority? principalAuthority = null,
+        IAgentMongoWriteSource? write = null,
+        IAgentWriteApprovalAuthority? writeApprovals = null)
     {
         _profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
         _policies = policies ?? throw new ArgumentNullException(nameof(policies));
@@ -178,6 +189,8 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         _distinct = distinct;
         _indexes = indexes;
         _explain = explain;
+        _write = write;
+        _writeApprovals = writeApprovals;
         // Closed by default: a registry exposes nothing until its composition names an approved stage.
         _exposure = exposure ?? AgentToolExposure.None;
         _principalAuthority = principalAuthority;
@@ -210,6 +223,8 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         MongoDistinctToolName => _distinct is not null,
         GetIndexesToolName => _indexes is not null,
         MongoExplainToolName => _explain is not null,
+        // A write needs both its source and the approval authority; without either it stays unknown.
+        _ when IsWriteTool(name) => _write is not null && _writeApprovals is not null,
         _ => false
     };
 
@@ -247,6 +262,11 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
             MongoDistinctToolName => MongoDistinctInputSchema,
             GetIndexesToolName => GetIndexesInputSchema,
             MongoExplainToolName => MongoExplainInputSchema,
+            InsertOneToolName => InsertOneInputSchema,
+            UpdateOneToolName => UpdateOneInputSchema,
+            DeleteOneToolName => DeleteOneInputSchema,
+            CreateIndexToolName => CreateIndexInputSchema,
+            DropIndexToolName => DropIndexInputSchema,
             _ => null
         };
 
@@ -264,6 +284,7 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
             MongoDistinctToolName => MongoDistinctOutputSchema,
             GetIndexesToolName => GetIndexesOutputSchema,
             MongoExplainToolName => MongoExplainOutputSchema,
+            _ when IsWriteTool(name) => WriteOutputSchema,
             _ => null
         };
 
@@ -281,6 +302,11 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         if (principal is not null && invocationContext is not null && destination is not null &&
             !IsAuthenticatedChannelBinding(principal, invocationContext, destination))
             return AgentToolInvocationResult.Failure(PermissionDenied);
+        // Writes follow their own pipeline: durable intent, human approval with a separate budget, single-use
+        // consumption and uncertain outcome. They never reach the read path below.
+        if (FindDescriptor(name) is { Risk: not AgentToolRisk.ReadOnly } writeDescriptor)
+            return await InvokeWriteAsync(principal, invocationContext, destination, outputDataScope, writeDescriptor,
+                argumentsJson, cancellationToken).ConfigureAwait(false);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(_executionTimeout);
         // Only a trusted principal and a complete invocation can identify an auditable operation.

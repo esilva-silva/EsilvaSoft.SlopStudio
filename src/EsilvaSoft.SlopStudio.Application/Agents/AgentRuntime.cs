@@ -20,6 +20,7 @@ public sealed partial class AgentRuntime : IAgentRuntime, IAsyncDisposable
     private readonly IAgentPrincipalAuthority? _principalAuthority;
     private readonly AgentRuntimeOptions _options;
     private readonly SemaphoreSlim _globalToolSlots;
+    private readonly bool _writeApprovalsBridged;
     private readonly ConcurrentDictionary<AgentSessionId, SessionState> _sessions = new();
     private int _disposed;
 
@@ -29,7 +30,8 @@ public sealed partial class AgentRuntime : IAgentRuntime, IAsyncDisposable
         AgentRuntimeOptions? options = null,
         IAgentToolRegistry? toolRegistry = null,
         IAgentToolBindingProvider? toolBindings = null,
-        IAgentPrincipalAuthority? principalAuthority = null)
+        IAgentPrincipalAuthority? principalAuthority = null,
+        AgentRuntimeWriteApprovalBridge? writeApprovalBridge = null)
     {
         ArgumentNullException.ThrowIfNull(providers);
         _options = options ?? AgentRuntimeOptions.Default;
@@ -61,10 +63,19 @@ public sealed partial class AgentRuntime : IAgentRuntime, IAsyncDisposable
         }
 
         _providers = byId;
+        // Registry write approvals are announced on this runtime's streams and decided through its authority.
+        writeApprovalBridge?.Attach(this);
+        _writeApprovalsBridged = writeApprovalBridge is not null;
     }
 
     /// <summary>Composition evidence (AC-14): the shared registry this runtime dispatches through, if any.</summary>
     internal IAgentToolRegistry? ToolRegistry => _toolRegistry;
+
+    /// <summary>Composition evidence: the runtime budget this instance enforces.</summary>
+    internal AgentRuntimeOptions Options => _options;
+
+    /// <summary>Composition evidence: registry write approvals are announced on this runtime's streams.</summary>
+    internal bool WriteApprovalsBridged => _writeApprovalsBridged;
 
     public async Task<AgentSessionId> StartSessionAsync(AgentSessionOptions options, CancellationToken cancellationToken)
     {

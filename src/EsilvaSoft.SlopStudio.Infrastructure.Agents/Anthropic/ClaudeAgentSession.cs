@@ -57,6 +57,14 @@ internal sealed partial class ClaudeAgentSession : IAgentSession
         var turn = new TurnContext(request.TurnId, _budget.MaxTurnDuration);
         lock (_gate)
         {
+            // Revalida sob o mesmo lock que DisposeAsync usa para achar o turno ativo: um descarte concluído entre a
+            // checagem inicial e aqui não pode deixar um turno vivo (e nunca cancelado) numa sessão descartada.
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                turn.Dispose();
+                throw new ObjectDisposedException(GetType().FullName);
+            }
+
             if (_active is not null)
             {
                 turn.Dispose();

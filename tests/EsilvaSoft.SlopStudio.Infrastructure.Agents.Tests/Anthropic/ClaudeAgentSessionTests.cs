@@ -332,6 +332,48 @@ public sealed class ClaudeAgentSessionTests
     }
 
     [Test]
+    public async Task StreamIdleWatchdogDoesNotRunWhileTheTurnWaitsForAToolResult()
+    {
+        // A human approval can keep a tool result pending far longer than the idle window of a streamed round.
+        var first = new SseBuilder().Start().ToolUse("toolu_idle", "update_one", "{}").Stop("tool_use").Build();
+        var second = new SseBuilder().Start().Text("Atualizado.").Stop("end_turn").Build();
+        using var handler = new FakeClaudeHandler().EnqueueSse(first).EnqueueSse(second);
+        var budget = ClaudeFixture.Options().Budget with { StreamIdleTimeout = TimeSpan.FromMilliseconds(200) };
+        using var provider = ClaudeFixture.Provider(handler, ClaudeFixture.Options(budget));
+        await using var session = await SessionAsync(provider);
+        var request = Turn();
+
+        var events = await RunAsync(session, request, tool =>
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(800));
+                await session.SubmitToolResultAsync(Result(request, tool, AgentToolResultStatus.Succeeded, "{\"modified\":1}"),
+                    CancellationToken.None);
+            });
+            return null;
+        });
+
+        Assert.That(events.Any(static e => e.Kind == AgentEventKind.AgentError), Is.False);
+        Assert.That(Text(events), Is.EqualTo("Atualizado."));
+        Assert.That(handler.Requests, Has.Count.EqualTo(2));
+    }
+
+    [Test]
+    public void SystemPromptAllowsDataChangesOnlyThroughDeclaredToolsWithHumanApproval()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(ClaudeAgentSession.SystemPrompt, Does.Not.Contain("não altera dados"),
+                "O prompt não pode negar escritas que o aplicativo pode oferecer com aprovação.");
+            Assert.That(ClaudeAgentSession.SystemPrompt, Does.Contain("ferramenta de escrita que o aplicativo tenha declarado"));
+            Assert.That(ClaudeAgentSession.SystemPrompt, Does.Contain("aprovação humana explícita"));
+            Assert.That(ClaudeAgentSession.SystemPrompt, Does.Contain("não executa comandos nem edita arquivos"));
+            Assert.That(ClaudeAgentSession.SystemPrompt, Does.Contain("Nunca afirme que uma alteração foi aplicada"));
+        });
+    }
+
+    [Test]
     public async Task CancelTurnStopsOnlyThatSessionAndAbortsTheHttpStream()
     {
         using var handlerA = new FakeClaudeHandler().EnqueueSse(new SseBuilder().Start().Text("A...").Build(), hangAtEnd: true);
@@ -486,5 +528,42 @@ public sealed class ClaudeAgentSessionTests
 
         Assert.That(async () => await RunAsync(session, Turn()), Throws.InstanceOf<ObjectDisposedException>());
         Assert.That(handler.Requests, Is.Empty);
+    }
+
+    [Test]
+    public async Task RunTurnRacingDisposeNeverLeavesALiveTurnOnADisposedSession()
+    {
+        // The stream never ends by itself: only cancellation (by DisposeAsync) finishes the turn. A turn that becomes
+        // active after DisposeAsync already looked for one would keep running on a disposed session.
+        var sse = new SseBuilder().Start().Text("parcial").Build();
+        for (var iteration = 0; iteration < 400; iteration++)
+        {
+            using var handler = new FakeClaudeHandler().EnqueueSse(sse, hangAtEnd: true);
+            using var provider = ClaudeFixture.Provider(handler);
+            var session = await SessionAsync(provider);
+            using var start = new Barrier(2);
+            var run = Task.Run(async () =>
+            {
+                start.SignalAndWait();
+                try
+                {
+                    await RunAsync(session, Turn());
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Rejected because the session was already disposed: the expected safe outcome.
+                }
+            });
+            var dispose = Task.Run(async () =>
+            {
+                start.SignalAndWait();
+                await session.DisposeAsync();
+            });
+
+            await dispose;
+            var finished = await Task.WhenAny(run, Task.Delay(TimeSpan.FromSeconds(5))) == run;
+            Assert.That(finished, Is.True, $"Iteração {iteration}: turno continuou ativo após o descarte da sessão.");
+            await run;
+        }
     }
 }

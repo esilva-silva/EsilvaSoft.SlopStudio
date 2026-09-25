@@ -90,6 +90,244 @@ public sealed class LiteDbAgentSchemaSamplingConsentTests
     }
 
     [Test]
+    public async Task EachDivergentBindingDeniesAndOnlyTheExactBindingWithinTheSampleCeilingAllows()
+    {
+        using var fixture = new Workspace();
+        using var owner = new LiteDbConnectionProfileRepository(fixture.Path);
+        var consents = (IAgentSchemaSamplingConsentRepository)owner;
+        var provider = (IAgentSchemaSamplingConsentProvider)owner;
+        var principalId = Guid.NewGuid();
+        var connectionId = Guid.NewGuid();
+        var generationId = Guid.NewGuid();
+        var openAi = AgentOutputDestination.ProviderExternal("openai");
+        await consents.SaveAsync(principalId,
+        [
+            Consent(principalId, generationId, AgentNamespaceScope.ForCollection(connectionId, "db", "col"),
+                destination: openAi, maximumSampleSize: 20, policyRevision: 5)
+        ], 0);
+
+        Task<bool> Ask(AgentOutputDestination destination, int sampleSize, long policyRevision) =>
+            provider.HasLocalConsentAsync(
+                Request(principalId, connectionId, generationId, "db", "col", destination, sampleSize, policyRevision),
+                default);
+
+        Assert.Multiple(async () =>
+        {
+            Assert.That(await Ask(openAi, 20, 5), Is.True, "exact binding");
+            Assert.That(await Ask(AgentOutputDestination.ProviderExternal("openai"), 1, 5), Is.True, "smaller sample");
+            Assert.That(await Ask(openAi, 21, 5), Is.False, "sample above consented ceiling");
+            Assert.That(await Ask(openAi, 0, 5), Is.False, "sample zero");
+            Assert.That(await Ask(openAi, 101, 5), Is.False, "sample above hard ceiling");
+            Assert.That(await Ask(AgentOutputDestination.Local(), 20, 5), Is.False, "local destination");
+            Assert.That(await Ask(AgentOutputDestination.ProviderExternal("claude"), 20, 5), Is.False, "other provider");
+            Assert.That(await Ask(AgentOutputDestination.McpExternal("openai"), 20, 5), Is.False, "MCP route with same id");
+            Assert.That(await Ask(openAi, 20, 4), Is.False, "older policy revision");
+            Assert.That(await Ask(openAi, 20, 6), Is.False, "newer policy revision");
+            Assert.That(await Ask(openAi, 20, 0), Is.False, "no policy");
+        });
+    }
+
+    [Test]
+    public void GrantRejectsInvalidBindingsAtConstruction()
+    {
+        var principalId = Guid.NewGuid();
+        var scope = AgentNamespaceScope.ForConnection(Guid.NewGuid());
+        Assert.Multiple(() =>
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => Consent(principalId, Guid.NewGuid(), scope, maximumSampleSize: 0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => Consent(principalId, Guid.NewGuid(), scope, maximumSampleSize: 101));
+            Assert.Throws<ArgumentOutOfRangeException>(() => Consent(principalId, Guid.NewGuid(), scope, policyRevision: 0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => Consent(principalId, Guid.NewGuid(), scope, policyRevision: long.MaxValue));
+        });
+    }
+
+    [Test]
+    public async Task SameNamespaceMayHoldDistinctConsentsPerDestination()
+    {
+        using var fixture = new Workspace();
+        using var owner = new LiteDbConnectionProfileRepository(fixture.Path);
+        var consents = (IAgentSchemaSamplingConsentRepository)owner;
+        var provider = (IAgentSchemaSamplingConsentProvider)owner;
+        var principalId = Guid.NewGuid();
+        var connectionId = Guid.NewGuid();
+        var generationId = Guid.NewGuid();
+        var scope = AgentNamespaceScope.ForCollection(connectionId, "db", "col");
+        await consents.SaveAsync(principalId,
+        [
+            Consent(principalId, generationId, scope, maximumSampleSize: 100),
+            Consent(principalId, generationId, scope, destination: AgentOutputDestination.ProviderExternal("openai"), maximumSampleSize: 5)
+        ], 0);
+        Assert.Multiple(async () =>
+        {
+            Assert.That(await provider.HasLocalConsentAsync(Request(principalId, connectionId, generationId, "db", "col", sampleSize: 100), default), Is.True);
+            Assert.That(await provider.HasLocalConsentAsync(Request(principalId, connectionId, generationId, "db", "col",
+                AgentOutputDestination.ProviderExternal("openai"), 20), default), Is.False);
+            Assert.That(await provider.HasLocalConsentAsync(Request(principalId, connectionId, generationId, "db", "col",
+                AgentOutputDestination.ProviderExternal("openai"), 5), default), Is.True);
+        });
+    }
+
+    [Test]
+    public async Task LegacyV1DocumentIsListedButNeverAuthorizesAndIsOnlyReplacedByAnExplicitV2Grant()
+    {
+        using var fixture = new Workspace();
+        var principalId = Guid.NewGuid();
+        var connectionId = Guid.NewGuid();
+        var generationId = Guid.NewGuid();
+        string legacy;
+        using (var raw = fixture.OpenOffline())
+        {
+            var collection = raw.GetCollection(CollectionName);
+            collection.Insert(LegacyV1Document(principalId, connectionId, generationId));
+            legacy = collection.FindById(principalId).ToString();
+        }
+
+        using (var owner = new LiteDbConnectionProfileRepository(fixture.Path))
+        {
+            var consents = (IAgentSchemaSamplingConsentRepository)owner;
+            var provider = (IAgentSchemaSamplingConsentProvider)owner;
+            var loaded = await consents.LoadAsync(principalId, default);
+            Assert.Multiple(() =>
+            {
+                Assert.That(loaded!.SchemaVersion, Is.EqualTo(AgentSchemaSamplingConsentSnapshot.LegacySchemaVersion));
+                Assert.That(loaded.Revision, Is.EqualTo(3));
+                Assert.That(loaded.Consents, Has.Count.EqualTo(2));
+                Assert.That(loaded.Consents.All(grant => grant.IsLegacy && grant.Destination is null), Is.True);
+            });
+            foreach (var destination in new[]
+                     {
+                         AgentOutputDestination.Local(), AgentOutputDestination.ProviderExternal("openai"),
+                         AgentOutputDestination.McpExternal("client")
+                     })
+                Assert.That(await provider.HasLocalConsentAsync(
+                    Request(principalId, connectionId, generationId, "db", "col", destination), default), Is.False);
+
+            // A legacy grant cannot be written back as v2: migration requires granting every binding explicitly.
+            Assert.Throws<ArgumentException>(() => consents.SaveAsync(principalId, loaded!.Consents, loaded.Revision));
+        }
+        using (var raw = fixture.OpenOffline())
+            Assert.That(raw.GetCollection(CollectionName).FindById(principalId).ToString(), Is.EqualTo(legacy),
+                "reading or denying must never rewrite the legacy document");
+
+        using (var owner = new LiteDbConnectionProfileRepository(fixture.Path))
+        {
+            var consents = (IAgentSchemaSamplingConsentRepository)owner;
+            var provider = (IAgentSchemaSamplingConsentProvider)owner;
+            Assert.ThrowsAsync<AgentSchemaSamplingConsentConcurrencyException>(() => consents.SaveAsync(principalId,
+                [Consent(principalId, generationId, AgentNamespaceScope.ForCollection(connectionId, "db", "col"))], 0));
+            var migrated = await consents.SaveAsync(principalId,
+                [Consent(principalId, generationId, AgentNamespaceScope.ForCollection(connectionId, "db", "col"))], 3);
+            Assert.Multiple(async () =>
+            {
+                Assert.That(migrated.SchemaVersion, Is.EqualTo(AgentSchemaSamplingConsentSnapshot.CurrentSchemaVersion));
+                Assert.That(migrated.Revision, Is.EqualTo(4));
+                Assert.That(await provider.HasLocalConsentAsync(Request(principalId, connectionId, generationId, "db", "col"), default), Is.True);
+            });
+        }
+    }
+
+    [Test]
+    public async Task DeletingAProfileKeepsALegacyDocumentAsLegacyWhileRemovingItsGrants()
+    {
+        using var fixture = new Workspace();
+        var deleted = ConnectionProfile.Create("deleted-profile", "mongodb://localhost:27017");
+        var principalId = Guid.NewGuid();
+        using (var owner = new LiteDbConnectionProfileRepository(fixture.Path))
+            await owner.SaveAsync(deleted);
+        using (var raw = fixture.OpenOffline())
+            raw.GetCollection(CollectionName).Insert(LegacyV1Document(principalId, deleted.Id, Guid.NewGuid()));
+
+        using var reopened = new LiteDbConnectionProfileRepository(fixture.Path);
+        await reopened.DeleteAsync(deleted.Id);
+        var reloaded = await ((IAgentSchemaSamplingConsentRepository)reopened).LoadAsync(principalId, default);
+        Assert.Multiple(() =>
+        {
+            Assert.That(reloaded!.SchemaVersion, Is.EqualTo(AgentSchemaSamplingConsentSnapshot.LegacySchemaVersion));
+            Assert.That(reloaded.Revision, Is.EqualTo(4));
+            Assert.That(reloaded.Consents, Has.Count.EqualTo(1));
+            Assert.That(reloaded.Consents[0].Scope.ConnectionId, Is.Not.EqualTo(deleted.Id));
+        });
+    }
+
+    [Test]
+    public async Task GrantAndExpiryInstantsRoundTripExactlyToTheMillisecondAcrossReopen()
+    {
+        using var fixture = new Workspace();
+        var principalId = Guid.NewGuid();
+        var generationId = Guid.NewGuid();
+        var granted = new DateTimeOffset(2026, 3, 14, 1, 59, 26, 535, TimeSpan.Zero);
+        // A non-UTC offset in the input must still round-trip as the same instant.
+        var expires = new DateTimeOffset(2031, 11, 2, 23, 30, 0, 7, TimeSpan.FromHours(-3));
+        var scope = AgentNamespaceScope.ForCollection(Guid.NewGuid(), "db", "col");
+        using (var owner = new LiteDbConnectionProfileRepository(fixture.Path))
+            await ((IAgentSchemaSamplingConsentRepository)owner).SaveAsync(principalId,
+                [Consent(principalId, generationId, scope, granted, expires)], 0);
+
+        using var reopened = new LiteDbConnectionProfileRepository(fixture.Path);
+        var loaded = (await ((IAgentSchemaSamplingConsentRepository)reopened).LoadAsync(principalId, default))!.Consents.Single();
+        Assert.Multiple(() =>
+        {
+            Assert.That(loaded.GrantedAtUtc.UtcTicks, Is.EqualTo(granted.UtcTicks), "GrantedAtUtc");
+            Assert.That(loaded.ExpiresAtUtc!.Value.UtcTicks, Is.EqualTo(expires.UtcTicks), "ExpiresAtUtc");
+            Assert.That(loaded.GrantedAtUtc.Offset, Is.EqualTo(TimeSpan.Zero));
+        });
+    }
+
+    [Test]
+    public async Task ExpiryIsEvaluatedAtTheStoredInstantRegardlessOfTheMachineOffset()
+    {
+        // With the former decoder, LiteDB's local-time date was relabelled as UTC, moving expiry by the machine
+        // offset: west of UTC a live consent looked expired, east of UTC an expired consent looked alive.
+        using var fixture = new Workspace();
+        var principalId = Guid.NewGuid();
+        var connectionId = Guid.NewGuid();
+        var generationId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        using (var owner = new LiteDbConnectionProfileRepository(fixture.Path))
+            await ((IAgentSchemaSamplingConsentRepository)owner).SaveAsync(principalId,
+            [
+                Consent(principalId, generationId, AgentNamespaceScope.ForCollection(connectionId, "db", "live"),
+                    now.AddHours(-30), now.AddMinutes(90)),
+                Consent(principalId, generationId, AgentNamespaceScope.ForCollection(connectionId, "db", "expired"),
+                    now.AddHours(-30), now.AddMinutes(-90))
+            ], 0);
+
+        using var reopened = new LiteDbConnectionProfileRepository(fixture.Path);
+        var provider = (IAgentSchemaSamplingConsentProvider)reopened;
+        Assert.Multiple(async () =>
+        {
+            Assert.That(await provider.HasLocalConsentAsync(Request(principalId, connectionId, generationId, "db", "live"), default), Is.True);
+            Assert.That(await provider.HasLocalConsentAsync(Request(principalId, connectionId, generationId, "db", "expired"), default), Is.False);
+        });
+    }
+
+    [Test]
+    public void DecoderNormalizesSyntheticDateKindsToTheSameUtcInstant()
+    {
+        var utc = new DateTime(2026, 9, 25, 12, 34, 56, 789, DateTimeKind.Utc);
+        var local = utc.ToLocalTime();
+        var unspecified = DateTime.SpecifyKind(utc, DateTimeKind.Unspecified);
+        Assert.Multiple(() =>
+        {
+            Assert.That(local.Kind, Is.EqualTo(DateTimeKind.Local));
+            Assert.That(LiteDbDates.ToUtcInstant(utc).UtcTicks, Is.EqualTo(utc.Ticks), "Utc");
+            Assert.That(LiteDbDates.ToUtcInstant(local).UtcTicks, Is.EqualTo(utc.Ticks), "Local");
+            Assert.That(LiteDbDates.ToUtcInstant(unspecified).UtcTicks, Is.EqualTo(utc.Ticks), "Unspecified");
+        });
+    }
+
+    [Test]
+    public void DecoderReadsALocalKindDocumentDateAsItsUtcInstant()
+    {
+        var principalId = Guid.NewGuid();
+        var granted = new DateTime(2026, 1, 2, 3, 4, 5, 678, DateTimeKind.Utc);
+        var document = LegacyV1Document(principalId, Guid.NewGuid(), Guid.NewGuid());
+        document["consents"].AsArray[0].AsDocument["grantedAtUtc"] = granted.ToLocalTime();
+        var snapshot = AgentSchemaSamplingConsentDocumentCodec.Decode(document, principalId);
+        Assert.That(snapshot.Consents[0].GrantedAtUtc.UtcTicks, Is.EqualTo(granted.Ticks));
+    }
+
+    [Test]
     public async Task ExpiredConsentDeniesWhileUnexpiredAndNeverExpiringConsentsStillAllow()
     {
         using var fixture = new Workspace();
@@ -162,7 +400,7 @@ public sealed class LiteDbAgentSchemaSamplingConsentTests
             Assert.Multiple(() =>
             {
                 Assert.That(loaded!.IsValid, Is.True);
-                Assert.That(loaded.SchemaVersion, Is.EqualTo(1));
+                Assert.That(loaded.SchemaVersion, Is.EqualTo(2));
                 Assert.That(loaded.Consents, Has.Count.EqualTo(1));
                 Assert.That(loaded.Consents[0].Scope, Is.EqualTo(grant.Scope));
                 Assert.That(loaded.Consents[0].SourceGenerationId, Is.EqualTo(generationId));
@@ -232,6 +470,16 @@ public sealed class LiteDbAgentSchemaSamplingConsentTests
     [TestCase("collectionWithoutDatabase")]
     [TestCase("sourceGeneration")]
     [TestCase("expiryBeforeGrant")]
+    [TestCase("legacyWithBindings")]
+    [TestCase("missingDestination")]
+    [TestCase("destinationKind")]
+    [TestCase("localWithProvider")]
+    [TestCase("externalWithoutProvider")]
+    [TestCase("sampleSizeZero")]
+    [TestCase("sampleSizeAboveCeiling")]
+    [TestCase("sampleSizeType")]
+    [TestCase("policyRevisionZero")]
+    [TestCase("policyRevisionType")]
     public async Task CorruptConsentDeniesAndCannotBeOverwrittenEvenWithEmptyConsents(string corruption)
     {
         using var fixture = new Workspace();
@@ -321,7 +569,7 @@ public sealed class LiteDbAgentSchemaSamplingConsentTests
         {
             var collection = raw.GetCollection(CollectionName);
             var doc = collection.FindById(corruptPrincipalId);
-            doc["schemaVersion"] = 2;
+            doc["schemaVersion"] = 3;
             collection.Update(doc);
             corrupted = collection.FindById(corruptPrincipalId).ToString();
         }
@@ -403,7 +651,17 @@ public sealed class LiteDbAgentSchemaSamplingConsentTests
         var consent = doc["consents"].AsArray[0].AsDocument;
         switch (corruption)
         {
-            case "schema": doc["schemaVersion"] = 2; break;
+            case "schema": doc["schemaVersion"] = 3; break;
+            case "legacyWithBindings": doc["schemaVersion"] = 1; break;
+            case "missingDestination": consent.Remove("destinationKind"); break;
+            case "destinationKind": consent["destinationKind"] = 99; break;
+            case "localWithProvider": consent["providerId"] = "openai"; break;
+            case "externalWithoutProvider": consent["destinationKind"] = (int)AgentOutputDestinationKind.ProviderExternal; break;
+            case "sampleSizeZero": consent["maximumSampleSize"] = 0; break;
+            case "sampleSizeAboveCeiling": consent["maximumSampleSize"] = 101; break;
+            case "sampleSizeType": consent["maximumSampleSize"] = 20L; break;
+            case "policyRevisionZero": consent["policyRevision"] = 0L; break;
+            case "policyRevisionType": consent["policyRevision"] = 1; break;
             case "revision": doc["revision"] = 0L; break;
             case "revisionType": doc["revision"] = "1"; break;
             case "missingConsents": doc.Remove("consents"); break;
@@ -423,19 +681,58 @@ public sealed class LiteDbAgentSchemaSamplingConsentTests
     // Infrastructure/UnitTests); this test project is inside that boundary, so it constructs directly.
     private static AgentSchemaSamplingConsentGrant Consent(
         Guid principalId, Guid sourceGenerationId, AgentNamespaceScope scope,
-        DateTimeOffset? grantedAtUtc = null, DateTimeOffset? expiresAtUtc = null) =>
-        new(principalId, sourceGenerationId, scope, grantedAtUtc ?? DateTimeOffset.UtcNow, expiresAtUtc);
+        DateTimeOffset? grantedAtUtc = null, DateTimeOffset? expiresAtUtc = null,
+        AgentOutputDestination? destination = null, int maximumSampleSize = 20, long policyRevision = 1) =>
+        new(principalId, sourceGenerationId, scope, destination ?? AgentOutputDestination.Local(), maximumSampleSize,
+            policyRevision, grantedAtUtc ?? DateTimeOffset.UtcNow, expiresAtUtc);
 
     private static AgentSchemaSamplingRequest Request(
-        Guid principalId, Guid connectionId, Guid sourceGenerationId, string database, string collection) =>
-        new(principalId, Guid.NewGuid(), Guid.NewGuid(), AgentOutputDestination.Local(), connectionId, sourceGenerationId,
-            database, collection, 20, 1);
+        Guid principalId, Guid connectionId, Guid sourceGenerationId, string database, string collection,
+        AgentOutputDestination? destination = null, int sampleSize = 20, long policyRevision = 1) =>
+        new(principalId, Guid.NewGuid(), Guid.NewGuid(), destination ?? AgentOutputDestination.Local(), connectionId,
+            sourceGenerationId, database, collection, sampleSize, policyRevision);
+
+    /// <summary>A schema v1 document exactly as the previous release wrote it (no destination/sample/policy).</summary>
+    private static BsonDocument LegacyV1Document(Guid principalId, Guid connectionId, Guid generationId) => new()
+    {
+        ["_id"] = principalId,
+        ["schemaVersion"] = 1,
+        ["revision"] = 3L,
+        ["updatedAtUtc"] = DateTime.UtcNow,
+        ["consents"] = new BsonArray(new BsonValue[]
+        {
+            new BsonDocument
+            {
+                ["principalId"] = principalId,
+                ["sourceGenerationId"] = generationId,
+                ["connectionId"] = connectionId,
+                ["databaseName"] = "db",
+                ["collectionName"] = "col",
+                ["grantedAtUtc"] = DateTime.UtcNow.AddHours(-1),
+                ["expiresAtUtc"] = BsonValue.Null
+            },
+            new BsonDocument
+            {
+                ["principalId"] = principalId,
+                ["sourceGenerationId"] = generationId,
+                ["connectionId"] = Guid.NewGuid(),
+                ["databaseName"] = BsonValue.Null,
+                ["collectionName"] = BsonValue.Null,
+                ["grantedAtUtc"] = DateTime.UtcNow.AddHours(-1),
+                ["expiresAtUtc"] = BsonValue.Null
+            }
+        })
+    };
 
     private sealed class Workspace : IDisposable
     {
         private readonly string _directory = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "SlopStudio.Tests", Guid.NewGuid().ToString("N"));
         public string Path => System.IO.Path.Combine(_directory, "workspace.db");
-        public LiteDatabase OpenOffline() => new($"Filename={Path};Connection=direct");
+        public LiteDatabase OpenOffline()
+        {
+            Directory.CreateDirectory(_directory);
+            return new($"Filename={Path};Connection=direct");
+        }
         public void Dispose()
         {
             if (Directory.Exists(_directory)) Directory.Delete(_directory, recursive: true);

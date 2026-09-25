@@ -6,6 +6,14 @@ O lote 1 contém `ISecretStore` e `IAgentCredentialProvider` em Application, `Se
 
 Em execução local no Windows em 22/09–23/09/2026, `codex-cli 0.155.0-alpha.16` gerou 310 schemas JSON com hashes conferidos; probe separado recebeu resposta `initialize` válida, enviou `initialized` e observou saída normal após EOF. O spike MCP C# 2.2.0 passou restore locked/build e **10 testes STDIO** nas revisões 2025 e 2026: quatro SDK↔SDK e seis com cliente BCL independente, sem compartilhar dependência de protocolo no cliente, sempre contra servidor sintético com lista vazia. OpenAI SDK 2.14.0 passou build e cinco testes offline de streaming/tool-call contratual; não houve chamada real nem auditoria de vulnerabilidade. Anthropic 12.50.0 passou restore locked, build (0 avisos/erros), verificação de assinatura e inventário de dependências/licenças no alvo net10.0. `Tmds.DBus.Protocol` 0.94.1 foi identificado como candidato Linux MIT, sem execução D-Bus disponível. Essas provas permitem avançar dentro do lote 0, sem aprovar critérios de aceite. A documentação oficial ainda classifica o comando Codex App Server como experimental e sem suporte para produção; a baseline prevista é API direta com chave própria, sujeita a capabilities revisadas. `CODEX_HOME` isolado não comprova keyring nem sandbox/confinamento; a revisão de paths também não elimina TOCTOU. Nenhum código funcional de produto foi homologado e AC-01..AC-20 continuam pendentes. Consulte a [validação detalhada](17-validacao-da-meta.md) e a [matriz de validação](../../15-matriz-de-validacao.md#lote-0-da-v0110-spike-codex-confirmado-parcialmente--22092026).
 
+## Prioridade vigente — Integração Claude (25/09/2026)
+
+Decisão posterior do usuário: a prioridade da fase é **finalizar a integração com Claude**, priorizando a assinatura Claude Pro pelo binário oficial do Claude Code executado como subprocesso, com o modo Anthropic API separado e sem fallback silencioso para API Key. Ferramentas nativas do Claude Code entram somente com aprovação por chamada, após threat model e gate de segurança; o transcript gravado pelo próprio Claude Code em `~/.claude/projects` é limitação aceita e visível. O bloco substitui o 8B; 7B e lotes 10/11/12 ficam subordinados. [Documento 23](23-integracao-claude.md) · [ADR-053](../../10-decisoes-arquiteturais.md#adr-053--claude-via-assinatura-usando-o-binário-oficial-do-claude-code-como-subprocesso-25092026) · [ADR-054](../../10-decisoes-arquiteturais.md#adr-054--ferramentas-nativas-do-claude-code-com-aprovação-por-chamada-25092026) · [plano](10-plano-de-implementacao.md#bloco-prioritário--integração-claude-25092026). **Nada implementado ou homologado; nenhum AC aprovado.**
+
+## Decisão de escopo de 25/09/2026 (anterior; 8B substituído pela seção acima)
+
+O usuário definiu como **prioridade atual** viabilizar contas próprias **Codex/ChatGPT (7B)** e **Claude (8B)** por runtimes oficiais. Ambos são condicionais, com gates separados de suporte/modalidade, confinamento, credenciais seguras e homologação manual; API Key continua alternativa explícita e não conclui sozinha essa prioridade. O chat completo na UI permanece no lote 6 ampliado. Importação de tokens/sessões não faz parte da integração. [Plano e gates](10-plano-de-implementacao.md) · [Roteiro manual](21-homologacao-manual-login.md). **Os acessos por conta não estão implementados nem homologados; nenhum AC é aprovado por esta decisão.**
+
 ## Objetivo e fronteiras
 
 Expor capacidades MongoDB por um Tool Registry único, acessível pelo servidor MCP e pelo Agent Runtime do chat nativo. OpenAI/Codex e Claude são adaptadores opcionais; ONNX continua independente e offline. MCP expõe ferramentas; o runtime governa conversas, eventos, contexto, cancelamento e aprovações. Nenhum provider entra no domínio MongoDB.
@@ -36,6 +44,9 @@ Conectar uma conta não autoriza envio de dados. O usuário escolhe destino, con
 | [18 — Persistência de autorização](18-persistencia-de-autorizacao.md) | Persistência versionada de grants no proprietário LiteDB único |
 | [19 — Persistência de auditoria](19-persistencia-auditoria.md) | Ledger local versionado, retenção e limites |
 | [20 — Agentes e execução](20-agentes-e-execucao.md) | Responsáveis por lote, revisão, handoffs, gates e preparação para Claude Code |
+| [21 — Homologação manual do login](21-homologacao-manual-login.md) | Roteiro manual: casos H-01..H-17 (7B) e C-01..C-34 (modo Claude Code), pré-condições e registro (nenhuma execução) |
+| [22 — Threat model do modo Claude Code](22-threat-model.md) | Rascunho existente (P7-CL0-02), escrito antes do spike P7-CL0-01; STRIDE por fronteira, ativos, hipóteses H-01..H-25, casos manuais propostos CP-01..CP-08; gate GCL-3 pendente até o spike, a revisão e os testes |
+| [23 — Integração Claude](23-integracao-claude.md) | Bloco prioritário: regras, fatos oficiais datados, arquitetura, passos 1–15, gates GCL-1..8 e riscos |
 
 ## Sequência e decisões
 
