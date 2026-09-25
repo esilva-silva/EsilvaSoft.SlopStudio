@@ -1,5 +1,28 @@
 # Memória de execução — Fase 7 / v0.11.0
 
+## Ponto de retomada — encerramento da sessão de 25/09/2026 (LEIA PRIMEIRO)
+
+**Estado do remoto:** `phase-7-i6v8dr` em `7e902f6`, tudo enviado. Meta **não concluída**; nenhum AC (01–20) aprovado.
+
+**Ambiente Linux desta sessão (vale para retomadas em contêiner equivalente):** o SDK `10.0.400` fixado em `global.json` não vem instalado e o proxy bloqueia os hosts oficiais de download. Solução usada, sem alterar `global.json` nem o sistema: extrair com `dpkg -x` os `.deb` do SDK `10.0.401` de `packages.microsoft.com/debian/12/prod` (host liberado) e usar `DOTNET_ROOT` apontando para a pasta extraída. O MongoDB real 8.0.23 veio de pacote conda-forge (`fastdl.mongodb.org` é bloqueado), passado via `SLOP_CONSOLE_MONGOD`. Esses artefatos ficam no scratchpad da sessão e **não sobrevivem** à VM: numa nova sessão, recrie-os ou adicione a instalação do SDK ao setup script do ambiente. Após trocar de worktree, faça build **não incremental** do Desktop: um build incremental deixou o `Desktop.dll` sem XAML compilada e causou falsas falhas em `AgentChatViewModelTests`.
+
+**Validação final no HEAD `7e902f6`** (SDK 10.0.401, MongoDB real): build oficial 0 erros (3 avisos `AVLN5001` pré-existentes); Infrastructure.Agents.Tests 87/0; Benchmarks 43/0; UnitTests **3.346 aprovados, 1 falha, 23 ignorados**. A falha é `TraditionalCompletionUiTests.InlineGhostPresentationP95FromEditIsWithinTwentyMilliseconds`, instável neste contêiner (p50 ≈ 1,3 ms; p95 entre 20 e 38 ms contra limite de 20 ms). Falhava também na base `b0c95e0`, passou na execução completa anterior (`bfe3506`: 3.320/0/23) e não está ligada ao código da fase. **Asserção não alterada.** Confirmar em máquina de referência. Os 23 ignorados dependem de Windows nativo, GPU/modelo real, D-Bus ou proxy STDIO real.
+
+**Rodada 2 — integrada nesta sessão:**
+- `P7-L06-WIRING` (`b61b5ec`, merge `bfe3506`): `App.axaml.cs` chama `AddSlopStudioOpenAiAgentProvider`/`AddSlopStudioClaudeAgentProvider` com fábricas lazy, sem cofre nem rede na composição. Registra `DesktopAgentProviderCatalog`: `List()` sem I/O, `RefreshAsync` explícito, sem branch por marca. `Infrastructure.Agents` é referenciado só pelo composition root; lockfiles de Desktop/UnitTests atualizados e restore `--locked-mode` passa. Novos testes `DesktopAgentCompositionTests` (AC-15/DEG-01, AC-09) e `AgentArchitectureTests` (AC-04). O estágio de exposição continua `None` e o broker MCP não é composto no App.
+- `P7-L02-CONSENT` (`1ad1809`, merge `7e902f6`): faceta `agentSchemaSamplingConsents` v1 no owner LiteDB único, com CAS, vínculo à geração do perfil, revogação e limpeza na exclusão; registro ilegível nega sem regravar. 27 testes (LiteDB real + integração com o registry). **Não registrado no DI**: `FailClosedAgentSchemaSamplingConsentProvider` continua padrão. O agente foi interrompido antes de relatar; a validação é do orquestrador e não houve revisão independente.
+- Contrato `IAgentMongoWriteSource` (`10d3559`), estabilizado pelo orquestrador para o lote 10.
+
+**Rodada 2 — interrompida sem entrega (refazer):** `P7-L10-REG` (tools de escrita com aprovação vinculada à operação), `P7-L10-MONGO` (`MongoAgentWriteSource` com precondição atômica e testes reais de concorrência) e `P7-L11-QA` (varredura de canários, payloads MCP hostis, matriz de dependências × NOTICES). Os três pararam com trabalho não commitado nos worktrees locais, que **não** foi preservado. Os prompts completos estão nesta conversa e devem ser redespachados a partir de `7e902f6`.
+
+**Próxima ordem de trabalho:**
+1. Redespachar P7-L10-REG e P7-L10-MONGO em paralelo sobre o contrato `IAgentMongoWriteSource` e integrar em série (o registry é dono de `ServiceCollectionExtensions.cs`).
+2. Ligar no DI o provider real de consentimento e, depois do lote 10, a fonte real de escrita.
+3. Redespachar P7-L11-QA.
+4. Implementações de produção pendentes: `IAgentApiKeyStore` e `IAgentApprovalDetailsSource` no Desktop, UI de aprovação e de consentimento, e hospedagem do `AgentChatPanel` (exige inspeção de PNGs nos dois temas, fora das rodadas focadas em código e testes).
+5. Revisão independente (code-review-agent) dos merges desta sessão.
+6. Homologações nativas: Windows e Linux, clientes MCP comerciais, provider com credencial autorizada.
+
 ## Integração dos seis agentes paralelos e primeira validação real no Linux — 25/09/2026
 
 Os seis agentes despachados na rodada descrita na seção seguinte ("Reconciliação da documentação") retornaram e foram integrados em série pelo orquestrador em `phase-7-i6v8dr` (worktrees isolados, merge `--no-ff` um a um, build+teste real após cada merge antes do próximo): `documentation-agent` (P7-L12-DOC), `agent-provider-agent` (P7-L07/08), `agent-runtime-agent` (P7-L05-FIX), `mongodb-domain-agent` (P7-L02-MONGO), `architecture-agent` (P7-L02/05-ARCH) e `mcp-integration-agent` (P7-L03-MCP). Nenhum conflito de merge real ocorreu (um único auto-merge em `Mcp/AgentBrokerHostTests.cs`, resolvido automaticamente pelo git, sem marcadores de conflito).
