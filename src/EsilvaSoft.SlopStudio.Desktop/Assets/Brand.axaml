@@ -1,4 +1,4 @@
-﻿<ResourceDictionary xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+﻿<ResourceDictionary xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:imaging="using:Avalonia.Media.Imaging">
   <LinearGradientBrush x:Key="BrandGradient" StartPoint="0%,0%" EndPoint="100%,100%">
     <GradientStop Color="#22B8FF" Offset="0" />
     <GradientStop Color="#397BFF" Offset=".5" />
@@ -20,16 +20,5 @@
   <StreamGeometry x:Key="MessageIcon">M3 3 H21 V17 H10 L5 22 V17 H3 Z M7 8 H17 M7 12 H14</StreamGeometry>
   <StreamGeometry x:Key="WarningIcon">M12 2 L23 22 H1 Z M12 8 V14 M12 17 V19</StreamGeometry>
   <StreamGeometry x:Key="DownloadIcon">M21 12 A9 9 0 1 1 3 12 A9 9 0 1 1 21 12 M12 7 V16 M8 12 L12 16 L16 12</StreamGeometry>
-  <DrawingImage x:Key="BrandSymbol">
-    <DrawingImage.Drawing>
-      <DrawingGroup>
-        <GeometryDrawing Geometry="M24 23 L40 9 C49 2 65 22 56 31 L42 43 Z" Brush="{StaticResource BrandGradient}" />
-        <GeometryDrawing Geometry="M35 13 C45 8 60 28 51 36 L48 39 C57 31 42 11 33 16 Z" Brush="#22B8FF" />
-        <GeometryDrawing Geometry="M24 23 C32 16 50 38 42 44 C33 52 15 30 24 23 Z" Brush="#0B1020" />
-        <GeometryDrawing Geometry="M27 26 C33 22 44 36 40 40 C34 44 21 30 27 26 Z" Brush="#193B67" />
-        <GeometryDrawing Geometry="M30 32 C20 33 28 40 17 42 C7 43 6 49 18 49 C26 49 25 56 37 56 C47 56 46 50 55 51 C64 51 62 44 51 44 C36 44 43 30 30 32 Z" Brush="{StaticResource BrandGradient}" />
-        <GeometryDrawing Geometry="M9 35 C4 36 3 40 9 40 C15 40 15 35 9 35 Z M5 49 C1 49 1 52 5 52 C9 52 9 49 5 49 Z" Brush="#22B8FF" />
-      </DrawingGroup>
-    </DrawingImage.Drawing>
-  </DrawingImage>
+  <imaging:Bitmap x:Key="BrandSymbol">avares://EsilvaSoft.SlopStudio.Desktop/Assets/Branding/kapibara-icon-128.png</imaging:Bitmap>
 </ResourceDictionary>
