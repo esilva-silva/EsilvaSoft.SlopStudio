@@ -18,3 +18,5 @@ artifacts/
 /BenchmarkDotNet.Artifacts.*
 /.codex-build/Debug/net10.0
 /.codex-test-build/Debug/net10.0
+# Local Claude Code agent worktrees (session scratch, not project content).
+/.claude/worktrees/
