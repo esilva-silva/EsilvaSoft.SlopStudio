@@ -13,6 +13,8 @@ namespace EsilvaSoft.SlopStudio.Infrastructure;
 internal static class AppUpdateInstaller
 {
     public const string ExecutableBaseName = "EsilvaSoft.SlopStudio.Desktop";
+    internal const string KapibaraExecutableBaseName = "EsilvaSoft.KapibaraStudio.Desktop";
+    private static readonly string[] ExecutableBaseNames = [KapibaraExecutableBaseName, ExecutableBaseName];
     internal const string PendingFileName = "pending.json";
     private const UnixFileMode ExecutableMode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
         | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute;
@@ -62,7 +64,8 @@ internal static class AppUpdateInstaller
                 var staged = target + ".new";
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                 File.Copy(Path.Combine(payloadDirectory, relative), staged, overwrite: true);
-                if (!OperatingSystem.IsWindows() && string.Equals(relative, executableName, StringComparison.Ordinal))
+                if (!OperatingSystem.IsWindows() && (string.Equals(relative, executableName, StringComparison.Ordinal)
+                    || ExecutableBaseNames.Contains(relative, StringComparer.Ordinal)))
                     File.SetUnixFileMode(staged, ExecutableMode);
                 string? backup = null;
                 if (File.Exists(target))
@@ -93,7 +96,8 @@ internal static class AppUpdateInstaller
 
     internal static void Cleanup(AppUpdateOptions options)
     {
-        foreach (var file in Directory.EnumerateFiles(options.TargetDirectory, ExecutableBaseName + "*"))
+        foreach (var baseName in ExecutableBaseNames)
+        foreach (var file in Directory.EnumerateFiles(options.TargetDirectory, baseName + "*"))
             if (file.EndsWith(".old", StringComparison.Ordinal) || file.EndsWith(".new", StringComparison.Ordinal)) TryDelete(file);
         if (!Directory.Exists(options.UpdatesDirectory)) return;
         var pending = ReadValidPending(options);
@@ -117,9 +121,29 @@ internal static class AppUpdateInstaller
             || version is { Major: 0, Minor: 0, Patch: 0 }) return AppUpdateAvailability.Disabled;
         var directory = Path.GetDirectoryName(processPath)!;
         // Only the published single-file executable replaces itself; build output keeps the assembly next to the host.
-        if (!string.Equals(Path.GetFileNameWithoutExtension(processPath), ExecutableBaseName, StringComparison.Ordinal)
-            || File.Exists(Path.Combine(directory, ExecutableBaseName + ".dll"))) return AppUpdateAvailability.Disabled;
+        var executable = Path.GetFileName(processPath);
+        var suffix = rid.StartsWith("win-", StringComparison.Ordinal) ? ".exe" : "";
+        if (!ExecutableBaseNames.Any(name => string.Equals(executable, name + suffix, StringComparison.Ordinal))
+            || ExecutableBaseNames.Any(name => File.Exists(Path.Combine(directory, name + ".dll")))) return AppUpdateAvailability.Disabled;
         return CanWrite(directory) ? AppUpdateAvailability.Supported : AppUpdateAvailability.ManualOnly;
+    }
+
+    internal static void PrepareExecutableAliases(string payloadDirectory, AppUpdateOptions options)
+    {
+        var suffix = options.Rid.StartsWith("win-", StringComparison.Ordinal) ? ".exe" : "";
+        var names = ExecutableBaseNames.Select(name => name + suffix).ToArray();
+        if (!names.Contains(options.ExecutableName, PathComparer))
+            throw new InvalidDataException("O executável desta instalação não é compatível com a atualização.");
+        var incoming = names.FirstOrDefault(name => File.Exists(Path.Combine(payloadDirectory, name)))
+            ?? throw new InvalidDataException("O pacote não contém o executável esperado.");
+        // Keep existing shortcuts and the restart path valid across either direction of the rename.
+        // Refresh other installed aliases too, so they cannot launch a stale version after a later update.
+        foreach (var name in names)
+            if (!string.Equals(name, incoming, PathComparison)
+                && (string.Equals(name, options.ExecutableName, PathComparison)
+                    || File.Exists(Path.Combine(options.TargetDirectory, name))
+                    || File.Exists(Path.Combine(payloadDirectory, name))))
+                File.Copy(Path.Combine(payloadDirectory, incoming), Path.Combine(payloadDirectory, name), overwrite: true);
     }
 
     internal static string? CurrentRid()

@@ -12,6 +12,13 @@ public static class AppUpdateSelector
         return $"EsilvaSoft.SlopStudio-{version}-{rid}{(rid.StartsWith("win-", StringComparison.Ordinal) ? ".zip" : ".tar.gz")}";
     }
 
+    /// <summary>Migration naming first, followed by packages from existing installations.</summary>
+    public static IReadOnlyList<string> GetAssetNames(AppVersion version, string rid)
+    {
+        var legacy = GetAssetName(version, rid);
+        return [legacy.Replace("EsilvaSoft.SlopStudio-", "EsilvaSoft.KapibaraStudio-", StringComparison.Ordinal), legacy];
+    }
+
     /// <summary>
     /// Newest non-draft release above <paramref name="current"/> that publishes a package for <paramref name="rid"/>.
     /// Pre-releases are offered only to an installation that already runs a pre-release.
@@ -26,8 +33,10 @@ public static class AppUpdateSelector
             if (release.IsDraft || !AppVersion.TryParse(release.Tag, out var version)) continue;
             if ((release.IsPrerelease || version.IsPrerelease) && !current.IsPrerelease) continue;
             if (version <= current || newest is not null && version <= newest.Version) continue;
-            var name = GetAssetName(version, rid);
-            if (release.Assets.FirstOrDefault(asset => string.Equals(asset.Name, name, StringComparison.Ordinal)) is not { } package) continue;
+            var package = GetAssetNames(version, rid)
+                .Select(name => release.Assets.FirstOrDefault(asset => string.Equals(asset.Name, name, StringComparison.Ordinal)))
+                .FirstOrDefault(asset => asset is not null);
+            if (package is null) continue;
             var checksums = release.Assets.FirstOrDefault(asset => string.Equals(asset.Name, ChecksumsAssetName, StringComparison.Ordinal));
             newest = new(version, release.Tag, package.Name, package.DownloadUrl, package.Size, NormalizeSha256(package.Digest), release.PageUrl, checksums?.DownloadUrl);
         }

@@ -8,7 +8,9 @@ namespace EsilvaSoft.SlopStudio.Infrastructure;
 public sealed record AppUpdateOptions(AppUpdateAvailability Availability, AppVersion CurrentVersion, string Rid, string TargetDirectory,
     string ExecutableName, string UpdatesDirectory, Uri ReleasesApi)
 {
-    public static Uri GitHubReleasesApi { get; } = new("https://api.github.com/repos/esilva-silva/EsilvaSoft.SlopStudio/releases?per_page=20");
+    public static Uri GitHubReleasesApi { get; } = new("https://api.github.com/repos/esilva-silva/EsilvaSoft.KapibaraStudio/releases?per_page=20");
+    public static Uri LegacyGitHubReleasesApi { get; } = new("https://api.github.com/repos/esilva-silva/EsilvaSoft.SlopStudio/releases?per_page=20");
+    public Uri? FallbackReleasesApi { get; init; }
 
     public static AppUpdateOptions FromProcess()
     {
@@ -18,6 +20,7 @@ public sealed record AppUpdateOptions(AppUpdateAvailability Availability, AppVer
         var rid = AppUpdateInstaller.CurrentRid();
         return new(AppUpdateInstaller.DetectAvailability(processPath, version, rid), version, rid ?? "",
             processPath is null ? AppContext.BaseDirectory : Path.GetDirectoryName(processPath)!,
-            processPath is null ? "" : Path.GetFileName(processPath), LocalWorkspacePaths.GetUpdatesDirectory(), GitHubReleasesApi);
+            processPath is null ? "" : Path.GetFileName(processPath), LocalWorkspacePaths.GetUpdatesDirectory(), GitHubReleasesApi)
+        { FallbackReleasesApi = LegacyGitHubReleasesApi };
     }
 }

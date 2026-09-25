@@ -41,15 +41,26 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
     public async Task<AppUpdateRelease?> CheckAsync(CancellationToken cancellationToken)
     {
         if (Availability == AppUpdateAvailability.Disabled) return null;
+        var primary = await CheckFeedAsync(_options.ReleasesApi, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (primary is not null) return primary;
+        return _options.FallbackReleasesApi is { } fallback && fallback != _options.ReleasesApi
+            ? await CheckFeedAsync(fallback, cancellationToken)
+            : null;
+    }
+
+    private async Task<AppUpdateRelease?> CheckFeedAsync(Uri api, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(CheckTimeout);
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, _options.ReleasesApi);
+            using var request = new HttpRequestMessage(HttpMethod.Get, api);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
             request.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
-            // Rate limits (403/429) and outages are not user errors: the next scheduled check retries.
+            // Missing repositories, rate limits and outages allow the legacy feed to be tried.
             if (!response.IsSuccessStatusCode) return null;
             await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
             var releases = await JsonSerializer.DeserializeAsync<GitHubRelease[]>(stream, ApiJson, timeout.Token) ?? [];
@@ -81,7 +92,7 @@ public sealed class GitHubAppUpdateService : IAppUpdateService, IDisposable
             File.Move(package + ".partial", package);
             var payload = Path.Combine(versionDirectory, "payload");
             Extract(package, payload);
-            if (!File.Exists(Path.Combine(payload, _options.ExecutableName))) throw new InvalidDataException("O pacote não contém o executável esperado.");
+            AppUpdateInstaller.PrepareExecutableAliases(payload, _options);
             File.Delete(package);
             AppUpdateInstaller.WritePending(_options.UpdatesDirectory, new PendingAppUpdate(release.Version.ToString(), payload, _options.TargetDirectory, _options.ExecutableName));
         }
