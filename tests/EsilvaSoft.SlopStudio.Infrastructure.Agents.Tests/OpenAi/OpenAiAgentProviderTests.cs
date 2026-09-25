@@ -529,6 +529,22 @@ public sealed class OpenAiAgentProviderTests
     }
 
     [Test]
+    public async Task HistoryBudgetRefusesInsteadOfSilentlyDroppingOldTurns()
+    {
+        var handler = new OpenAiOfflineHandler().Sse(Sse.Text("primeira resposta"));
+        var provider = OpenAiTestFactory.Provider(handler, options: new OpenAiAgentProviderOptions { MaxHistoryTurns = 1 });
+        await using var session = await provider.CreateSessionAsync(new(OpenAiAgentProvider.Id, OpenAiTestFactory.Model), CancellationToken.None);
+
+        var first = await OpenAiTestFactory.CollectAsync(session.RunTurnAsync(OpenAiTestFactory.Turn("1"), CancellationToken.None));
+        var second = await OpenAiTestFactory.CollectAsync(session.RunTurnAsync(OpenAiTestFactory.Turn("2"), CancellationToken.None));
+
+        Assert.That(OpenAiTestFactory.Text(first), Is.EqualTo("primeira resposta"));
+        Assert.That(second.Single().Kind, Is.EqualTo(AgentEventKind.AgentError));
+        Assert.That(second.Single().Text, Is.EqualTo(OpenAiFailureCodes.ContextBudgetExceeded));
+        Assert.That(handler.Requests, Has.Count.EqualTo(1), "O segundo turno é recusado antes de qualquer requisição, sem descartar o histórico anterior.");
+    }
+
+    [Test]
     public void RegistrationReadsNoSecretAndExposesTheProviderOnce()
     {
         var credentials = FakeCredentialProvider.WithKey();

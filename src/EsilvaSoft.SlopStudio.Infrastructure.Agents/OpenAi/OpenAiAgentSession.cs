@@ -163,6 +163,11 @@ internal sealed partial class OpenAiAgentSession : IAgentSession
         }
     }
 
+    /// <summary>
+    /// Grava a troca concluída no histórico em memória da sessão. Nunca descarta trocas antigas para caber no limite:
+    /// <c>RunConversationAsync</c> recusa um novo turno com <c>ContextBudgetExceeded</c> assim que o histórico atinge
+    /// <see cref="OpenAiAgentProviderOptions.MaxHistoryTurns"/>, então este método só é chamado enquanto ainda há espaço.
+    /// </summary>
     private void Commit(ActiveTurn turn, string user, string assistant)
     {
         lock (_gate)
@@ -173,10 +178,6 @@ internal sealed partial class OpenAiAgentSession : IAgentSession
             }
 
             _history.Add((user, assistant));
-            while (_history.Count > _options.MaxHistoryTurns)
-            {
-                _history.RemoveAt(0);
-            }
         }
     }
 

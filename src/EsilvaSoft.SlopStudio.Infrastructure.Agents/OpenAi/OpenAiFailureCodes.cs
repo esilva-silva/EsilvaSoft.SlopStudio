@@ -30,6 +30,12 @@ internal static class OpenAiFailureCodes
     public const string ToolCallLimitExceeded = "ToolCallLimitExceeded";
     public const string ToolResultTimeout = "ToolResultTimeout";
 
+    /// <summary>
+    /// O histórico retido excede o limite configurado. Mesmo código de <c>ClaudeErrorCodes.ContextBudgetExceeded</c>:
+    /// nenhum adapter reduz contexto silenciosamente, ambos recusam o turno e pedem outra sessão.
+    /// </summary>
+    public const string ContextBudgetExceeded = "ContextBudgetExceeded";
+
     public static string FromStatus(int status) => status switch
     {
         401 => AuthenticationFailed,
