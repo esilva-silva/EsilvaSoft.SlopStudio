@@ -38,11 +38,16 @@ public sealed record AgentProviderCapabilities
 
     public AgentCapabilityEvidence Evidence { get; init; }
 
+    // Kept as instance properties (not static) so they stay part of the same reflection/serialization
+    // surface as the other capability flags on this record; a provider descriptor consumer reads them
+    // uniformly through an instance, and static members would silently drop out of that surface.
+#pragma warning disable CA1822 // Deliberately instance members: see comment above.
     public bool FileEditing => false;
 
     public bool CommandExecution => false;
 
     public bool SubAgents => false;
+#pragma warning restore CA1822
 
     /// <summary>
     /// Intersection with another declaration (e.g. dynamic status ∩ static descriptor): a flag survives only when both

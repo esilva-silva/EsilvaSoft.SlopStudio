@@ -15,6 +15,7 @@ public sealed class AgentProviderContractTests
     private static readonly SecretReference SlotA = new(Guid.ParseExact("0f6c2a8e5b7d4c3a9e1f2b3c4d5e6f70", "N"));
     private static readonly SecretReference SlotB = new(Guid.ParseExact("1a2b3c4d5e6f47089a0b1c2d3e4f5a6b", "N"));
     private static readonly AgentAuthenticationMethod[] ApiKeyOnly = [AgentAuthenticationMethod.ApiKey];
+    private static readonly string[] OnlyModelA = ["model-a"];
 
     [Test]
     public void DescriptorRejectsUnsafeIdentityAndDuplicatedMethods()
@@ -152,7 +153,7 @@ public sealed class AgentProviderContractTests
         {
             Assert.That(wide.IsAvailable, Is.True);
             Assert.That(wide.Capabilities.ToolCalling, Is.False, "Estado dinâmico não amplia o descritor.");
-            Assert.That(wide.Models, Is.EqualTo(new[] { "model-a" }));
+            Assert.That(wide.Models, Is.EqualTo(OnlyModelA));
             Assert.That((fault.IsAvailable, fault.UnavailableCode), Is.EqualTo((false, (string?)"StatusFailed")));
             Assert.That((hang.IsAvailable, hang.UnavailableCode), Is.EqualTo((false, (string?)"StatusTimedOut")));
             Assert.That((code.AuthState, code.UnavailableCode), Is.EqualTo((AgentProviderAuthState.Invalid, (string?)"ProviderUnavailable")));
