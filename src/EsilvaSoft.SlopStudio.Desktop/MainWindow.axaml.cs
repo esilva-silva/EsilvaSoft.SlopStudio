@@ -160,7 +160,7 @@ public partial class MainWindow : Window
         try { await tab.SaveAsync(path); return true; }
         catch (TextFileConflictException conflict)
         {
-            var resolution = await Dialogs.ChooseAsync(this, "Arquivo alterado externamente", $"{Path.GetFileName(conflict.FilePath)} foi alterado fora do Slop Studio.", "Recarregar", "Sobrescrever", T("cancel"));
+            var resolution = await Dialogs.ChooseAsync(this, "Arquivo alterado externamente", $"{Path.GetFileName(conflict.FilePath)} foi alterado fora do {Branding.ProductName}.", "Recarregar", "Sobrescrever", T("cancel"));
             if (resolution == "Recarregar")
             {
                 if (tab.IsDirty)

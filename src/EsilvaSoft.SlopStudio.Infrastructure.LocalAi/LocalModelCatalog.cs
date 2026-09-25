@@ -75,7 +75,7 @@ public sealed class LocalModelCatalog(string? defaultDirectory = null, IReadOnly
             // carregar pesos. Ausência de declaração nunca é incompatibilidade (pacotes antigos continuam válidos).
             if (metadata?.ContextContract is { } contract && !LocalModelContextContracts.IsSupported(contract))
                 return Rejected(LocalModelState.Invalid,
-                    F("aiCatalogContextContract", "Modelo requer contrato de contexto \"{0}\", não suportado por esta versão do SlopStudio. Contratos suportados: {1}.", contract, string.Join(", ", LocalModelContextContracts.Supported)));
+                    F("aiCatalogContextContract", "Modelo requer contrato de contexto \"{0}\", não suportado por esta versão do aplicativo. Contratos suportados: {1}.", contract, string.Join(", ", LocalModelContextContracts.Supported)));
             using var tokenizer = ReadJson(Path.Combine(root, "tokenizer.json"));
             using (ReadJson(Path.Combine(root, "tokenizer_config.json"))) { }
             if (adapter.Validate(new(root, type, decoderPath, tokenizer.RootElement)) is { } failure) return Rejected(failure.State, failure.Message);

@@ -16,6 +16,120 @@ public sealed class AppUpdateServiceTests
     private const string LinuxExecutable = "EsilvaSoft.SlopStudio.Desktop";
 
     [Test]
+    public void ProcessDefaultsUseKapibaraRepositoryWithLegacyFallback()
+    {
+        var options = AppUpdateOptions.FromProcess();
+        Assert.That(options.ReleasesApi.AbsoluteUri, Is.EqualTo("https://api.github.com/repos/esilva-silva/EsilvaSoft.KapibaraStudio/releases?per_page=20"));
+        Assert.That(options.FallbackReleasesApi?.AbsoluteUri, Is.EqualTo("https://api.github.com/repos/esilva-silva/EsilvaSoft.SlopStudio/releases?per_page=20"));
+    }
+
+    [Test]
+    public void CleanupRemovesTemporaryExecutablesOfBothBrandsButPreservesInstalledFiles()
+    {
+        using var fixture = new UpdateFixture();
+        var names = new[] { WindowsExecutable, WindowsExecutable.Replace("SlopStudio", "KapibaraStudio", StringComparison.Ordinal) };
+        foreach (var name in names)
+        {
+            File.WriteAllText(Path.Combine(fixture.Target, name), "installed");
+            File.WriteAllText(Path.Combine(fixture.Target, name + ".old"), "old");
+            File.WriteAllText(Path.Combine(fixture.Target, name + ".new"), "partial");
+        }
+        AppUpdateInstaller.Cleanup(fixture.Options());
+        Assert.That(Directory.GetFiles(fixture.Target).Select(Path.GetFileName), Is.EquivalentTo(names));
+    }
+
+    [TestCase("missing")]
+    [TestCase("rate-limit")]
+    [TestCase("invalid-json")]
+    [TestCase("timeout")]
+    [TestCase("network")]
+    [TestCase("current")]
+    [TestCase("incompatible")]
+    public async Task UnusablePrimaryFeedFallsBackToLegacyRepository(string failure)
+    {
+        using var fixture = new UpdateFixture();
+        fixture.PublishRelease("v0.6.0", "win-x64", Zip((WindowsExecutable, "new")));
+        if (failure is "current" or "incompatible")
+            fixture.PublishRelease(failure == "current" ? "v0.5.0" : "v0.7.0", failure == "incompatible" ? "linux-x64" : "win-x64", [], api: UpdateFixture.PrimaryApi);
+        else if (failure != "missing")
+            fixture.Routes[UpdateFixture.PrimaryApi.AbsoluteUri] = failure switch
+            {
+                "rate-limit" => () => new HttpResponseMessage(HttpStatusCode.Forbidden),
+                "invalid-json" => () => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{invalid") },
+                "timeout" => () => throw new TaskCanceledException("Simulated HTTP timeout"),
+                _ => () => throw new HttpRequestException("Simulated network failure")
+            };
+        using var service = fixture.Service(fixture.Options() with { ReleasesApi = UpdateFixture.PrimaryApi, FallbackReleasesApi = UpdateFixture.Api });
+        Assert.That((await service.CheckAsync(CancellationToken.None))?.Version, Is.EqualTo(AppVersion.Parse("0.6.0")));
+        Assert.That(fixture.Requests, Is.EqualTo(new[] { UpdateFixture.PrimaryApi.AbsoluteUri, UpdateFixture.Api.AbsoluteUri }));
+    }
+
+    [Test]
+    public async Task EligiblePrimaryReleaseTakesPriorityOverNewerLegacyRelease()
+    {
+        using var fixture = new UpdateFixture();
+        fixture.PublishRelease("v0.8.0", "win-x64", Zip((WindowsExecutable, "legacy")));
+        fixture.PublishRelease("v0.6.0", "win-x64", Zip((WindowsExecutable, "primary")), api: UpdateFixture.PrimaryApi, kapibara: true);
+        using var service = fixture.Service(fixture.Options() with { ReleasesApi = UpdateFixture.PrimaryApi, FallbackReleasesApi = UpdateFixture.Api });
+        Assert.That((await service.CheckAsync(CancellationToken.None))?.AssetName, Is.EqualTo("EsilvaSoft.KapibaraStudio-0.6.0-win-x64.zip"));
+        Assert.That(fixture.Requests, Is.EqualTo(new[] { UpdateFixture.PrimaryApi.AbsoluteUri }));
+    }
+
+    [Test]
+    public void CallerCancellationNeverRequestsFallback()
+    {
+        using var fixture = new UpdateFixture();
+        using var cancellation = new CancellationTokenSource();
+        fixture.Routes[UpdateFixture.PrimaryApi.AbsoluteUri] = () =>
+        {
+            cancellation.Cancel();
+            throw new OperationCanceledException(cancellation.Token);
+        };
+        using var service = fixture.Service(fixture.Options() with { ReleasesApi = UpdateFixture.PrimaryApi, FallbackReleasesApi = UpdateFixture.Api });
+        Assert.CatchAsync<OperationCanceledException>(() => service.CheckAsync(cancellation.Token));
+        Assert.That(fixture.Requests, Is.EqualTo(new[] { UpdateFixture.PrimaryApi.AbsoluteUri }));
+    }
+
+    [TestCase("win-x64", false)]
+    [TestCase("win-x64", true)]
+    [TestCase("linux-x64", false)]
+    [TestCase("linux-x64", true)]
+    public async Task CrossBrandPackagePreservesInstalledLaunchNameAndIncomingExecutable(string rid, bool installedKapibara)
+    {
+        using var fixture = new UpdateFixture();
+        var legacy = rid.StartsWith("win-", StringComparison.Ordinal) ? WindowsExecutable : LinuxExecutable;
+        var modern = legacy.Replace("SlopStudio", "KapibaraStudio", StringComparison.Ordinal);
+        var installed = installedKapibara ? modern : legacy;
+        var incoming = installedKapibara ? legacy : modern;
+        File.WriteAllText(Path.Combine(fixture.Target, installed), "old");
+        var package = rid.StartsWith("win-", StringComparison.Ordinal) ? Zip((incoming, "new")) : TarGz(incoming, "new");
+        fixture.PublishRelease("v0.6.0", rid, package, kapibara: !installedKapibara);
+        var options = fixture.Options(rid) with { ExecutableName = installed };
+        using var service = fixture.Service(options);
+        var release = (await service.CheckAsync(CancellationToken.None))!;
+        using (var operation = new ApplicationOperationService().Begin("Baixando"))
+            await service.DownloadAsync(release, operation);
+        Assert.That(File.ReadAllText(Path.Combine(fixture.Target, installed)), Is.EqualTo("old"));
+        Assert.That(AppUpdateInstaller.ApplyPending(options), Is.True);
+        Assert.That(File.ReadAllText(Path.Combine(fixture.Target, installed)), Is.EqualTo("new"));
+        Assert.That(File.ReadAllText(Path.Combine(fixture.Target, incoming)), Is.EqualTo("new"));
+        if (!OperatingSystem.IsWindows() && rid.StartsWith("linux-", StringComparison.Ordinal))
+            Assert.That(File.GetUnixFileMode(Path.Combine(fixture.Target, installed)).HasFlag(UnixFileMode.UserExecute), Is.True);
+    }
+
+    [Test]
+    public async Task UnrecognizedExecutableIsRejectedWithoutStaging()
+    {
+        using var fixture = new UpdateFixture();
+        fixture.PublishRelease("v0.6.0", "win-x64", Zip(("other.exe", "new")), kapibara: true);
+        using var service = fixture.Service(fixture.Options());
+        var release = (await service.CheckAsync(CancellationToken.None))!;
+        using var operation = new ApplicationOperationService().Begin("Baixando");
+        Assert.ThrowsAsync<InvalidDataException>(() => service.DownloadAsync(release, operation));
+        Assert.That(service.GetStagedUpdate(), Is.Null);
+    }
+
+    [Test]
     public async Task CheckSelectsPackageForRuntimeAndTreatsRateLimitAsNoUpdate()
     {
         using var fixture = new UpdateFixture();
@@ -90,15 +204,16 @@ public sealed class AppUpdateServiceTests
         Assert.That(File.Exists(Path.Combine(fixture.Updates, "pending.json")), Is.False);
     }
 
-    [Test]
-    public async Task FailedReplacementRestoresOriginalsAndKeepsTheUpdateWithItsError()
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task FailedReplacementRestoresOriginalsAndKeepsTheUpdateWithItsError(bool crossBrand)
     {
         using var fixture = new UpdateFixture();
         var executable = Path.Combine(fixture.Target, WindowsExecutable);
         var data = Path.Combine(fixture.Target, "a.dat");
         File.WriteAllText(executable, "old");
         File.WriteAllText(data, "old-data");
-        fixture.PublishRelease("v0.6.0", "win-x64", Zip((WindowsExecutable, "new"), ("a.dat", "new-data")));
+        fixture.PublishRelease("v0.6.0", "win-x64", Zip((crossBrand ? WindowsExecutable.Replace("SlopStudio", "KapibaraStudio", StringComparison.Ordinal) : WindowsExecutable, "new"), ("a.dat", "new-data")));
         var options = fixture.Options();
         using var service = fixture.Service(options);
         var release = (await service.CheckAsync(CancellationToken.None))!;
@@ -141,6 +256,37 @@ public sealed class AppUpdateServiceTests
         Assert.That(AppUpdateInstaller.DetectAvailability(host, version, "win-x64"), Is.EqualTo(AppUpdateAvailability.Disabled), "dotnet run/build output never replaces itself.");
     }
 
+    [TestCase("win-x64", "EsilvaSoft.KapibaraStudio.Desktop.exe")]
+    [TestCase("win-arm64", "EsilvaSoft.KapibaraStudio.Desktop.exe")]
+    [TestCase("linux-x64", "EsilvaSoft.KapibaraStudio.Desktop")]
+    [TestCase("linux-arm64", "EsilvaSoft.SlopStudio.Desktop")]
+    public void PublishedExecutablesOfBothBrandsAreSupported(string rid, string name)
+    {
+        using var fixture = new UpdateFixture();
+        var host = Path.Combine(fixture.Target, name);
+        var version = AppVersion.Parse("0.5.0");
+        Assert.That(AppUpdateInstaller.DetectAvailability(host, version, rid), Is.EqualTo(AppUpdateAvailability.Supported));
+        File.WriteAllText(Path.Combine(fixture.Target, "EsilvaSoft.KapibaraStudio.Desktop.dll"), "");
+        Assert.That(AppUpdateInstaller.DetectAvailability(host, version, rid), Is.EqualTo(AppUpdateAvailability.Disabled));
+    }
+
+    [Test]
+    public async Task BothPackagedExecutablesUseKapibaraContentAndRefreshExistingLegacyAlias()
+    {
+        using var fixture = new UpdateFixture();
+        var modern = WindowsExecutable.Replace("SlopStudio", "KapibaraStudio", StringComparison.Ordinal);
+        File.WriteAllText(Path.Combine(fixture.Target, WindowsExecutable), "old-legacy");
+        File.WriteAllText(Path.Combine(fixture.Target, modern), "old-modern");
+        fixture.PublishRelease("v0.6.0", "win-x64", Zip((WindowsExecutable, "legacy-content"), (modern, "modern-content")), kapibara: true);
+        using var service = fixture.Service(fixture.Options());
+        var release = (await service.CheckAsync(CancellationToken.None))!;
+        using (var operation = new ApplicationOperationService().Begin("Baixando"))
+            await service.DownloadAsync(release, operation);
+        Assert.That(AppUpdateInstaller.ApplyPending(fixture.Options()), Is.True);
+        Assert.That(File.ReadAllText(Path.Combine(fixture.Target, WindowsExecutable)), Is.EqualTo("modern-content"));
+        Assert.That(File.ReadAllText(Path.Combine(fixture.Target, modern)), Is.EqualTo("modern-content"));
+    }
+
     private static byte[] Zip(params (string Name, string Content)[] entries)
     {
         using var memory = new MemoryStream();
@@ -172,21 +318,24 @@ public sealed class AppUpdateServiceTests
     private sealed class UpdateFixture : IDisposable
     {
         public static readonly Uri Api = new("https://api.test/repos/slop/releases");
+        public static readonly Uri PrimaryApi = new("https://api.test/repos/kapibara/releases");
         private readonly string _root = Path.Combine(Path.GetTempPath(), "slop-update-" + Guid.NewGuid().ToString("N"));
         public UpdateFixture() => Directory.CreateDirectory(Target);
         public string Target => Path.Combine(_root, "app");
         public string Updates => Path.Combine(_root, "updates");
         public Dictionary<string, Func<HttpResponseMessage>> Routes { get; } = [];
+        public List<string> Requests { get; } = [];
 
         public AppUpdateOptions Options(string rid = "win-x64") => new(AppUpdateAvailability.Supported, AppVersion.Parse("0.5.0"), rid, Target,
             rid.StartsWith("win-", StringComparison.Ordinal) ? WindowsExecutable : LinuxExecutable, Updates, Api);
 
         public GitHubAppUpdateService Service(AppUpdateOptions options) => new(options, new RouteHandler(this));
 
-        public void PublishRelease(string tag, string rid, byte[] package, string? digest = null)
+        public void PublishRelease(string tag, string rid, byte[] package, string? digest = null, Uri? api = null, bool kapibara = false)
         {
             var version = AppVersion.Parse(tag);
             var name = AppUpdateSelector.GetAssetName(version, rid);
+            if (kapibara) name = name.Replace("SlopStudio", "KapibaraStudio", StringComparison.Ordinal);
             var url = $"https://downloads.test/{tag}/{name}";
             Routes[url] = () => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(package) };
             var json = JsonSerializer.Serialize(new[]
@@ -197,7 +346,7 @@ public sealed class AppUpdateServiceTests
                     assets = new[] { new { name, size = package.LongLength, browser_download_url = url, digest = digest ?? "sha256:" + Convert.ToHexStringLower(SHA256.HashData(package)) } }
                 }
             });
-            Routes[Api.AbsoluteUri] = () => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+            Routes[(api ?? Api).AbsoluteUri] = () => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
         }
 
         public void Dispose()
@@ -212,6 +361,7 @@ public sealed class AppUpdateServiceTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            fixture.Requests.Add(request.RequestUri!.AbsoluteUri);
             return Task.FromResult(fixture.Routes.TryGetValue(request.RequestUri!.AbsoluteUri, out var route) ? route() : new HttpResponseMessage(HttpStatusCode.NotFound));
         }
     }

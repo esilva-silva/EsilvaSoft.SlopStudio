@@ -1,4 +1,4 @@
-﻿<Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="EsilvaSoft.SlopStudio.Desktop.App" RequestedThemeVariant="Default">
+<Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" xmlns:imaging="using:Avalonia.Media.Imaging" x:Class="EsilvaSoft.SlopStudio.Desktop.App" Name="{x:Static local:Branding.ProductName}" RequestedThemeVariant="Default">
   <Application.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
@@ -6,6 +6,7 @@
       </ResourceDictionary.MergedDictionaries>
       <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Light">
+          <imaging:Bitmap x:Key="BrandLogo">avares://EsilvaSoft.SlopStudio.Desktop/Assets/Branding/kapibara-logo-light.png</imaging:Bitmap>
           <SolidColorBrush x:Key="Syntax.Default">#162033</SolidColorBrush>
           <SolidColorBrush x:Key="Syntax.Property">#075985</SolidColorBrush>
           <SolidColorBrush x:Key="Syntax.String">#166534</SolidColorBrush>
@@ -55,6 +56,7 @@
           <SolidColorBrush x:Key="AccentPressedBrush">#124FA6</SolidColorBrush>
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
+          <imaging:Bitmap x:Key="BrandLogo">avares://EsilvaSoft.SlopStudio.Desktop/Assets/Branding/kapibara-logo-dark.png</imaging:Bitmap>
           <SolidColorBrush x:Key="Syntax.Default">#F1F5F9</SolidColorBrush>
           <SolidColorBrush x:Key="Syntax.Property">#7DD3FC</SolidColorBrush>
           <SolidColorBrush x:Key="Syntax.String">#86EFAC</SolidColorBrush>
@@ -116,6 +118,7 @@
       </FluentTheme.Palettes>
     </FluentTheme>
     <Style Selector="Window">
+      <Setter Property="Icon" Value="/Assets/kapibara-studio.ico" />
       <Setter Property="FontFamily" Value="{StaticResource InterfaceFont}" />
       <Setter Property="FontSize" Value="13" />
       <Setter Property="Background" Value="{DynamicResource WorkspaceBackground}" />

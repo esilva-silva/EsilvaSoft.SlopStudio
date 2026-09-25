@@ -1,10 +1,10 @@
-<Window xmlns="https://github.com/avaloniaui" xmlns:syntax="using:EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" x:Class="EsilvaSoft.SlopStudio.Desktop.MainWindow" x:DataType="vm:WorkspaceViewModel" Title="EsilvaSoft.SlopStudio" Icon="/Assets/slop-studio.ico" Width="1440" Height="900" MinWidth="960" MinHeight="620">
+<Window xmlns="https://github.com/avaloniaui" xmlns:syntax="using:EsilvaSoft.SlopStudio.Desktop.SyntaxHighlighting" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" x:Class="EsilvaSoft.SlopStudio.Desktop.MainWindow" x:DataType="vm:WorkspaceViewModel" Title="{x:Static local:Branding.ProductName}" Width="1440" Height="900" MinWidth="960" MinHeight="620">
   <Grid RowDefinitions="40,*,36">
     <Border Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1" Padding="8,3">
       <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="4">
-        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,12,0" VerticalAlignment="Center" AutomationProperties.Name="Slop Studio">
+        <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,12,0" VerticalAlignment="Center" AutomationProperties.Name="{x:Static local:Branding.ProductName}">
           <Image Source="{StaticResource BrandSymbol}" Width="32" Height="32" />
-          <TextBlock Text="slop studio" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" />
+          <TextBlock Text="{x:Static local:Branding.ProductName}" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" />
         </StackPanel>
         <Button Grid.Column="1" x:Name="ConnectionsButton" Click="OpenConnections" ToolTip.Tip="{Binding Localization.OpenManageConnections}" AutomationProperties.Name="{Binding Localization.Connections}">
           <StackPanel Orientation="Horizontal" Spacing="6">
@@ -189,8 +189,7 @@
           </TabControl.ContentTemplate>
         </TabControl>
         <StackPanel IsVisible="{Binding !HasActiveTab}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
-          <Image Source="{StaticResource BrandSymbol}" Width="80" Height="80" HorizontalAlignment="Left" />
-          <TextBlock Text="Slop Studio" FontSize="24" FontWeight="Bold" />
+          <Image x:Name="WelcomeBrandLogo" Source="{DynamicResource BrandLogo}" Width="320" Height="100" Stretch="Uniform" HorizontalAlignment="Left" AutomationProperties.Name="{x:Static local:Branding.ProductName}" />
           <TextBlock Text="{local:Loc Key=workspace}" Classes="section-title" />
           <TextBlock Text="{local:Loc Key=workspaceNote}" Classes="muted" />
           <Button Command="{Binding NewTabCommand}" AutomationProperties.Name="{local:Loc Key=newTab}">

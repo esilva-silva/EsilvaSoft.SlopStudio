@@ -51,6 +51,29 @@ public sealed class AppUpdateSelectorTests
         Assert.That(AppUpdateSelector.FindChecksum(listing, "EsilvaSoft.SlopStudio-0.6.0-linux-x64.tar.gz"), Is.Null);
     }
 
+    [TestCase("win-x64", "zip")]
+    [TestCase("win-arm64", "zip")]
+    [TestCase("linux-x64", "tar.gz")]
+    [TestCase("linux-arm64", "tar.gz")]
+    public void BothPackageNamesAreAcceptedAndKapibaraWinsWithinTheSameRelease(string rid, string extension)
+    {
+        var version = AppVersion.Parse("0.6.0");
+        var legacyName = $"EsilvaSoft.SlopStudio-0.6.0-{rid}.{extension}";
+        var newName = $"EsilvaSoft.KapibaraStudio-0.6.0-{rid}.{extension}";
+        Assert.That(AppUpdateSelector.GetAssetNames(version, rid), Is.EqualTo(new[] { newName, legacyName }));
+        var legacy = Release("v0.6.0", rid: rid);
+        var modern = new AppReleaseAsset(newName, new Uri("https://downloads.test/kapibara"), 42, "sha256:" + new string('b', 64));
+        foreach (var assets in new[] { new[] { modern }, legacy.Assets.Append(modern).ToArray(), legacy.Assets.Prepend(modern).ToArray() })
+        {
+            var release = legacy with { Assets = assets };
+            var selected = AppUpdateSelector.SelectNewest(AppVersion.Parse("0.5.0"), [release], rid)!;
+            Assert.That(selected.AssetName, Is.EqualTo(newName));
+            Assert.That(selected.Sha256, Is.EqualTo(new string('b', 64)));
+            Assert.That(selected.DownloadUrl, Is.EqualTo(modern.DownloadUrl));
+        }
+        Assert.That(AppUpdateSelector.SelectNewest(AppVersion.Parse("0.5.0"), [legacy], rid)!.AssetName, Is.EqualTo(legacyName));
+    }
+
     private static AppReleaseCandidate Release(string tag, bool prerelease = false, bool draft = false, string rid = "win-x64")
     {
         var page = new Uri("https://github.test/releases/" + tag + "/");
