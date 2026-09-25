@@ -15,6 +15,12 @@ public sealed partial class AgentChatViewModel
     /// <summary>State of one turn. Each turn owns its CTS; nothing is shared with other tabs or turns.</summary>
     private sealed class TurnRun(AgentTurnId turnId, CancellationTokenSource cancellation)
     {
+        // Guards the CTS so a concurrent cancel request and the turn's own disposal never race: once disposed, a
+        // cancel request is a silent no-op instead of an ObjectDisposedException.
+        private readonly object _cancelGate = new();
+        private Task? _cancelTask;
+        private bool _disposed;
+
         public AgentTurnId TurnId { get; } = turnId;
 
         public CancellationTokenSource Cancellation { get; } = cancellation;
@@ -28,6 +34,33 @@ public sealed partial class AgentChatViewModel
         public Dictionary<AgentToolCallId, AgentToolCallItem> Tools { get; } = [];
 
         public Dictionary<AgentApprovalId, AgentApprovalCardItem> Approvals { get; } = [];
+
+        /// <summary>Requests cancellation of this turn's token. Idempotent and safe after the turn already finished
+        /// and disposed its CTS: cancelling a finished turn does nothing, it never throws.</summary>
+        public Task RequestCancellationAsync()
+        {
+            lock (_cancelGate)
+            {
+                return _disposed ? Task.CompletedTask : _cancelTask ??= Cancellation.CancelAsync();
+            }
+        }
+
+        /// <summary>Disposes the CTS once the turn is fully finished. Mutually exclusive with
+        /// <see cref="RequestCancellationAsync"/> under the same gate, so a cancel arriving exactly as the turn ends
+        /// never observes a disposed token source.</summary>
+        public void DisposeCancellation()
+        {
+            lock (_cancelGate)
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                _disposed = true;
+                Cancellation.Dispose();
+            }
+        }
     }
 
     /// <summary>Completion of the running turn, for hosts and tests; null when idle.</summary>
@@ -159,7 +192,7 @@ public sealed partial class AgentChatViewModel
                 CurrentTurnCompletion = null;
             }
 
-            run.Cancellation.Dispose();
+            run.DisposeCancellation();
             OnStateChanged(State);
         }
     }
@@ -355,7 +388,8 @@ public sealed partial class AgentChatViewModel
         State = AgentChatState.Cancelling;
         if (run.SessionId is not { } sessionId)
         {
-            await run.Cancellation.CancelAsync();
+            // Cancelling a turn that just finished (and disposed its CTS) is a safe no-op, not an exception.
+            await run.RequestCancellationAsync();
             return;
         }
 
@@ -371,10 +405,7 @@ public sealed partial class AgentChatViewModel
         {
             // Interruption not confirmed: stop consuming; the runtime reports OutcomeUnknown if it cannot confirm.
             run.ErrorCode = "CancellationUnconfirmed";
-            if (!run.Cancellation.IsCancellationRequested)
-            {
-                await run.Cancellation.CancelAsync();
-            }
+            await run.RequestCancellationAsync();
         }
     }
 
