@@ -1,6 +1,16 @@
 # Catálogo de ferramentas — proposta ancorada no código
 
-Estado: **parcial**. Há um registry interno de Application com `list_connections`, autorização default-deny, limites e revalidação do snapshot; ele não está registrado no DI nem exposto por MCP/chat. Nenhuma ferramenta MCP executável foi entregue por esta meta. A mesma definição, política e implementação de tool deve atender MCP e chat. Referência de código Mongo: [IMongoWorkspaceService](../../../src/EsilvaSoft.SlopStudio.Application/IMongoWorkspaceService.cs), [WorkspaceService](../../../src/EsilvaSoft.SlopStudio.Application/WorkspaceService.cs) e [MongoWorkspaceService](../../../src/EsilvaSoft.SlopStudio.Infrastructure/MongoWorkspaceService.cs).
+Estado: **parcial**. **Atualizado em 25/09/2026** (documentation-agent, a partir de auditoria code-review-agent, confirmado por leitura direta de `src/EsilvaSoft.SlopStudio.Application/Agents/AgentToolRegistry.cs` e seus parciais no HEAD `b0c95e0`, branch `phase-7-i6v8dr`; commits `5136141` e `ebd8a49` de 24/09/2026): o registry interno (`AgentToolRegistry`) hoje expõe **12 tools de leitura reais**, com autorização default-deny, EJSON literal, quotas, auditoria fail-closed e limites, em três estágios fechados (`AgentToolExposureStage`):
+
+| Estágio | Tools |
+| --- | --- |
+| `Metadata` | `list_connections`, `list_databases`, `list_collections` |
+| `LiteralQueries` | `mongo_find`, `mongo_count` |
+| `DerivedReads` | `get_collection_schema`, `sample_documents`, `mongo_find_one`, `get_document`, `mongo_distinct`, `get_indexes`, `mongo_explain` |
+
+Um proxy MCP STDIO (`EsilvaSoft.SlopStudio.McpServer`) e um broker IPC autenticado (`AgentBrokerHost`) também existem, com testes (`Mcp/McpStdioProxyTests.cs`, `Mcp/AgentBrokerHostTests.cs`). **Nenhum desses ingressos está composto em produção**: `AddSlopStudioAgentBroker` (`src/EsilvaSoft.SlopStudio.Infrastructure/ServiceCollectionExtensions.cs:103-136`) é opt-in e não é chamada em `src/` fora dela mesma, e nada inicia o `McpServer` a partir do produto/instalador. Portanto nenhuma ferramenta MCP está executável para um cliente externo real hoje, apesar do código e dos testes existirem — ver [17-validação](17-validacao-da-meta.md) e [13-análise do código](13-analise-do-codigo.md) para o detalhamento file:line e o que falta (composição incondicional, fixtures reais por tool do `DerivedReads`, MongoDB real via MCP, decisão de gate para `LiteralQueries`). A mesma definição, política e implementação de tool deve atender MCP e chat — isso já é verdade no código (`AgentToolRegistry` único), mas nenhum ingress consome essa garantia em produção ainda. Referência de código Mongo: [IMongoWorkspaceService](../../../src/EsilvaSoft.SlopStudio.Application/IMongoWorkspaceService.cs), [WorkspaceService](../../../src/EsilvaSoft.SlopStudio.Application/WorkspaceService.cs) e [MongoWorkspaceService](../../../src/EsilvaSoft.SlopStudio.Infrastructure/MongoWorkspaceService.cs).
+
+A tabela "Primeira entrega somente leitura" abaixo continua sendo a especificação normativa (schemas, limites, mapeamento de grants); ela já é consistente com as 12 tools implementadas, exceto por `get_connection_info`, que a especificação original propunha e ainda não foi implementada. `get_indexes` já usa DTO allowlist (`AgentMongoIndexSummary` em `AgentToolRegistry.Indexes.cs`), não índices BSON crus como a especificação original temia — confirmado por leitura do código nesta reconciliação.
 
 ## Contrato comum
 
