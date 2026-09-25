@@ -305,25 +305,34 @@ public sealed class AgentBrokerHostTests
         var workspace = Guid.NewGuid();
         var none = new ServiceCollection().AddSlopStudioAgentBroker(new AgentBrokerOptions { WorkspaceId = workspace });
         var noStage = new ServiceCollection().AddSlopStudioAgentBroker(new AgentBrokerOptions { WorkspaceId = workspace, Enabled = true });
-        var metadata = new ServiceCollection().AddSlopStudioAgentBroker(new AgentBrokerOptions
+        var metadataOptions = new AgentBrokerOptions
         {
             WorkspaceId = workspace, Enabled = true, Stage = AgentToolExposureStage.Metadata
-        });
+        };
+        var metadata = new ServiceCollection()
+            .AddSlopStudioInfrastructure(Path.Combine(Path.GetTempPath(), $"slopstudio-broker-di-{Guid.NewGuid():N}.db"),
+                new AgentPlatformOptions { ToolExposureStage = AgentToolExposureStage.Metadata })
+            .AddSlopStudioAgentBroker(metadataOptions);
 
         Assert.Multiple(() =>
         {
             Assert.That(none, Is.Empty, "Sem opt-in nada é registrado; a IDE segue sem MCP.");
             Assert.That(noStage, Is.Empty);
-            Assert.That(metadata.Any(service => service.ServiceType == typeof(IAgentToolRegistry)), Is.True);
+            Assert.That(metadata.Count(service => service.ServiceType == typeof(IAgentToolRegistry)), Is.EqualTo(1),
+                "O broker não compõe um registry próprio.");
             Assert.That(metadata.Any(service => service.ServiceType == typeof(AgentBrokerHost)), Is.True);
             Assert.Throws<ArgumentException>(() => new ServiceCollection().AddSlopStudioAgentBroker(new AgentBrokerOptions
             {
                 WorkspaceId = workspace, Enabled = true, Stage = AgentToolExposureStage.DerivedReads
             }), "DerivedReads ainda não tem gate aprovado para MCP.");
-            Assert.Throws<InvalidOperationException>(() => metadata.AddSlopStudioAgentBroker(new AgentBrokerOptions
-            {
-                WorkspaceId = workspace, Enabled = true, Stage = AgentToolExposureStage.Metadata
-            }), "Um único registry por composição.");
+            Assert.Throws<InvalidOperationException>(() => new ServiceCollection().AddSlopStudioAgentBroker(metadataOptions),
+                "Sem o registry compartilhado da infraestrutura o broker não é composto.");
+            Assert.Throws<InvalidOperationException>(() => metadata.AddSlopStudioAgentBroker(metadataOptions),
+                "Um único broker por composição.");
+            Assert.Throws<InvalidOperationException>(() => new ServiceCollection()
+                .AddSlopStudioInfrastructure(Path.Combine(Path.GetTempPath(), $"slopstudio-broker-di-{Guid.NewGuid():N}.db"))
+                .AddSlopStudioAgentBroker(metadataOptions),
+                "O broker não pode anunciar um estágio diferente do liberado ao registry compartilhado.");
         });
     }
 
@@ -332,7 +341,8 @@ public sealed class AgentBrokerHostTests
     {
         using var workspace = new ConnectionCredentialRecoveryTests.Workspace();
         var services = new ServiceCollection();
-        services.AddSlopStudioInfrastructure(workspace.Path);
+        services.AddSlopStudioInfrastructure(workspace.Path,
+            new AgentPlatformOptions { ToolExposureStage = AgentToolExposureStage.LiteralQueries });
         services.AddSingleton<Application.ISecretStore>(new InMemoryProfileSecretStore());
         services.AddSlopStudioAgentBroker(new AgentBrokerOptions
         {
@@ -346,6 +356,7 @@ public sealed class AgentBrokerHostTests
             Assert.That(provider.GetRequiredService<IAgentToolRegistry>(), Is.SameAs(registry));
             Assert.That(registry.GetDescriptors().Select(descriptor => descriptor.Name), Is.EquivalentTo(LiteralQueryTools));
             Assert.That(provider.GetRequiredService<AgentBrokerHost>().IsRunning, Is.False, "Composição não abre o endpoint.");
+            Assert.That(provider.GetRequiredService<AgentBrokerHost>().Registry, Is.SameAs(registry));
         });
     }
 
