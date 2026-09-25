@@ -120,7 +120,9 @@ public sealed class MongoAgentFindSource(
             cancellationToken).ConfigureAwait(false);
         if (currentUuid is null || !originalUuid.AsSpan().SequenceEqual(currentUuid))
             return new([], false, false, false, false);
-        return new(documents, hasMore || documents.Count == limit, truncated, true, resultTooLarge);
+        // The cursor asks for limit + 1: only an extra document proves another page. Exactly `limit`
+        // documents with an exhausted cursor is a complete result, not a hint to page again.
+        return new(documents, hasMore, truncated, true, resultTooLarge);
     }
 
     public async Task<AgentMongoCountResult> CountAsync(ConnectionProfile profile, AgentMongoCountQuery query,
