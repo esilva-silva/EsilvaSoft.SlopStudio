@@ -45,6 +45,9 @@ public sealed class AgentBrokerHost : IAsyncDisposable
     }
 
     public AgentBrokerEndpoint Endpoint { get; }
+
+    /// <summary>Composition evidence (AC-14): the shared registry this broker forwards to.</summary>
+    internal IAgentToolRegistry Registry => _registry;
     public bool IsRunning => _acceptLoop is { IsCompleted: false };
     public int ActiveConnectionCount => _connections.Count;
 

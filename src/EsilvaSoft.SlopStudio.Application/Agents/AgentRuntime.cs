@@ -63,6 +63,9 @@ public sealed partial class AgentRuntime : IAgentRuntime, IAsyncDisposable
         _providers = byId;
     }
 
+    /// <summary>Composition evidence (AC-14): the shared registry this runtime dispatches through, if any.</summary>
+    internal IAgentToolRegistry? ToolRegistry => _toolRegistry;
+
     public async Task<AgentSessionId> StartSessionAsync(AgentSessionOptions options, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);

@@ -762,7 +762,8 @@ public sealed class LiteDbAgentAuditTests
         var audit = provider.GetRequiredService<IAgentAuditRepository>();
         Assert.That(audit, Is.SameAs(owner));
         Assert.That(provider.GetRequiredService<IAgentAuditRepository>(), Is.SameAs(audit));
-        Assert.That(provider.GetService<IAgentToolRegistry>(), Is.Null);
+        // The shared registry is always composed but closed by default: nothing is discoverable without a stage.
+        Assert.That(provider.GetRequiredService<IAgentToolRegistry>().GetDescriptors(), Is.Empty);
         owner.Dispose();
         Assert.ThrowsAsync<ObjectDisposedException>(() => audit.AppendAsync(Event()));
     }

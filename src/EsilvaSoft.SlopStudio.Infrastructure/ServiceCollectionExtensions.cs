@@ -9,7 +9,13 @@ namespace EsilvaSoft.SlopStudio.Infrastructure;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddSlopStudioInfrastructure(this IServiceCollection services, string workspaceDatabasePath)
+    /// <param name="services">Container being composed.</param>
+    /// <param name="workspaceDatabasePath">Local workspace database, opened only by the single LiteDB owner.</param>
+    /// <param name="agentPlatform">
+    /// Agent platform options. Omitted means the closed default: registry and runtime composed with nothing exposed.
+    /// </param>
+    public static IServiceCollection AddSlopStudioInfrastructure(this IServiceCollection services, string workspaceDatabasePath,
+        AgentPlatformOptions? agentPlatform = null)
     {
         services.AddSingleton<IApplicationOperationService, ApplicationOperationService>();
         services.AddSingleton<ICodeFormatter, MongoCodeFormatter>();
@@ -90,21 +96,20 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITextFileService>(services => (ITextFileService)services.GetRequiredService<IScriptFileService>());
         services.AddSingleton<IWorkspaceFileService, LocalWorkspaceFileService>();
         services.AddSingleton<IAppUpdateService>(_ => new GitHubAppUpdateService(AppUpdateOptions.FromProcess()));
+        AddAgentPlatform(services, agentPlatform ?? new AgentPlatformOptions());
         return services;
     }
 
     /// <summary>
-    /// Opt-in composition of the local MCP broker (lote 3). Without <see cref="AgentBrokerOptions.Enabled"/> and an
-    /// explicit stage nothing is registered, so the IDE keeps working without MCP. When enabled, the broker and every
-    /// future ingress resolve the same <see cref="IAgentToolRegistry"/> singleton, backed by the single LiteDB owner
-    /// facets already registered by <see cref="AddSlopStudioInfrastructure"/>. Only the read-only stages up to
-    /// <see cref="AgentToolExposureStage.LiteralQueries"/> can be released here.
+    /// Always-on composition of the agent platform: one <see cref="IAgentToolRegistry"/>, one runtime and their trusted
+    /// ports, all singletons over the LiteDB owner facets registered above (no second database connection). The
+    /// registry is the only execution boundary for every ingress; the native runtime consumes it here and the opt-in
+    /// MCP broker (<see cref="AddSlopStudioAgentBroker"/>) consumes the same instance. Nothing is resolved at
+    /// startup, no provider, vault or network is touched, and the default stage exposes no tool. Approvals and schema
+    /// sampling consent are fail-closed until a real trusted mechanism exists.
     /// </summary>
-    public static IServiceCollection AddSlopStudioAgentBroker(this IServiceCollection services, AgentBrokerOptions options)
+    private static void AddAgentPlatform(IServiceCollection services, AgentPlatformOptions options)
     {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(options);
-        if (!options.Enabled || options.Stage == AgentToolExposureStage.None) return services;
         options.Validate();
         if (services.Any(descriptor => descriptor.ServiceType == typeof(IAgentToolRegistry)))
             throw new InvalidOperationException("O registry de tools de agentes já foi composto.");
@@ -112,9 +117,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<MongoAgentFindSource>(provider => new MongoAgentFindSource(
             provider.GetRequiredService<IConnectionSecretStore>(), provider.GetService<IEnvironmentVaultRepository>(),
             provider.GetRequiredService<MongoClientPool>()));
+        services.AddSingleton<IAgentSchemaSamplingConsentProvider, FailClosedAgentSchemaSamplingConsentProvider>();
         services.AddSingleton<IAgentToolRegistry>(provider =>
         {
-            var literalQueries = options.Stage >= AgentToolExposureStage.LiteralQueries
+            var literalQueries = options.ToolExposureStage >= AgentToolExposureStage.LiteralQueries
                 ? provider.GetRequiredService<MongoAgentFindSource>()
                 : null;
             return new AgentToolRegistry(
@@ -124,11 +130,52 @@ public static class ServiceCollectionExtensions
                 provider.GetRequiredService<IAgentAuditRepository>(),
                 options.ToolExecutionTimeout,
                 metadata: provider.GetRequiredService<IMongoMetadataSource>(),
+                schemaSamplingConsent: provider.GetRequiredService<IAgentSchemaSamplingConsentProvider>(),
                 find: literalQueries,
                 count: literalQueries,
-                exposure: AgentToolExposure.Through(options.Stage),
+                exposure: AgentToolExposure.Through(options.ToolExposureStage),
                 principalAuthority: provider.GetRequiredService<IAgentPrincipalAuthority>());
         });
+        services.AddSingleton<IAgentInteractionAuthority, FailClosedAgentInteractionAuthority>();
+        services.AddSingleton<IAgentToolBindingProvider>(provider => new InternalAgentToolBindingProvider(
+            provider.GetRequiredService<IAgentPrincipalAuthority>(), provider.GetServices<IAgentProvider>()));
+        services.AddSingleton<IAgentContextProvider>(provider => new AgentContextProvider(
+            provider.GetRequiredService<IConnectionProfileRepository>()));
+        services.AddSingleton<AgentProviderCatalog>(provider => new AgentProviderCatalog(provider.GetServices<IAgentProvider>()));
+        services.AddSingleton<AgentRuntimeHost>(provider => new AgentRuntimeHost(
+            provider.GetServices<IAgentProvider>(),
+            provider.GetRequiredService<IAgentInteractionAuthority>(),
+            options.Runtime,
+            provider.GetRequiredService<IAgentToolRegistry>(),
+            provider.GetRequiredService<IAgentToolBindingProvider>(),
+            provider.GetRequiredService<IAgentPrincipalAuthority>()));
+        services.AddSingleton<IAgentRuntime>(provider => provider.GetRequiredService<AgentRuntimeHost>());
+    }
+
+    /// <summary>
+    /// Opt-in composition of the local MCP broker (lote 3), the external ingress only. Without
+    /// <see cref="AgentBrokerOptions.Enabled"/> and an explicit stage nothing is registered, so the IDE keeps working
+    /// without MCP. The broker never composes a registry of its own: it resolves the single
+    /// <see cref="IAgentToolRegistry"/> composed by <see cref="AddSlopStudioInfrastructure"/>, the same instance the
+    /// native runtime uses, and its stage must be exactly the stage released to that registry.
+    /// </summary>
+    /// <exception cref="ArgumentException">Invalid options or unapproved stage.</exception>
+    /// <exception cref="InvalidOperationException">Platform missing, stage divergent or broker already composed.</exception>
+    public static IServiceCollection AddSlopStudioAgentBroker(this IServiceCollection services, AgentBrokerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
+        if (!options.Enabled || options.Stage == AgentToolExposureStage.None) return services;
+        options.Validate();
+        if (services.Any(descriptor => descriptor.ServiceType == typeof(AgentBrokerHost)))
+            throw new InvalidOperationException("O broker local já foi composto.");
+        var platform = services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(AgentPlatformOptions))
+            ?.ImplementationInstance as AgentPlatformOptions;
+        if (platform is null || !services.Any(descriptor => descriptor.ServiceType == typeof(IAgentToolRegistry)))
+            throw new InvalidOperationException("O broker exige o registry compartilhado composto pela infraestrutura.");
+        if (platform.ToolExposureStage != options.Stage)
+            throw new InvalidOperationException("O estágio do broker precisa ser o mesmo liberado ao registry compartilhado.");
+        services.AddSingleton(options);
         services.AddSingleton<AgentBrokerHost>(provider => new AgentBrokerHost(
             provider.GetRequiredService<IAgentToolRegistry>(), provider.GetRequiredService<IAgentPrincipalAuthority>(),
             options));

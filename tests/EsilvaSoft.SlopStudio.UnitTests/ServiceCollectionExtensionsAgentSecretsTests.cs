@@ -34,7 +34,8 @@ public sealed class ServiceCollectionExtensionsAgentSecretsTests
                 Assert.That(provider.GetRequiredService<IAgentAuthorizationPolicyRepository>(), Is.SameAs(policyRepository));
                 Assert.That(evaluator, Is.InstanceOf<AgentPermissionEvaluator>());
                 Assert.That(provider.GetRequiredService<IAgentPermissionEvaluator>(), Is.SameAs(evaluator));
-                Assert.That(provider.GetService<IAgentToolRegistry>(), Is.Null);
+                // Always composed, but closed: no stage released means nothing discoverable.
+                Assert.That(provider.GetRequiredService<IAgentToolRegistry>().GetDescriptors(), Is.Empty);
             });
         }
         finally
