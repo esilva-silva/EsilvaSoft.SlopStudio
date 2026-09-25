@@ -9,8 +9,9 @@ namespace EsilvaSoft.SlopStudio.UnitTests.Mcp;
 
 /// <summary>
 /// Real stack behind the broker: single LiteDB owner (channels, policies, audit), real registry with the MCP
-/// exposure stage and a real <see cref="AgentBrokerHost"/> on a random workspace endpoint. Only MongoDB is replaced by
-/// a deterministic find source, and profiles by an in-memory list that carries a URI canary.
+/// exposure stage and a real <see cref="AgentBrokerHost"/> on a random workspace endpoint. By default only MongoDB is
+/// replaced by a deterministic find source, and profiles by an in-memory list that carries a URI canary; the
+/// <c>MongoReal</c> tests pass the production sources and a profile pointing at an ephemeral <c>mongod</c>.
 /// </summary>
 internal sealed class McpBrokerFixture : IAsyncDisposable
 {
@@ -25,23 +26,25 @@ internal sealed class McpBrokerFixture : IAsyncDisposable
     private readonly ConnectionCredentialRecoveryTests.Workspace _workspace = new();
     private readonly List<Channel> _channels = [];
 
-    public McpBrokerFixture(ISecretStore secrets, AgentBrokerOptions? options = null)
+    public McpBrokerFixture(ISecretStore secrets, AgentBrokerOptions? options = null, ConnectionProfile? profile = null,
+        IAgentMongoFindSource? find = null, IAgentMongoCountSource? count = null, IMongoMetadataSource? metadata = null)
     {
         Secrets = secrets;
         Owner = new LiteDbConnectionProfileRepository(_workspace.Path, secrets);
-        Profile = ConnectionProfile.Create("Produção interna", $"mongodb://svc:{UriCanary}@db.internal:27017") with
+        Profile = profile ?? ConnectionProfile.Create("Produção interna", $"mongodb://svc:{UriCanary}@db.internal:27017") with
         {
             SourceGenerationId = Guid.NewGuid()
         };
         Profiles = new FixedProfiles(Profile);
+        // Explicit test composition: the product default stage is None (see AgentBrokerOptions).
         Options = options ?? new AgentBrokerOptions
         {
             WorkspaceId = Guid.NewGuid(), Enabled = true, Stage = AgentToolExposureStage.LiteralQueries,
             HandshakeTimeout = TimeSpan.FromSeconds(2)
         };
         Registry = new AgentToolRegistry(Profiles, Owner, new AgentPermissionEvaluator(Owner), Owner,
-            Options.ToolExecutionTimeout, metadata: new UnusedMetadata(), find: Find, count: Find,
-            exposure: AgentToolExposure.Through(Options.Stage), principalAuthority: Authority);
+            Options.ToolExecutionTimeout, metadata: metadata ?? new UnusedMetadata(), find: find ?? Find,
+            count: count ?? Find, exposure: AgentToolExposure.Through(Options.Stage), principalAuthority: Authority);
         Host = new AgentBrokerHost(Registry, Authority, Options);
     }
 

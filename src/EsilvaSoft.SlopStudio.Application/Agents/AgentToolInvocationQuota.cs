@@ -3,7 +3,7 @@ namespace EsilvaSoft.SlopStudio.Application.Agents;
 /// <summary>Process-local admission control owned by the single tool registry instance.</summary>
 internal sealed class AgentToolInvocationQuota
 {
-    private const int MaximumPerSession = 2;
+    internal const int MaximumPerSession = 2;
     private const int MaximumPerConnection = 4;
     private const int MaximumGlobal = 8;
     private const int MaximumPerTurn = 20;
@@ -16,29 +16,46 @@ internal sealed class AgentToolInvocationQuota
     private readonly Dictionary<(Guid SessionId, Guid TurnId), TurnUsage> _turns = [];
     private int _global;
 
-    public Lease? TryEnter(Guid sessionId, Guid turnId, Guid? connectionId)
+    public Lease? TryEnter(Guid sessionId, Guid turnId, Guid? connectionId) =>
+        TryEnter(sessionId, turnId, connectionId, trackTurn: true, out _);
+
+    /// <summary>
+    /// Admits one call. <paramref name="trackTurn"/> is <see langword="false"/> only for ingresses without a real
+    /// model turn (MCP): each call carries a fresh correlation id there, so tracking it would never bound anything and
+    /// would only fill the shared turn table until every new turn, chat included, is refused. On refusal, <c>busy</c>
+    /// is <see langword="true"/> for transient concurrency saturation (session, connection or global slots) and
+    /// <see langword="false"/> for an exhausted turn budget, which a retry within the same turn cannot fix.
+    /// </summary>
+    public Lease? TryEnter(Guid sessionId, Guid turnId, Guid? connectionId, bool trackTurn, out bool busy)
     {
+        busy = false;
         if (sessionId == Guid.Empty || turnId == Guid.Empty)
             throw new ArgumentException("A session and turn are required for quota admission.");
         lock (_gate)
         {
-            var now = DateTimeOffset.UtcNow;
-            PruneIdleTurns(now);
-            var turnKey = (sessionId, turnId);
-            if (!_turns.TryGetValue(turnKey, out var usage))
+            if (trackTurn)
             {
-                // If all slots still belong to live turns, deny new turns instead of evicting
-                // their counters and silently granting another 20 calls.
-                if (_turns.Count >= MaximumTrackedTurns) return null;
-                usage = new TurnUsage(0, now);
+                var now = DateTimeOffset.UtcNow;
+                PruneIdleTurns(now);
+                var turnKey = (sessionId, turnId);
+                if (!_turns.TryGetValue(turnKey, out var usage))
+                {
+                    // If all slots still belong to live turns, deny new turns instead of evicting
+                    // their counters and silently granting another 20 calls.
+                    if (_turns.Count >= MaximumTrackedTurns) return null;
+                    usage = new TurnUsage(0, now);
+                }
+                if (usage.Count >= MaximumPerTurn) return null;
+                _turns[turnKey] = usage with { Count = usage.Count + 1, LastSeenUtc = now };
             }
-            if (usage.Count >= MaximumPerTurn) return null;
-            _turns[turnKey] = usage with { Count = usage.Count + 1, LastSeenUtc = now };
 
             if (_global >= MaximumGlobal ||
                 _sessions.GetValueOrDefault(sessionId) >= MaximumPerSession ||
                 connectionId is { } id && _connections.GetValueOrDefault(id) >= MaximumPerConnection)
+            {
+                busy = true;
                 return null;
+            }
 
             _global++;
             _sessions[sessionId] = _sessions.GetValueOrDefault(sessionId) + 1;
