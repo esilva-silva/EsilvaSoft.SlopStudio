@@ -11,8 +11,10 @@ public static class AgentProviderServiceCollectionExtensions
     /// <summary>
     /// Registers the OpenAI API adapter as an <see cref="IAgentProvider"/>. Registration opens no connection and reads
     /// no secret: the provider only reports itself available, and only creates sessions, when an API Key exists in the
-    /// vault slot. The shared <see cref="IAgentToolRegistry"/> is used when composed (broker opt-in); without it the
-    /// provider declares no tool calling. Requires <see cref="IAgentCredentialProvider"/>.
+    /// vault slot. <c>AddSlopStudioInfrastructure</c> always composes the shared <see cref="IAgentToolRegistry"/> (the
+    /// MCP broker only controls whether an external client can reach it, never whether it exists); when this call is
+    /// composed alongside it, the registry is used, otherwise the provider declares no tool calling. Requires
+    /// <see cref="IAgentCredentialProvider"/>.
     /// </summary>
     public static IServiceCollection AddSlopStudioOpenAiAgentProvider(
         this IServiceCollection services, OpenAiAgentProviderOptions? options = null)
@@ -36,8 +38,10 @@ public static class AgentProviderServiceCollectionExtensions
     /// no secret: the provider only reports itself available, and only creates sessions, when an API Key exists in the
     /// vault slot. Authentication is API Key only, resolved by <see cref="IAgentCredentialProvider"/> from the OS
     /// vault at the start of each turn; it never imports a Claude Desktop/Code session or offers a subscription login.
-    /// The shared <see cref="IAgentToolRegistry"/> is used when composed (broker opt-in); without it the provider
-    /// declares no tool calling. The registered instance owns its HTTP handler and is disposed with the container.
+    /// <c>AddSlopStudioInfrastructure</c> always composes the shared <see cref="IAgentToolRegistry"/> (the MCP broker
+    /// only controls whether an external client can reach it, never whether it exists); when this call is composed
+    /// alongside it, the registry is used, otherwise the provider declares no tool calling. The registered instance
+    /// owns its HTTP handler and is disposed with the container.
     /// </summary>
     public static IServiceCollection AddSlopStudioClaudeAgentProvider(
         this IServiceCollection services, ClaudeAgentProviderOptions? options = null)

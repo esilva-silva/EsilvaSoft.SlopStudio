@@ -7,8 +7,16 @@ namespace EsilvaSoft.SlopStudio.Desktop.Agents;
 // provider descriptor/capabilities/status (Core/Agents + IAgentProvider.Describe/GetStatusAsync + AgentProviderCatalog),
 // trusted approval details (IAgentApprovalDetailsSource, AgentEvent.ApprovalExpiresAtUtc), sanitized tool destination
 // (AgentEvent.ToolDestination) and API-key writes (IAgentApiKeyStore). What remains here is presentation only: a
-// synchronous, localized view of the catalog and the tab snapshot. No production implementation is registered yet, so
-// the feature stays unavailable by default.
+// synchronous, localized view of the catalog and the tab snapshot.
+//
+// P7-L06-WIRING (25/09/2026): the composition root (App.axaml.cs) now registers the OpenAI/Claude adapters
+// (Infrastructure.Agents) and a production IAgentProviderCatalog (DesktopAgentProviderCatalog, this folder), built
+// only from IAgentRuntime/AgentProviderCatalog/capabilities — no branch by provider brand. ViewModels and Views keep
+// depending only on these ports; only the composition root references Infrastructure.Agents, OpenAI, Anthropic or
+// ModelContextProtocol (AC-04). IAgentApiKeyStore and IAgentApprovalDetailsSource still have no production
+// implementation registered. The feature stays unavailable in the running IDE because AgentChatPanel/AgentChatServices
+// are not wired into the main window yet — that hosting step needs PNG-inspected evidence in both themes and is out
+// of this round's scope.
 
 /// <summary>
 /// Capability-oriented view of a registered provider. The chat reacts to these fields; it never branches on a provider
