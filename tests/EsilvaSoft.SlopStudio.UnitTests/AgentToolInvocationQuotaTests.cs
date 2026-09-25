@@ -71,6 +71,75 @@ public sealed class AgentToolInvocationQuotaTests
     }
 
     [Test]
+    public void ConcurrencySaturationIsBusyButAnExhaustedTurnIsNot()
+    {
+        var quota = new AgentToolInvocationQuota();
+        var session = Guid.NewGuid();
+        var turn = Guid.NewGuid();
+        using var first = quota.TryEnter(session, turn, null, trackTurn: true, out _);
+        using var second = quota.TryEnter(session, turn, null, trackTurn: true, out _);
+        var saturated = quota.TryEnter(session, turn, null, trackTurn: true, out var saturatedBusy);
+
+        var exhaustedTurn = Guid.NewGuid();
+        var otherSession = Guid.NewGuid();
+        for (var i = 0; i < 20; i++)
+        {
+            using var lease = quota.TryEnter(otherSession, exhaustedTurn, null, trackTurn: true, out _);
+            Assert.That(lease, Is.Not.Null);
+        }
+        var exhausted = quota.TryEnter(otherSession, exhaustedTurn, null, trackTurn: true, out var exhaustedBusy);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(saturated, Is.Null);
+            Assert.That(saturatedBusy, Is.True, "Sessão saturada é transitória: Busy.");
+            Assert.That(exhausted, Is.Null);
+            Assert.That(exhaustedBusy, Is.False, "Orçamento do turno esgotado não melhora com nova tentativa.");
+        });
+    }
+
+    [Test]
+    public void TurnlessCallsNeitherSpendATurnBudgetNorFillTheSharedTurnTable()
+    {
+        var quota = new AgentToolInvocationQuota();
+        var externalSession = Guid.NewGuid();
+        // More fresh per-call correlation ids than the table can track: none of them may be retained.
+        for (var i = 0; i < 4_200; i++)
+        {
+            using var lease = quota.TryEnter(externalSession, Guid.NewGuid(), null, trackTurn: false, out var busy);
+            Assert.That(lease, Is.Not.Null, $"Chamada externa {i + 1} deveria ser admitida.");
+            Assert.That(busy, Is.False);
+        }
+        var sameCorrelation = Guid.NewGuid();
+        for (var i = 0; i < 25; i++)
+        {
+            using var lease = quota.TryEnter(externalSession, sameCorrelation, null, trackTurn: false, out _);
+            Assert.That(lease, Is.Not.Null, "Sem orçamento por turno para o ingress externo.");
+        }
+
+        using var chatTurn = quota.TryEnter(Guid.NewGuid(), Guid.NewGuid(), null);
+        Assert.That(chatTurn, Is.Not.Null, "Um novo turno do chat continua admitido.");
+    }
+
+    [Test]
+    public void TurnlessCallsStillShareSessionAndGlobalSlots()
+    {
+        var quota = new AgentToolInvocationQuota();
+        var channelSession = Guid.NewGuid();
+        using var first = quota.TryEnter(channelSession, Guid.NewGuid(), null, trackTurn: false, out _);
+        using var second = quota.TryEnter(channelSession, Guid.NewGuid(), null, trackTurn: false, out _);
+        var third = quota.TryEnter(channelSession, Guid.NewGuid(), null, trackTurn: false, out var busy);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(first, Is.Not.Null);
+            Assert.That(second, Is.Not.Null);
+            Assert.That(third, Is.Null);
+            Assert.That(busy, Is.True);
+        });
+    }
+
+    [Test]
     public void CancelledSourceKeepsItsSlotUntilItsTaskCompletes()
     {
         var quota = new AgentToolInvocationQuota();

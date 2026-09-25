@@ -315,11 +315,19 @@ internal sealed class AgentBrokerConnection : IDisposable
             return (Failure(id, denial!, dispatched: false),
                 denial == AgentBrokerProtocol.ErrorCodes.AuthenticationRequired);
 
+        // Session correlation of the MCP ingress: the session is the enrolled channel, because MCP policies are granted
+        // as AgentInvocationScope.ForSession(channelId) and the registry session quota must bound every connection of
+        // that channel together. MCP has no model turn, so the turn id is a fresh per-call correlation id: turn-scoped
+        // grants never cover MCP calls (fail closed) and the registry applies no per-turn budget to external principals.
         var context = new AgentInvocationContext(AgentBrokerProtocol.McpProviderId, _channelId, _channelId, Guid.NewGuid());
         var result = await _registry.InvokeAsync(principal, context, McpDestination,
             AgentBrokerOutputScopes.For(name), name, argumentsJson, token).ConfigureAwait(false);
         if (!result.Succeeded)
-            return (Failure(id, result.ErrorCode ?? AgentBrokerProtocol.ErrorCodes.PermissionDenied, dispatched: null), false);
+        {
+            // Busy is admission saturation: the registry refused it before any source was touched.
+            var code = result.ErrorCode ?? AgentBrokerProtocol.ErrorCodes.PermissionDenied;
+            return (Failure(id, code, dispatched: code == AgentBrokerProtocol.ErrorCodes.Busy ? false : null), false);
+        }
 
         // Publication point: the channel and its policy revision must still be current when bytes leave the IDE.
         bool current;

@@ -30,6 +30,14 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
     private const string UnknownTool = "UnknownTool";
     private const string ResultTooLarge = "ResultTooLarge";
     private const string DeadlineExceeded = "DeadlineExceeded";
+    private const string Busy = "Busy";
+
+    /// <summary>
+    /// Concurrent calls admitted per invocation session. For MCP the session is the enrolled channel, so every proxy
+    /// connection of one channel shares these slots; ingress limits above this value only produce <c>Busy</c>.
+    /// </summary>
+    public const int MaximumConcurrentCallsPerSession = AgentToolInvocationQuota.MaximumPerSession;
+
     private const int MaximumOutputBytes = 256 * 1024;
     private static readonly TimeSpan DefaultExecutionTimeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan MaximumExecutionTimeout = TimeSpan.FromSeconds(30);
@@ -308,12 +316,18 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
 
             // The intent is durable before admission. A rejected call is still counted for its
             // turn and receives a correlated, typed audit outcome without touching a source.
+            // External (MCP) calls have no model turn: they share the session (= enrolled channel) and global
+            // concurrency slots but no per-turn budget. Saturated slots answer Busy (retryable); an exhausted
+            // turn budget stays PermissionDenied. Both are audited as LimitExceeded.
+            var quotaBusy = false;
             using var quotaLease = auditable
                 ? _quota.TryEnter(invocationContext!.SessionId!.Value, invocationContext.TurnId!.Value,
-                    intent!.ConnectionId)
+                    intent!.ConnectionId, trackTurn: principal!.Origin != AgentPrincipalOrigin.External,
+                    out quotaBusy)
                 : null;
             var result = auditable && quotaLease is null
-                ? AgentToolInvocationResult.Failure(PermissionDenied, AgentAuditDecisionReason.LimitExceeded)
+                ? AgentToolInvocationResult.Failure(quotaBusy ? Busy : PermissionDenied,
+                    AgentAuditDecisionReason.LimitExceeded)
                 : auditable && await CheckPrincipalCurrentAsync(principal!, deadline.Token).ConfigureAwait(false) is
                     { } channelDenial
                     ? channelDenial
@@ -474,7 +488,8 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
     {
         var succeeded = result?.Succeeded == true;
         var cancelled = result is null || result.ErrorCode == DeadlineExceeded;
-        var denied = result?.ErrorCode is PermissionDenied or InvalidArguments or UnknownTool;
+        // Busy is an admission refusal (nothing dispatched): audited as Denied/LimitExceeded, as before the split.
+        var denied = result?.ErrorCode is PermissionDenied or InvalidArguments or UnknownTool or Busy;
         var reason = succeeded ? AgentAuditDecisionReason.PolicyAllowed : cancelled ? AgentAuditDecisionReason.Cancelled :
             result?.AuditReason is { } auditReason ? auditReason :
             result?.ErrorCode == InvalidArguments ? AgentAuditDecisionReason.ValidationRejected :

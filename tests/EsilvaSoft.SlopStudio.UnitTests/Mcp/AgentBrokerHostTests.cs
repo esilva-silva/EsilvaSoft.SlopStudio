@@ -300,6 +300,91 @@ public sealed class AgentBrokerHostTests
     }
 
     [Test]
+    public async Task ConnectionsOfOneChannelShareTheSessionQuotaAndSaturationIsBusyNotPermissionDenied()
+    {
+        await using var fixture = await StartAsync();
+        var channel = await fixture.EnrollAsync();
+        var proof = await fixture.ProofAsync(channel);
+        await using var first = await RawBrokerPeer.ConnectAsync(fixture.WorkspaceId);
+        await using var second = await RawBrokerPeer.ConnectAsync(fixture.WorkspaceId);
+        await first.AuthenticateAsync(channel.ChannelId, proof);
+        await second.AuthenticateAsync(channel.ChannelId, proof);
+        fixture.Find.Block = true;
+        await first.CallAsync(1, "mongo_find", fixture.FindArguments());
+        await first.CallAsync(2, "mongo_find", fixture.FindArguments());
+        await WaitUntilAsync(() => fixture.Find.Calls == 2);
+
+        await first.CallAsync(3, "list_connections", "{}");
+        var connectionLimit = await first.ReceiveAsync();
+        await second.CallAsync(1, "list_connections", "{}");
+        var sessionLimit = await second.ReceiveAsync();
+        var blockedCalls = fixture.Find.Calls;
+
+        await first.SendAsync(new AgentBrokerMessage { Type = AgentBrokerProtocol.MessageTypes.Cancel, Id = 1 });
+        await first.SendAsync(new AgentBrokerMessage { Type = AgentBrokerProtocol.MessageTypes.Cancel, Id = 2 });
+        var cancelled = new[] { await first.ReceiveAsync(), await first.ReceiveAsync() };
+        fixture.Find.Block = false;
+        // Busy is retryable: once the slots drain, the same channel is admitted again.
+        AgentBrokerMessage? recovered = null;
+        for (var id = 2L; id < 20 && recovered?.Status != AgentBrokerMessage.SucceededStatus; id++)
+        {
+            await second.CallAsync(id, "list_connections", "{}");
+            recovered = await second.ReceiveAsync();
+            if (recovered?.ErrorCode == AgentBrokerProtocol.ErrorCodes.Busy) await Task.Delay(50);
+        }
+        var audit = await ((Application.Agents.IAgentAuditRepository)fixture.Owner).GetRecentAsync(50);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(connectionLimit?.ErrorCode, Is.EqualTo(AgentBrokerProtocol.ErrorCodes.Busy), "Limite da conexão.");
+            Assert.That(connectionLimit?.Dispatched, Is.False);
+            Assert.That(sessionLimit?.ErrorCode, Is.EqualTo(AgentBrokerProtocol.ErrorCodes.Busy),
+                "Segunda conexão do mesmo canal compartilha a sessão; saturação não é PermissionDenied.");
+            Assert.That(sessionLimit?.Dispatched, Is.False);
+            Assert.That(blockedCalls, Is.EqualTo(2), "Nada saturado chega à fonte.");
+            Assert.That(cancelled.Select(item => item?.ErrorCode),
+                Has.All.EqualTo(AgentBrokerProtocol.ErrorCodes.Cancelled));
+            Assert.That(recovered?.Status, Is.EqualTo(AgentBrokerMessage.SucceededStatus));
+            Assert.That(audit.Any(item => item.Outcome == Core.AgentAuditOutcome.Denied &&
+                item.DecisionReason == Core.AgentAuditDecisionReason.LimitExceeded), Is.True,
+                "A recusa do registry continua auditada como limite.");
+        });
+    }
+
+    [Test]
+    public async Task DefaultOptionsReleaseNothingAndCapConcurrencyAtTheSessionQuota()
+    {
+        var defaults = new AgentBrokerOptions { WorkspaceId = Guid.NewGuid() };
+        await using var fixture = new McpBrokerFixture(new InMemoryProfileSecretStore(),
+            defaults with { Enabled = true, HandshakeTimeout = TimeSpan.FromSeconds(2) });
+        await fixture.Host.StartAsync();
+        var channel = await fixture.EnrollAsync();
+        await using var peer = await RawBrokerPeer.ConnectAsync(fixture.WorkspaceId);
+        await peer.AuthenticateAsync(channel.ChannelId, await fixture.ProofAsync(channel));
+        await peer.SendAsync(new AgentBrokerMessage { Type = AgentBrokerProtocol.MessageTypes.ListTools, Id = 1 });
+        var tools = await peer.ReceiveAsync();
+        await peer.CallAsync(2, "mongo_find", fixture.FindArguments());
+        var find = await peer.ReceiveAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(defaults.Enabled, Is.False);
+            Assert.That(defaults.Stage, Is.EqualTo(AgentToolExposureStage.None),
+                "LiteralQueries só com configuração explícita e gate aprovado.");
+            Assert.That(defaults.MaximumConcurrentCallsPerConnection,
+                Is.EqualTo(AgentToolRegistry.MaximumConcurrentCallsPerSession));
+            Assert.Throws<ArgumentException>(() => (defaults with
+            {
+                MaximumConcurrentCallsPerConnection = AgentToolRegistry.MaximumConcurrentCallsPerSession + 1
+            }).Validate());
+            Assert.That(tools?.Tools, Is.Empty, "Estágio padrão não descobre nada.");
+            Assert.That(find?.Status, Is.EqualTo(AgentBrokerMessage.FailedStatus));
+            Assert.That(find?.ErrorCode, Is.EqualTo("UnknownTool"));
+            Assert.That(fixture.Find.Calls, Is.Zero);
+        });
+    }
+
+    [Test]
     public void CompositionIsOptInAndCapsTheStage()
     {
         var workspace = Guid.NewGuid();
@@ -365,5 +450,15 @@ public sealed class AgentBrokerHostTests
         var fixture = new McpBrokerFixture(new InMemoryProfileSecretStore());
         await fixture.Host.StartAsync();
         return fixture;
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (!condition())
+        {
+            if (DateTime.UtcNow > deadline) Assert.Fail("Condição não atingida no prazo.");
+            await Task.Delay(20);
+        }
     }
 }
