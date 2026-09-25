@@ -18,7 +18,7 @@ public sealed class LiteDbAgentAuditTests
         var entry = Event() with { ConnectionId = Guid.NewGuid(), SessionId = Guid.NewGuid(),
             ExternalIdentifier = "provider-a", Channel = AgentAuditChannel.ProviderExternal,
             Permission = AgentPermission.ReadMetadata, ItemCount = 7, OutputBytes = 1234 };
-        using (var owner = new LiteDbConnectionProfileRepository(workspace.Path))
+        using (var owner = new LiteDbConnectionProfileRepository(workspace.Path, new InMemoryProfileSecretStore()))
         {
             await owner.SaveAsync(ConnectionProfile.Create("name-canary", "mongodb://user:secret-canary@host-canary:27017"));
             await ((IAgentAuditRepository)owner).AppendAsync(entry);

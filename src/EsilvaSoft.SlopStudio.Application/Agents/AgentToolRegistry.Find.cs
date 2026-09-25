@@ -394,44 +394,22 @@ public sealed partial class AgentToolRegistry
         catch (JsonException) { return false; }
     }
 
-    private static bool IsLiteralEjsonValue(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json) || json.Length > MaximumInputBytes ||
-            Utf8ByteCount(json) > MaximumInputBytes) return false;
-        try
-        {
-            using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 64 });
-            return !HasForbiddenOperator(document.RootElement);
-        }
-        catch (JsonException) { return false; }
-    }
+    // Agent-supplied values go through the closed codec: strict JSON, known EJSON wrappers and read-only
+    // operators only. No ENV, constructors or JavaScript reach the handler.
+    private static bool IsLiteralEjsonValue(string? json) => AgentToolLiteralEjson.IsLiteralValue(json);
 
     private static bool IsLiteralEjsonDocument(string? json, bool rejectCode, int maximumBytes = MaximumInputBytes)
     {
+        if (rejectCode) return AgentToolLiteralEjson.IsQueryFilter(json, maximumBytes);
+        // Server output: any well-formed object within budget. Documents may legitimately contain `$` names.
         if (json is null || json.Length > maximumBytes || Utf8ByteCount(json) > maximumBytes)
             return false;
         try
         {
             using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 64 });
-            return document.RootElement.ValueKind == JsonValueKind.Object &&
-                (!rejectCode || !HasForbiddenOperator(document.RootElement));
+            return document.RootElement.ValueKind == JsonValueKind.Object;
         }
         catch (JsonException) { return false; }
-    }
-
-    private static bool HasForbiddenOperator(JsonElement element)
-    {
-        if (element.ValueKind == JsonValueKind.Array)
-            return element.EnumerateArray().Any(HasForbiddenOperator);
-        if (element.ValueKind != JsonValueKind.Object) return false;
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var property in element.EnumerateObject())
-        {
-            if (!seen.Add(property.Name) || property.Name is "$where" or "$function" or "$accumulator" or
-                    "$code" or "$eval" or "$lookup" or "$out" or "$merge" ||
-                HasForbiddenOperator(property.Value)) return true;
-        }
-        return false;
     }
 
     private static bool IsSimpleFieldSpec(string? json, bool allowDescending)

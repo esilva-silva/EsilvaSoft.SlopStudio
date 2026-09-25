@@ -459,8 +459,9 @@ public sealed class AgentToolRegistryTests
     {
         var profile = Connection("externa");
         var externalDestination = AgentOutputDestination.ProviderExternal("provider-a");
-        var externalContext = new AgentInvocationContext("provider-a", Guid.NewGuid(), SessionId, TurnId);
-        var mismatchedContext = new AgentInvocationContext("provider-b", Guid.NewGuid(), SessionId, TurnId);
+        // Internal principal (native chat): its channel carries no MCP client ID.
+        var externalContext = new AgentInvocationContext("provider-a", null, SessionId, TurnId);
+        var mismatchedContext = new AgentInvocationContext("provider-b", null, SessionId, TurnId);
         var grant = new AgentPermissionGrant(PrincipalId, AgentInvocationScope.ForTurn(SessionId, TurnId), profile.SourceGenerationId!.Value,
             AgentPermission.ReadMetadata, AgentNamespaceScope.ForConnection(profile.Id), externalDestination, Metadata);
         var policy = Policy(19, grant);
@@ -810,7 +811,11 @@ public sealed class AgentToolRegistryTests
         IAgentMongoCountSource? count = null,
         IAgentMongoDistinctSource? distinct = null,
         IAgentMongoIndexSource? indexes = null,
-        IAgentMongoExplainSource? explain = null) => new(profiles, policies, evaluator, audit ?? new RecordingAuditRepository(), timeout, metadata, find: find, count: count, distinct: distinct, indexes: indexes, explain: explain);
+        IAgentMongoExplainSource? explain = null) => new(profiles, policies, evaluator, audit ?? new RecordingAuditRepository(), timeout, metadata, find: find, count: count, distinct: distinct, indexes: indexes, explain: explain,
+        exposure: AllReadStages, principalAuthority: new TestAgentPrincipalAuthority());
+
+    // Behavioral fixtures exercise the whole read catalog. Closed-by-default exposure has dedicated tests.
+    private static AgentToolExposure AllReadStages => AgentToolExposure.Through(AgentToolExposureStage.DerivedReads);
 
     [Test]
     public async Task MongoCountRequiresDocumentGrantsAndReturnsCanonicalInt64WithAudit()
@@ -977,7 +982,7 @@ public sealed class AgentToolRegistryTests
     {
         var policy = Policy(90);
         var registry = Registry(new StubProfileRepository([]), new SequencePolicyProvider(policy),
-            new AgentPermissionEvaluator(new SequencePolicyProvider(policy)));
+            new AgentPermissionEvaluator(new SequencePolicyProvider(policy)), find: new StubFindSource());
         using var schema = JsonDocument.Parse(registry.GetOutputSchemaJson(AgentToolRegistry.SampleDocumentsToolName)!);
 
         Assert.Multiple(() =>
@@ -1881,7 +1886,8 @@ public sealed class AgentToolRegistryTests
         var explain = new StubExplainSource();
         var registry = new AgentToolRegistry(new StubProfileRepository([profile]), provider, permissions,
             new RecordingAuditRepository(), metadata: metadata, schemaSamplingConsent: new AllowSchemaConsent(),
-            find: find, count: count, distinct: distinct, indexes: indexes, explain: explain);
+            find: find, count: count, distinct: distinct, indexes: indexes, explain: explain, exposure: AllReadStages,
+            principalAuthority: new TestAgentPrincipalAuthority());
         var prefix = $"{{\"connectionId\":\"{profile.Id:D}\"";
         var database = prefix + ",\"database\":\"db\"}";
         var collection = prefix + ",\"database\":\"db\",\"collection\":\"items\"}";

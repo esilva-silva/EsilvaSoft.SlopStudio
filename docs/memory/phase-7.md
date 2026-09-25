@@ -8,6 +8,18 @@ Esta atualização é de instruções/planejamento. Não reexecuta testes do pro
 
 Atualizado em **23/09/2026**. Este arquivo é um ponto de retomada da meta de implementar MCP e integração com agentes externos no EsilvaSoft.SlopStudio. O [plano da fase](../phases/phase-07-v0.11.0/README.md), o [plano de implementação](../phases/phase-07-v0.11.0/10-plano-de-implementacao.md), os [critérios de aceite](../phases/phase-07-v0.11.0/12-criterios-de-aceite.md) e a [matriz de validação](../15-matriz-de-validacao.md) são as fontes detalhadas; este registro resume o estado observado neste checkout.
 
+## Lote 1 — credenciais e identidade — 24/09/2026
+
+A P7-L01 (persistence-security-agent) completou no código, incluindo as correções A2/M5 da revisão independente:
+
+- migração e recuperação versionadas das credenciais Mongo no owner único: journals v1 com recusa de versão desconhecida, limpeza na exclusão, correção de órfão;
+- allowlist fechada apenas quando há senha literal; sem senha, só são recusadas opções portadoras de segredo;
+- retomada em segundo plano na composição do DI, com `IConnectionProfileCredentialStatusProvider` registrado para a UI;
+- `IAgentPrincipalAuthority` como faceta do owner em DI;
+- o scan interno `FindCollectionsContainingAsync`.
+
+Resultados no Windows: build oficial 0/0 e filtro focado 313/0/0. Credential Manager nativo aprovado nesta sessão; o resultado difere do `1312` de 23/09. Linux não foi executado. Pendências: contagem na UI, ligação de broker/registry/runtime ao principal, segunda conta, cofre bloqueado e Linux nativo. Gate 1 **parcial**. [Detalhes](../phases/phase-07-v0.11.0/17-validacao-da-meta.md#lote-1--migração-de-credenciais-mongo-identidade-de-canal-e-scan--24092026).
+
 ## Meta
 Implementar integralmente a Fase 7 — v0.11.0: MCP e integração com agentes externos no EsilvaSoft.SlopStudio, seguindo docs/phases/phase-07-v0.11.0/README.md e seus documentos complementares.
 Resultado esperado:

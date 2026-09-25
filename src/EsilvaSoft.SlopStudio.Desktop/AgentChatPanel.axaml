@@ -1,0 +1,138 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" x:Class="EsilvaSoft.SlopStudio.Desktop.AgentChatPanel" x:DataType="vm:AgentChatViewModel" x:CompileBindings="True" MinWidth="320" AutomationProperties.Name="{local:Loc Key=agentPanelTitle}">
+  <UserControl.Styles>
+    <Style Selector="TextBlock.error">
+      <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
+    </Style>
+    <Style Selector="SelectableTextBlock.error">
+      <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
+    </Style>
+    <Style Selector="ListBox#History > ListBoxItem">
+      <Setter Property="Padding" Value="4" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="ListBox#History > ListBoxItem:focus-visible">
+      <Setter Property="BorderBrush" Value="{DynamicResource BrandAccentBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="Border.agent-message">
+      <Setter Property="Background" Value="{DynamicResource SecondaryBackground}" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="8,6" />
+    </Style>
+    <Style Selector="Border.agent-message.user">
+      <Setter Property="Background" Value="{DynamicResource PanelBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.agent-approval">
+      <Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+  </UserControl.Styles>
+  <Border Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1,0,0,0">
+    <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8" Margin="12">
+      <StackPanel Spacing="6">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+          <TextBlock Text="{local:Loc Key=agentPanelTitle}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+          <Border Grid.Column="1" Classes="type-chip" IsVisible="{Binding SelectedProvider, Converter={x:Static ObjectConverters.IsNotNull}}" ToolTip.Tip="{Binding DestinationHint}">
+            <TextBlock x:Name="DestinationBadge" Text="{Binding DestinationText}" Classes="metadata" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryText}" />
+          </Border>
+          <Button Grid.Column="2" x:Name="ConfigureButton" Content="{local:Loc Key=agentConfigure}" Command="{Binding ConfigureCommand}" AutomationProperties.Name="{local:Loc Key=agentConfigure}" />
+        </Grid>
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+          <ComboBox x:Name="ProviderSelector" ItemsSource="{Binding Providers}" SelectedItem="{Binding SelectedProvider}" IsEnabled="{Binding CanChangeProvider}" PlaceholderText="{local:Loc Key=agentProvider}" AutomationProperties.Name="{local:Loc Key=agentProvider}" ToolTip.Tip="{local:Loc Key=agentProvider}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:AgentProviderOption">
+                <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Label}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <ComboBox Grid.Column="1" x:Name="ModelSelector" ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}" IsVisible="{Binding HasModels}" IsEnabled="{Binding CanChangeProvider}" AutomationProperties.Name="{local:Loc Key=agentModel}" ToolTip.Tip="{local:Loc Key=agentModel}" />
+        </Grid>
+        <TextBlock x:Name="TabContextText" Text="{Binding TabContextText}" Classes="metadata" TextTrimming="CharacterEllipsis" ToolTip.Tip="{local:Loc Key=agentFixedContextHint}" />
+      </StackPanel>
+      <Border Grid.Row="1" Classes="card" Padding="8,6">
+        <TextBlock x:Name="StatusLine" Text="{Binding StatusText}" TextWrapping="Wrap" Classes.error="{Binding IsStatusError}" AutomationProperties.LiveSetting="Polite" />
+      </Border>
+      <Grid Grid.Row="2" MinHeight="120">
+        <ListBox x:Name="History" ItemsSource="{Binding Items}" AutomationProperties.Name="{local:Loc Key=agentHistory}" Background="{DynamicResource WorkspaceBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="4" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+          <ListBox.DataTemplates>
+            <DataTemplate DataType="vm:AgentChatMessageItem">
+              <Border Classes="agent-message" Classes.user="{Binding IsUser}">
+                <StackPanel Spacing="2">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding RoleLabel}" Classes="metadata" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding StreamingLabel}" Classes="metadata" IsVisible="{Binding IsStreaming}" />
+                  </StackPanel>
+                  <SelectableTextBlock Text="{Binding Content}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+            <DataTemplate DataType="vm:AgentToolCallItem">
+              <Border Classes="card" Padding="8,6">
+                <StackPanel Spacing="2">
+                  <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
+                  <TextBlock Text="{Binding StatusText}" Classes="metadata" Classes.error="{Binding IsError}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+            <DataTemplate DataType="vm:AgentApprovalCardItem">
+              <Border Classes="card agent-approval" Padding="8,6">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding StatusText}" Classes="metadata" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <Button Grid.Column="1" Content="{Binding ReviewLabel}" IsVisible="{Binding IsPending}" Command="{Binding $parent[ListBox].((vm:AgentChatViewModel)DataContext).OpenApprovalCommand}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding ReviewLabel}" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+            <DataTemplate DataType="vm:AgentChatNoticeItem">
+              <TextBlock Text="{Binding Content}" Classes="metadata" Classes.error="{Binding IsError}" TextWrapping="Wrap" />
+            </DataTemplate>
+          </ListBox.DataTemplates>
+        </ListBox>
+        <StackPanel x:Name="EmptyState" IsVisible="{Binding ShowEmptyInvitation}" VerticalAlignment="Center" Margin="16" Spacing="6" IsHitTestVisible="False">
+          <TextBlock Text="{local:Loc Key=agentEmptyTitle}" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Center" />
+          <TextBlock Text="{local:Loc Key=agentEmptyBody}" Classes="metadata" TextWrapping="Wrap" TextAlignment="Center" />
+        </StackPanel>
+      </Grid>
+      <StackPanel Grid.Row="3" Spacing="8">
+        <StackPanel Spacing="4">
+          <TextBlock Text="{local:Loc Key=agentContextScope}" Classes="metadata" />
+          <ComboBox x:Name="ScopeSelector" ItemsSource="{Binding ContextScopes}" SelectedItem="{Binding SelectedScope}" IsEnabled="{Binding CanEditRequest}" AutomationProperties.Name="{local:Loc Key=agentContextScope}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:AgentContextScopeOption">
+                <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Label}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </StackPanel>
+        <StackPanel Spacing="2" IsVisible="{Binding IsExternalDestination}">
+          <CheckBox x:Name="ConsentCheck" IsChecked="{Binding DestinationConsent}" IsEnabled="{Binding IsIdle}" AutomationProperties.Name="{Binding ConsentText}">
+            <TextBlock Text="{Binding ConsentText}" TextWrapping="Wrap" />
+          </CheckBox>
+          <TextBlock Text="{local:Loc Key=agentConsentHint}" Classes="metadata" TextWrapping="Wrap" Margin="28,0,0,0" />
+        </StackPanel>
+        <Border x:Name="PreviewCard" Classes="card" Padding="8" IsVisible="{Binding HasPreview}">
+          <StackPanel Spacing="4">
+            <TextBlock Text="{local:Loc Key=agentPreviewTitle}" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding Preview.DestinationText, FallbackValue=''}" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Preview.ScopeText, FallbackValue=''}" Classes="metadata" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Preview.NamespaceText, FallbackValue=''}" Classes="metadata" TextWrapping="Wrap" />
+            <ScrollViewer MaxHeight="96" HorizontalScrollBarVisibility="Disabled">
+              <SelectableTextBlock x:Name="PreviewContext" Text="{Binding Preview.ContextText, FallbackValue=''}" FontFamily="{StaticResource CodeFont}" FontSize="14" LineHeight="21" TextWrapping="Wrap" />
+            </ScrollViewer>
+          </StackPanel>
+        </Border>
+        <TextBox x:Name="Composer" Text="{Binding ComposerText}" IsEnabled="{Binding IsFeatureAvailable}" AcceptsReturn="True" AcceptsTab="False" TextWrapping="Wrap" MinHeight="64" MaxHeight="160" Watermark="{local:Loc Key=agentComposerPlaceholder}" AutomationProperties.Name="{local:Loc Key=agentComposer}" ToolTip.Tip="{local:Loc Key=agentComposerShortcut}" ScrollViewer.VerticalScrollBarVisibility="Auto" />
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+          <Button x:Name="CancelTurnButton" Content="{local:Loc Key=agentCancelTurn}" Command="{Binding CancelTurnCommand}" IsVisible="{Binding IsBusy}" ToolTip.Tip="{local:Loc Key=agentApprovalCancelNotice}" />
+          <Button x:Name="EditButton" Content="{local:Loc Key=agentEdit}" Command="{Binding EditCommand}" IsVisible="{Binding HasPreview}" />
+          <Button x:Name="ReviewButton" Content="{local:Loc Key=agentReview}" Classes="primary" Command="{Binding ReviewCommand}" IsVisible="{Binding !HasPreview}" ToolTip.Tip="{local:Loc Key=agentComposerShortcut}" />
+          <Button x:Name="SendButton" Content="{local:Loc Key=agentSend}" Classes="primary" Command="{Binding SendCommand}" IsVisible="{Binding HasPreview}" ToolTip.Tip="{local:Loc Key=agentComposerShortcut}" />
+        </StackPanel>
+      </StackPanel>
+    </Grid>
+  </Border>
+</UserControl>

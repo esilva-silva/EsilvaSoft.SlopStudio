@@ -44,11 +44,14 @@ public sealed class AgentPermissionEvaluator : IAgentPermissionEvaluator
         if (destination is null) return Deny(expectedRevision, AgentPermissionDenialReason.MissingDestination);
         if (!Enum.IsDefined(destination.Kind) ||
             (destination.Kind == AgentOutputDestinationKind.Local && destination.ProviderId is not null) ||
-            (destination.Kind == AgentOutputDestinationKind.ProviderExternal && string.IsNullOrWhiteSpace(destination.ProviderId)))
+            (destination.IsExternal && string.IsNullOrWhiteSpace(destination.ProviderId)))
             return Deny(expectedRevision, AgentPermissionDenialReason.UnknownDestination);
-        if (destination.Kind == AgentOutputDestinationKind.ProviderExternal &&
+        if (destination.IsExternal &&
             (string.IsNullOrWhiteSpace(invocationContext.ProviderId) ||
              !string.Equals(destination.ProviderId, invocationContext.ProviderId, StringComparison.Ordinal)))
+            return Deny(expectedRevision, AgentPermissionDenialReason.DestinationMismatch);
+        // The MCP channel is only reachable by an externally authenticated principal (broker), never by the runtime.
+        if (destination.Kind == AgentOutputDestinationKind.McpExternal && principal.Origin != AgentPrincipalOrigin.External)
             return Deny(expectedRevision, AgentPermissionDenialReason.DestinationMismatch);
         if (outputDataScope is null) return Deny(expectedRevision, AgentPermissionDenialReason.MissingOutputDataScope);
         if (!Enum.IsDefined(outputDataScope.Value)) return Deny(expectedRevision, AgentPermissionDenialReason.UnknownOutputDataScope);

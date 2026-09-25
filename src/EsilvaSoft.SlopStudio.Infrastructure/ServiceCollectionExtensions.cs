@@ -20,7 +20,18 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<AiAutocompleteProvider>(provider => new(provider.GetRequiredService<ILocalAiModelService>()));
         services.AddSingleton<IAutocompleteService, AutocompleteService>();
         services.AddSingleton<IAiChatService, LocalModelAiChatService>();
-        services.AddSingleton<LiteDbConnectionProfileRepository>(_ => new LiteDbConnectionProfileRepository(workspaceDatabasePath));
+        // Provider local: só cria sessão quando há modelo utilizável; sem rede, conta ou fallback externo.
+        services.AddSingleton<LocalAgentProvider>();
+        services.AddSingleton<IAgentProvider>(provider => provider.GetRequiredService<LocalAgentProvider>());
+        services.AddSingleton<LiteDbConnectionProfileRepository>(provider =>
+        {
+            var secrets = provider.GetRequiredService<ISecretStore>();
+            var owner = new LiteDbConnectionProfileRepository(workspaceDatabasePath, secrets);
+            // Lote 1: resume credential journals left by a crash, in the background, on the same owner.
+            owner.StartCredentialRecovery(new LegacyConnectionCredentialMigration(owner, secrets));
+            return owner;
+        });
+        services.AddSingleton<IConnectionProfileCredentialStatusProvider>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
         services.AddSingleton<IConnectionProfileRepository>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
         services.AddSingleton<IQueryHistoryRepository>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
         services.AddSingleton<IScriptHistoryRepository>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
@@ -34,6 +45,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAgentAuthorizationPolicyProvider>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
         services.AddSingleton<IAgentAuthorizationPolicyRepository>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
         services.AddSingleton<IAgentAuditRepository>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
+        // Single issuer of AgentPrincipal: channel rows live in the same owner, proofs only in ISecretStore.
+        services.AddSingleton<IAgentPrincipalAuthority>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
         services.AddSingleton<IAgentPermissionEvaluator, AgentPermissionEvaluator>();
         // L14: learned schema lives in the same file, owned by the same instance. Never a second LiteDatabase.
         services.AddSingleton<ILearnedSchemaRepository>(services => services.GetRequiredService<LiteDbConnectionProfileRepository>());
@@ -77,6 +90,48 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITextFileService>(services => (ITextFileService)services.GetRequiredService<IScriptFileService>());
         services.AddSingleton<IWorkspaceFileService, LocalWorkspaceFileService>();
         services.AddSingleton<IAppUpdateService>(_ => new GitHubAppUpdateService(AppUpdateOptions.FromProcess()));
+        return services;
+    }
+
+    /// <summary>
+    /// Opt-in composition of the local MCP broker (lote 3). Without <see cref="AgentBrokerOptions.Enabled"/> and an
+    /// explicit stage nothing is registered, so the IDE keeps working without MCP. When enabled, the broker and every
+    /// future ingress resolve the same <see cref="IAgentToolRegistry"/> singleton, backed by the single LiteDB owner
+    /// facets already registered by <see cref="AddSlopStudioInfrastructure"/>. Only the read-only stages up to
+    /// <see cref="AgentToolExposureStage.LiteralQueries"/> can be released here.
+    /// </summary>
+    public static IServiceCollection AddSlopStudioAgentBroker(this IServiceCollection services, AgentBrokerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
+        if (!options.Enabled || options.Stage == AgentToolExposureStage.None) return services;
+        options.Validate();
+        if (services.Any(descriptor => descriptor.ServiceType == typeof(IAgentToolRegistry)))
+            throw new InvalidOperationException("O registry de tools de agentes já foi composto.");
+        services.AddSingleton(options);
+        services.AddSingleton<MongoAgentFindSource>(provider => new MongoAgentFindSource(
+            provider.GetRequiredService<IConnectionSecretStore>(), provider.GetService<IEnvironmentVaultRepository>(),
+            provider.GetRequiredService<MongoClientPool>()));
+        services.AddSingleton<IAgentToolRegistry>(provider =>
+        {
+            var literalQueries = options.Stage >= AgentToolExposureStage.LiteralQueries
+                ? provider.GetRequiredService<MongoAgentFindSource>()
+                : null;
+            return new AgentToolRegistry(
+                provider.GetRequiredService<IConnectionProfileRepository>(),
+                provider.GetRequiredService<IAgentAuthorizationPolicyProvider>(),
+                provider.GetRequiredService<IAgentPermissionEvaluator>(),
+                provider.GetRequiredService<IAgentAuditRepository>(),
+                options.ToolExecutionTimeout,
+                metadata: provider.GetRequiredService<IMongoMetadataSource>(),
+                find: literalQueries,
+                count: literalQueries,
+                exposure: AgentToolExposure.Through(options.Stage),
+                principalAuthority: provider.GetRequiredService<IAgentPrincipalAuthority>());
+        });
+        services.AddSingleton<AgentBrokerHost>(provider => new AgentBrokerHost(
+            provider.GetRequiredService<IAgentToolRegistry>(), provider.GetRequiredService<IAgentPrincipalAuthority>(),
+            options));
         return services;
     }
 

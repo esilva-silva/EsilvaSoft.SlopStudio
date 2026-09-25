@@ -43,9 +43,14 @@ public sealed record ConnectionProfile(
             var authority = end < 0 ? address : address[..end];
             var at = authority.LastIndexOf('@');
             if (at >= 0) return authority[(at + 1)..];
-            // An unescaped slash in userinfo must not turn credentials into a visible host summary.
-            if (end >= 0 && address[end] == '/' && authority.Contains(':', StringComparison.Ordinal)
-                && address[(end + 1)..].Split('?')[0].Contains('@', StringComparison.Ordinal)) return "Confira a URI configurada";
+            // An unescaped delimiter in userinfo must not turn credentials into a visible host summary.
+            if (end >= 0 && authority.Contains(':', StringComparison.Ordinal))
+            {
+                var remainder = address.AsSpan(end + 1);
+                var nextDelimiter = remainder.IndexOfAny('?', '#');
+                if (nextDelimiter >= 0) remainder = remainder[..nextDelimiter];
+                if (remainder.Contains('@')) return "Confira a URI configurada";
+            }
             return authority;
         }
     }

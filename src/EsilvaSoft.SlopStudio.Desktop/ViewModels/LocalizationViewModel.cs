@@ -993,6 +993,8 @@ public sealed partial class LocalizationViewModel : ObservableObject
         , ("profileRemoved", "Connection {0} removed from the LiteDB workspace.", "Conexão {0} removida do workspace LiteDB.", "Conexión {0} eliminada del workspace LiteDB.", "已从 LiteDB 工作区删除连接 {0}。")
         , ("profileSaved", "Connection saved to the LiteDB workspace.", "Conexão salva no workspace LiteDB.", "Conexión guardada en el workspace LiteDB.", "连接已保存到 LiteDB 工作区。")
         , ("profileUpdated", "Connection updated in the LiteDB workspace.", "Conexão atualizada no workspace LiteDB.", "Conexión actualizada en el workspace LiteDB.", "连接已在 LiteDB 工作区更新。")
+        , ("profileCredentialCleanupPending", "The connection was saved, but cleanup of its previous credential is pending.", "A conexão foi salva, mas a limpeza da credencial anterior está pendente.", "La conexión se guardó, pero la limpieza de la credencial anterior está pendiente.", "连接已保存，但之前凭据的清理仍待完成。")
+        , ("profileCredentialReentryRequired", "The URI changed. Enter the connection password again before saving.", "A URI foi alterada. Informe novamente a senha da conexão antes de salvar.", "La URI cambió. Vuelva a introducir la contraseña de la conexión antes de guardar.", "URI 已更改。保存前请重新输入连接密码。")
         , ("uuidPreferenceNotSaved", "UUID preference was not saved: {0}", "Preferência UUID não salva: {0}", "No se guardó la preferencia UUID: {0}", "UUID 偏好设置未保存：{0}")
         , ("connectedToMongo", "Connected to MongoDB {0} in {1} ms.", "Conectado a MongoDB {0} em {1} ms.", "Conectado a MongoDB {0} en {1} ms.", "已连接到 MongoDB {0}，用时 {1} 毫秒。")
         , ("versionUnknown", "version unknown", "versão não informada", "versión no informada", "版本未知")
@@ -1645,7 +1647,7 @@ public sealed partial class LocalizationViewModel : ObservableObject
 
     static LocalizationViewModel()
     {
-        foreach (var (key, en, pt, es, zh) in WorkspaceToolsTranslations)
+        foreach (var (key, en, pt, es, zh) in WorkspaceToolsTranslations.Concat(AgentTranslations))
         {
             ((Dictionary<string, string>)Catalog["en"])[key] = en;
             ((Dictionary<string, string>)Catalog["pt-BR"])[key] = pt;

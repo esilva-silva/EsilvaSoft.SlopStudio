@@ -236,6 +236,10 @@ public sealed class AgentRuntimeTests
 
         public Task CancelTurnAsync(AgentTurnId turnId, CancellationToken cancellationToken) => Task.CompletedTask;
 
+        public Task SubmitToolResultAsync(AgentToolResult result, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task SubmitApprovalAsync(AgentApprovalDecision decision, CancellationToken cancellationToken) => Task.CompletedTask;
+
         public ValueTask DisposeAsync()
         {
             Disposed = true;
@@ -278,6 +282,10 @@ public sealed class AgentRuntimeTests
         }
 
         public Task CancelTurnAsync(AgentTurnId turnId, CancellationToken cancellationToken) => ReleaseCancel.Task;
+
+        public Task SubmitToolResultAsync(AgentToolResult result, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task SubmitApprovalAsync(AgentApprovalDecision decision, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public ValueTask DisposeAsync()
         {
@@ -327,6 +335,10 @@ public sealed class AgentRuntimeTests
 
         public Task CancelTurnAsync(AgentTurnId turnId, CancellationToken cancellationToken) => Task.CompletedTask;
 
+        public Task SubmitToolResultAsync(AgentToolResult result, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task SubmitApprovalAsync(AgentApprovalDecision decision, CancellationToken cancellationToken) => Task.CompletedTask;
+
         public async ValueTask DisposeAsync()
         {
             Interlocked.Increment(ref _disposeCount);
@@ -349,6 +361,10 @@ public sealed class AgentRuntimeTests
             new StuckEnumerable(ReleaseEnumerator.Task);
 
         public Task CancelTurnAsync(AgentTurnId turnId, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task SubmitToolResultAsync(AgentToolResult result, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task SubmitApprovalAsync(AgentApprovalDecision decision, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public ValueTask DisposeAsync()
         {

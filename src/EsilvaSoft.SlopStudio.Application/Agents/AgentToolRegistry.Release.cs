@@ -17,6 +17,8 @@ public sealed partial class AgentToolRegistry
             outputScope is null || !IsCompleteInvocationContext(context) ||
             !IsValidDestination(destination, context) || FindDescriptor(name) is not { } descriptor)
             return AgentToolInvocationResult.Failure(PermissionDenied, AgentAuditDecisionReason.ValidationRejected);
+        if (await CheckPrincipalCurrentAsync(principal, cancellationToken).ConfigureAwait(false) is { } channelDenial)
+            return channelDenial;
 
         var policyLoad = await LoadCurrentPolicyAsync(principal, cancellationToken).ConfigureAwait(false);
         if (policyLoad.Policy is null)

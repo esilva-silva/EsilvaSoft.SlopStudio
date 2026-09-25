@@ -16,9 +16,9 @@ public sealed class LegacyCredentialInventoryTests
         var direct = ConnectionProfile.Create("sensitive-name", "mongodb://user:secret-canary@host-canary/db");
         var dynamic = ConnectionProfile.Create("dynamic-name", """mongodb://user:${ENV.get("API_KEY")}@server/db""");
         var clean = ConnectionProfile.Create("clean-name", "mongodb://server/db");
+        workspace.SeedLegacy(direct);
         using (var owner = new LiteDbConnectionProfileRepository(workspace.Path))
         {
-            await owner.SaveAsync(direct);
             await owner.SaveAsync(dynamic);
             await owner.SaveAsync(clean);
             var vault = EnvironmentVault.CreateDefault();
@@ -60,11 +60,9 @@ public sealed class LegacyCredentialInventoryTests
         var malformed = ConnectionProfile.Create("malformed-name", "mongodb://u:slash-canary/fragment@host/db");
         var queryDelimiter = ConnectionProfile.Create("query-name", "mongodb://u:query-canary?fragment@host/db");
         var fragmentDelimiter = ConnectionProfile.Create("fragment-name", "mongodb://u:hash-canary#fragment@host/db");
+        foreach (var profile in new[] { mixed, malformed, queryDelimiter, fragmentDelimiter })
+            workspace.SeedLegacy(profile);
         using var owner = new LiteDbConnectionProfileRepository(workspace.Path);
-        await owner.SaveAsync(mixed);
-        await owner.SaveAsync(malformed);
-        await owner.SaveAsync(queryDelimiter);
-        await owner.SaveAsync(fragmentDelimiter);
 
         var report = await owner.ReadAsync();
         var serialized = System.Text.Json.JsonSerializer.Serialize(report);
@@ -118,15 +116,15 @@ public sealed class LegacyCredentialInventoryTests
     {
         using var workspace = new Workspace();
         using var owner = new LiteDbConnectionProfileRepository(workspace.Path);
-        var profile = ConnectionProfile.Create("profile", "mongodb://user:literal-canary@host/db");
+        var profile = ConnectionProfile.Create("profile", """mongodb://user:${ENV.get("KEY")}@host/db""");
         await owner.SaveAsync(profile);
         var inventory = owner;
         var writer = Task.Run(async () =>
         {
             for (var index = 0; index < 40; index++)
                 await owner.SaveAsync(profile with { ConnectionString = index % 2 == 0
-                    ? "mongodb://user:literal-canary@host/db"
-                    : """mongodb://user:${ENV.get("KEY")}@host/db""" });
+                    ? """mongodb://user:${ENV.get("KEY")}@host/db"""
+                    : "mongodb://user:${MONGODB_PASSWORD}@host/db" });
         });
         var reader = Task.Run(async () =>
         {
@@ -136,7 +134,7 @@ public sealed class LegacyCredentialInventoryTests
                 Assert.That(report.ProfileFindings.Count, Is.EqualTo(1));
                 Assert.That(report.ProfileFindings[0].ProfileId, Is.EqualTo(profile.Id));
                 Assert.That(report.ProfileFindings[0].Category,
-                    Is.AnyOf(LegacyCredentialCategory.InlineUriPassword, LegacyCredentialCategory.DynamicUriReference));
+                    Is.EqualTo(LegacyCredentialCategory.DynamicUriReference));
             }
         });
         await Task.WhenAll(writer, reader);
@@ -158,6 +156,15 @@ public sealed class LegacyCredentialInventoryTests
         private readonly DirectoryInfo _directory = Directory.CreateTempSubdirectory("slop-credential-inventory-");
         public string Path => System.IO.Path.Combine(_directory.FullName, "workspace.db");
         public LiteDatabase OpenOffline() => new(Path);
+        public void SeedLegacy(ConnectionProfile profile)
+        {
+            using var database = OpenOffline();
+            database.GetCollection("connectionProfiles").Upsert(new BsonDocument
+            {
+                ["_id"] = profile.Id, ["Name"] = profile.Name,
+                ["ConnectionString"] = profile.ConnectionString
+            });
+        }
         public void Dispose() => _directory.Delete(recursive: true);
     }
 }

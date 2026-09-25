@@ -1,6 +1,8 @@
 # Chat e configuração nativos no Avalonia
 
-**Especificação planejada, sem alteração visual nesta meta.** Segue o [design system](../../17-design-system-ui-ux.md), incluindo localização, tokens, foco, contraste e medidas existentes. Não carregar sites ChatGPT/Claude em WebView.
+**Especificação; implementação parcial do lote 6 em 24/09/2026.** Segue o [design system](../../17-design-system-ui-ux.md), incluindo localização, tokens, foco, contraste e medidas existentes. Não carregar sites ChatGPT/Claude em WebView.
+
+> **Estado (P7-L06):** painel, aprovação e configurações existem no Desktop e passam por testes de VM e PNGs Headless nos dois temas ([revisão no design system](../../17-design-system-ui-ux.md#chat-nativo-de-agentes-lote-6--implementação-parcial-24092026)). Ainda **não** há entrada na janela principal, registro no DI nem provider real; a feature continua indisponível por padrão. Contratos pendentes na Application/Core: descritor/capabilities do provider, detalhes confiáveis e expiração de aprovação, destino saneado da tool em `AgentEvent` e gravação de chave de API. Hoje são portas locais do Desktop (`Desktop/Agents/AgentChatPorts.cs`). Não implementados: histórico de sessão retomável, propostas de código com **Aplicar ao editor**, estados "conectando/autenticando" do provider real e o fluxo de reconectar. Leitor de tela, IME e diálogos nativos continuam pendentes.
 
 ## Composição e contexto
 

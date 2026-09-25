@@ -160,6 +160,34 @@ public sealed class AgentPermissionEvaluatorTests
     }
 
     [Test]
+    public async Task McpExternalIsDistinctFromProviderExternalAndReservedForExternalPrincipals()
+    {
+        var scope = AgentNamespaceScope.ForConnection(ConnectionId);
+        var mcp = AgentOutputDestination.McpExternal("mcp");
+        var provider = AgentOutputDestination.ProviderExternal("mcp");
+        var evaluator = new AgentPermissionEvaluator(new StubPolicyProvider(Policy(7,
+            Grant(PrincipalId, AgentPermission.ReadMetadata, scope, destination: mcp))));
+
+        var mcpCall = await evaluator.EvaluateAsync(Request(scope, AgentPermission.ReadMetadata,
+            destination: mcp, invocationContext: Context(providerId: "mcp")), CancellationToken.None);
+        var sameRouteAsProvider = await evaluator.EvaluateAsync(Request(scope, AgentPermission.ReadMetadata,
+            destination: provider, invocationContext: Context(providerId: "mcp")), CancellationToken.None);
+        var internalOnMcp = await evaluator.EvaluateAsync(new AgentPermissionRequest(
+            new AgentPrincipal(PrincipalId, AgentPrincipalOrigin.Internal, 7), AgentPermission.ReadMetadata,
+            AgentToolRisk.ReadOnly, scope, 7, false, Context(providerId: "mcp"), SourceGenerationId, mcp,
+            AgentOutputDataScope.Metadata), CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(mcp, Is.Not.EqualTo(provider));
+            Assert.That(mcp.IsExternal && provider.IsExternal, Is.True);
+            Assert.That(mcpCall.IsAllowed, Is.True);
+            Assert.That(sameRouteAsProvider.Reason, Is.EqualTo(AgentPermissionDenialReason.MissingGrant));
+            Assert.That(internalOnMcp.Reason, Is.EqualTo(AgentPermissionDenialReason.DestinationMismatch));
+        });
+    }
+
+    [Test]
     public async Task MissingInvocationOrSourceGenerationDenies()
     {
         var scope = AgentNamespaceScope.ForConnection(ConnectionId);

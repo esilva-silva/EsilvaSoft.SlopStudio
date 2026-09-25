@@ -36,7 +36,7 @@ public sealed class LiteDbAgentAuthorizationPolicyTests
             AgentPermission.ReadDocuments, AgentNamespaceScope.ForCollection(grant.Scope.ConnectionId, "catalogo", "pedidos"),
             AgentOutputDestination.ProviderExternal("provider-a"), AgentOutputDataScope.DocumentValues);
         var profile = ConnectionProfile.Create("local-only-name", "mongodb://user:credential-canary@host-canary:27017");
-        using (var owner = new LiteDbConnectionProfileRepository(fixture.Path))
+        using (var owner = new LiteDbConnectionProfileRepository(fixture.Path, new InMemoryProfileSecretStore()))
         {
             await owner.SaveAsync(profile);
             var policies = (IAgentAuthorizationPolicyRepository)owner;
@@ -54,7 +54,12 @@ public sealed class LiteDbAgentAuthorizationPolicyTests
                 Assert.That(loaded.SchemaVersion, Is.EqualTo(1));
                 Assert.That(loaded.Grants.Select(Identity), Is.EqualTo(new[] { Identity(grant), Identity(turn) }));
             });
-            Assert.That((await owner.GetAllAsync()).Single().ConnectionString, Is.EqualTo(profile.ConnectionString));
+            var persistedProfile = (await owner.GetAllAsync()).Single();
+            Assert.Multiple(() =>
+            {
+                Assert.That(persistedProfile.ConnectionString, Is.EqualTo("mongodb://user@host-canary:27017"));
+                Assert.That(persistedProfile.SecretReference, Is.Not.Null);
+            });
             Assert.That((await new AgentPermissionEvaluator(policies).EvaluateAsync(Request(grant, 1), default)).IsAllowed, Is.True);
         }
         using var raw = fixture.OpenOffline();

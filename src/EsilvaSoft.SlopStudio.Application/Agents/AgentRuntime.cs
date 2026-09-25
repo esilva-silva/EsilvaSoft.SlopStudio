@@ -1,24 +1,55 @@
 using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
+using EsilvaSoft.SlopStudio.Core;
 using EsilvaSoft.SlopStudio.Core.Agents;
 
 namespace EsilvaSoft.SlopStudio.Application.Agents;
 
-/// <summary>Owns independent provider sessions and publishes a normalized stream per turn.</summary>
-public sealed class AgentRuntime : IAgentRuntime, IAsyncDisposable
+/// <summary>
+/// Owns independent provider sessions and publishes a normalized, bounded stream per turn. The runtime is the only
+/// consumer of each adapter session. Tool calls requested by a provider are executed only through the shared
+/// <see cref="IAgentToolRegistry"/> (runtime dispatch) or answered by a trusted broker through
+/// <see cref="SubmitToolResultAsync"/>; approvals only come from <see cref="IAgentInteractionAuthority"/>-verified
+/// human decisions. No transcript is persisted.
+/// </summary>
+public sealed partial class AgentRuntime : IAgentRuntime, IAsyncDisposable
 {
-    private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(5);
     private readonly Dictionary<string, IAgentProvider> _providers;
+    private readonly IAgentInteractionAuthority? _interactionAuthority;
+    private readonly IAgentToolRegistry? _toolRegistry;
+    private readonly IAgentToolBindingProvider? _toolBindings;
+    private readonly IAgentPrincipalAuthority? _principalAuthority;
+    private readonly AgentRuntimeOptions _options;
+    private readonly SemaphoreSlim _globalToolSlots;
     private readonly ConcurrentDictionary<AgentSessionId, SessionState> _sessions = new();
     private int _disposed;
 
-    public AgentRuntime(IEnumerable<IAgentProvider> providers)
+    public AgentRuntime(
+        IEnumerable<IAgentProvider> providers,
+        IAgentInteractionAuthority? interactionAuthority = null,
+        AgentRuntimeOptions? options = null,
+        IAgentToolRegistry? toolRegistry = null,
+        IAgentToolBindingProvider? toolBindings = null,
+        IAgentPrincipalAuthority? principalAuthority = null)
     {
         ArgumentNullException.ThrowIfNull(providers);
+        _options = options ?? AgentRuntimeOptions.Default;
+        _options.Validate();
+        if ((toolRegistry is null) != (toolBindings is null) || (toolRegistry is null) != (principalAuthority is null))
+        {
+            throw new ArgumentException(
+                "Tool dispatch requires the registry, a trusted binding provider and the principal authority together.");
+        }
+
+        _interactionAuthority = interactionAuthority;
+        _toolRegistry = toolRegistry;
+        _toolBindings = toolBindings;
+        _principalAuthority = principalAuthority;
+        _globalToolSlots = new SemaphoreSlim(_options.MaxConcurrentToolsGlobal, _options.MaxConcurrentToolsGlobal);
         var byId = new Dictionary<string, IAgentProvider>(StringComparer.Ordinal);
         foreach (var provider in providers)
         {
-            if (provider is null || string.IsNullOrWhiteSpace(provider.ProviderId))
+            if (provider is null || string.IsNullOrWhiteSpace(provider.ProviderId) || provider.ProviderId.Length > 64 ||
+                provider.ProviderId.Any(char.IsControl))
             {
                 throw new ArgumentException("Provider ID is required.", nameof(providers));
             }
@@ -41,10 +72,10 @@ public sealed class AgentRuntime : IAgentRuntime, IAsyncDisposable
             throw new AgentRuntimeException("UnknownProvider", "Provider is unavailable.");
         }
 
-        IAgentSession providerSession;
+        Task<IAgentSession> creation;
         try
         {
-            providerSession = await provider.CreateSessionAsync(options, cancellationToken).ConfigureAwait(false);
+            creation = provider.CreateSessionAsync(options, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -55,13 +86,34 @@ public sealed class AgentRuntime : IAgentRuntime, IAsyncDisposable
             throw new AgentRuntimeException("ProviderUnavailable", "Provider session could not be started.");
         }
 
+        IAgentSession? providerSession;
+        try
+        {
+            providerSession = await creation.WaitAsync(_options.SessionStartTimeout, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _ = DisposeLateSessionAsync(creation);
+            throw;
+        }
+        catch (Exception)
+        {
+            // A provider that hangs or throws never leaves a session behind; a late one is disposed when it appears.
+            _ = DisposeLateSessionAsync(creation);
+            throw new AgentRuntimeException("ProviderUnavailable", "Provider session could not be started.");
+        }
+
         if (providerSession is null)
         {
             throw new AgentRuntimeException("ProviderUnavailable", "Provider session could not be started.");
         }
 
         var id = AgentSessionId.New();
-        if (!_sessions.TryAdd(id, new SessionState(providerSession)))
+        var destination = provider.IsLocal
+            ? AgentOutputDestination.Local()
+            : AgentOutputDestination.ProviderExternal(provider.ProviderId);
+        if (!_sessions.TryAdd(id, new SessionState(providerSession, provider.ProviderId, destination,
+                _options.MaxConcurrentToolsPerSession)))
         {
             await providerSession.DisposeAsync().ConfigureAwait(false);
             throw new AgentRuntimeException("DuplicateSessionId", "Session ID is duplicated.");
@@ -76,207 +128,6 @@ public sealed class AgentRuntime : IAgentRuntime, IAsyncDisposable
         return id;
     }
 
-    public async IAsyncEnumerable<AgentEvent> RunTurnAsync(
-        AgentSessionId sessionId,
-        AgentTurnRequest request,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        ValidateSessionId(sessionId);
-        ArgumentNullException.ThrowIfNull(request);
-        if (!request.TurnId.IsValid || string.IsNullOrWhiteSpace(request.TabId) || request.UserMessage is null || request.DocumentVersion < 0)
-        {
-            throw new AgentRuntimeException("InvalidTurn", "Turn request is invalid.");
-        }
-
-        var session = FindSession(sessionId);
-        CancellationTokenSource turnCts;
-        TaskCompletionSource turnDrained;
-        lock (session.Gate)
-        {
-            if (session.Closed)
-            {
-                throw new AgentRuntimeException("UnknownSession", "Session is unavailable.");
-            }
-
-            if (session.TurnIds.Contains(request.TurnId))
-            {
-                throw new AgentRuntimeException("DuplicateTurnId", "Turn ID is duplicated.");
-            }
-
-            if (session.ActiveTurn is not null)
-            {
-                throw new AgentRuntimeException("SessionBusy", "Session already has an active turn.");
-            }
-
-            session.TurnIds.Add(request.TurnId);
-
-            turnCts = CancellationTokenSource.CreateLinkedTokenSource(session.Lifetime.Token, cancellationToken);
-            turnDrained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            session.ActiveTurn = request.TurnId;
-            session.ActiveCancellation = turnCts;
-            session.TurnDrained = turnDrained;
-            session.InterruptTask = null;
-            session.ProviderCancelTask = null;
-            session.CancellationTask = null;
-        }
-
-        var correlationId = Guid.NewGuid();
-        AgentEvent Create(AgentEventKind kind, string? value = null, AgentTurnOutcome? outcome = null, string? errorCode = null) =>
-            new(1, Guid.NewGuid(), sessionId, request.TurnId, Interlocked.Increment(ref session.Sequence),
-                DateTimeOffset.UtcNow, correlationId, kind, value, outcome, errorCode);
-
-        IAsyncEnumerator<AgentProviderEvent>? enumerator = null;
-        Task<bool>? moveTask = null;
-        Task<bool>? drainTask = null;
-        var outcome = AgentTurnOutcome.Completed;
-        var errorCode = "ProviderFailure";
-        var messageOpen = false;
-        var messageCompleted = false;
-        try
-        {
-            yield return Create(AgentEventKind.TaskStarted);
-            try
-            {
-                enumerator = session.ProviderSession.RunTurnAsync(request, turnCts.Token).GetAsyncEnumerator(turnCts.Token);
-            }
-            catch (OperationCanceledException) when (turnCts.IsCancellationRequested)
-            {
-                outcome = AgentTurnOutcome.Cancelled;
-            }
-            catch (Exception)
-            {
-                outcome = AgentTurnOutcome.Failed;
-            }
-
-            while (enumerator is not null)
-            {
-                AgentProviderEvent? providerEvent;
-                bool hasNext;
-                try
-                {
-                    moveTask = enumerator.MoveNextAsync().AsTask();
-                    hasNext = await moveTask.WaitAsync(turnCts.Token).ConfigureAwait(false);
-                    moveTask = null;
-                    providerEvent = hasNext ? enumerator.Current : null;
-                }
-                catch (OperationCanceledException) when (turnCts.IsCancellationRequested)
-                {
-                    outcome = AgentTurnOutcome.Cancelled;
-                    break;
-                }
-                catch (Exception)
-                {
-                    outcome = AgentTurnOutcome.Failed;
-                    break;
-                }
-
-                if (!hasNext)
-                {
-                    break;
-                }
-
-                if (turnCts.IsCancellationRequested)
-                {
-                    outcome = AgentTurnOutcome.Cancelled;
-                    break;
-                }
-
-                if (providerEvent is null)
-                {
-                    continue;
-                }
-
-                switch (providerEvent.Kind)
-                {
-                    case AgentEventKind.MessageStarted when !messageOpen && !messageCompleted:
-                        messageOpen = true;
-                        yield return Create(AgentEventKind.MessageStarted);
-                        break;
-                    case AgentEventKind.MessageDelta when messageOpen && !messageCompleted:
-                        yield return Create(AgentEventKind.MessageDelta, providerEvent.Text);
-                        break;
-                    case AgentEventKind.MessageCompleted when messageOpen && !messageCompleted:
-                        messageOpen = false;
-                        messageCompleted = true;
-                        yield return Create(AgentEventKind.MessageCompleted);
-                        break;
-                    case AgentEventKind.MessageStarted or AgentEventKind.MessageDelta or AgentEventKind.MessageCompleted:
-                        // Duplicate or late message events cannot reopen completed content.
-                        break;
-                    case AgentEventKind.TaskCompleted:
-                        // The runtime alone publishes the turn terminal.
-                        break;
-                    default:
-                        // Tool and approval events require a trusted broker principal that this runtime does not own yet.
-                        outcome = AgentTurnOutcome.Failed;
-                        errorCode = "ProviderProtocolViolation";
-                        break;
-                }
-
-                if (outcome == AgentTurnOutcome.Failed)
-                {
-                    break;
-                }
-            }
-
-            var interrupted = turnCts.IsCancellationRequested;
-            var interruptTask = interrupted ? InterruptProviderAsync(session, request.TurnId) : null;
-            drainTask = Task.Run(() => DrainTurnAsync(session, request.TurnId, turnCts, turnDrained, enumerator, moveTask));
-            try
-            {
-                var drained = interruptTask is null
-                    ? await drainTask.WaitAsync(StopTimeout, CancellationToken.None).ConfigureAwait(false)
-                    : (await Task.WhenAll(drainTask, interruptTask).WaitAsync(StopTimeout, CancellationToken.None).ConfigureAwait(false))
-                        .All(result => result);
-                if (!drained)
-                {
-                    outcome = AgentTurnOutcome.OutcomeUnknown;
-                }
-                else if (interrupted)
-                {
-                    outcome = AgentTurnOutcome.Cancelled;
-                }
-            }
-            catch (TimeoutException)
-            {
-                outcome = AgentTurnOutcome.OutcomeUnknown;
-            }
-
-            if (outcome == AgentTurnOutcome.OutcomeUnknown)
-            {
-                _ = BeginCloseSession(sessionId, session);
-            }
-
-            if (messageOpen)
-            {
-                yield return Create(AgentEventKind.MessageCompleted);
-            }
-
-            if (outcome is AgentTurnOutcome.Failed or AgentTurnOutcome.OutcomeUnknown)
-            {
-                yield return Create(AgentEventKind.AgentError,
-                    errorCode: outcome == AgentTurnOutcome.OutcomeUnknown ? "InterruptionUnconfirmed" : errorCode);
-            }
-
-            yield return Create(AgentEventKind.TaskCompleted, outcome: outcome);
-        }
-        finally
-        {
-            if (drainTask is null)
-            {
-                drainTask = Task.Run(() => DrainTurnAsync(session, request.TurnId, turnCts, turnDrained, enumerator, moveTask));
-                try
-                {
-                    await drainTask.WaitAsync(StopTimeout, CancellationToken.None).ConfigureAwait(false);
-                }
-                catch (Exception)
-                {
-                    _ = BeginCloseSession(sessionId, session);
-                }
-            }
-        }
-    }
-
     public async Task CancelTurnAsync(AgentSessionId sessionId, AgentTurnId turnId, CancellationToken cancellationToken)
     {
         ValidateSessionId(sessionId);
@@ -286,18 +137,20 @@ public sealed class AgentRuntime : IAgentRuntime, IAsyncDisposable
         }
 
         var session = FindSession(sessionId);
+        TurnState turn;
         lock (session.Gate)
         {
-            if (session.ActiveTurn != turnId || session.ActiveCancellation is null)
+            if (session.ActiveTurn is not { } active || active.TurnId != turnId)
             {
                 throw new AgentRuntimeException("UnknownTurn", "Turn is not active in this session.");
             }
 
-            session.CancellationTask ??= session.ActiveCancellation.CancelAsync();
+            turn = active;
         }
 
-        var confirmed = await InterruptProviderAsync(session, turnId).WaitAsync(cancellationToken)
-            .ConfigureAwait(false);
+        // Only this turn's CTS is signalled. Anything already dispatched may have taken effect: no rollback is implied.
+        turn.RequestCancel(TurnCancelReason.User);
+        var confirmed = await InterruptProviderAsync(session, turnId).WaitAsync(cancellationToken).ConfigureAwait(false);
         if (!confirmed)
         {
             _ = BeginCloseSession(sessionId, session);
@@ -317,7 +170,7 @@ public sealed class AgentRuntime : IAgentRuntime, IAsyncDisposable
         bool disposed;
         try
         {
-            disposed = await shutdown.WaitAsync(StopTimeout, cancellationToken).ConfigureAwait(false);
+            disposed = await shutdown.WaitAsync(_options.StopTimeout, cancellationToken).ConfigureAwait(false);
         }
         catch (TimeoutException)
         {
@@ -343,9 +196,9 @@ public sealed class AgentRuntime : IAgentRuntime, IAsyncDisposable
             {
                 await CloseSessionAsync(id, CancellationToken.None).ConfigureAwait(false);
             }
-            catch (AgentRuntimeException exception) when (exception.Code == "UnknownSession")
+            catch (AgentRuntimeException exception) when (exception.Code is "UnknownSession" or "SessionShutdownUnconfirmed")
             {
-                // Concurrent close already removed it.
+                // Concurrent close already removed it, or the adapter disposal is still pending in background.
             }
         }
     }
@@ -363,6 +216,22 @@ public sealed class AgentRuntime : IAgentRuntime, IAsyncDisposable
         }
     }
 
+    private static async Task DisposeLateSessionAsync(Task<IAgentSession> creation)
+    {
+        try
+        {
+            var late = await creation.ConfigureAwait(false);
+            if (late is not null)
+            {
+                await late.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+        catch (Exception)
+        {
+            // Nothing was published for this session; a failed late creation has nothing to release.
+        }
+    }
+
     private Task<bool> BeginCloseSession(AgentSessionId id, SessionState session)
     {
         lock (session.Gate)
@@ -375,9 +244,9 @@ public sealed class AgentRuntime : IAgentRuntime, IAsyncDisposable
             session.Closed = true;
             _sessions.TryRemove(id, out _);
             session.LifetimeCancellationTask ??= session.Lifetime.CancelAsync();
-            if (session.ActiveTurn is { } turnId)
+            if (session.ActiveTurn is { } turn)
             {
-                session.InterruptTask ??= StartInterruptProvider(session, turnId);
+                session.InterruptTask ??= StartInterruptProvider(session, turn.TurnId);
             }
 
             session.ShutdownTask = Task.Run(() => ShutdownSessionAsync(session));
@@ -385,43 +254,57 @@ public sealed class AgentRuntime : IAgentRuntime, IAsyncDisposable
         }
     }
 
-    private static async Task<bool> ShutdownSessionAsync(SessionState session)
+    private async Task<bool> ShutdownSessionAsync(SessionState session)
     {
-        Task drained;
-        Task? cancellation;
         Task? lifetimeCancellation;
-        Task? providerCancel;
         lock (session.Gate)
         {
-            drained = session.TurnDrained?.Task ?? Task.CompletedTask;
-            cancellation = session.CancellationTask;
             lifetimeCancellation = session.LifetimeCancellationTask;
-            providerCancel = session.ProviderCancelTask;
         }
 
-        var lifetimeDisposed = false;
+        var clean = true;
         try
         {
-            await drained.ConfigureAwait(false);
-            await ObserveCompletionAsync(cancellation).ConfigureAwait(false);
             await ObserveCompletionAsync(lifetimeCancellation).ConfigureAwait(false);
-            await ObserveCompletionAsync(providerCancel).ConfigureAwait(false);
+            Task drained;
+            Task? providerCancel;
+            lock (session.Gate)
+            {
+                // Read after cancellation: a turn that was starting concurrently is visible here.
+                drained = session.TurnDrained;
+                providerCancel = session.ProviderCancelTask;
+            }
 
+            // Prefer disposing only after the stream, deliveries and interruption stopped, but never wait forever:
+            // an adapter that ignores its token is disposed after the bound instead of keeping the session alive.
+            try
+            {
+                await Task.WhenAll(drained, ObserveCompletionAsync(providerCancel))
+                    .WaitAsync(_options.StopTimeout, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                clean = false;
+            }
+        }
+        catch (Exception)
+        {
+            clean = false;
+        }
+        finally
+        {
             session.Lifetime.Dispose();
-            lifetimeDisposed = true;
-            await session.ProviderSession.DisposeAsync().ConfigureAwait(false);
-            return true;
+        }
+
+        try
+        {
+            await session.ProviderSession.DisposeAsync().AsTask()
+                .WaitAsync(_options.StopTimeout, CancellationToken.None).ConfigureAwait(false);
+            return clean;
         }
         catch (Exception)
         {
             return false;
-        }
-        finally
-        {
-            if (!lifetimeDisposed)
-            {
-                session.Lifetime.Dispose();
-            }
         }
     }
 
@@ -442,7 +325,7 @@ public sealed class AgentRuntime : IAgentRuntime, IAsyncDisposable
         }
     }
 
-    private static Task<bool> InterruptProviderAsync(SessionState session, AgentTurnId turnId)
+    private Task<bool> InterruptProviderAsync(SessionState session, AgentTurnId turnId)
     {
         lock (session.Gate)
         {
@@ -450,114 +333,22 @@ public sealed class AgentRuntime : IAgentRuntime, IAsyncDisposable
         }
     }
 
-    private static Task<bool> StartInterruptProvider(SessionState session, AgentTurnId turnId)
+    private Task<bool> StartInterruptProvider(SessionState session, AgentTurnId turnId)
     {
         session.ProviderCancelTask = Task.Run(() => session.ProviderSession.CancelTurnAsync(turnId, CancellationToken.None));
-        return AwaitInterruptionAsync(session.ProviderCancelTask);
+        return AwaitInterruptionAsync(session.ProviderCancelTask, _options.StopTimeout);
     }
 
-    private static async Task<bool> AwaitInterruptionAsync(Task cancelTask)
+    private static async Task<bool> AwaitInterruptionAsync(Task cancelTask, TimeSpan timeout)
     {
         try
         {
-            await cancelTask.WaitAsync(StopTimeout).ConfigureAwait(false);
+            await cancelTask.WaitAsync(timeout).ConfigureAwait(false);
             return true;
         }
         catch (Exception)
         {
             return false;
         }
-    }
-
-    private static async Task<bool> DrainTurnAsync(
-        SessionState session,
-        AgentTurnId turnId,
-        CancellationTokenSource turnCts,
-        TaskCompletionSource turnDrained,
-        IAsyncEnumerator<AgentProviderEvent>? enumerator,
-        Task<bool>? moveTask)
-    {
-        var success = true;
-        try
-        {
-            if (moveTask is not null)
-            {
-                try
-                {
-                    await moveTask.ConfigureAwait(false);
-                }
-                catch (Exception)
-                {
-                    // The adapter already ended the pending MoveNext call.
-                }
-            }
-
-            Task? cancellation;
-            Task? lifetimeCancellation;
-            lock (session.Gate)
-            {
-                cancellation = session.CancellationTask;
-                lifetimeCancellation = session.LifetimeCancellationTask;
-            }
-
-            await ObserveCompletionAsync(cancellation).ConfigureAwait(false);
-            await ObserveCompletionAsync(lifetimeCancellation).ConfigureAwait(false);
-
-            if (enumerator is not null)
-            {
-                await enumerator.DisposeAsync().ConfigureAwait(false);
-            }
-        }
-        catch (Exception)
-        {
-            success = false;
-        }
-        finally
-        {
-            lock (session.Gate)
-            {
-                if (session.ActiveTurn == turnId)
-                {
-                    session.ActiveTurn = null;
-                    session.ActiveCancellation = null;
-                }
-            }
-
-            turnCts.Dispose();
-            turnDrained.TrySetResult();
-        }
-
-        return success;
-    }
-
-    private sealed class SessionState(IAgentSession providerSession)
-    {
-        public object Gate { get; } = new();
-
-        public IAgentSession ProviderSession { get; } = providerSession;
-
-        public CancellationTokenSource Lifetime { get; } = new();
-
-        public HashSet<AgentTurnId> TurnIds { get; } = [];
-
-        public AgentTurnId? ActiveTurn { get; set; }
-
-        public CancellationTokenSource? ActiveCancellation { get; set; }
-
-        public TaskCompletionSource? TurnDrained { get; set; }
-
-        public Task? CancellationTask { get; set; }
-
-        public Task? LifetimeCancellationTask { get; set; }
-
-        public Task? ProviderCancelTask { get; set; }
-
-        public Task<bool>? InterruptTask { get; set; }
-
-        public Task<bool>? ShutdownTask { get; set; }
-
-        public bool Closed { get; set; }
-
-        public long Sequence;
     }
 }

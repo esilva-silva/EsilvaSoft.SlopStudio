@@ -249,6 +249,9 @@ public sealed class MongoAgentFindSource(
 
     internal static BsonDocument ParseLiteral(string ejson)
     {
+        // Defense in depth: the handler re-applies the registry's closed codec before BSON parsing.
+        if (!AgentToolLiteralEjson.IsQueryFilter(ejson))
+            throw new FormatException("Extended JSON fora do conjunto literal permitido.");
         using var parsed = JsonDocument.Parse(ejson, new JsonDocumentOptions { MaxDepth = 64 });
         if (parsed.RootElement.ValueKind != JsonValueKind.Object || HasDuplicateProperties(parsed.RootElement))
             throw new FormatException("É necessário um objeto Extended JSON sem propriedades duplicadas.");
@@ -259,6 +262,8 @@ public sealed class MongoAgentFindSource(
 
     internal static BsonValue ParseLiteralValue(string ejson)
     {
+        if (!AgentToolLiteralEjson.IsLiteralValue(ejson))
+            throw new FormatException("Extended JSON fora do conjunto literal permitido.");
         using var parsed = JsonDocument.Parse(ejson, new JsonDocumentOptions { MaxDepth = 64 });
         if (HasDuplicateProperties(parsed.RootElement))
             throw new FormatException("Extended JSON com propriedades duplicadas não é permitido.");

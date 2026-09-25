@@ -1,0 +1,59 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:EsilvaSoft.SlopStudio.Desktop.ViewModels" xmlns:local="using:EsilvaSoft.SlopStudio.Desktop" x:Class="EsilvaSoft.SlopStudio.Desktop.AgentSettingsWindow" x:DataType="vm:AgentSettingsViewModel" x:CompileBindings="True" Title="{local:Loc Key=agentSettingsTitle}" Width="660" Height="560" MinWidth="520" MinHeight="420" WindowStartupLocation="CenterOwner">
+  <Window.Styles>
+    <Style Selector="TextBlock.error">
+      <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
+    </Style>
+  </Window.Styles>
+  <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12" Margin="20">
+    <StackPanel Spacing="4">
+      <TextBlock Text="{local:Loc Key=agentSettingsTitle}" Classes="section-title" />
+      <TextBlock Text="{local:Loc Key=agentSettingsIntro}" Classes="metadata" TextWrapping="Wrap" />
+    </StackPanel>
+    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="12" Margin="0,0,16,0">
+        <StackPanel Spacing="4">
+          <TextBlock Text="{local:Loc Key=agentSettingsProviders}" FontWeight="SemiBold" />
+          <TextBlock x:Name="NoProvidersText" Text="{local:Loc Key=agentSettingsNoProviders}" TextWrapping="Wrap" IsVisible="{Binding !HasProviders}" />
+          <ListBox x:Name="ProviderList" ItemsSource="{Binding Providers}" SelectedItem="{Binding SelectedProvider}" IsVisible="{Binding HasProviders}" MaxHeight="140" AutomationProperties.Name="{local:Loc Key=agentSettingsProviders}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:AgentProviderOption">
+                <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Label}" />
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </StackPanel>
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="6" IsVisible="{Binding HasSelection}">
+          <TextBlock Text="{local:Loc Key=agentSettingsDestination}" Classes="metadata" />
+          <StackPanel Grid.Column="1" Spacing="2">
+            <TextBlock Text="{Binding SelectedProvider.DestinationText, FallbackValue=''}" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding SelectedProvider.DestinationHint, FallbackValue=''}" Classes="metadata" TextWrapping="Wrap" />
+          </StackPanel>
+          <TextBlock Grid.Row="1" Text="{local:Loc Key=agentSettingsAuth}" Classes="metadata" />
+          <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
+            <TextBlock x:Name="AuthMethodsText" Text="{Binding SelectedProvider.AuthMethodsText, FallbackValue=''}" TextWrapping="Wrap" />
+            <TextBlock x:Name="AuthStateText" Text="{Binding SelectedProvider.AuthStateText, FallbackValue=''}" Classes="metadata" TextWrapping="Wrap" />
+          </StackPanel>
+          <TextBlock Grid.Row="2" Text="{local:Loc Key=agentSettingsModels}" Classes="metadata" />
+          <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedProvider.ModelsText, FallbackValue=''}" TextWrapping="Wrap" />
+          <TextBlock Grid.Row="3" Text="{local:Loc Key=agentSettingsCapabilities}" Classes="metadata" />
+          <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedProvider.CapabilitiesText, FallbackValue=''}" TextWrapping="Wrap" />
+          <TextBlock Grid.Row="4" Text="{local:Loc Key=agentSettingsAvailability}" Classes="metadata" />
+          <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedProvider.AvailabilityText, FallbackValue=''}" TextWrapping="Wrap" />
+        </Grid>
+        <StackPanel Spacing="6" IsVisible="{Binding RequiresApiKey}">
+          <TextBlock Text="{local:Loc Key=agentAuthApiKey}" FontWeight="SemiBold" />
+          <TextBox x:Name="ApiKeyInput" Text="{Binding ApiKey}" PasswordChar="•" RevealPassword="False" IsEnabled="{Binding CanSetUpCredentials}" Watermark="{local:Loc Key=agentSettingsApiKeyPlaceholder}" AutomationProperties.Name="{local:Loc Key=agentAuthApiKey}" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button x:Name="SaveKeyButton" Content="{local:Loc Key=agentSettingsSaveKey}" Command="{Binding SaveApiKeyCommand}" />
+            <Button x:Name="RemoveKeyButton" Content="{local:Loc Key=agentSettingsRemoveKey}" Command="{Binding RemoveApiKeyCommand}" />
+          </StackPanel>
+          <TextBlock Text="{Binding CredentialSetupNote}" Classes="metadata" TextWrapping="Wrap" />
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+      <TextBlock x:Name="StatusLine" Text="{Binding StatusText}" Classes.error="{Binding IsStatusError}" TextWrapping="Wrap" MaxLines="3" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+      <Button Grid.Column="1" x:Name="CloseButton" Content="{local:Loc Key=close}" Click="CloseDialog" ToolTip.Tip="{local:Loc Key=closeEsc}" />
+    </Grid>
+  </Grid>
+</Window>

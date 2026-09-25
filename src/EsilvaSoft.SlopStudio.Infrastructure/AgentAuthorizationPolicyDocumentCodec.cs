@@ -87,6 +87,7 @@ internal static class AgentAuthorizationPolicyDocumentCodec
         {
             AgentOutputDestinationKind.Local when providerId is null => AgentOutputDestination.Local(),
             AgentOutputDestinationKind.ProviderExternal when providerId is not null => AgentOutputDestination.ProviderExternal(providerId),
+            AgentOutputDestinationKind.McpExternal when providerId is not null => AgentOutputDestination.McpExternal(providerId),
             _ => throw InvalidPolicy()
         };
         return new AgentPermissionGrant(ReadGuid(document, "principalId"), invocation,

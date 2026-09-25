@@ -140,6 +140,8 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
     private readonly AgentToolInvocationQuota _quota = new();
     private readonly AsyncLocal<AgentToolInvocationQuota.Lease?> _activeQuotaLease = new();
     private readonly TimeSpan _executionTimeout;
+    private readonly AgentToolExposure _exposure;
+    private readonly IAgentPrincipalAuthority? _principalAuthority;
 
     public AgentToolRegistry(
         IConnectionProfileRepository profiles,
@@ -153,7 +155,9 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         IAgentMongoCountSource? count = null,
         IAgentMongoDistinctSource? distinct = null,
         IAgentMongoIndexSource? indexes = null,
-        IAgentMongoExplainSource? explain = null)
+        IAgentMongoExplainSource? explain = null,
+        AgentToolExposure? exposure = null,
+        IAgentPrincipalAuthority? principalAuthority = null)
     {
         _profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
         _policies = policies ?? throw new ArgumentNullException(nameof(policies));
@@ -166,17 +170,61 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         _distinct = distinct;
         _indexes = indexes;
         _explain = explain;
+        // Closed by default: a registry exposes nothing until its composition names an approved stage.
+        _exposure = exposure ?? AgentToolExposure.None;
+        _principalAuthority = principalAuthority;
         var requestedTimeout = executionTimeout ?? DefaultExecutionTimeout;
         if (requestedTimeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(executionTimeout));
         _executionTimeout = requestedTimeout > MaximumExecutionTimeout ? MaximumExecutionTimeout : requestedTimeout;
     }
 
-    public IReadOnlyList<AgentToolDescriptor> GetDescriptors() => Descriptors;
+    /// <summary>Stage released for this instance. Unreleased tools behave as unknown tools.</summary>
+    public AgentToolExposureStage ExposureStage => _exposure.Stage;
+
+    public IReadOnlyList<AgentToolDescriptor> GetDescriptors() =>
+        Descriptors.Where(descriptor => IsAvailable(descriptor.Name)).ToArray();
 
     public AgentToolDescriptor? FindDescriptor(string? name) =>
-        Descriptors.FirstOrDefault(descriptor => string.Equals(name, descriptor.Name, StringComparison.Ordinal));
+        IsAvailable(name)
+            ? Descriptors.FirstOrDefault(descriptor => string.Equals(name, descriptor.Name, StringComparison.Ordinal))
+            : null;
+
+    // A tool is discoverable only when its stage is released, the channel authority that issues and revalidates
+    // principals was composed, and its handler dependencies exist.
+    private bool IsAvailable(string? name) => _principalAuthority is not null && _exposure.Exposes(name) && name switch
+    {
+        ListConnectionsToolName => true,
+        ListDatabasesToolName or ListCollectionsToolName => _metadata is not null,
+        GetCollectionSchemaToolName => _metadata is not null && _schemaSamplingConsent is not null,
+        MongoFindToolName or SampleDocumentsToolName or MongoFindOneToolName or GetDocumentToolName =>
+            _find is not null,
+        MongoCountToolName => _count is not null,
+        MongoDistinctToolName => _distinct is not null,
+        GetIndexesToolName => _indexes is not null,
+        MongoExplainToolName => _explain is not null,
+        _ => false
+    };
 
     public string? GetInputSchemaJson(string? name) =>
+        FindDescriptor(name) is { } descriptor
+            ? WithSchemaIdentity(descriptor, "input", CatalogInputSchemaJson(descriptor.Name))
+            : null;
+
+    public string? GetOutputSchemaJson(string? name) =>
+        FindDescriptor(name) is { } descriptor
+            ? WithSchemaIdentity(descriptor, "output", CatalogOutputSchemaJson(descriptor.Name))
+            : null;
+
+    // Every published schema is closed and carries a versioned identity bound to the descriptor version.
+    // Changing a schema requires a new descriptor version; clients must not reuse a cached schema across versions.
+    private static string? WithSchemaIdentity(AgentToolDescriptor descriptor, string kind, string? schema) =>
+        schema is { Length: > 1 } && schema[0] == '{'
+            ? "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"$id\":\"urn:esilvasoft:slopstudio:agent-tool:" +
+              descriptor.Name + ":v" + descriptor.Version.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+              ":" + kind + "\"," + schema[1..]
+            : null;
+
+    private static string? CatalogInputSchemaJson(string? name) =>
         name switch
         {
             ListConnectionsToolName => ListConnectionsInputSchema,
@@ -194,7 +242,7 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
             _ => null
         };
 
-    public string? GetOutputSchemaJson(string? name) =>
+    private static string? CatalogOutputSchemaJson(string? name) =>
         name switch
         {
             ListConnectionsToolName => ListConnectionsOutputSchema,
@@ -220,6 +268,11 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         string? argumentsJson,
         CancellationToken cancellationToken = default)
     {
+        // The principal is minted only by trusted runtime/broker code (internal constructor). Its origin must
+        // match the channel that carried the call: an external MCP client is always an external recipient.
+        if (principal is not null && invocationContext is not null && destination is not null &&
+            !IsAuthenticatedChannelBinding(principal, invocationContext, destination))
+            return AgentToolInvocationResult.Failure(PermissionDenied);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(_executionTimeout);
         // Only a trusted principal and a complete invocation can identify an auditable operation.
@@ -261,8 +314,11 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
                 : null;
             var result = auditable && quotaLease is null
                 ? AgentToolInvocationResult.Failure(PermissionDenied, AgentAuditDecisionReason.LimitExceeded)
-                : await InvokeWithQuotaLeaseAsync(quotaLease, principal, invocationContext, destination,
-                    outputDataScope, name, argumentsJson, deadline.Token).ConfigureAwait(false);
+                : auditable && await CheckPrincipalCurrentAsync(principal!, deadline.Token).ConfigureAwait(false) is
+                    { } channelDenial
+                    ? channelDenial
+                    : await InvokeWithQuotaLeaseAsync(quotaLease, principal, invocationContext, destination,
+                        outputDataScope, name, argumentsJson, deadline.Token).ConfigureAwait(false);
             deadline.Token.ThrowIfCancellationRequested();
             if (result.Succeeded)
                 result = await RevalidateReleaseAsync(result, principal!, invocationContext!, destination!,
@@ -314,6 +370,28 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
                 await AppendOutcomeAsync(intent!, AgentToolInvocationResult.Failure("ExecutionFailed"))
                     .ConfigureAwait(false);
             return AgentToolInvocationResult.Failure(PermissionDenied);
+        }
+    }
+
+    // Before dispatch and before publication: the authenticated channel is still enrolled and the policy revision
+    // captured when the principal was issued is still current. Unavailable authority denies.
+    private async Task<AgentToolInvocationResult?> CheckPrincipalCurrentAsync(
+        AgentPrincipal principal, CancellationToken cancellationToken)
+    {
+        if (_principalAuthority is null)
+            return AgentToolInvocationResult.Failure(PermissionDenied, AgentAuditDecisionReason.PolicyUnavailable);
+        try
+        {
+            return await AwaitWithCancellationAsync(_principalAuthority.IsCurrentAsync(principal, cancellationToken),
+                cancellationToken).ConfigureAwait(false)
+                ? null
+                : AgentToolInvocationResult.Failure(PermissionDenied, AgentAuditDecisionReason.PermissionMissing);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return AgentToolInvocationResult.Failure(PermissionDenied, AgentAuditDecisionReason.PolicyUnavailable);
         }
     }
 
@@ -378,7 +456,7 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         };
         return new AgentAuditEvent(Guid.NewGuid(), AgentAuditEvent.CurrentSchemaVersion, startedAt,
             principal.Id, Guid.NewGuid(), context.SessionId, context.TurnId,
-            destination.Kind == AgentOutputDestinationKind.Local ? AgentAuditChannel.Internal : AgentAuditChannel.ProviderExternal,
+            AuditChannelOf(destination),
             destination.ProviderId,
             name, 1, AgentToolRisk.ReadOnly, permission,
             AgentAuditDecision.Requested, AgentAuditOutcome.Intent, principal.PolicyRevision,
@@ -603,7 +681,7 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
 
             // A user-defined name is arbitrary text and can contain credentials. External recipients receive
             // only an ID-derived alias; pattern matching cannot prove that a free-text name contains no secret.
-            var outputName = destination.Kind == AgentOutputDestinationKind.ProviderExternal
+            var outputName = destination.IsExternal
                 ? $"Conexão {profile.Id:D}"
                 : profile.Name;
             var summary = new ConnectionSummary(profile.Id, outputName, profile.IsReadOnly);
@@ -897,6 +975,27 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
         }
     }
 
+    private static bool IsAuthenticatedChannelBinding(
+        AgentPrincipal principal, AgentInvocationContext context, AgentOutputDestination destination) =>
+        principal.Origin switch
+        {
+            // The runtime (internal) never reaches the MCP channel; an authenticated MCP client (external) only
+            // ever receives McpExternal, so its audit channel cannot be confused with a chat provider.
+            AgentPrincipalOrigin.Internal => context.ClientId is null &&
+                destination.Kind != AgentOutputDestinationKind.McpExternal,
+            AgentPrincipalOrigin.External => context.ClientId is { } clientId && clientId != Guid.Empty &&
+                destination.Kind == AgentOutputDestinationKind.McpExternal,
+            _ => false
+        };
+
+    /// <summary>The audit channel is derived from the typed destination, never from a provider or client name.</summary>
+    internal static AgentAuditChannel AuditChannelOf(AgentOutputDestination destination) => destination.Kind switch
+    {
+        AgentOutputDestinationKind.Local => AgentAuditChannel.Internal,
+        AgentOutputDestinationKind.McpExternal => AgentAuditChannel.McpExternal,
+        _ => AgentAuditChannel.ProviderExternal
+    };
+
     private static bool IsCompleteInvocationContext(AgentInvocationContext? context) =>
         context is not null && context.SessionId is { } sessionId && sessionId != Guid.Empty &&
         context.TurnId is { } turnId && turnId != Guid.Empty;
@@ -904,7 +1003,7 @@ public sealed partial class AgentToolRegistry : IAgentToolRegistry
     private static bool IsValidDestination(AgentOutputDestination destination, AgentInvocationContext context) =>
         Enum.IsDefined(destination.Kind) &&
         (destination.Kind == AgentOutputDestinationKind.Local && destination.ProviderId is null ||
-         destination.Kind == AgentOutputDestinationKind.ProviderExternal &&
+         destination.IsExternal &&
          IsSafeAuditExternalIdentifier(destination.ProviderId) &&
          string.Equals(destination.ProviderId, context.ProviderId, StringComparison.Ordinal));
 
