@@ -58,6 +58,13 @@ internal sealed partial class OpenAiAgentSession
             return OpenAiFailureCodes.InputTooLarge;
         }
 
+        // Sem redução silenciosa de contexto: quando o histórico retido já atingiu o limite configurado, o turno é
+        // recusado (mesmo contrato do adapter Claude) em vez de descartar trocas antigas sem avisar o chamador.
+        if (_options.MaxHistoryTurns > 0 && input.History.Count >= _options.MaxHistoryTurns)
+        {
+            return OpenAiFailureCodes.ContextBudgetExceeded;
+        }
+
         var (key, reason) = await _provider.ResolveKeyAsync(_options, token).ConfigureAwait(false);
         if (key is null)
         {

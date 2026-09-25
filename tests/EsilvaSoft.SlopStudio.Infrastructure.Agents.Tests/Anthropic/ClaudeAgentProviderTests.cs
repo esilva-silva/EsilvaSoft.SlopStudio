@@ -2,6 +2,7 @@ using EsilvaSoft.SlopStudio.Application;
 using EsilvaSoft.SlopStudio.Application.Agents;
 using EsilvaSoft.SlopStudio.Core.Agents;
 using EsilvaSoft.SlopStudio.Infrastructure.Agents.Anthropic;
+using Microsoft.Extensions.DependencyInjection;
 using NUnit.Framework;
 
 namespace EsilvaSoft.SlopStudio.Infrastructure.Agents.Tests.Anthropic;
@@ -336,5 +337,22 @@ public sealed class ClaudeAgentProviderTests
 
         Assert.That(events.Select(static e => e.ToString()), Has.None.Contains(ClaudeFixture.SyntheticKey));
         Assert.That(events.Select(static e => e.ToString()), Has.None.Contains("synthetic"), "Mensagem de erro do provider não é repassada.");
+    }
+
+    [Test]
+    public void RegistrationReadsNoSecretAndExposesTheProviderOnce()
+    {
+        var credentials = new FakeCredentialProvider();
+        var services = new ServiceCollection();
+        services.AddSingleton<IAgentCredentialProvider>(credentials);
+        services.AddSlopStudioClaudeAgentProvider(ClaudeFixture.Options());
+
+        using var container = services.BuildServiceProvider();
+        var providers = container.GetServices<IAgentProvider>().ToArray();
+
+        Assert.That(providers.Select(static item => item.ProviderId), Is.EqualTo(new[] { ClaudeAgentProvider.Id }));
+        Assert.That(providers[0].IsLocal, Is.False);
+        Assert.That(credentials.Calls, Is.Zero);
+        Assert.Throws<InvalidOperationException>(() => services.AddSlopStudioClaudeAgentProvider());
     }
 }
