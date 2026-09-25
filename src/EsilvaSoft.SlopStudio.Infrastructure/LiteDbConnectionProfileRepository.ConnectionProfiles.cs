@@ -186,11 +186,11 @@ public sealed partial class LiteDbConnectionProfileRepository
     }
 
     /// <summary>
-    /// Deletes the profile and, in the same short transaction, every namespace learned for it
-    /// (DEC-L-RETENTION: profile removal is one of the events that cascades automatically, unlike disconnect or
-    /// opt-out, which never delete). A pending L15 read that started before this commit still resolves against a
-    /// snapshot read outside the transaction, per LiteDB's usual isolation; it simply becomes stale the moment this
-    /// commits, exactly like any other concurrent read of a row being deleted.
+    /// Deletes the profile and, in the same short transaction, every namespace learned for it and every schema
+    /// sampling consent scoped to it (DEC-L-RETENTION: profile removal is one of the events that cascades
+    /// automatically, unlike disconnect or opt-out, which never delete). A pending L15 read that started before this
+    /// commit still resolves against a snapshot read outside the transaction, per LiteDB's usual isolation; it
+    /// simply becomes stale the moment this commits, exactly like any other concurrent read of a row being deleted.
     /// An OS-store credential that no remaining profile references gets a durable cleanup record in the same
     /// transaction; the store deletion runs afterwards, outside the gate, and a failure keeps that record for
     /// <see cref="RecoverPendingProfileCredentialCleanupAsync"/> instead of losing track of the secret.
@@ -207,6 +207,7 @@ public sealed partial class LiteDbConnectionProfileRepository
                 var existing = profiles.FindById(profileId);
                 profiles.Delete(profileId);
                 LearnedSchemaCollection().DeleteMany(Query.EQ("ProfileId", profileId));
+                RemoveAgentSchemaSamplingConsentsForConnection(profileId);
                 if (existing?.SecretReferenceId is { } referenceId && referenceId != Guid.Empty &&
                     !profiles.FindAll().Any(saved => saved.SecretReferenceId == referenceId))
                 {
