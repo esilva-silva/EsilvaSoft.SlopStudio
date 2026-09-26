@@ -61,8 +61,10 @@ public sealed class ClaudeCodeAgentProviderOptions
     public int MaxUserInputChars { get; init; } = 100_000;
 
     /// <summary>
-    /// Pasta de workspace definida pelo usuário no painel "Arquivos", lida uma vez na criação da sessão. Nula ou
-    /// recusada (protegida, raiz, perfil do usuário) usa a pasta dedicada, onde toda leitura exige aprovação.
+    /// Compatibilidade: fonte da pasta de workspace quando o chamador não informa
+    /// <c>AgentSessionOptions.WorkingDirectory</c> (o contrato preferido, capturado na thread de UI). Só é invocada de
+    /// forma síncrona no início de <c>CreateSessionAsync</c>, antes do primeiro await; consultas de estado nunca a leem.
+    /// Pasta nula ou recusada (protegida, raiz, perfil do usuário) usa a pasta dedicada, onde toda leitura exige aprovação.
     /// </summary>
     public Func<string?>? WorkspaceDirectory { get; init; }
 

@@ -6,6 +6,9 @@ Adaptações documentadas: somente as linhas "out" (stdout) são mantidas; o ses
 assinaturas de thinking são truncadas; o system/init "adaptado" recebe tools == Read,Glob,Grep e mcp_servers == []
 (o argv do produto usa --tools e --strict-mcp-config, que o spike confirmou restringirem exatamente essas listas);
 a rodada Bash de perm-settings é removida em read-tools (Bash fica fora da allowlist) e mantida em unexpected-tool.
+Pseudonimização (L7): IDs de mensagem (msg_), de ferramenta (toolu_), de requisição (req_) e uuids viram contadores
+estáveis; nome do pipe de mensageria, caminhos de auto memória (com o fragmento do scratchpad e do repositório) e
+qualquer menção ao repositório/scratchpad viram marcadores fixos.
 Linhas iniciadas por '#' são diretivas do CLI falso (ver tests/EsilvaSoft.SlopStudio.FakeClaudeCode/Program.cs).
 """
 import json
@@ -52,6 +55,27 @@ def adapt_init(event, **overrides):
     return event
 
 
+_PSEUDO = {}
+
+
+def _pseudo(prefix, match):
+    key = match.group(0)
+    if key not in _PSEUDO:
+        _PSEUDO[key] = "%s%04d" % (prefix, sum(1 for v in _PSEUDO.values() if v.startswith(prefix)) + 1)
+    return _PSEUDO[key]
+
+
+def pseudonymize(text):
+    text = re.sub(r"msg_[A-Za-z0-9]+", lambda m: _pseudo("msg_fixture_", m), text)
+    text = re.sub(r"toolu_[A-Za-z0-9]+", lambda m: _pseudo("toolu_fixture_", m), text)
+    text = re.sub(r"req_[A-Za-z0-9]+", lambda m: _pseudo("req_fixture_", m), text)
+    text = re.sub(r'"uuid":"[0-9a-f]{8}-…"', lambda m: '"uuid":"%s"' % _pseudo("uuid-", m), text)
+    text = re.sub(r'"messaging_socket_path":"[^"]*"', '"messaging_socket_path":"<PIPE>"', text)
+    text = re.sub(r'"memory_paths":\{[^}]*\}', '"memory_paths":{"auto":"<HOME>/.claude/projects/<WORK>/memory/"}', text)
+    text = re.sub(r"[^\"]*(SlopDataAdimin|scratchpad)[^\"]*", "<REDACTED-PATH>", text, flags=re.IGNORECASE)
+    return text
+
+
 def write(name, events, prefix=(), suffix=()):
     with open(os.path.join(ROOT, name), "w", encoding="utf-8", newline="\n") as handle:
         for directive in prefix:
@@ -60,7 +84,7 @@ def write(name, events, prefix=(), suffix=()):
             if isinstance(event, str):
                 handle.write(event + "\n")
             else:
-                handle.write(json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n")
+                handle.write(pseudonymize(json.dumps(event, ensure_ascii=False, separators=(",", ":"))) + "\n")
         for directive in suffix:
             handle.write(directive + "\n")
 
@@ -141,3 +165,21 @@ write("result-max-turns.jsonl", with_result(subtype="error_max_turns", is_error=
 write("result-rate-limited.jsonl", with_result(subtype="error_during_execution", is_error=True, api_error_status=429))
 write("result-auth-failed.jsonl", with_result(subtype="error_during_execution", is_error=True, api_error_status=401))
 print("ok")
+
+# Revisão P7-CL3-06.
+# M2: quadro de subagente (parent_tool_use_id preenchido) logo depois do init.
+subagent = [adapt_init(e) for e in basic1]
+init_index = next(i for i, e in enumerate(subagent) if is_init(e))
+frame = dict(next(e for e in subagent if isinstance(e, dict) and e.get("type") == "assistant"))
+frame["parent_tool_use_id"] = "toolu_01SubagentParent"
+write("subagent-frame.jsonl", subagent[: init_index + 1] + [frame] + subagent[init_index + 1:])
+# L1: result de sucesso sem nenhum system/init antes.
+write("result-without-init.jsonl", [e for e in basic1 if is_result(e) or e.get("type") == "rate_limit_event"])
+# L2: result sem session_id.
+write("result-without-session.jsonl", [adapt_init(e) if not is_result(e) else {k: v for k, v in e.items() if k != "session_id"}
+                                        for e in basic1])
+# M3: a CLI lê o prompt e morre antes do init.
+write("exit-before-init.jsonl", [], suffix=["#exit 1"])
+# Lacuna: filho cria um neto e sai; o neto fica órfão (sem pai vivo) e só o Job/grupo o alcança.
+write("cancel-with-grandchild.jsonl", head, suffix=["#spawn-grandchild", "#hang"])
+print("ok-revisao")

@@ -43,6 +43,7 @@ internal sealed partial class ClaudeCodeAgentSession : IAgentSession
     private bool _established;
     private TurnContext? _active;
     private ClaudeCodeTurnSummary? _lastTurn;
+    private (AgentTurnId TurnId, bool PromptSent)? _lastDelivery;
     private int _disposed;
 
     public ClaudeCodeAgentSession(ClaudeCodeAgentProvider provider, ClaudeCodeAgentProviderOptions options, ClaudeCodeLaunchProfile profile)
@@ -176,6 +177,32 @@ internal sealed partial class ClaudeCodeAgentSession : IAgentSession
         return Task.CompletedTask;
     }
 
+    /// <summary>Leituras nativas (Read/Glob/Grep) executadas pela própria CLI: o runtime só as exibe (nome e estado).</summary>
+    public IReadOnlyCollection<string> ObservableNativeTools => ClaudeCodeAgentProviderOptions.NativeToolAllowlist;
+
+    /// <summary>Códigos tipados e fixos do modo Claude (assinatura); o runtime os repassa à UI em vez de <c>ProviderError</c>.</summary>
+    public IReadOnlyCollection<string> ProviderErrorCodes => ClaudeCodeErrorCodes.TurnErrorCodes;
+
+    /// <summary>
+    /// Depois que o prompt começou a ser escrito no stdin, encerrar a árvore não desfaz nem confirma o que a CLI fez:
+    /// o runtime publica <see cref="AgentTurnOutcome.OutcomeUnknown"/> (retomável por <c>--resume</c>). Antes disso,
+    /// nada saiu. Um turno ainda ativo é relatado de forma conservadora.
+    /// </summary>
+    public AgentTurnCancellationReport GetCancellationReport(AgentTurnId turnId)
+    {
+        lock (_gate)
+        {
+            if (_active is { } active && active.TurnId == turnId)
+            {
+                return AgentTurnCancellationReport.MayHaveTakenEffect;
+            }
+
+            return _lastDelivery is { } last && last.TurnId == turnId
+                ? last.PromptSent ? AgentTurnCancellationReport.MayHaveTakenEffect : AgentTurnCancellationReport.NothingSent
+                : AgentTurnCancellationReport.NotReported;
+        }
+    }
+
     public ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -201,12 +228,16 @@ internal sealed partial class ClaudeCodeAgentSession : IAgentSession
         lock (_gate)
         {
             _lastTurn = summary;
+            _lastDelivery = (turn.TurnId, turn.PromptSent);
             if (Volatile.Read(ref _disposed) != 0 || !string.Equals(turn.CliSessionId, _cliSessionId, StringComparison.Ordinal))
             {
                 return;
             }
 
-            if (resetSession)
+            // M3: o prompt saiu com --session-id, mas o init nunca foi validado. A CLI pode já ter registrado esse ID;
+            // reutilizá-lo com --session-id falharia ("já em uso") e --resume retomaria algo não verificado. Um turno de
+            // --resume mantém o ID (a sessão já existia e foi validada antes).
+            if (resetSession || (turn.PromptSent && established != true && !turn.Resume))
             {
                 // Sessão da CLI inexistente/expirada: o próximo turno começa outra, sem transportar contexto.
                 _cliSessionId = Guid.NewGuid().ToString("D");

@@ -24,6 +24,19 @@
       <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
       <Setter Property="BorderThickness" Value="1" />
     </Style>
+    <!-- Chips of the panel: HoverBrush + DividerBrush outline keep the chip visible on PanelBackground in both themes
+         (SecondaryBackground is almost the panel color in the dark theme). -->
+    <Style Selector="Border.type-chip">
+      <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.read-notice">
+      <Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="8,4" />
+    </Style>
     <Style Selector="Border.agent-approval">
       <Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}" />
       <Setter Property="BorderThickness" Value="1" />
@@ -32,25 +45,44 @@
   <Border Background="{DynamicResource PanelBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1,0,0,0">
     <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8" Margin="12">
       <StackPanel Spacing="6">
-        <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
           <TextBlock Text="{local:Loc Key=agentPanelTitle}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-          <Border Grid.Column="1" Classes="type-chip" IsVisible="{Binding SelectedProvider, Converter={x:Static ObjectConverters.IsNotNull}}" ToolTip.Tip="{Binding DestinationHint}">
+          <Button Grid.Column="1" x:Name="ConfigureButton" Content="{local:Loc Key=agentConfigure}" Command="{Binding ConfigureCommand}" AutomationProperties.Name="{local:Loc Key=agentConfigure}" />
+          <Button Grid.Column="2" x:Name="ClosePanelButton" Content="×" Classes="quiet" Padding="8,0" MinWidth="32" IsVisible="False" Click="OnClosePanelClick" />
+        </Grid>
+        <WrapPanel Orientation="Horizontal" IsVisible="{Binding SelectedProvider, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <Border Classes="type-chip" Margin="0,0,6,0" ToolTip.Tip="{Binding DestinationHint}">
             <TextBlock x:Name="DestinationBadge" Text="{Binding DestinationText}" Classes="metadata" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryText}" />
           </Border>
-          <Button Grid.Column="2" x:Name="ConfigureButton" Content="{local:Loc Key=agentConfigure}" Command="{Binding ConfigureCommand}" AutomationProperties.Name="{local:Loc Key=agentConfigure}" />
-          <Button Grid.Column="3" x:Name="ClosePanelButton" Content="×" Classes="quiet" Padding="8,0" MinWidth="32" IsVisible="False" Click="OnClosePanelClick" />
-        </Grid>
+          <Border Classes="type-chip" IsVisible="{Binding HasModeText}" ToolTip.Tip="{local:Loc Key=agentModeChipHint}">
+            <TextBlock x:Name="ModeBadge" Text="{Binding ModeText}" Classes="metadata" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryText}" AutomationProperties.Name="{Binding ModeText}" />
+          </Border>
+        </WrapPanel>
         <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
           <ComboBox x:Name="ProviderSelector" ItemsSource="{Binding Providers}" SelectedItem="{Binding SelectedProvider}" IsEnabled="{Binding CanChangeProvider}" PlaceholderText="{local:Loc Key=agentProvider}" AutomationProperties.Name="{local:Loc Key=agentProvider}" ToolTip.Tip="{local:Loc Key=agentProvider}">
             <ComboBox.ItemTemplate>
               <DataTemplate x:DataType="vm:AgentProviderOption">
-                <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Label}" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                  <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Label}" VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Classes="type-chip" IsVisible="{Binding HasModeText}">
+                    <TextBlock Text="{Binding ModeText}" Classes="metadata" Foreground="{DynamicResource PrimaryText}" />
+                  </Border>
+                </Grid>
               </DataTemplate>
             </ComboBox.ItemTemplate>
+            <!-- The closed box shows only the name (the mode chip sits right above it); the list shows name + chip. -->
+            <ComboBox.SelectionBoxItemTemplate>
+              <DataTemplate x:DataType="vm:AgentProviderOption">
+                <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Label}" />
+              </DataTemplate>
+            </ComboBox.SelectionBoxItemTemplate>
           </ComboBox>
           <ComboBox Grid.Column="1" x:Name="ModelSelector" ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}" IsVisible="{Binding HasModels}" IsEnabled="{Binding CanChangeProvider}" AutomationProperties.Name="{local:Loc Key=agentModel}" ToolTip.Tip="{local:Loc Key=agentModel}" />
         </Grid>
         <TextBlock x:Name="TabContextText" Text="{Binding TabContextText}" Classes="metadata" TextTrimming="CharacterEllipsis" ToolTip.Tip="{local:Loc Key=agentFixedContextHint}" />
+        <Border x:Name="ReadScopeNotice" Classes="read-notice" IsVisible="{Binding HasReadScope}">
+          <TextBlock Text="{Binding ReadScopeText}" Classes="metadata" Foreground="{DynamicResource PrimaryText}" TextWrapping="Wrap" MaxLines="8" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding ReadScopeText}" AutomationProperties.Name="{Binding ReadScopeText}" />
+        </Border>
       </StackPanel>
       <Border Grid.Row="1" Classes="card" Padding="8,6">
         <StackPanel Spacing="6">
@@ -58,7 +90,7 @@
           <Button x:Name="RefreshProvidersButton" HorizontalAlignment="Right" Content="{local:Loc Key=agentRefreshProviders}" Command="{Binding RefreshProvidersCommand}" IsVisible="{Binding ShowRefreshProviders}" ToolTip.Tip="{local:Loc Key=agentRefreshProvidersHint}" AutomationProperties.Name="{local:Loc Key=agentRefreshProviders}" AutomationProperties.HelpText="{local:Loc Key=agentRefreshProvidersHint}" />
         </StackPanel>
       </Border>
-      <Grid Grid.Row="2" MinHeight="120">
+      <Grid Grid.Row="2" MinHeight="96">
         <ListBox x:Name="History" ItemsSource="{Binding Items}" AutomationProperties.Name="{local:Loc Key=agentHistory}" Background="{DynamicResource WorkspaceBackground}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1" CornerRadius="4" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
           <ListBox.DataTemplates>
             <DataTemplate DataType="vm:AgentChatMessageItem">
@@ -76,6 +108,7 @@
               <Border Classes="card" Padding="8,6">
                 <StackPanel Spacing="2">
                   <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
+                  <TextBlock Text="{Binding OriginText}" Classes="metadata" TextWrapping="Wrap" IsVisible="{Binding HasOriginText}" />
                   <TextBlock Text="{Binding StatusText}" Classes="metadata" Classes.error="{Binding IsError}" TextWrapping="Wrap" />
                 </StackPanel>
               </Border>
@@ -122,6 +155,7 @@
           <StackPanel Spacing="4">
             <TextBlock Text="{local:Loc Key=agentPreviewTitle}" FontWeight="SemiBold" />
             <TextBlock Text="{Binding Preview.DestinationText, FallbackValue=''}" TextWrapping="Wrap" />
+            <TextBlock x:Name="PreviewReadScope" Text="{Binding ReadScopeText}" IsVisible="{Binding HasReadScope}" Classes="metadata" TextWrapping="Wrap" />
             <TextBlock Text="{Binding Preview.ScopeText, FallbackValue=''}" Classes="metadata" TextWrapping="Wrap" />
             <TextBlock Text="{Binding Preview.NamespaceText, FallbackValue=''}" Classes="metadata" TextWrapping="Wrap" />
             <ScrollViewer MaxHeight="96" HorizontalScrollBarVisibility="Disabled">
@@ -129,7 +163,7 @@
             </ScrollViewer>
           </StackPanel>
         </Border>
-        <TextBox x:Name="Composer" Text="{Binding ComposerText}" IsEnabled="{Binding IsFeatureAvailable}" AcceptsReturn="True" AcceptsTab="False" TextWrapping="Wrap" MinHeight="64" MaxHeight="160" Watermark="{local:Loc Key=agentComposerPlaceholder}" AutomationProperties.Name="{local:Loc Key=agentComposer}" ToolTip.Tip="{local:Loc Key=agentComposerShortcut}" ScrollViewer.VerticalScrollBarVisibility="Auto" />
+        <TextBox x:Name="Composer" Text="{Binding ComposerText}" IsEnabled="{Binding IsFeatureAvailable}" AcceptsReturn="True" AcceptsTab="False" TextWrapping="Wrap" MinHeight="64" MaxHeight="160" PlaceholderText="{local:Loc Key=agentComposerPlaceholder}" AutomationProperties.Name="{local:Loc Key=agentComposer}" ToolTip.Tip="{local:Loc Key=agentComposerShortcut}" ScrollViewer.VerticalScrollBarVisibility="Auto" />
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
           <Button x:Name="CancelTurnButton" Content="{local:Loc Key=agentCancelTurn}" Command="{Binding CancelTurnCommand}" IsVisible="{Binding IsBusy}" ToolTip.Tip="{local:Loc Key=agentApprovalCancelNotice}" />
           <Button x:Name="EditButton" Content="{local:Loc Key=agentEdit}" Command="{Binding EditCommand}" IsVisible="{Binding HasPreview}" />

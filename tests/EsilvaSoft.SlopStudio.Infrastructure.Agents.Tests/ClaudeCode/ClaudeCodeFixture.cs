@@ -107,6 +107,8 @@ internal sealed class ClaudeCodeFixture : IDisposable
         string? executable = null) => new()
     {
         ExecutablePath = executable ?? FakeExecutable,
+        // As fixtures do spike foram gravadas com haiku; o init é validado contra o modelo pedido (M4).
+        DefaultModel = "haiku",
         DedicatedWorkingDirectory = WorkingDirectory,
         AppDataDirectory = AppData,
         DatabasePath = Path.Combine(AppData, "workspace.db"),

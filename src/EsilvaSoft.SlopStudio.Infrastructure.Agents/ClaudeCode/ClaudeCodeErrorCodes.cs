@@ -32,6 +32,15 @@ public static class ClaudeCodeErrorCodes
 
     /// <summary>Código de <c>ToolFailed</c> para ferramenta nativa de leitura que terminou com erro ou foi negada.</summary>
     public const string NativeToolFailed = "NativeToolFailed";
+
+    /// <summary>Códigos que a sessão declara ao runtime (<c>IAgentSession.ProviderErrorCodes</c>) para chegarem à UI.</summary>
+    public static IReadOnlyList<string> TurnErrorCodes { get; } =
+    [
+        EmptyMessage, InputTooLarge, ExecutableUnavailable, NotLoggedIn, NonSubscriptionAuthentication, BlockedEnvironment,
+        AuthStatusUnavailable, StartFailed, InitMismatch, ToolOutsideAllowlist, ProtocolViolation, OutputLimitExceeded,
+        StreamIncomplete, ProcessFailed, SessionNotFound, MaxTurnsReached, AuthenticationFailed, RateLimited,
+        ProviderUnavailable, RequestRejected, ExecutionError, TurnTimeout, ProviderFailure,
+    ];
 }
 
 /// <summary>Motivo seguro de indisponibilidade; o nome do membro é o <c>UnavailableCode</c> publicado.</summary>

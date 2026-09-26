@@ -31,7 +31,7 @@
         </StackPanel>
         <StackPanel Spacing="4" IsVisible="{Binding IsDestructive}">
           <TextBlock Text="{Binding DestructivePrompt}" TextWrapping="Wrap" FontWeight="SemiBold" />
-          <TextBox x:Name="DestructiveInput" Text="{Binding DestructiveConfirmation}" IsEnabled="{Binding IsDecisionOpen}" AutomationProperties.Name="{local:Loc Key=agentApprovalDestructiveInput}" Watermark="{local:Loc Key=agentApprovalDestructiveInput}" />
+          <TextBox x:Name="DestructiveInput" Text="{Binding DestructiveConfirmation}" IsEnabled="{Binding IsDecisionOpen}" AutomationProperties.Name="{local:Loc Key=agentApprovalDestructiveInput}" PlaceholderText="{local:Loc Key=agentApprovalDestructiveInput}" />
         </StackPanel>
       </StackPanel>
     </ScrollViewer>

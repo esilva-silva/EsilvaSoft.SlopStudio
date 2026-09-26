@@ -10,6 +10,8 @@
     <AssemblyName>claude</AssemblyName>
     <RootNamespace>EsilvaSoft.SlopStudio.FakeClaudeCode</RootNamespace>
     <IsPackable>false</IsPackable>
+    <!-- Nunca vai para saída de produto: sem publish/pack; a release publica só o Desktop, que não o referencia. -->
+    <IsPublishable>false</IsPublishable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 </Project>

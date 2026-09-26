@@ -29,6 +29,9 @@ public sealed partial class AgentChatViewModel
 
         public string? ErrorCode { get; set; }
 
+        /// <summary>Provider of the reviewed package that started this turn (fixed for the turn).</summary>
+        public string ProviderId { get; init; } = "";
+
         public Dictionary<AgentMessageId, AgentChatMessageItem> Messages { get; } = [];
 
         public Dictionary<AgentToolCallId, AgentToolCallItem> Tools { get; } = [];
@@ -84,7 +87,13 @@ public sealed partial class AgentChatViewModel
             return Task.CompletedTask;
         }
 
-        var run = new TurnRun(AgentTurnId.New(), CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token));
+        // Snapshot on the UI thread before any await: the Files panel folder a new session would use. Changing the
+        // folder later only affects sessions started after that; a running/reused session keeps its own folder.
+        var workingDirectory = CaptureWorkspaceFolder();
+        var run = new TurnRun(AgentTurnId.New(), CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token))
+        {
+            ProviderId = preview.ProviderId,
+        };
         var request = preview.Snapshot.ToTurnRequest(run.TurnId, preview.Message);
         _turn = run;
         _suppressInvalidation = true;
@@ -102,7 +111,7 @@ public sealed partial class AgentChatViewModel
         Items.Add(new AgentChatMessageItem(AgentChatRole.User, preview.Message));
         State = AgentChatState.Connecting;
         ComposerFocusRequested?.Invoke(this, EventArgs.Empty);
-        var completion = RunTurnAsync(run, preview.ProviderId, preview.ModelId, request);
+        var completion = RunTurnAsync(run, preview.ProviderId, preview.ModelId, workingDirectory, request);
         CurrentTurnCompletion = completion;
         return completion;
     }
@@ -126,12 +135,12 @@ public sealed partial class AgentChatViewModel
                (reviewed.DocumentVersion == current.DocumentVersion && reviewed.SelectedText == current.SelectedText);
     }
 
-    private async Task RunTurnAsync(TurnRun run, string providerId, string? modelId, AgentTurnRequest request)
+    private async Task RunTurnAsync(TurnRun run, string providerId, string? modelId, string? workingDirectory, AgentTurnRequest request)
     {
         var runtime = _services.Runtime!;
         try
         {
-            var sessionId = await EnsureSessionAsync(runtime, providerId, modelId, run.Cancellation.Token);
+            var sessionId = await EnsureSessionAsync(runtime, providerId, modelId, workingDirectory, run.Cancellation.Token);
             run.SessionId = sessionId;
             if (!ReferenceEquals(_turn, run))
             {
@@ -198,7 +207,7 @@ public sealed partial class AgentChatViewModel
     }
 
     private async Task<AgentSessionId> EnsureSessionAsync(
-        IAgentRuntime runtime, string providerId, string? modelId, CancellationToken cancellationToken)
+        IAgentRuntime runtime, string providerId, string? modelId, string? workingDirectory, CancellationToken cancellationToken)
     {
         if (_sessionId is { } existing && _sessionProviderId == providerId && _sessionModelId == modelId)
         {
@@ -206,8 +215,11 @@ public sealed partial class AgentChatViewModel
         }
 
         await CloseSessionAsync();
-        var created = await runtime.StartSessionAsync(new AgentSessionOptions(providerId, modelId), cancellationToken);
+        var created = await runtime.StartSessionAsync(new AgentSessionOptions(providerId, modelId, workingDirectory), cancellationToken);
         _sessionId = created;
+        SessionWorkingDirectory = workingDirectory;
+        HasSessionWorkingDirectory = true;
+        RefreshReadScope();
         _sessionProviderId = providerId;
         _sessionModelId = modelId;
         return created;
@@ -238,7 +250,8 @@ public sealed partial class AgentChatViewModel
             case AgentEventKind.ToolRequested when item.ToolCallId is { } callId:
                 if (!run.Tools.ContainsKey(callId))
                 {
-                    var tool = new AgentToolCallItem(callId, item.ToolName, item.ToolDestination);
+                    var tool = new AgentToolCallItem(callId, item.ToolName, item.ToolDestination, item.ToolOrigin,
+                        item.ToolOrigin == AgentToolOrigin.ProviderObserved ? ObservedToolExecutor(run) : null);
                     run.Tools.Add(callId, tool);
                     Items.Add(tool);
                 }
@@ -414,6 +427,9 @@ public sealed partial class AgentChatViewModel
         _sessionId = null;
         _sessionProviderId = null;
         _sessionModelId = null;
+        SessionWorkingDirectory = null;
+        HasSessionWorkingDirectory = false;
+        RefreshReadScope();
     }
 
     private async Task CloseSessionAsync()

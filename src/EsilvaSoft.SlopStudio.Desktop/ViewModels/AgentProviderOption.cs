@@ -35,8 +35,21 @@ public sealed class AgentProviderOption(AgentProviderPresentation presentation)
         "StatusNotReported" => Text.Resolve("agentUnavailableNotChecked"),
         "StatusTimedOut" => Text.Resolve("agentUnavailableTimedOut"),
         "StatusFailed" => Text.Resolve("agentUnavailableCheckFailed"),
-        var code => code,
+        // Safe adapter codes (e.g. "ExecutableNotFound") are localized when the catalog knows them; otherwise the code
+        // itself is shown. The lookup is by code, never by provider.
+        var code when Text.HasTranslation(UnavailableCodePrefix + code) => Text.Resolve(UnavailableCodePrefix + code),
+        var code => Text.Format("agentUnavailableUnknownCode", code),
     };
+
+    internal const string UnavailableCodePrefix = "agentUnavailable.";
+
+    /// <summary>
+    /// <see cref="UnavailableText"/> as a standalone sentence (settings line): the reason is written to follow
+    /// "X indisponível: …" in the chat, so it starts lowercase and is capitalized here.
+    /// </summary>
+    public string UnavailableSentence => UnavailableText is { Length: > 0 } reason && char.IsLower(reason[0])
+        ? char.ToUpper(reason[0], System.Globalization.CultureInfo.CurrentCulture) + reason[1..]
+        : UnavailableText;
 
     /// <summary>"Name · Externo" or "Name · Indisponível"; destination and availability are text, not color.</summary>
     public string Label => Text.Format("agentProviderItem", Presentation.DisplayName,
@@ -45,7 +58,22 @@ public sealed class AgentProviderOption(AgentProviderPresentation presentation)
     public bool RequiresApiKey => Presentation.AuthenticationMethods.Contains(AgentAuthenticationMethod.ApiKey);
 
     /// <summary>Authentication delegated to an official CLI: no key or vault is involved, so states read differently.</summary>
-    private bool UsesOfficialCli => Presentation.AuthenticationMethods.Contains(AgentAuthenticationMethod.OfficialCliDelegated);
+    public bool UsesOfficialCli => Presentation.AuthenticationMethods.Contains(AgentAuthenticationMethod.OfficialCliDelegated);
+
+    /// <summary>
+    /// Textual mode chip ("Claude · assinatura" / "Claude · API"), derived from the authentication method (capability)
+    /// and the family label of the composition root. Local providers have no mode chip: Local/Externo already says it.
+    /// </summary>
+    public string? ModeText => UsesOfficialCli
+        ? Text.Format("agentModeChip", FamilyName, Text.Resolve("agentModeSubscription"))
+        : RequiresApiKey ? Text.Format("agentModeChip", FamilyName, Text.Resolve("agentModeApi")) : null;
+
+    public bool HasModeText => ModeText is not null;
+
+    private string FamilyName => string.IsNullOrWhiteSpace(Presentation.FamilyName) ? Presentation.DisplayName : Presentation.FamilyName;
+
+    /// <summary>Account type for API-key providers; CLI-delegated accounts get it from an explicit check.</summary>
+    public string ApiAccountTypeText => RequiresApiKey ? Text.Resolve("agentAccountTypeApi") : "";
 
     public string AuthStateText => Text.Resolve(Presentation.AuthState switch
     {
@@ -73,7 +101,7 @@ public sealed class AgentProviderOption(AgentProviderPresentation presentation)
 
     public string CapabilitiesText => Text.Format("agentCapabilitiesValue",
         Text.Resolve(Presentation.SupportsStreaming ? "agentYes" : "agentNo"),
-        Text.Resolve(Presentation.SupportsToolCalling ? "agentYes" : "agentNo"));
+        Text.Resolve(Presentation.SupportsToolCalling ? "agentYes" : "agentNo"), Branding.ProductName);
 
     public string ModelsText => Presentation.Models.Count == 0
         ? Text.Resolve("agentSettingsNoModels")

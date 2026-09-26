@@ -66,6 +66,15 @@ public sealed partial class AgentRuntime
 
         public bool Closed { get; set; }
 
+        /// <summary>
+        /// Provider-native tool names this session may report as display-only observations, snapshotted and sanitized
+        /// when the session starts (never re-read from the adapter).
+        /// </summary>
+        public HashSet<string> ObservableNativeTools { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
+        /// <summary>Typed adapter error codes forwarded as-is (sanitized snapshot taken when the session starts).</summary>
+        public HashSet<string> ProviderErrorCodes { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
         public long NextSequence() => Interlocked.Increment(ref _sequence);
     }
 
@@ -88,6 +97,19 @@ public sealed partial class AgentRuntime
         public InteractionState State { get; set; } = InteractionState.Announcing;
 
         public bool Started { get; set; }
+
+        public bool Terminal { get; set; }
+    }
+
+    /// <summary>
+    /// Display-only observation of a provider-native tool. Kept apart from <see cref="TurnState.Tools"/>: it is never
+    /// answerable, never dispatched, never approvable and never affects the turn outcome. Published under a runtime ID.
+    /// </summary>
+    private sealed class ObservedToolState(AgentToolCallId publishedId, string name)
+    {
+        public AgentToolCallId PublishedId { get; } = publishedId;
+
+        public string Name { get; } = name;
 
         public bool Terminal { get; set; }
     }
@@ -250,6 +272,12 @@ public sealed partial class AgentRuntime
 
         public Dictionary<AgentApprovalId, ApprovalState> Approvals { get; } = [];
 
+        /// <summary>Keyed by the adapter's call ID; guarded by <see cref="Gate"/>.</summary>
+        public Dictionary<AgentToolCallId, ObservedToolState> ObservedTools { get; } = [];
+
+        /// <summary>Adapter report read after drain, only when the runtime stopped the turn itself.</summary>
+        public AgentTurnCancellationReport CancellationReport { get; set; }
+
         public List<Task> Background { get; } = [];
 
         /// <summary>Set under <see cref="Gate"/> when the pump stops; no new work or delivery may start.</summary>
@@ -271,13 +299,15 @@ public sealed partial class AgentRuntime
         public AgentEvent Create(
             long sequence, AgentEventKind kind, string? text = null, AgentTurnOutcome? outcome = null,
             string? errorCode = null, AgentToolCallId? toolCallId = null, AgentApprovalId? approvalId = null,
-            AgentMessageId? messageId = null, string? toolName = null, AgentToolResultStatus? toolStatus = null) =>
+            AgentMessageId? messageId = null, string? toolName = null, AgentToolResultStatus? toolStatus = null,
+            bool observed = false) =>
             new(1, Guid.NewGuid(), SessionId, TurnId, sequence, DateTimeOffset.UtcNow, CorrelationId, kind, text,
                 outcome, errorCode, toolCallId, approvalId, messageId, toolName, toolStatus)
             {
                 // Sanitized kind only, from the session destination (provider IsLocal); never from provider output.
                 ToolDestination = toolCallId is null ? null
                     : Session.OutputDestination.IsExternal ? AgentDataDestinationKind.External : AgentDataDestinationKind.Local,
+                ToolOrigin = toolCallId is null ? null : observed ? AgentToolOrigin.ProviderObserved : AgentToolOrigin.Registry,
             };
 
         public void AttachCancellation(CancellationToken consumer, CancellationToken lifetime)

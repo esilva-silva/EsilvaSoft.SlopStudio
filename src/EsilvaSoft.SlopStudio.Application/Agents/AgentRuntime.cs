@@ -127,7 +127,11 @@ public sealed partial class AgentRuntime : IAgentRuntime, IAsyncDisposable
             ? AgentOutputDestination.Local()
             : AgentOutputDestination.ProviderExternal(provider.ProviderId);
         if (!_sessions.TryAdd(id, new SessionState(providerSession, provider.ProviderId, destination,
-                _options.MaxConcurrentToolsPerSession)))
+                _options.MaxConcurrentToolsPerSession)
+            {
+                ObservableNativeTools = SnapshotObservableTools(providerSession),
+                ProviderErrorCodes = SnapshotProviderErrorCodes(providerSession),
+            }))
         {
             await providerSession.DisposeAsync().ConfigureAwait(false);
             throw new AgentRuntimeException("DuplicateSessionId", "Session ID is duplicated.");
@@ -229,6 +233,60 @@ public sealed partial class AgentRuntime : IAgentRuntime, IAsyncDisposable
             throw new AgentRuntimeException("InvalidSessionId", "Session ID is invalid.");
         }
     }
+
+    /// <summary>
+    /// Sanitized snapshot of the provider-native tools a session may report for display. A name must be a short ASCII
+    /// token, outside the MCP namespace and different (ignoring case) from every registry tool, so an observation can
+    /// never pass for a registry call. A failing declaration yields none.
+    /// </summary>
+    private HashSet<string> SnapshotObservableTools(IAgentSession session)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        try
+        {
+            var registryNames = _toolRegistry?.GetDescriptors().Select(static descriptor => descriptor.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
+            foreach (var name in session.ObservableNativeTools ?? [])
+            {
+                if (names.Count < 16 && IsObservableToolName(name) && !registryNames.Contains(name))
+                {
+                    names.Add(name);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            names.Clear();
+        }
+
+        return names;
+    }
+
+    /// <summary>Only short ASCII identifiers (the same rule as tool codes), at most 64; a failing declaration yields none.</summary>
+    private static HashSet<string> SnapshotProviderErrorCodes(IAgentSession session)
+    {
+        var codes = new HashSet<string>(StringComparer.Ordinal);
+        try
+        {
+            foreach (var code in session.ProviderErrorCodes ?? [])
+            {
+                if (codes.Count < 64 && code is not null && SafeCode(code) == code)
+                {
+                    codes.Add(code);
+                }
+            }
+        }
+        catch (Exception)
+        {
+            codes.Clear();
+        }
+
+        return codes;
+    }
+
+    private static bool IsObservableToolName(string? name) =>
+        name is { Length: > 0 and <= 64 } && name.All(static c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-' or '.') &&
+        !name.StartsWith("mcp", StringComparison.OrdinalIgnoreCase);
 
     private static async Task DisposeLateSessionAsync(Task<IAgentSession> creation)
     {

@@ -13,7 +13,7 @@ internal sealed partial class ClaudeCodeAgentSession
     private async Task ProduceTurnAsync(
         TurnContext turn, string userMessage, string? authorizedContext, ChannelWriter<AgentProviderEvent> writer)
     {
-        var translator = new ClaudeCodeStreamTranslator(turn.CliSessionId, _options.MinimumVersion);
+        var translator = new ClaudeCodeStreamTranslator(turn.CliSessionId, _options.MinimumVersion, _profile.Model);
         string? error = null;
         var resultReceived = false;
         var discarded = 0;

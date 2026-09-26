@@ -29,6 +29,9 @@ public enum AgentChatState
     TimedOut,
     Failed,
     ContextFailed,
+
+    /// <summary>A CLI-delegated provider has no usable working directory: sending is disabled (no fallback).</summary>
+    ReadScopeUnavailable,
 }
 
 /// <summary>Immutable package reviewed by the user. Sending uses exactly this, never a re-read of mutable state.</summary>
@@ -59,17 +62,25 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
 {
     private readonly AgentChatServices _services;
     private readonly Func<AgentChatTabSnapshot> _captureTab;
+    private readonly Func<string?>? _captureWorkspaceFolder;
     private readonly CancellationTokenSource _lifetime = new();
     private long _reviewGeneration;
     private bool _suppressInvalidation;
     private IReadOnlyList<AgentProviderPresentation>? _lastListing;
 
-    public AgentChatViewModel(AgentChatServices services, Func<AgentChatTabSnapshot> captureTab)
+    /// <param name="services">Chat services; missing pieces make the feature unavailable.</param>
+    /// <param name="captureTab">Synchronous capture of the originating tab.</param>
+    /// <param name="captureWorkspaceFolder">
+    /// Synchronous read of the Files panel folder (UI thread). Captured when a session starts and sent as
+    /// <see cref="AgentSessionOptions.WorkingDirectory"/>; null means no folder.
+    /// </param>
+    public AgentChatViewModel(AgentChatServices services, Func<AgentChatTabSnapshot> captureTab, Func<string?>? captureWorkspaceFolder = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(captureTab);
         _services = services;
         _captureTab = captureTab;
+        _captureWorkspaceFolder = captureWorkspaceFolder;
         ContextScopes =
         [
             new(AgentContextScope.None, Text.Resolve("agentScopeNone")),
@@ -115,7 +126,8 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsExternalDestination), nameof(DestinationText), nameof(DestinationHint),
-        nameof(ConsentText), nameof(HasModels), nameof(IsStatusError))]
+        nameof(ConsentText), nameof(HasModels), nameof(IsStatusError), nameof(ModeText), nameof(HasModeText),
+        nameof(ReadScopeText), nameof(HasReadScope))]
     private AgentProviderOption? _selectedProvider;
 
     [ObservableProperty] private string? _selectedModel;
@@ -157,6 +169,115 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
 
     public string ConsentText => Text.Format("agentConsentExternal", SelectedProvider?.Presentation.DisplayName ?? "");
 
+    /// <summary>Mode chip next to Local/Externo ("Claude · assinatura" / "Claude · API"); derived from capabilities.</summary>
+    public string? ModeText => SelectedProvider?.ModeText;
+
+    public bool HasModeText => ModeText is not null;
+
+    /// <summary>
+    /// Permanent read notice of a CLI-delegated provider: the folder its native read tools may read in a new session
+    /// (or none, when every read asks for approval) and that what is read goes to the recipient. Empty otherwise.
+    /// </summary>
+    public string ReadScopeText
+    {
+        get
+        {
+            if (CurrentReadScope() is not { } current)
+            {
+                return "";
+            }
+
+            var (scope, profile) = current;
+            var text = AgentCliReadScopeText.Describe(scope, profile);
+            if (scope.BlocksSending)
+            {
+                return text;
+            }
+
+            // Per-session snapshot: say that changes apply to new sessions and which folder the current one keeps.
+            var pinned = HasSessionWorkingDirectory && _sessionProviderId == SelectedProvider!.ProviderId &&
+                !string.Equals(SessionWorkingDirectory, scope.CandidateDirectory, StringComparison.Ordinal)
+                    ? " " + Text.Format("agentCliReadScopeSessionPinned", SessionWorkingDirectory ?? Text.Resolve("agentCliReadScopeNoFolder"))
+                    : "";
+            return text + " " + Text.Resolve("agentCliReadScopeNewSessions") + pinned;
+        }
+    }
+
+    /// <summary>Neither the chosen folder nor the dedicated folder can be used: no session can start (no fallback).</summary>
+    public bool IsReadScopeBlocked => CurrentReadScope()?.Scope.BlocksSending == true;
+
+    private (string ProviderId, string? Candidate, AgentCliReadScope Scope, AgentCliProviderProfile Profile)? _readScopeCache;
+
+    /// <summary>
+    /// Provider preview of the read scope for the folder currently in the Files panel (what a new session would use).
+    /// Cached per provider/folder; <see cref="RefreshReadScope"/> re-evaluates it.
+    /// </summary>
+    private (AgentCliReadScope Scope, AgentCliProviderProfile Profile)? CurrentReadScope()
+    {
+        if (SelectedProvider is not { UsesOfficialCli: true } provider || _services.CliAccounts is not { } accounts)
+        {
+            return null;
+        }
+
+        var candidate = CaptureWorkspaceFolder();
+        if (_readScopeCache is { } cached && cached.ProviderId == provider.ProviderId && cached.Candidate == candidate)
+        {
+            return (cached.Scope, cached.Profile);
+        }
+
+        try
+        {
+            if (accounts.Describe(provider.ProviderId) is not { } profile)
+            {
+                return null;
+            }
+
+            var scope = accounts.DescribeReadScope(provider.ProviderId, candidate);
+            _readScopeCache = (provider.ProviderId, candidate, scope, profile);
+            return (scope, profile);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    public bool HasReadScope => ReadScopeText.Length > 0;
+
+    /// <summary>Folder captured when the current session started (null = none); valid while <see cref="HasSessionWorkingDirectory"/>.</summary>
+    public string? SessionWorkingDirectory { get; private set; }
+
+    public bool HasSessionWorkingDirectory { get; private set; }
+
+    private string? CaptureWorkspaceFolder()
+    {
+        try
+        {
+            var folder = _captureWorkspaceFolder?.Invoke();
+            return string.IsNullOrWhiteSpace(folder) ? null : folder;
+        }
+        catch (Exception)
+        {
+            return null; // No folder: the provider uses its dedicated empty folder (reads ask for approval).
+        }
+    }
+
+    /// <summary>Called when the Files panel folder changes: the notice always shows the folder a new session would use.</summary>
+    public void RefreshReadScope()
+    {
+        _readScopeCache = null;
+        OnPropertyChanged(nameof(ReadScopeText));
+        OnPropertyChanged(nameof(HasReadScope));
+        OnPropertyChanged(nameof(IsReadScopeBlocked));
+        if (IsIdle)
+        {
+            UpdateIdleState();
+            ReviewCommand.NotifyCanExecuteChanged();
+            SendCommand.NotifyCanExecuteChanged();
+            PrimaryActionCommand.NotifyCanExecuteChanged();
+        }
+    }
+
     public bool IsBusy => State is AgentChatState.Connecting or AgentChatState.Generating or AgentChatState.WaitingTool or
         AgentChatState.WaitingApproval or AgentChatState.Cancelling;
 
@@ -171,7 +292,7 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
     public bool IsStatusError => (State == AgentChatState.ProviderUnavailable && SelectedProvider?.IsNotChecked != true) ||
         State is AgentChatState.Unavailable or AgentChatState.NoProvider or AgentChatState.NotAuthenticated or AgentChatState.CredentialExpired or
         AgentChatState.VaultUnavailable or AgentChatState.OutcomeUnknown or AgentChatState.TimedOut or
-        AgentChatState.Failed or AgentChatState.ContextFailed;
+        AgentChatState.Failed or AgentChatState.ContextFailed or AgentChatState.ReadScopeUnavailable;
 
     public string StatusText
     {
@@ -184,12 +305,15 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
                 AgentChatState.NoProvider => Text.Resolve("agentStateNoProvider"),
                 AgentChatState.ProviderUnavailable => Text.Format("agentStateProviderUnavailable", name,
                     SelectedProvider?.UnavailableText ?? Text.Resolve("agentSettingsUnavailable")),
-                AgentChatState.NotAuthenticated => Text.Format("agentStateNotAuthenticated", name),
-                AgentChatState.CredentialExpired => Text.Format("agentStateCredentialExpired", name),
+                AgentChatState.NotAuthenticated => Text.Format(UsesOfficialCli ? "agentStateCliSignedOut" : "agentStateNotAuthenticated", name),
+                AgentChatState.CredentialExpired => UsesOfficialCli
+                    ? Text.Format("agentStateCliBlocked", name, SelectedProvider?.UnavailableText ?? "")
+                    : Text.Format("agentStateCredentialExpired", name),
                 AgentChatState.VaultUnavailable => Text.Format("agentStateVaultUnavailable", name),
                 AgentChatState.Ready => IsExternalDestination && !DestinationConsent
                     ? Text.Resolve("agentStateConsentRequired")
                     : Text.Resolve("agentStateReady"),
+                AgentChatState.ReadScopeUnavailable => Text.Format("agentStateReadScopeUnavailable", name),
                 AgentChatState.Reviewing => Text.Resolve("agentStateReviewing"),
                 AgentChatState.Connecting => Text.Format("agentStateConnecting", name),
                 AgentChatState.Generating => Text.Resolve("agentStateGenerating"),
@@ -198,12 +322,43 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
                 AgentChatState.Cancelling => Text.Resolve("agentStateCancelling"),
                 AgentChatState.Completed => Text.Resolve("agentStateCompleted"),
                 AgentChatState.Cancelled => Text.Resolve("agentStateCancelled"),
-                AgentChatState.OutcomeUnknown => Text.Resolve("agentStateOutcomeUnknown"),
+                AgentChatState.OutcomeUnknown => DescribedDetail() is { } uncertain
+                    ? Text.Format("agentStateOutcomeUnknownDescribed", uncertain)
+                    : Text.Resolve("agentStateOutcomeUnknown"),
                 AgentChatState.TimedOut => Text.Resolve("agentStateTimedOut"),
                 AgentChatState.ContextFailed => Text.Format("agentStateContextFailed", StatusDetail ?? "ContextUnavailable"),
-                _ => Text.Format("agentStateFailed", StatusDetail ?? "AgentFailure"),
+                _ => StatusDetail is { } code && Text.HasTranslation(ErrorCodePrefix + code)
+                    ? Text.Format("agentStateFailedDescribed", Text.Resolve(ErrorCodePrefix + code), code)
+                    : Text.Format("agentStateFailed", StatusDetail ?? "AgentFailure"),
             };
             return State is AgentChatState.Ready && StatusDetail is { Length: > 0 } notice ? notice : text;
+        }
+    }
+
+    /// <summary>Prefix of localized, provider-reported safe error codes (looked up by code, never by provider).</summary>
+    public const string ErrorCodePrefix = "agentError.";
+
+    private bool UsesOfficialCli => SelectedProvider?.UsesOfficialCli == true;
+
+    /// <summary>Localized description of the current safe detail code, or null when this version does not know it.</summary>
+    private string? DescribedDetail() =>
+        StatusDetail is { Length: > 0 } code && Text.HasTranslation(ErrorCodePrefix + code) ? Text.Resolve(ErrorCodePrefix + code) : null;
+
+    /// <summary>
+    /// Executor named on native-tool cards: the official CLI profile of the turn's provider when the host describes one,
+    /// otherwise its display name. Looked up by provider ID through the port, never by brand.
+    /// </summary>
+    private string? ObservedToolExecutor(TurnRun run)
+    {
+        var providerId = run.ProviderId;
+        try
+        {
+            return _services.CliAccounts?.Describe(providerId)?.CliName ??
+                Providers.FirstOrDefault(p => p.ProviderId == providerId)?.Presentation.DisplayName;
+        }
+        catch (Exception)
+        {
+            return null;
         }
     }
 
@@ -249,7 +404,7 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
     }
 
     public AgentSettingsViewModel CreateSettingsViewModel() =>
-        new(_services.Catalog, _services.Credentials, SelectedProvider?.ProviderId);
+        new(_services.Catalog, _services.Credentials, SelectedProvider?.ProviderId, _services.CliAccounts, _captureWorkspaceFolder);
 
     private static string? DescribeTab(AgentChatTabSnapshot tab)
     {
@@ -429,13 +584,14 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
                 AgentProviderAuthState.Invalid or AgentProviderAuthState.Expired => AgentChatState.CredentialExpired,
                 AgentProviderAuthState.VaultUnavailable => AgentChatState.VaultUnavailable,
                 _ when !provider.Presentation.IsAvailable => AgentChatState.ProviderUnavailable,
+                _ when IsReadScopeBlocked => AgentChatState.ReadScopeUnavailable,
                 _ => Preview is null ? AgentChatState.Ready : AgentChatState.Reviewing,
             };
         OnPropertyChanged(nameof(ShowRefreshProviders));
     }
 
     /// <summary>"Check availability" is offered only while no usable provider is selected and nothing runs.</summary>
-    public bool ShowRefreshProviders => IsFeatureAvailable && IsIdle && !IsProviderUsable;
+    public bool ShowRefreshProviders => IsFeatureAvailable && IsIdle && !IsProviderUsable && State != AgentChatState.ReadScopeUnavailable;
 
     private bool CanRefreshProviders() => IsFeatureAvailable && IsIdle && !IsRefreshingProviders;
 
@@ -477,7 +633,7 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
 
     private bool IsProviderUsable =>
         IsFeatureAvailable && SelectedProvider is { Presentation: { IsAvailable: true } presentation } &&
-        presentation.AuthState is AgentProviderAuthState.NotRequired or AgentProviderAuthState.Configured;
+        presentation.AuthState is AgentProviderAuthState.NotRequired or AgentProviderAuthState.Configured && !IsReadScopeBlocked;
 
     private bool CanReview() =>
         IsProviderUsable && IsIdle && Preview is null && !IsPreparingPreview && !string.IsNullOrWhiteSpace(ComposerText);
@@ -545,7 +701,9 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
         var namespaceText = string.Join(" › ", new[] { snapshot.ConnectionId, snapshot.DatabaseName, snapshot.CollectionName }
             .Where(static part => !string.IsNullOrWhiteSpace(part)));
         Preview = new AgentChatPreview(provider.ProviderId, model, scope, message, tab, snapshot,
-            Text.Format("agentPreviewDestination", provider.Presentation.DisplayName, provider.DestinationText),
+            provider.ModeText is { } mode
+                ? Text.Format("agentPreviewDestinationMode", provider.Presentation.DisplayName, provider.DestinationText, mode)
+                : Text.Format("agentPreviewDestination", provider.Presentation.DisplayName, provider.DestinationText),
             Text.Format("agentPreviewScope", SelectedScope.Label),
             Text.Format("agentPreviewNamespace", namespaceText.Length == 0 ? "—" : namespaceText),
             string.IsNullOrEmpty(snapshot.AuthorizedContext) ? Text.Resolve("agentPreviewContextEmpty") : snapshot.AuthorizedContext);
@@ -586,6 +744,8 @@ public sealed partial class AgentChatViewModel : ObservableObject, IAsyncDisposa
         OnPropertyChanged(nameof(DestinationText));
         OnPropertyChanged(nameof(DestinationHint));
         OnPropertyChanged(nameof(ConsentText));
+        OnPropertyChanged(nameof(ModeText));
+        RefreshReadScope();
         TabContextText = Text.Format("agentFixedContext", DescribeTab(_captureTab()) ?? Text.Resolve("agentNoTabContext"));
     }
 

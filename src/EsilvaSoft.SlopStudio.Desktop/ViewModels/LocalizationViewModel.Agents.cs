@@ -150,7 +150,7 @@ public sealed partial class LocalizationViewModel
         ("agentSettingsModels", "Allowed models", "Modelos permitidos", "Modelos permitidos", "允许的模型"),
         ("agentSettingsNoModels", "No model available", "Nenhum modelo disponível", "Ningún modelo disponible", "没有可用的模型"),
         ("agentSettingsCapabilities", "Capabilities", "Capacidades", "Capacidades", "功能"),
-        ("agentCapabilitiesValue", "Streaming: {0} · SlopStudio tools: {1}", "Streaming: {0} · Ferramentas do SlopStudio: {1}", "Streaming: {0} · Herramientas de SlopStudio: {1}", "流式传输：{0} · SlopStudio 工具：{1}"),
+        ("agentCapabilitiesValue", "Streaming: {0} · {2} tools: {1}", "Streaming: {0} · Ferramentas do {2}: {1}", "Streaming: {0} · Herramientas de {2}: {1}", "流式传输：{0} · {2} 工具：{1}"),
         ("agentYes", "yes", "sim", "sí", "是"),
         ("agentNo", "no", "não", "no", "否"),
         ("agentSettingsDestination", "Data destination", "Destino dos dados", "Destino de los datos", "数据目标"),

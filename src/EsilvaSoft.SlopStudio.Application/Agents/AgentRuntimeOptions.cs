@@ -48,6 +48,12 @@ public sealed record AgentRuntimeOptions
 
     public int MaxApprovalsPerTurn { get; init; } = 8;
 
+    /// <summary>
+    /// Display-only observations of provider-native tools per turn (see <see cref="IAgentSession.ObservableNativeTools"/>).
+    /// Further observations are discarded without failing the turn; they are control publications bounded by this cap.
+    /// </summary>
+    public int MaxObservedToolsPerTurn { get; init; } = 64;
+
     public int MaxMessagesPerTurn { get; init; } = 64;
 
     public int MaxConcurrentToolsPerSession { get; init; } = 2;
@@ -61,7 +67,7 @@ public sealed record AgentRuntimeOptions
     internal void Validate()
     {
         if (MaxQueuedEvents < 4 || MaxQueuedBytes < 4096 || MaxDeltaChars < 16 || MaxToolCallsPerTurn < 1 ||
-            MaxApprovalsPerTurn < 1 || MaxMessagesPerTurn < 1 || MaxConcurrentToolsPerSession < 1 ||
+            MaxApprovalsPerTurn < 1 || MaxObservedToolsPerTurn < 1 || MaxMessagesPerTurn < 1 || MaxConcurrentToolsPerSession < 1 ||
             MaxConcurrentToolsGlobal < 1 || MaxToolArgumentsChars < 2 || MaxToolResultChars < 2)
         {
             throw new ArgumentOutOfRangeException(nameof(AgentRuntimeOptions), "Runtime limits are invalid.");

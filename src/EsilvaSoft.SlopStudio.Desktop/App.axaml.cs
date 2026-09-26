@@ -38,8 +38,9 @@ public partial class App : Avalonia.Application
         var services = new ServiceCollection();
         services.AddSlopStudioInfrastructure(LocalWorkspacePaths.GetDatabasePath());
         services.AddSlopStudioLocalAiInfrastructure();
-        // The Claude (assinatura) mode reads the Files panel folder only when a session is created (fixed per session).
-        AddDesktopAgentServices(services, () => _serviceProvider?.GetService<WorkspaceViewModel>()?.WorkspaceRootPath);
+        // The chat captures the Files panel folder on the UI thread (read notice and session start) and passes it in
+        // AgentSessionOptions.WorkingDirectory; nothing in the agent platform reads UI state by itself.
+        AddDesktopAgentServices(services);
         services.AddSingleton<WorkspaceService>();
         services.AddSingleton<WorkspaceViewModel>();
         _serviceProvider = services.BuildServiceProvider();
@@ -63,18 +64,30 @@ public partial class App : Avalonia.Application
     /// awaits: without a stored API Key, network or reachable service each provider only reports itself unavailable
     /// with a safe code through the same runtime/catalog (AC-15).
     /// </summary>
-    public static void AddDesktopAgentServices(IServiceCollection services, Func<string?>? workspaceDirectory = null)
+    public static void AddDesktopAgentServices(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
         services.AddSlopStudioOpenAiAgentProvider();
         services.AddSlopStudioClaudeAgentProvider(new ClaudeAgentProviderOptions { ApiKeyReference = ClaudeApiKeySlot });
         // "Claude (assinatura)": the user's own Claude Code binary (ADR-053), a separate provider from the API mode above.
         // Lazy: nothing is located, started or authenticated until the user checks the status or opens a session.
-        services.AddSlopStudioClaudeCodeAgentProvider(new ClaudeCodeAgentProviderOptions { WorkspaceDirectory = workspaceDirectory });
+        // No WorkspaceDirectory delegate: the provider never reads UI state later; the folder arrives only as the
+        // per-session snapshot in AgentSessionOptions.WorkingDirectory (null = dedicated folder, reads ask approval).
+        services.AddSlopStudioClaudeCodeAgentProvider(new ClaudeCodeAgentProviderOptions());
         // Production, provider-neutral view for the chat UI (AC-04/AC-09): built only from the shared
         // AgentProviderCatalog/capabilities, with no branch by provider brand.
+        // The family map is display data only (mode chip "Claude · assinatura" / "Claude · API"); nothing branches on it.
         services.AddSingleton<IAgentProviderCatalog>(
-            provider => new DesktopAgentProviderCatalog(provider.GetRequiredService<AgentProviderCatalog>()));
+            provider => new DesktopAgentProviderCatalog(provider.GetRequiredService<AgentProviderCatalog>(),
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    [OpenAiAgentProvider.Id] = "OpenAI",
+                    [ClaudeAgentProvider.Id] = "Claude",
+                    [ClaudeCodeAgentProvider.Id] = "Claude",
+                }));
+        // Account actions of the CLI-delegated mode (P7-CL5-02): only states, version, tier and names cross this port.
+        services.AddSingleton<IAgentCliAccountManager>(provider => new ClaudeCodeCliAccountManager(
+            provider.GetRequiredService<ClaudeCodeAgentProvider>()));
         // The only write path for provider keys: the same vault slots the adapters resolve. The slot map is the
         // composition root's data; the store itself never branches on a provider brand.
         services.AddSingleton<IAgentApiKeyStore>(provider => new DesktopAgentApiKeyStore(
@@ -92,6 +105,187 @@ public partial class App : Avalonia.Application
             provider.GetRequiredService<IAgentProviderCatalog>(),
             provider.GetRequiredService<IAgentContextProvider>(),
             ApprovalDetails: provider.GetRequiredService<IAgentApprovalDetailsSource>(),
-            Credentials: provider.GetRequiredService<IAgentApiKeyStore>())));
+            Credentials: provider.GetRequiredService<IAgentApiKeyStore>(),
+            CliAccounts: provider.GetRequiredService<IAgentCliAccountManager>())));
     }
+
+    private static async Task<AgentCliAccountStatus> CheckClaudeCodeAsync(ClaudeCodeAgentProvider provider, CancellationToken cancellationToken)
+    {
+        var installation = await provider.DetectAsync(cancellationToken).ConfigureAwait(false);
+        var install = ClaudeCodeCliAccountManager.MapInstall(installation.State);
+        var version = installation.Version?.ToString();
+        if (install != AgentCliInstallState.Installed)
+        {
+            return new AgentCliAccountStatus(install, version, AgentCliAuthState.NotChecked, ExecutablePath: installation.ExecutablePath);
+        }
+
+        ClaudeCodeAuthStatus auth;
+        try
+        {
+            auth = await provider.GetAuthenticationStatusAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            auth = new ClaudeCodeAuthStatus(ClaudeCodeAuthKind.Unreadable);
+        }
+
+        return ClaudeCodeCliAccountManager.Map(auth, version, installation.ExecutablePath);
+    }
+
+    private static async Task<AgentCliCommandResult> SignInClaudeCodeAsync(ClaudeCodeAgentProvider provider, CancellationToken cancellationToken) =>
+        ClaudeCodeCliAccountManager.Map(await provider.LoginAsync(cancellationToken).ConfigureAwait(false));
+
+    private static async Task<AgentCliCommandResult> SignOutClaudeCodeAsync(ClaudeCodeAgentProvider provider, CancellationToken cancellationToken) =>
+        ClaudeCodeCliAccountManager.Map(await provider.LogoutAsync(userConfirmedGlobalLogout: true, cancellationToken).ConfigureAwait(false));
+
+    /// <summary>
+    /// Adapter of the "Claude (assinatura)" provider to the neutral <see cref="IAgentCliAccountManager"/> port. Lives in
+    /// the composition root so no ViewModel names the provider. It forwards only allowlisted fields (states, version,
+    /// subscription tier, names of blocking variables/sources and the resolved executable path); the provider itself
+    /// never reads credentials, e-mail or organization, and nothing here calls the model.
+    /// </summary>
+    public sealed class ClaudeCodeCliAccountManager(ClaudeCodeAgentProvider provider) : IAgentCliAccountManager
+    {
+        private static readonly AgentCliProviderProfile Profile = new(
+            CliName: "Claude Code",
+            RecipientName: "Anthropic",
+            SignInCommand: "claude auth login",
+            TranscriptLocation: "~/.claude/projects",
+            CredentialLocation: "~/.claude/.credentials.json",
+            ConfigLocation: "~/.claude");
+
+        private readonly ClaudeCodeAgentProvider _provider = provider ?? throw new ArgumentNullException(nameof(provider));
+
+        public AgentCliProviderProfile? Describe(string providerId) => IsMine(providerId) ? Profile : null;
+
+        /// <summary>
+        /// The provider's own working-directory decision for the candidate captured in the UI
+        /// (<see cref="ClaudeCodeAgentProvider.PreviewWorkingDirectory"/>): synchronous, no process, and exactly what
+        /// CreateSessionAsync uses with the same AgentSessionOptions.WorkingDirectory.
+        /// </summary>
+        public AgentCliReadScope DescribeReadScope(string providerId, string? candidateWorkspace)
+        {
+            if (!IsMine(providerId))
+            {
+                return AgentCliReadScope.None;
+            }
+
+            var candidate = string.IsNullOrWhiteSpace(candidateWorkspace) ? null : candidateWorkspace;
+            ClaudeCodeWorkingDirectoryPreview preview;
+            try
+            {
+                preview = _provider.PreviewWorkingDirectory(candidate);
+            }
+            catch (ClaudeCodeUnavailableException)
+            {
+                return new AgentCliReadScope(candidate, null, false, AgentCliReadScopeRejection.ConfigurationInvalid, DedicatedDirectoryUsable: false);
+            }
+
+            return new AgentCliReadScope(candidate, preview.Directory,
+                preview.Kind == ClaudeCodeWorkingDirectoryKind.Workspace,
+                preview.Rejection switch
+                {
+                    ClaudeCodeWorkspaceRejection.None => AgentCliReadScopeRejection.None,
+                    ClaudeCodeWorkspaceRejection.NotProvided => AgentCliReadScopeRejection.NotProvided,
+                    ClaudeCodeWorkspaceRejection.InvalidPath => AgentCliReadScopeRejection.InvalidPath,
+                    ClaudeCodeWorkspaceRejection.NotFound => AgentCliReadScopeRejection.NotFound,
+                    ClaudeCodeWorkspaceRejection.Unreadable => AgentCliReadScopeRejection.Unreadable,
+                    ClaudeCodeWorkspaceRejection.VolumeRoot => AgentCliReadScopeRejection.VolumeRoot,
+                    ClaudeCodeWorkspaceRejection.UserProfile => AgentCliReadScopeRejection.UserProfile,
+                    _ => AgentCliReadScopeRejection.ProtectedArea,
+                },
+                preview.ProtectedArea switch
+                {
+                    ClaudeCodeProtectedArea.AppData => AgentCliProtectedArea.AppData,
+                    ClaudeCodeProtectedArea.Database => AgentCliProtectedArea.Database,
+                    ClaudeCodeProtectedArea.ClaudeConfig => AgentCliProtectedArea.CliConfig,
+                    ClaudeCodeProtectedArea.SshKeys => AgentCliProtectedArea.SshKeys,
+                    _ => AgentCliProtectedArea.None,
+                },
+                preview.Relation switch
+                {
+                    ClaudeCodeProtectedRelation.SameOrInside => AgentCliProtectedRelation.SameOrInside,
+                    ClaudeCodeProtectedRelation.Contains => AgentCliProtectedRelation.Contains,
+                    _ => AgentCliProtectedRelation.None,
+                },
+                preview.DedicatedDirectoryUsable);
+        }
+
+        // The async bodies live in App itself (CheckClaudeCodeAsync & co.): their compiler-generated state machines are
+        // then nested directly in the composition root type, as AgentArchitectureTests requires.
+        public Task<AgentCliAccountStatus> CheckAsync(string providerId, CancellationToken cancellationToken)
+        {
+            EnsureMine(providerId);
+            return CheckClaudeCodeAsync(_provider, cancellationToken);
+        }
+
+        public Task<AgentCliCommandResult> SignInAsync(string providerId, CancellationToken cancellationToken)
+        {
+            EnsureMine(providerId);
+            return SignInClaudeCodeAsync(_provider, cancellationToken);
+        }
+
+        public Task<AgentCliCommandResult> SignOutAsync(string providerId, bool userConfirmedGlobalSignOut, CancellationToken cancellationToken)
+        {
+            EnsureMine(providerId);
+            if (!userConfirmedGlobalSignOut)
+            {
+                throw new InvalidOperationException("O logout é global e exige confirmação explícita.");
+            }
+
+            return SignOutClaudeCodeAsync(_provider, cancellationToken);
+        }
+
+        private static bool IsMine(string providerId) => string.Equals(providerId, ClaudeCodeAgentProvider.Id, StringComparison.Ordinal);
+
+        private static void EnsureMine(string providerId)
+        {
+            if (!IsMine(providerId))
+            {
+                throw new ArgumentException("Provider sem conta por CLI oficial.", nameof(providerId));
+            }
+        }
+
+        internal static AgentCliInstallState MapInstall(ClaudeCodeInstallationState state) => state switch
+        {
+            ClaudeCodeInstallationState.Found => AgentCliInstallState.Installed,
+            ClaudeCodeInstallationState.NotFound => AgentCliInstallState.NotFound,
+            ClaudeCodeInstallationState.UnsupportedExecutable => AgentCliInstallState.UnsupportedExecutable,
+            ClaudeCodeInstallationState.VersionTooLow => AgentCliInstallState.VersionTooLow,
+            ClaudeCodeInstallationState.VersionUnreadable => AgentCliInstallState.VersionUnreadable,
+            ClaudeCodeInstallationState.ProbeTimedOut => AgentCliInstallState.TimedOut,
+            _ => AgentCliInstallState.CheckFailed,
+        };
+
+        internal static AgentCliAccountStatus Map(ClaudeCodeAuthStatus auth, string? version, string? executablePath) => new(
+            AgentCliInstallState.Installed, version,
+            auth.Kind switch
+            {
+                ClaudeCodeAuthKind.Subscription => AgentCliAuthState.Subscription,
+                ClaudeCodeAuthKind.NotLoggedIn => AgentCliAuthState.SignedOut,
+                ClaudeCodeAuthKind.ApiKey => AgentCliAuthState.ApiKey,
+                ClaudeCodeAuthKind.ApiKeyHelper => AgentCliAuthState.ApiKeyHelper,
+                ClaudeCodeAuthKind.EnvironmentToken => AgentCliAuthState.EnvironmentToken,
+                ClaudeCodeAuthKind.CloudProvider => AgentCliAuthState.CloudProvider,
+                ClaudeCodeAuthKind.BlockedEnvironment => AgentCliAuthState.BlockedEnvironment,
+                ClaudeCodeAuthKind.UnsupportedMethod => AgentCliAuthState.UnsupportedMethod,
+                _ => AgentCliAuthState.Unreadable,
+            },
+            // Allowlisted tokens only: the tier ("pro") and the *name* of the variable or key source.
+            auth.Kind == ClaudeCodeAuthKind.Subscription ? auth.SubscriptionType : null,
+            auth.EnvironmentVariableName ?? auth.ApiKeySource,
+            executablePath);
+
+        internal static AgentCliCommandResult Map(ClaudeCodeAccountCommandResult result) => new(
+            result.State switch
+            {
+                ClaudeCodeAccountCommandState.Completed => AgentCliCommandOutcome.Completed,
+                ClaudeCodeAccountCommandState.StillRunning => AgentCliCommandOutcome.StillRunning,
+                ClaudeCodeAccountCommandState.ExecutableUnavailable => AgentCliCommandOutcome.ExecutableUnavailable,
+                ClaudeCodeAccountCommandState.NoVisibleTerminal => AgentCliCommandOutcome.NoVisibleTerminal,
+                _ => AgentCliCommandOutcome.StartFailed,
+            },
+            result.AuthStatus is { } auth ? Map(auth, null, null) : null);
+    }
+
 }

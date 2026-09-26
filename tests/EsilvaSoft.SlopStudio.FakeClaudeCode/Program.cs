@@ -9,7 +9,8 @@ namespace EsilvaSoft.SlopStudio.FakeClaudeCode;
 /// Claude Code falso. O cenário vem de <c>fake-claude.json</c> no diretório de trabalho (o mesmo cwd que o adapter
 /// usa), e cada invocação registra argv e stdin em <c>fake-claude.log.jsonl</c> para as asserções dos testes.
 /// Diretivas de fixture (linhas iniciadas por <c>#</c>): <c>#spawn-child</c>, <c>#hang</c>, <c>#garbage</c>,
-/// <c>#giant N</c>, <c>#stderr texto</c>, <c>#fragment</c>, <c>#sleep ms</c>, <c>#exit N</c>.
+/// <c>#giant N</c>, <c>#stderr texto</c>, <c>#fragment</c>, <c>#sleep ms</c>, <c>#exit N</c>, <c>#spawn-grandchild</c>
+/// (filho intermediário cria um neto e sai, deixando o neto órfão).
 /// </summary>
 internal static class Program
 {
@@ -23,6 +24,14 @@ internal static class Program
         if (args is ["--fake-sleep-child"])
         {
             Thread.Sleep(TimeSpan.FromMinutes(3));
+            return 0;
+        }
+
+        if (args is ["--fake-grandparent"])
+        {
+            // Cria o neto e sai: o neto fica órfão (pai morto), fora do alcance de Kill(entireProcessTree).
+            var grandchild = Process.Start(new ProcessStartInfo(Environment.ProcessPath!, "--fake-sleep-child") { UseShellExecute = false })!;
+            Log(new Dictionary<string, object?> { ["event"] = "grandchild", ["pid"] = grandchild.Id });
             return 0;
         }
 
@@ -102,6 +111,13 @@ internal static class Program
                         var child = Process.Start(new ProcessStartInfo(Environment.ProcessPath!, "--fake-sleep-child") { UseShellExecute = false })!;
                         Log(new Dictionary<string, object?> { ["event"] = "child", ["pid"] = child.Id });
                         WriteStdout("{\"type\":\"system\",\"subtype\":\"fake_child\",\"pid\":" + child.Id.ToString(CultureInfo.InvariantCulture) + "}");
+                        break;
+                    case "#spawn-grandchild":
+                        using (var middle = Process.Start(new ProcessStartInfo(Environment.ProcessPath!, "--fake-grandparent") { UseShellExecute = false })!)
+                        {
+                            middle.WaitForExit();
+                        }
+
                         break;
                     case "#hang":
                         Thread.Sleep(Timeout.Infinite);
@@ -184,6 +200,13 @@ internal static class Program
 
     private static void Log(Dictionary<string, object?> entry)
     {
+        // Sem cenário no cwd (ex.: consultas de estado na pasta temporária), nada é gravado: nenhum teste depende disso
+        // e a pasta temporária do usuário não recebe arquivos do falso.
+        if (!File.Exists(Path.Combine(Environment.CurrentDirectory, ScenarioFile)))
+        {
+            return;
+        }
+
         var line = JsonSerializer.Serialize(entry) + "\n";
         lock (LogGate)
         {

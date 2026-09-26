@@ -27,7 +27,9 @@ namespace EsilvaSoft.SlopStudio.Desktop.Agents;
 
 /// <summary>
 /// Capability-oriented view of a registered provider. The chat reacts to these fields; it never branches on a provider
-/// brand. <paramref name="UnavailableReason"/> is a safe, already localized sentence.
+/// brand. <paramref name="UnavailableReason"/> is a safe code or already localized sentence.
+/// <paramref name="FamilyName"/> is display data supplied by the composition root (e.g. the model family shared by two
+/// modes of the same vendor) used only to label the mode chip; nothing branches on it.
 /// </summary>
 public sealed record AgentProviderPresentation(
     string ProviderId,
@@ -39,14 +41,15 @@ public sealed record AgentProviderPresentation(
     AgentProviderAuthState AuthState,
     bool SupportsStreaming = true,
     bool SupportsToolCalling = false,
-    string? UnavailableReason = null)
+    string? UnavailableReason = null,
+    string? FamilyName = null)
 {
     /// <summary>
     /// Builds the view from promoted contracts. Destination comes from the catalog entry (provider <c>IsLocal</c>), the
     /// capabilities from the status already intersected with the descriptor; nothing is inferred from the brand.
     /// </summary>
     public static AgentProviderPresentation From(
-        AgentProviderEntry entry, AgentProviderStatus status, string? localizedUnavailableReason = null)
+        AgentProviderEntry entry, AgentProviderStatus status, string? localizedUnavailableReason = null, string? familyName = null)
     {
         ArgumentNullException.ThrowIfNull(entry);
         ArgumentNullException.ThrowIfNull(status);
@@ -54,7 +57,7 @@ public sealed record AgentProviderPresentation(
         return new AgentProviderPresentation(descriptor.ProviderId, descriptor.DisplayName, entry.Destination,
             status.IsAvailable, status.Models, descriptor.AuthenticationMethods, status.AuthState,
             status.Capabilities.Streaming, status.Capabilities.ToolCalling,
-            status.IsAvailable ? null : localizedUnavailableReason);
+            status.IsAvailable ? null : localizedUnavailableReason, familyName);
     }
 }
 
@@ -73,6 +76,12 @@ public interface IAgentProviderCatalog
     /// may show an unlock prompt. The default does nothing: a catalog without live status keeps its listing.
     /// </summary>
     Task RefreshAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>
+    /// Explicit re-check of a single provider ("Test connection"), so testing one provider never reads another
+    /// provider's vault slot. The default refreshes everything.
+    /// </summary>
+    Task RefreshProviderAsync(string providerId, CancellationToken cancellationToken) => RefreshAsync(cancellationToken);
 }
 
 /// <summary>
@@ -156,7 +165,8 @@ public sealed record AgentChatServices(
     IAgentContextProvider? ContextProvider,
     IAgentApprovalDetailsSource? ApprovalDetails = null,
     IAgentApiKeyStore? Credentials = null,
-    TimeProvider? Time = null)
+    TimeProvider? Time = null,
+    IAgentCliAccountManager? CliAccounts = null)
 {
     public static AgentChatServices Unavailable { get; } = new(null, null, null);
 

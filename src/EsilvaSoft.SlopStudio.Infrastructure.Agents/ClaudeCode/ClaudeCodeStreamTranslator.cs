@@ -46,7 +46,7 @@ internal sealed record ClaudeCodeResultInfo(
 /// ferramenta, caminho, prompt, stderr ou identificador nativo é copiado para eventos. Blocos de <i>thinking</i>
 /// (texto vazio + assinatura opaca) são descartados.
 /// </summary>
-internal sealed class ClaudeCodeStreamTranslator(string expectedSessionId, ClaudeCodeVersion minimumVersion)
+internal sealed class ClaudeCodeStreamTranslator(string expectedSessionId, ClaudeCodeVersion minimumVersion, string requestedModel)
 {
     private const string NoConversationMarker = "No conversation found";
 
@@ -214,7 +214,29 @@ internal sealed class ClaudeCodeStreamTranslator(string expectedSessionId, Claud
             return false;
         }
 
-        return ClaudeCodeVersion.TryParse(String(root, "claude_code_version"), out var version) && version >= minimumVersion;
+        return ClaudeCodeVersion.TryParse(String(root, "claude_code_version"), out var version) && version >= minimumVersion &&
+            IsRequestedModel(String(root, "model"));
+    }
+
+    /// <summary>
+    /// M4: o modelo efetivo precisa corresponder ao pedido. Alias oficial (<c>sonnet</c>/<c>opus</c>/<c>haiku</c>, com
+    /// sufixo opcional como <c>[1m]</c>) exige um ID <c>claude-…</c> da mesma família; ID completo exige igualdade.
+    /// Assim <c>ANTHROPIC_MODEL</c>/<c>ANTHROPIC_DEFAULT_*_MODEL</c> vindos de fora do app não trocam o modelo em silêncio.
+    /// </summary>
+    private bool IsRequestedModel(string? observed)
+    {
+        if (observed is null)
+        {
+            return false;
+        }
+
+        var bracket = requestedModel.IndexOf('[', StringComparison.Ordinal);
+        var family = bracket < 0 ? requestedModel : requestedModel[..bracket];
+        var observedBase = observed.IndexOf('[', StringComparison.Ordinal) is var cut and >= 0 ? observed[..cut] : observed;
+        return family is "sonnet" or "opus" or "haiku"
+            ? observedBase.StartsWith("claude-", StringComparison.Ordinal) &&
+              observedBase.Split('-').Contains(family, StringComparer.Ordinal)
+            : string.Equals(observedBase, family, StringComparison.Ordinal);
     }
 
     private TranslationStep HandleRateLimit(JsonElement root)
@@ -230,7 +252,12 @@ internal sealed class ClaudeCodeStreamTranslator(string expectedSessionId, Claud
 
     private TranslationStep HandleStreamEvent(JsonElement root, List<AgentProviderEvent> output)
     {
-        if (IsSubagentFrame(root) || !root.TryGetProperty("event", out var streamEvent) || streamEvent.ValueKind != JsonValueKind.Object)
+        if (IsSubagentFrame(root))
+        {
+            return TranslationStep.Abort(ClaudeCodeErrorCodes.ProtocolViolation);
+        }
+
+        if (!root.TryGetProperty("event", out var streamEvent) || streamEvent.ValueKind != JsonValueKind.Object)
         {
             return TranslationStep.Continue;
         }
@@ -296,7 +323,12 @@ internal sealed class ClaudeCodeStreamTranslator(string expectedSessionId, Claud
 
     private TranslationStep HandleAssistant(JsonElement root, List<AgentProviderEvent> output)
     {
-        if (IsSubagentFrame(root) || !root.TryGetProperty("message", out var message) || message.ValueKind != JsonValueKind.Object ||
+        if (IsSubagentFrame(root))
+        {
+            return TranslationStep.Abort(ClaudeCodeErrorCodes.ProtocolViolation);
+        }
+
+        if (!root.TryGetProperty("message", out var message) || message.ValueKind != JsonValueKind.Object ||
             !message.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Array)
         {
             return TranslationStep.Continue;
@@ -348,7 +380,12 @@ internal sealed class ClaudeCodeStreamTranslator(string expectedSessionId, Claud
 
     private TranslationStep HandleUser(JsonElement root, List<AgentProviderEvent> output)
     {
-        if (IsSubagentFrame(root) || !root.TryGetProperty("message", out var message) || message.ValueKind != JsonValueKind.Object ||
+        if (IsSubagentFrame(root))
+        {
+            return TranslationStep.Abort(ClaudeCodeErrorCodes.ProtocolViolation);
+        }
+
+        if (!root.TryGetProperty("message", out var message) || message.ValueKind != JsonValueKind.Object ||
             !message.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Array)
         {
             return TranslationStep.Continue;
@@ -375,8 +412,16 @@ internal sealed class ClaudeCodeStreamTranslator(string expectedSessionId, Claud
 
     private TranslationStep HandleResult(JsonElement root, List<AgentProviderEvent> output)
     {
-        var sessionId = String(root, "session_id");
-        if (sessionId is not null && !string.Equals(sessionId, expectedSessionId, StringComparison.Ordinal))
+        // L2: result sem session_id ou de outra sessão é violação.
+        if (!string.Equals(String(root, "session_id"), expectedSessionId, StringComparison.Ordinal))
+        {
+            return TranslationStep.Abort(ClaudeCodeErrorCodes.ProtocolViolation);
+        }
+
+        // L1: sucesso sem init validado significa que nada do que foi verificado (tools, chave, modo) vale para o turno.
+        // Erros sem init (ex.: --resume de sessão inexistente, que falha antes do modelo) continuam classificados.
+        var isErrorResult = root.TryGetProperty("is_error", out var errorFlag) && errorFlag.ValueKind == JsonValueKind.True;
+        if (!InitValidated && !isErrorResult)
         {
             return TranslationStep.Abort(ClaudeCodeErrorCodes.ProtocolViolation);
         }
@@ -420,7 +465,10 @@ internal sealed class ClaudeCodeStreamTranslator(string expectedSessionId, Claud
     private static bool IsAllowedTool(string? name) =>
         name is not null && ClaudeCodeAgentProviderOptions.NativeToolAllowlist.Contains(name, StringComparer.Ordinal);
 
-    /// <summary>Quadros de subagente não deveriam existir (Agent/Task fora da allowlist); são ignorados.</summary>
+    /// <summary>
+    /// Quadro de subagente (<c>parent_tool_use_id</c> preenchido). Agent/Task estão fora de <c>--tools</c>, então qualquer
+    /// quadro assim é violação de contrato e aborta o turno (revisão M2).
+    /// </summary>
     private static bool IsSubagentFrame(JsonElement root) =>
         root.TryGetProperty("parent_tool_use_id", out var parent) && parent.ValueKind == JsonValueKind.String;
 

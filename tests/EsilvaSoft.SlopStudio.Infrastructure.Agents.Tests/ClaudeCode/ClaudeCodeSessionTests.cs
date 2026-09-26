@@ -47,7 +47,7 @@ public sealed class ClaudeCodeSessionTests
             Assert.That(ValueAfter(turn, "--tools"), Is.EqualTo("Read,Glob,Grep"), "Allowlist exata: nada de Bash/Edit/Write/WebFetch/Agent.");
             Assert.That(ValueAfter(turn, "--permission-mode"), Is.EqualTo("default"));
             Assert.That(ValueAfter(turn, "--setting-sources"), Is.EqualTo("user"));
-            Assert.That(ValueAfter(turn, "--model"), Is.EqualTo("sonnet"));
+            Assert.That(ValueAfter(turn, "--model"), Is.EqualTo("haiku"));
             Assert.That(ValueAfter(turn, "--max-turns"), Is.EqualTo("8"));
             Assert.That(turn, Does.Contain("--strict-mcp-config").And.Contain("--include-partial-messages").And.Contain("--verbose"));
             Assert.That(turn, Does.Not.Contain("--bare").And.Not.Contain("--resume").And.Not.Contain("--mcp-config")
@@ -254,7 +254,7 @@ public sealed class ClaudeCodeSessionTests
         {
             ExecutablePath = options.ExecutablePath, DedicatedWorkingDirectory = options.DedicatedWorkingDirectory,
             AppDataDirectory = options.AppDataDirectory, DatabasePath = options.DatabasePath, ProbeTimeout = options.ProbeTimeout,
-            IsEnvironmentVariableSet = options.IsEnvironmentVariableSet, MaxLineBytes = 1024 * 1024,
+            IsEnvironmentVariableSet = options.IsEnvironmentVariableSet, MaxLineBytes = 1024 * 1024, DefaultModel = "haiku",
         });
         await using var session = await SessionAsync(provider);
 

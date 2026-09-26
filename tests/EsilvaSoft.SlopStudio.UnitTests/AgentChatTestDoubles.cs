@@ -169,8 +169,22 @@ internal sealed class ChannelAgentRuntime : IAgentRuntime
 
     public Exception? DecisionFailure { get; set; }
 
-    public Task<AgentSessionId> StartSessionAsync(AgentSessionOptions options, CancellationToken cancellationToken) =>
-        Task.FromResult(SessionId);
+    /// <summary>Options of every session start, in order (e.g. the captured working directory).</summary>
+    public ConcurrentQueue<AgentSessionOptions> SessionOptions { get; } = new();
+
+    /// <summary>When set, session start waits for it (lets tests change UI state during the await).</summary>
+    public TaskCompletionSource? SessionGate { get; set; }
+
+    public async Task<AgentSessionId> StartSessionAsync(AgentSessionOptions options, CancellationToken cancellationToken)
+    {
+        SessionOptions.Enqueue(options);
+        if (SessionGate is { } gate)
+        {
+            await gate.Task.WaitAsync(cancellationToken);
+        }
+
+        return SessionId;
+    }
 
     public async IAsyncEnumerable<AgentEvent> RunTurnAsync(AgentSessionId sessionId, AgentTurnRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -193,9 +207,12 @@ internal sealed class ChannelAgentRuntime : IAgentRuntime
 
     public void Push(AgentTurnId? turn, AgentEventKind kind, string? text = null, AgentTurnOutcome? outcome = null,
         string? errorCode = null, AgentToolCallId? call = null, AgentApprovalId? approval = null, AgentMessageId? message = null,
-        string? tool = null, AgentToolResultStatus? status = null, AgentSessionId? session = null) =>
+        string? tool = null, AgentToolResultStatus? status = null, AgentSessionId? session = null, AgentToolOrigin? origin = null) =>
         _events.Writer.TryWrite(new AgentEvent(1, Guid.NewGuid(), session ?? SessionId, turn, Interlocked.Increment(ref _sequence),
-            DateTimeOffset.UtcNow, Guid.NewGuid(), kind, text, outcome, errorCode, call, approval, message, tool, status));
+            DateTimeOffset.UtcNow, Guid.NewGuid(), kind, text, outcome, errorCode, call, approval, message, tool, status)
+        {
+            ToolOrigin = origin,
+        });
 
     public Task SubmitToolResultAsync(AgentToolResult result, CancellationToken cancellationToken) => Task.CompletedTask;
 

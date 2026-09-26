@@ -1574,7 +1574,7 @@ public sealed partial class LocalizationViewModel : ObservableObject
 
     static LocalizationViewModel()
     {
-        foreach (var (key, en, pt, es, zh) in WorkspaceToolsTranslations.Concat(AgentTranslations))
+        foreach (var (key, en, pt, es, zh) in WorkspaceToolsTranslations.Concat(AgentTranslations).Concat(AgentAccountTranslations))
         {
             ((Dictionary<string, string>)Catalog["en"])[key] = en;
             ((Dictionary<string, string>)Catalog["pt-BR"])[key] = pt;

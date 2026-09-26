@@ -63,7 +63,19 @@ public sealed partial class WorkspaceViewModel
         }
 
         var services = _agentChatServices?.GetServices() ?? AgentChatServices.Unavailable;
-        tab.AttachAgentChat(new AgentChatViewModel(services, tab.CaptureAgentChatSnapshot));
+        tab.AttachAgentChat(new AgentChatViewModel(services, tab.CaptureAgentChatSnapshot, () => WorkspaceRootPath));
+    }
+
+    /// <summary>
+    /// The Files panel folder is the read scope of CLI-delegated providers in new sessions: every open chat refreshes
+    /// its permanent read notice (text only; running sessions keep the folder fixed at their creation).
+    /// </summary>
+    private void RefreshAgentReadScopes()
+    {
+        foreach (var tab in Tabs)
+        {
+            tab.AgentChat?.RefreshReadScope();
+        }
     }
 
     /// <summary>Closing a tab ends its chat: the running turn is cancelled and its session closed.</summary>

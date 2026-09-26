@@ -348,7 +348,7 @@ public sealed class ClaudeCodeProviderTests
                 Directory.CreateDirectory(Path.Combine(home, "projeto")).FullName, home, protectedPaths), Is.Not.Null);
         });
 
-        var resolved = ClaudeCodeWorkspacePolicy.Resolve(fixture.Options(workspace: () => fixture.AppData), home);
+        var resolved = ClaudeCodeWorkspacePolicy.Resolve(fixture.Options(), home, fixture.AppData);
         Assert.That(resolved, Is.EqualTo((fixture.WorkingDirectory, ClaudeCodeWorkingDirectoryKind.Dedicated)));
     }
 

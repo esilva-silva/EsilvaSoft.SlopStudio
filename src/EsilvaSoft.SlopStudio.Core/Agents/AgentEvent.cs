@@ -62,6 +62,13 @@ public sealed record AgentEvent(
     public AgentDataDestinationKind? ToolDestination { get; init; }
 
     /// <summary>
+    /// Set by the runtime on tool events: <see cref="AgentToolOrigin.Registry"/> for calls it dispatched or accepted,
+    /// <see cref="AgentToolOrigin.ProviderObserved"/> for display-only observations of a provider-native tool (runtime
+    /// generated call ID, never answerable, never approvable). Null on non-tool events.
+    /// </summary>
+    public AgentToolOrigin? ToolOrigin { get; init; }
+
+    /// <summary>
     /// Wall-clock deadline of an approval, set by the runtime on <see cref="AgentEventKind.ApprovalRequested"/> from its
     /// own timeout (never from provider data). Display only: the runtime enforces expiry on a monotonic clock.
     /// </summary>

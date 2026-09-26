@@ -47,8 +47,15 @@ public sealed record ClaudeCodeAuthStatus(
     public bool IsSubscription => Kind == ClaudeCodeAuthKind.Subscription;
 
     /// <summary>
-    /// Variáveis que mudam a cobrança ou o destino (precedência documentada em Authentication) ou indicam que o app foi
-    /// iniciado de dentro de outra sessão Claude Code (risco R-CL-02). O app não as remove nem injeta: bloqueia.
+    /// Variáveis bloqueadas por NOME (o app não as remove, não injeta nem lê o valor; presença com valor vazio conta):
+    /// cobrança/credencial (precedência documentada em Authentication), destino e transporte (endpoint, cabeçalhos,
+    /// proxy, CAs/TLS do runtime Node), troca silenciosa de modelo, diretório de configuração alternativo e sessão
+    /// Claude Code hospedeira (risco R-CL-02). <c>http_proxy</c>/<c>https_proxy</c> minúsculas contam no Linux.
+    /// Limitação registrada: o bloco <c>env</c> do <c>~/.claude/settings.json</c> do usuário (fonte <c>user</c>) não é
+    /// verificável por nome sem ler esse arquivo, o que o app não faz. A detecção efetiva cobre o que a CLI informa:
+    /// <c>apiKeySource</c>/<c>apiProvider</c>/<c>authMethod</c> no <c>auth status</c> e <c>apiKeySource</c>/<c>model</c>
+    /// no <c>init</c>; um <c>ANTHROPIC_BASE_URL</c> ou proxy definido nesse bloco NÃO aparece em nenhum campo observado
+    /// (risco residual, ver M5–M7 pendentes de decisão).
     /// </summary>
     public static IReadOnlyList<string> BlockingEnvironmentVariables { get; } =
     [
@@ -59,16 +66,32 @@ public sealed record ClaudeCodeAuthStatus(
         "CLAUDE_CODE_USE_VERTEX",
         "CLAUDE_CODE_USE_FOUNDRY",
         "ANTHROPIC_BASE_URL",
+        "ANTHROPIC_CUSTOM_HEADERS",
+        "ANTHROPIC_MODEL",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+        "ANTHROPIC_SMALL_FAST_MODEL",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "NODE_EXTRA_CA_CERTS",
+        "NODE_TLS_REJECT_UNAUTHORIZED",
+        "CLAUDE_CONFIG_DIR",
         "CLAUDECODE",
         "CLAUDE_CODE_ENTRYPOINT",
     ];
 
-    /// <summary>Primeira variável bloqueante definida (só o nome), ou nulo.</summary>
+    /// <summary>Primeira variável bloqueante presente (só o nome), ou nulo. Valor vazio conta como presente.</summary>
     internal static string? FindBlockingEnvironmentVariable(Func<string, bool>? isSet)
     {
-        isSet ??= static name => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(name));
+        isSet ??= static name => IsPresent(Environment.GetEnvironmentVariable(name));
         return BlockingEnvironmentVariables.FirstOrDefault(isSet);
     }
+
+    /// <summary>Definida conta como presente mesmo vazia (no Linux <c>VAR=</c> existe); o valor é descartado na hora.</summary>
+    internal static bool IsPresent(string? value) => value is not null;
 
     /// <summary>
     /// Classifica a saída JSON. Regra (spike P7-CL0-01): assinatura somente se <c>loggedIn</c> e

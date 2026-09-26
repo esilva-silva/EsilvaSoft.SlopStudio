@@ -202,6 +202,12 @@ public sealed partial class AgentRuntime
             {
                 // Unfinished dispatches are published below as OutcomeUnknown; their late results are discarded.
             }
+
+            if (drained && !naturalEnd)
+            {
+                // Only after the adapter confirmed it stopped (stream disposed): its report is final and cannot race.
+                turn.CancellationReport = QueryCancellationReport(session, turn.TurnId);
+            }
         }
         catch (Exception)
         {
@@ -246,6 +252,18 @@ public sealed partial class AgentRuntime
                     terminals.Add(sequence => turn.Create(sequence, AgentEventKind.ToolFailed,
                         errorCode: status == AgentToolResultStatus.OutcomeUnknown ? "ToolOutcomeUnknown" : "ToolCancelled",
                         toolCallId: callId, toolName: name, toolStatus: status));
+                }
+
+                foreach (var observed in turn.ObservedTools.Values.Where(static item => !item.Terminal))
+                {
+                    // A native tool seen starting may have run (and its data reached the provider); display only, so the
+                    // turn outcome is not affected.
+                    observed.Terminal = true;
+                    var publishedId = observed.PublishedId;
+                    var observedName = observed.Name;
+                    terminals.Add(sequence => turn.Create(sequence, AgentEventKind.ToolFailed, errorCode: "ObservedToolUnconfirmed",
+                        toolCallId: publishedId, toolName: observedName, toolStatus: AgentToolResultStatus.OutcomeUnknown,
+                        observed: true));
                 }
 
                 foreach (var (approvalId, approval) in turn.Approvals.Where(static item => !item.Value.Terminal))
@@ -298,13 +316,35 @@ public sealed partial class AgentRuntime
             return (AgentTurnOutcome.Completed, null);
         }
 
-        return turn.Reason switch
+        var (outcome, errorCode) = turn.Reason switch
         {
-            TurnCancelReason.None or TurnCancelReason.Finished => (AgentTurnOutcome.Completed, null),
+            TurnCancelReason.None or TurnCancelReason.Finished => (AgentTurnOutcome.Completed, (string?)null),
             TurnCancelReason.TimedOut => (AgentTurnOutcome.TimedOut, "TurnTimedOut"),
             TurnCancelReason.ConsumerUnavailable => (AgentTurnOutcome.Cancelled, "ConsumerUnavailable"),
             _ => (AgentTurnOutcome.Cancelled, null),
         };
+
+        // Precedence: unconfirmed interruption, uncertain tool, failure, natural end and timeout are decided above. The
+        // adapter report can only turn a cancellation into OutcomeUnknown (the request already reached the provider);
+        // it never makes an outcome cleaner and never implies rollback.
+        return outcome == AgentTurnOutcome.Cancelled &&
+            turn.CancellationReport == AgentTurnCancellationReport.MayHaveTakenEffect
+                ? (AgentTurnOutcome.OutcomeUnknown, errorCode ?? "CancelledAfterSend")
+                : (outcome, errorCode);
+    }
+
+    /// <summary>A throwing or undefined report is treated conservatively as possibly effective.</summary>
+    private static AgentTurnCancellationReport QueryCancellationReport(SessionState session, AgentTurnId turnId)
+    {
+        try
+        {
+            var report = session.ProviderSession.GetCancellationReport(turnId);
+            return Enum.IsDefined(report) ? report : AgentTurnCancellationReport.MayHaveTakenEffect;
+        }
+        catch (Exception)
+        {
+            return AgentTurnCancellationReport.MayHaveTakenEffect;
+        }
     }
 
     private static async Task<bool> DrainEnumeratorAsync(IAsyncEnumerator<AgentProviderEvent>? enumerator, Task<bool>? moveTask)
@@ -356,19 +396,92 @@ public sealed partial class AgentRuntime
                 return await HandleToolRequestAsync(session, turn, item).ConfigureAwait(false);
             case AgentEventKind.ApprovalRequested:
                 return await HandleApprovalRequestAsync(session, turn, item).ConfigureAwait(false);
+            case AgentEventKind.ToolStarted or AgentEventKind.ToolCompleted or AgentEventKind.ToolFailed:
+                // Display-only observation of a provider-native tool, when the session declared it; otherwise discarded.
+                // Never touches registry calls, so a tool already executed by the broker is never executed again.
+                ObserveProviderTool(session, turn, item);
+                return true;
             case AgentEventKind.TaskStarted or AgentEventKind.TaskProgress or AgentEventKind.TaskCompleted or
-                AgentEventKind.ToolStarted or AgentEventKind.ToolCompleted or AgentEventKind.ToolFailed or
                 AgentEventKind.SessionStarted or AgentEventKind.SessionCompleted:
                 // Lifecycle and terminals are published by the runtime alone; adapter observations are discarded, so
                 // a tool already executed by the broker is never executed again because the provider reported it.
                 return true;
             case AgentEventKind.AgentError:
-                turn.Fail("ProviderError");
+                // A typed code declared by the adapter guides the user; free text never passes.
+                turn.Fail(item.Text is { } code && session.ProviderErrorCodes.Contains(code) ? code : "ProviderError");
                 return false;
             default:
                 // Approval grants/denials never come from the model; change proposals are disabled in this baseline.
                 turn.Fail("ProviderProtocolViolation");
                 return false;
+        }
+    }
+
+    /// <summary>
+    /// Publishes a provider-native tool observation under a runtime-generated call ID with origin
+    /// <see cref="AgentToolOrigin.ProviderObserved"/>. Discarded (without failing the turn) when the name was not declared
+    /// by the session or is a registry tool, when the event carries arguments, content or other identifiers, when its ID
+    /// belongs to a registry call, when it is a duplicate, orphan or late event, or beyond the per-turn cap. Only the
+    /// name, the state and a safe code are published; it never enters the registry, approval or tool-result paths.
+    /// </summary>
+    private void ObserveProviderTool(SessionState session, TurnState turn, AgentProviderEvent item)
+    {
+        if (item.ToolCallId is not { } providerId || item.ToolName is not { } name ||
+            !session.ObservableNativeTools.Contains(name) || item.ArgumentsJson is not null || item.ApprovalId is not null ||
+            item.MessageId is not null ||
+            (item.Text is not null && (item.Kind != AgentEventKind.ToolFailed || SafeCode(item.Text) != item.Text)))
+        {
+            return;
+        }
+
+        try
+        {
+            if (_toolRegistry?.FindDescriptor(name) is not null)
+            {
+                return;
+            }
+        }
+        catch (Exception)
+        {
+            return;
+        }
+
+        lock (turn.Gate)
+        {
+            if (turn.Finalizing || turn.Tools.ContainsKey(providerId))
+            {
+                return;
+            }
+
+            if (item.Kind == AgentEventKind.ToolStarted)
+            {
+                if (turn.ObservedTools.ContainsKey(providerId) || turn.ObservedTools.Count >= _options.MaxObservedToolsPerTurn)
+                {
+                    return;
+                }
+
+                var observed = new ObservedToolState(AgentToolCallId.New(), name);
+                turn.ObservedTools.Add(providerId, observed);
+                // Control publications bounded by MaxObservedToolsPerTurn; the card appears and shows as running.
+                turn.Queue.TryEnqueueControl(sequence => turn.Create(sequence, AgentEventKind.ToolRequested,
+                    toolCallId: observed.PublishedId, toolName: observed.Name, observed: true));
+                turn.Queue.TryEnqueueControl(sequence => turn.Create(sequence, AgentEventKind.ToolStarted,
+                    toolCallId: observed.PublishedId, toolName: observed.Name, observed: true));
+                return;
+            }
+
+            if (!turn.ObservedTools.TryGetValue(providerId, out var started) || started.Terminal ||
+                !string.Equals(started.Name, name, StringComparison.Ordinal))
+            {
+                return; // Orphan, duplicate or renamed terminal: discarded.
+            }
+
+            started.Terminal = true;
+            var succeeded = item.Kind == AgentEventKind.ToolCompleted;
+            var code = succeeded ? null : item.Text ?? "ProviderToolFailed";
+            turn.Queue.TryEnqueueControl(sequence => turn.Create(sequence, item.Kind, errorCode: code,
+                toolCallId: started.PublishedId, toolName: started.Name,
+                toolStatus: succeeded ? AgentToolResultStatus.Succeeded : AgentToolResultStatus.Failed, observed: true));
         }
     }
 
