@@ -56,7 +56,6 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     /// sessão persistida. Compartilhar isto não é compartilhar cancelamento: o CancellationTokenSource segue por aba.
     /// </summary>
     public CompletionUsageTracker CompletionUsage { get; } = new();
-    public IAiChatService AiChatService { get; }
     public AutocompleteSettingsViewModel AutocompletePreferences { get; }
     /// <summary>Effective editor shortcuts per command id; defaults until a readable session is loaded.</summary>
     public IReadOnlyDictionary<string, IReadOnlyList<EditorKeyGesture>> KeyBindings { get; private set; } = EditorKeyBindings.Resolve(null);
@@ -81,7 +80,7 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
     public event EventHandler? LanguageChanged;
     public event EventHandler? LayoutChanged;
 
-    public WorkspaceViewModel(WorkspaceService workspace, IWorkspaceSessionRepository sessions, IAutocompleteService? autocomplete = null, ILocalModelCatalog? modelCatalog = null, IAiChatService? aiChat = null,
+    public WorkspaceViewModel(WorkspaceService workspace, IWorkspaceSessionRepository sessions, IAutocompleteService? autocomplete = null, ILocalModelCatalog? modelCatalog = null,
         IKnowledgeCatalog? knowledgeCatalog = null,
         ILocalAiModelService? localModels = null, IAppUpdateService? updates = null, IRemoteModelSource? remoteModels = null, IMetadataCache? metadata = null,
         ILearnedSchemaOptOut? learnedSchemaOptOut = null, IAiCompletionProvider? aiCompletion = null, IWorkspaceFileService? workspaceFiles = null,
@@ -117,8 +116,6 @@ public sealed partial class WorkspaceViewModel : ObservableObject, IDisposable
             new WorkspaceCompletionProfileResolver(() => Profiles));
         TraditionalCompletion = new TraditionalCompletionProvider(completionService);
         InlinePreemptiveCompletion = new TraditionalPreemptiveCompletionProvider(completionService);
-        AiChatService = aiChat ?? new AiChatService();
-        AiChatService.SetLocalization(LocalizationViewModel.Current.Resolve);
         AutocompletePreferences = new(AutocompleteService, modelCatalog, async settings =>
         {
             var previous = _autocompleteSettings;

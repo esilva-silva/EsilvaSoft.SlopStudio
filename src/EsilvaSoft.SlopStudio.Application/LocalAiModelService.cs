@@ -22,8 +22,8 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
     /// só havia preempção em uma direção — um turno <see cref="AiRequestPriority.Interactive"/> que chega cancela uma
     /// geração de fundo ativa (<see cref="PreemptBackground"/>) —, mas nada limitava a espera de um pedido de fundo
     /// que chega DEPOIS que o turno interativo já tomou a fila. Antes do chat de agentes (streaming, potencialmente
-    /// muitos segundos) isso não era visível: a única geração interativa era a proposta curta de
-    /// <see cref="LocalModelAiChatService"/>. Vencido o orçamento, o pedido desiste com o mesmo
+    /// muitos segundos) isso não era visível: a única geração interativa era a proposta curta do antigo Assistente IA
+    /// por aba (removido em 25/09/2026). Vencido o orçamento, o pedido desiste com o mesmo
     /// <see cref="LocalModelPreemptedException"/> silencioso de uma preempção ativa — não é falha do modelo, é
     /// descarte silencioso (DEC-A43-PREEMPTION) — e a próxima pausa de digitação tenta de novo. Constante, e não
     /// configurável, pela mesma razão de <see cref="RetryDelay"/>: não é uma opção de produto.
@@ -505,7 +505,7 @@ public sealed class LocalAiModelService(ILocalModelCatalog catalog, Func<ILocalM
     private static void RequireCapability(LocalModelDefinition model, LocalModelRole role)
     {
         if (role == LocalModelRole.Chat && !model.Capabilities.HasFlag(LocalModelCapabilities.Chat))
-            throw new LocalModelUnavailableException($"Chat indisponível: o modelo {model.Name} não declara a capacidade chat. Selecione outro modelo para o Assistente IA.")
+            throw new LocalModelUnavailableException($"Chat indisponível: o modelo {model.Name} não declara a capacidade chat. Selecione outro modelo para o Agente IA local.")
             { UnavailableReason = LocalModelUnavailableReason.CapabilityMissing };
         if (role == LocalModelRole.Autocomplete && (model.Capabilities & (LocalModelCapabilities.Autocomplete | LocalModelCapabilities.Fim)) == 0)
             throw new LocalModelUnavailableException($"Autocomplete por IA indisponível: o modelo {model.Name} não declara as capacidades autocomplete ou fim.")

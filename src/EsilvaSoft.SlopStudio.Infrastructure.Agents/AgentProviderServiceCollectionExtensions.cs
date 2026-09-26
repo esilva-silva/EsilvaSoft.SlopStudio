@@ -2,6 +2,7 @@ using System.Globalization;
 using EsilvaSoft.SlopStudio.Application;
 using EsilvaSoft.SlopStudio.Application.Agents;
 using EsilvaSoft.SlopStudio.Infrastructure.Agents.Anthropic;
+using EsilvaSoft.SlopStudio.Infrastructure.Agents.ClaudeCode;
 using EsilvaSoft.SlopStudio.Infrastructure.Agents.OpenAi;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -68,6 +69,28 @@ public static class AgentProviderServiceCollectionExtensions
                 provider.GetRequiredService<IAgentCredentialProvider>(), configured, provider.GetService<IAgentToolRegistry>());
         });
         services.AddSingleton<IAgentProvider>(provider => provider.GetRequiredService<ClaudeAgentProvider>());
+        return services;
+    }
+
+    /// <summary>
+    /// Registers the "Claude (assinatura)" mode (ADR-053): the user's own Claude Code binary run as a subprocess, separate
+    /// from the Claude API provider (different ID, descriptor and sessions; never a fallback of one another). Registration
+    /// is lazy and side-effect free: no process, file or network access happens until the user explicitly checks the
+    /// status or opens a session. Authentication belongs entirely to the official CLI; no credential is resolved here.
+    /// </summary>
+    public static IServiceCollection AddSlopStudioClaudeCodeAgentProvider(
+        this IServiceCollection services, ClaudeCodeAgentProviderOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        if (services.Any(static descriptor => descriptor.ServiceType == typeof(ClaudeCodeAgentProvider)))
+        {
+            throw new InvalidOperationException("O provider Claude (assinatura) já foi composto.");
+        }
+
+        var configured = options ?? new ClaudeCodeAgentProviderOptions();
+        configured.Validate();
+        services.AddSingleton(_ => new ClaudeCodeAgentProvider(configured));
+        services.AddSingleton<IAgentProvider>(provider => provider.GetRequiredService<ClaudeCodeAgentProvider>());
         return services;
     }
 

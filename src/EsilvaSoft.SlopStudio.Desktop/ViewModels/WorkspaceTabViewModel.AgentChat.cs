@@ -12,6 +12,7 @@ namespace EsilvaSoft.SlopStudio.Desktop.ViewModels;
 public sealed partial class WorkspaceTabViewModel
 {
     private AgentChatViewModel? _agentChat;
+    private long _editorRevision;
 
     /// <summary>
     /// Supplied by the view currently showing this tab; returns the editor selection or null. It must be called on
@@ -20,7 +21,9 @@ public sealed partial class WorkspaceTabViewModel
     public Func<string?>? EditorSelectionProvider { get; set; }
 
     /// <summary>Monotonic revision of the editor text (incremented on every change).</summary>
-    public long EditorRevision => Interlocked.Read(ref _aiEditorRevision);
+    public long EditorRevision => Interlocked.Read(ref _editorRevision);
+
+    partial void OnTextChanged(string value) => Interlocked.Increment(ref _editorRevision);
 
     /// <summary>This tab's chat, created on the first explicit opening of the agent panel; null before that.</summary>
     public AgentChatViewModel? AgentChat => _agentChat;

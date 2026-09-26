@@ -851,7 +851,7 @@ flags inline de 5.1.
 que um turno `Interactive` já tomou a fila do proprietário único (`PriorityGate` é um mutex de um único titular; ver
 [`LocalAgentProvider`](../../src/EsilvaSoft.SlopStudio.Application/Agents/LocalAgentProvider.cs)). Antes do chat de
 agentes local (lote 9) isso não era visível na prática: a única geração interativa concorrente era a proposta curta
-de `LocalModelAiChatService` (até 256–1024 tokens, um bloco só). O chat de agentes usa o mesmo
+de `LocalModelAiChatService` (até 256–1024 tokens, um bloco só; serviço **removido em 25/09/2026 pela [ADR-055](../10-decisoes-arquiteturais.md#adr-055--remoção-do-assistente-ia-por-aba-25092026)**). O chat de agentes usa o mesmo
 `AiRequestPriority.Interactive` e o mesmo `StreamAsync`, mas em streaming — uma conversa pode segurar a fila por
 muito mais tempo. Sem limite, o autocomplete ambiente (`AiAutocompleteProvider`, sempre `Background`) ficaria
 esperando atrás do chat pela duração inteira do turno, em vez de abster-se e tentar de novo na próxima pausa de

@@ -1,6 +1,6 @@
 # Agent Runtime — contrato interno proposto
 
-Estado: **planejado**. Os exemplos C# são especificação para revisão, não arquivos compiláveis adicionados à solução. `IAiChatService` atual permanece compatível durante a adoção. Ver [análise de código](13-analise-do-codigo.md) e [arquitetura](02-arquitetura.md).
+Estado: **planejado**. Os exemplos C# são especificação para revisão, não arquivos compiláveis adicionados à solução. `IAiChatService` foi **removido em 25/09/2026 pela [ADR-055](../../10-decisoes-arquiteturais.md#adr-055--remoção-do-assistente-ia-por-aba-25092026)**; o texto abaixo que o cita descreve o estado anterior à remoção. Ver [análise de código](13-analise-do-codigo.md) e [arquitetura](02-arquitetura.md).
 
 ## Portas e responsabilidades
 
@@ -114,7 +114,7 @@ Ao mudar conexão, modelo, grant ou conta durante aprovação, invalidar hash/re
 
 `LocalAgentProvider` em Application adapta `ILocalAiModelService.StreamAsync`, suas capacidades, prioridades e descarte; não cria segundo proprietário de modelo. Não chamar `CancelGeneration()` global para cancelar uma sessão: usar token da solicitação e a semântica de preempção existente. Autocomplete mantém `LoadedOnly`, e abrir o chat não descarrega automaticamente o modelo em uso.
 
-O atual `LocalModelAiChatService` é proposta de código FIM, e `AiChatService` é fallback determinístico. Não declarar tool calling, sessões remotas ou agente autônomo ONNX como existentes. Um modelo local só anuncia `Chat`/`Streaming` conforme adaptador/modelo comprovado; tool calling fica falso até protocolo estruturado validado e testes próprios. Assistente de proposta existente e autocomplete funcionam offline independentemente de providers externos.
+O antigo `LocalModelAiChatService` (removido, ADR-055) era proposta de código FIM, e `AiChatService` (removido, ADR-055) era fallback determinístico. Não declarar tool calling, sessões remotas ou agente autônomo ONNX como existentes. Um modelo local só anuncia `Chat`/`Streaming` conforme adaptador/modelo comprovado; tool calling fica falso até protocolo estruturado validado e testes próprios. Assistente de proposta existente e autocomplete funcionam offline independentemente de providers externos.
 
 ## Aceite do contrato
 

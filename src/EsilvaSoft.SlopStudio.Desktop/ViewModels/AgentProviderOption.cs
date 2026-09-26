@@ -44,8 +44,14 @@ public sealed class AgentProviderOption(AgentProviderPresentation presentation)
 
     public bool RequiresApiKey => Presentation.AuthenticationMethods.Contains(AgentAuthenticationMethod.ApiKey);
 
+    /// <summary>Authentication delegated to an official CLI: no key or vault is involved, so states read differently.</summary>
+    private bool UsesOfficialCli => Presentation.AuthenticationMethods.Contains(AgentAuthenticationMethod.OfficialCliDelegated);
+
     public string AuthStateText => Text.Resolve(Presentation.AuthState switch
     {
+        AgentProviderAuthState.Configured when UsesOfficialCli => "agentAuthStateCliSignedIn",
+        AgentProviderAuthState.NotConfigured when UsesOfficialCli => "agentAuthStateCliSignedOut",
+        AgentProviderAuthState.Invalid when UsesOfficialCli => "agentAuthStateCliBlocked",
         AgentProviderAuthState.NotRequired => "agentAuthStateNotRequired",
         AgentProviderAuthState.NotConfigured => "agentAuthStateNotConfigured",
         AgentProviderAuthState.Configured => "agentAuthStateConfigured",
@@ -58,7 +64,12 @@ public sealed class AgentProviderOption(AgentProviderPresentation presentation)
     public string AuthMethodsText => Presentation.AuthenticationMethods.Count == 0
         ? Text.Resolve("agentSettingsNoAuthMethods")
         : string.Join(" · ", Presentation.AuthenticationMethods.Distinct().Select(method =>
-            Text.Resolve(method == AgentAuthenticationMethod.ApiKey ? "agentAuthApiKey" : "agentAuthNone")));
+            Text.Resolve(method switch
+            {
+                AgentAuthenticationMethod.ApiKey => "agentAuthApiKey",
+                AgentAuthenticationMethod.OfficialCliDelegated => "agentAuthOfficialCli",
+                _ => "agentAuthNone",
+            })));
 
     public string CapabilitiesText => Text.Format("agentCapabilitiesValue",
         Text.Resolve(Presentation.SupportsStreaming ? "agentYes" : "agentNo"),

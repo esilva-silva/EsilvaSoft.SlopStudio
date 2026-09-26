@@ -33,7 +33,7 @@ Nenhum AC foi aprovado por esta atualização; ela só define que evidência adi
 | --- | --- | --- |
 | AC-05 | Se o 7B for ofertado, o adapter também opera por login de conta via Codex App Server; caso contrário, AC-05 é avaliado somente com API Key e a ausência de login é registrada como decisão | Roteiro [21](21-homologacao-manual-login.md) H-01..H-07, H-11 e H-13, com registro por SO/versão/conta-plano; gates G7B-1..7 do [plano](10-plano-de-implementacao.md#sublote-7b--login-por-conta-openai-condicional). API Key sozinha nunca comprova login |
 | AC-07 | Contas Codex/ChatGPT (7B) e Claude (modo Claude Code, bloco CL, histórico 8B) só são ofertadas após seus gates; autenticação delegada ao runtime oficial, sem importação de tokens/sessões | Para 7B: H-11/H-14/H-17 + fontes datadas; risco experimental Codex não substitui condições da Anthropic. Para Claude, ver [rastreio do bloco Integração Claude](#rastreio-do-bloco-integração-claude--25092026) abaixo (H-11/H-14/H-17 não se aplicam a esse provider) |
-| AC-06 | Conta Claude passa a prioridade condicional do 8B, além da API do lote 8 (**substituído**: ver rastreio do bloco Integração Claude abaixo) | AU-04, GCL-1..8 e C-01..C-34; API Key não prova assinatura |
+| AC-06 | Conta Claude passa a prioridade condicional do 8B, além da API do lote 8 (**substituído**: ver rastreio do bloco Integração Claude abaixo) | AU-04, GCL-1..8 e C-01..C-36; API Key não prova assinatura |
 | AC-08 | Nenhum token de conta Codex/Claude em plaintext; backend seguro de cada runtime verificado; falha do cofre visível sem fallback | H-10 e H-12 manuais (varredura de LiteDB, logs, temporários e diretório Codex isolado) somadas a SK-01/02 |
 | AC-04/09/10/11/12 | O chat completo (lote 6 ampliado) é a superfície que os consome | UI-03 com PNGs nos dois temas em 960/1366/1920 e homologação nativa de leitor de tela/diálogos, pendente |
 | AC-03 | Login e abertura do chat não enviam dados MongoDB sem consentimento | H-08 manual + PRIV-01/02 |
@@ -54,11 +54,11 @@ Por decisão do usuário, a conta Claude passa a ser executada pelo modo Claude 
 | AC-10 | Tool calls nativas visíveis no chat com estado/risco | CC-06, UI-01 | C-08..C-11, C-25, C-29 |
 | AC-14 | MCP e chat usam um registry único também no modo Claude Code | CC-06 | C-29; nenhuma tool do Slop/registry acessa MongoDB fora do registry (evidência CL4-03) |
 | AC-15 | Modo Claude Code indisponível/desabilitado não quebra a IDE | CC-01, DEG-01 | C-01, C-02, C-31 (shim `.cmd` rejeitado) |
-| AC-17 | Windows e Linux suportados no modo Claude Code | CC-01..08 por SO | C-01..C-34 por SO, registrados separadamente; C-24 registra o mecanismo de credencial por SO |
+| AC-17 | Windows e Linux suportados no modo Claude Code | CC-01..08 por SO | C-01..C-36 por SO, registrados separadamente; C-24 registra o mecanismo de credencial por SO |
 
 AC-10 (cartões de tool, inclusive nativas) segue UI-01/UI-03 com PNGs. Os testes automatizados nunca aprovam sozinhos AC-06/07/08.
 
-Casos manuais que exigem evidência do usuário: para o 7B, H-01..H-17 aplicáveis do roteiro 21 (Windows e Linux separados); **para Claude, H-01..H-17 não se exige** — o roteiro usa C-01..C-34, que cobrem as mesmas intenções adaptadas ao modo Claude Code (ver [21](21-homologacao-manual-login.md#casos-do-modo-claude-code-assinatura)). Em ambos os casos, o chat também exige leitor de tela, IME e diálogos nativos. Enquanto o registro do roteiro estiver vazio, esses ACs continuam **pendentes**.
+Casos manuais que exigem evidência do usuário: para o 7B, H-01..H-17 aplicáveis do roteiro 21 (Windows e Linux separados); **para Claude, H-01..H-17 não se exige** — o roteiro usa C-01..C-36, que cobrem as mesmas intenções adaptadas ao modo Claude Code (ver [21](21-homologacao-manual-login.md#casos-do-modo-claude-code-assinatura)). Em ambos os casos, o chat também exige leitor de tela, IME e diálogos nativos. Enquanto o registro do roteiro estiver vazio, esses ACs continuam **pendentes**.
 
 ## Portas de liberação
 

@@ -217,7 +217,7 @@ Para instalar um SlopCoder-Mongo, use **Baixar modelo** na mesma janela. A lista
 | Família | Sem GPU | Com GPU (DirectML, Windows) |
 |---|---|---|
 | **SlopCoder-Mongo-0.5B** — leve, bom para autocomplete | CPU INT4 (~415 MB, padrão) ou CPU INT8 | GPU DirectML FP16 (padrão) ou GPU DirectML INT4 |
-| **SlopCoder-Mongo-1.5B-full** — melhor no Assistente IA, exige mais memória | CPU INT8 (recomendado) ou CPU INT4 | GPU DirectML FP16 (recomendado) ou GPU DirectML INT4 |
+| **SlopCoder-Mongo-1.5B-full** — melhor no Agente IA local, exige mais memória | CPU INT8 (recomendado) ou CPU INT4 | GPU DirectML FP16 (recomendado) ou GPU DirectML INT4 |
 
 Opções de GPU mostram "GPU não detectada nesta máquina" quando o runtime não encontrou uma. **Ver detalhes do modelo no Hugging Face** abre o card do modelo original, com formato de prompt, dados e limitações. Escolha a variante e clique em **Baixar**. O modelo vai para o diretório de modelos, na subpasta `<repositório>-<variante>` (por exemplo `SlopCoder-Mongo-1.5B-full-ONNX-dml-fp16`), e cada arquivo é conferido pelo hash publicado. **Abrir pasta**, ao lado de Procurar…, abre esse diretório no gerenciador de arquivos. Na lista **Modelo**, os modelos baixados aparecem com o mesmo nome e, abaixo, parâmetros, arquitetura e pasta. O progresso aparece na janela e na barra inferior, que também cancela; fechar a janela não interrompe o download. Ao concluir, o modelo fica selecionado: clique em **Salvar**. Variantes já instaladas aparecem como "instalado" e não são baixadas de novo; para substituir, remova a pasta. Um download cancelado retoma a partir dos arquivos já verificados.
 

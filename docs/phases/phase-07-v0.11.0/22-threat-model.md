@@ -1,6 +1,8 @@
 # Threat model — modo Claude Code e modos existentes
 
-**Rascunho de 25/09/2026 (tarefa P7-CL0-02), escrito antes do spike P7-CL0-01.** Nada aqui está implementado, testado ou homologado. O documento não aprova AC nem gate: o GCL-3 do [plano 23](23-integracao-claude.md#gates) continua **pendente** até (1) o spike confirmar ou refutar as [hipóteses](#hipóteses-que-o-spike-p7-cl0-01-precisa-confirmar), (2) este texto ser revisto com os resultados do spike e (3) passar por revisão independente do code-review-agent. As ferramentas nativas do Claude Code ([ADR-054](../../10-decisoes-arquiteturais.md#adr-054--ferramentas-nativas-do-claude-code-com-aprovação-por-chamada-25092026)) ficam bloqueadas enquanto isso não acontecer.
+**Rascunho de 25/09/2026 (tarefa P7-CL0-02), escrito antes do spike P7-CL0-01.** Nada aqui está implementado, testado ou homologado. O documento não aprova AC nem gate: o GCL-3 do [plano 23](23-integracao-claude.md#gates) continua **pendente** até (1) o spike confirmar ou refutar as [hipóteses](#hipóteses-que-o-spike-p7-cl0-01-precisa-confirmar) — feito, ver [resultado do spike](#resultado-do-spike-p7-cl0-01-25092026-windows-11-claude-code-21268) —, (2) este texto ser revisto com os resultados do spike (parcial: ver aviso abaixo) e (3) passar por revisão independente do code-review-agent. As ferramentas nativas do Claude Code ([ADR-054](../../10-decisoes-arquiteturais.md#adr-054--ferramentas-nativas-do-claude-code-com-aprovação-por-chamada-25092026)) ficam bloqueadas enquanto isso não acontecer.
+
+> **Riscos residuais NÃO ACEITOS pelo usuário em 25/09/2026 — escopo revertido ([ADR-054 revisada](../../10-decisoes-arquiteturais.md#revisão-de-25092026-mesma-data-decisão-posterior-do-usuário--riscos-residuais-do-threat-model-não-aceitos-escopo-revertido)).** Ao revisar os [riscos residuais](#riscos-residuais-que-exigem-decisão-do-usuário) 1 e 2 abaixo (comando aprovado roda como o usuário do SO e contorna registry/cofre/auditoria; ausência de firewall no Slop), o usuário decidiu **não aceitá-los**. Consequência: as ameaças de **execução, escrita de arquivo e rede** listadas neste documento (T-P02/T-P03/T-P05..T-P10, toda a seção [F4 — ferramentas nativas ↔ sistema de arquivos](#f4--ferramentas-nativas--sistema-de-arquivos), toda a seção [F5 — ferramentas nativas ↔ rede](#f5--ferramentas-nativas--rede), T-U01..T-U05) ficam **não aplicáveis por construção**: as ferramentas correspondentes (`Bash`, `PowerShell`, `Edit`, `Write`, `NotebookEdit`, `WebFetch`, `WebSearch`, `Agent`/subagentes) nunca são anunciadas ao modelo, por allowlist exata `--tools` no argv do turno — não há mais diálogo de aprovação por chamada para mitigar; a mitigação passa a ser ausência estrutural, não decisão do usuário por chamada. As ameaças de **leitura e exfiltração pelo modelo** continuam ativas e mitigadas como descrito (F1 método efetivo, F2 dados enviados à Anthropic, F3 canal MCP, T-F04 leitura sem pedido, T-C05 transcript): a leitura do cwd (workspace do usuário ou pasta dedicada do app) segue sendo o vetor residual real, tratado pela regra de leitura do [plano 23](23-integracao-claude.md) e do [doc 08](08-permissoes-e-aprovacoes.md#ferramentas-nativas-do-claude-code--escopo-revisado-adr-054-revisão-de-25092026). As linhas de STRIDE abaixo **não foram reescritas uma a uma** nesta revisão (ficam como registro histórico do escopo original do ADR-054); esta nota é a autoridade sobre o escopo atual até uma revisão completa das tabelas antes do GCL-3.
 
 Base: [ADR-053](../../10-decisoes-arquiteturais.md#adr-053--claude-via-assinatura-usando-o-binário-oficial-do-claude-code-como-subprocesso-25092026), ADR-054, [08 — permissões](08-permissoes-e-aprovacoes.md), [09 — segurança](09-seguranca-e-privacidade.md), [05 — MCP](05-mcp-server.md), [07 — segredos](07-autenticacao-e-segredos.md), [19 — auditoria](19-persistencia-auditoria.md), [21 — homologação](21-homologacao-manual-login.md#casos-do-modo-claude-code-assinatura) e [23 — integração Claude](23-integracao-claude.md). Os passos `P7-CLx-nn` citados são os do plano 23. Os comportamentos da CLI marcados com **(H-xx)** são hipóteses, não fatos verificados. Incorpora os achados da revisão independente de 25/09/2026 sobre ADR-053/054 e o plano 23 (A3–A7, M4–M7), indicados entre colchetes nas linhas afetadas.
 
@@ -217,12 +219,48 @@ Cada hipótese muda uma mitigação acima. Resultado negativo exige revisar a li
 | H-24 | `--settings <arquivo>` do Slop aceita regras `deny`/`ask` e `disableAllHooks` com precedência sobre `allow` do usuário, sem alterar métodos de autenticação | T-F02, T-F04, T-C02, T-C07 | Regras `deny` passam a ser só classificação no diálogo; residual A3 aumenta |
 | H-25 | Distribuição oficial oferece executável nativo no Windows (não só shim `.cmd`) | T-P10 | Modo indisponível no Windows ou decisão explícita |
 
+### Resultado do spike P7-CL0-01 (25/09/2026, Windows 11, Claude Code 2.1.268)
+
+Evidência, transcripts sanitizados e harness em [`eng/spikes/phase-07/claude-code/`](../../../eng/spikes/phase-07/claude-code/README.md); 25 execuções `-p` com `haiku`. Linux não executado. **As tabelas STRIDE acima ainda não foram revistas com estes resultados** (condição 1 do GCL-3 continua aberta).
+
+| ID | Resultado | Consequência para as mitigações |
+| --- | --- | --- |
+| H-01 | Parcial | `--setting-sources user`/`""` exclui hooks e `apiKeyHelper` de projeto sem afetar a assinatura; `permissions.allow` de projeto já é ignorado em `-p`. Efeito sobre a fonte `user` real não testado. Skills, agentes, auto memória e conectores claude.ai continuam (conectores saem com `--strict-mcp-config`) |
+| H-02 | Parcial | Discriminar por `apiKeySource` e `subscriptionType`: com `ANTHROPIC_API_KEY`, `authMethod` continua `claude.ai`. `ANTHROPIC_AUTH_TOKEN` e `CLAUDE_CODE_OAUTH_TOKEN` saem ambos `oauth_token` (só o nome da variável separa). `auth status` reflete `--settings`/`--setting-sources`/env/cwd |
+| H-03 | Confirmada com ressalva | `init` traz `apiKeySource` (`none` na assinatura), `model`, `permissionMode`, `tools`, `mcp_servers`, `plugins`, `capabilities`; não traz fontes de configuração, hooks nem managed settings |
+| H-04 | Parcial | `init` lista `skills`, `agents`, `plugins` e tools MCP; sem plugin instalado para testar |
+| H-05 | Confirmada | A tool de permissão fica fora de `init.tools` e invisível ao modelo |
+| H-06 | Confirmada | A CLI executa exatamente o `updatedInput` devolvido |
+| H-07 | Confirmada com ajuste | Pedido traz `tool_name`, `input`, `tool_use_id`; o `assistant` completo chega ~1 ms **depois** do pedido (o parcial antes): correlacionar com espera curta |
+| H-08 | Confirmada no cwd | Sem `updatedPermissions` nada é criado; `destination: session` vale só no processo |
+| H-09 | Confirmada | Read/Glob/Grep no cwd dispensam pedido; `ask` via `--settings` força pedido; `deny` nega e filtra resultados do Glob |
+| H-10 | Confirmada | `MCP_TOOL_TIMEOUT` controla; estouro vira erro de tool e nada executa; sem a variável a CLI esperou ≥ 75 s |
+| H-11 | Confirmada | MCP iniciado no startup, antes da primeira mensagem; herda o ambiente e recebe `CLAUDE_CODE_MESSAGING_SOCKET/TOKEN`, `CLAUDE_PROJECT_DIR` |
+| H-12 | Refutada para o `init` | Detecção só por caminhos/registro documentados (`C:\Program Files\ClaudeCode\`, `HKLM`/`HKCU\SOFTWARE\Policies\ClaudeCode`, `/etc/claude-code/`), por existência |
+| H-13 | Não testada | Exige rede externa |
+| H-14 | Refutada no Windows | Sandbox da CLI só macOS/Linux/WSL2 (documentação); Linux pendente |
+| H-15 | Parcial | Authenticode válido (Anthropic, PBC) verificável pelo SO; Linux pendente |
+| H-16 | Confirmada por documentação | Windows/Linux: `~/.claude/.credentials.json` (não é cofre do SO); macOS Keychain. Arquivo não aberto |
+| H-17 | Confirmada | Windows usa Git Bash (perfil do shell carregado, segundo a documentação) e expõe também a tool `PowerShell` |
+| H-18 | Parcial | `control_request` `interrupt` encerra o turno e o filho, mas o formato não é documentado para uso direto; fechar stdin não cancela; kill só do `claude.exe` deixa filho órfão; kill da árvore e Job Object `KILL_ON_JOB_CLOSE` encerram tudo |
+| H-19 | Parcial | Versões mínimas documentadas por flag registradas no README do spike; somente 2.1.268 testada |
+| H-20 | Confirmada | `--tools` restringe exatamente a lista. Sem pedido: Read/Glob/Grep, Bash somente leitura, `Agent`, `SendMessage`, `Cron*`, `RemoteTrigger`, `PushNotification`, `TaskCreate`… (observado + documentação). `--restricted` mantém `Agent` |
+| H-21 | Confirmada: `init` depois | Nada é emitido antes da primeira mensagem; `init` e a requisição ao modelo ficam a milissegundos. Vale o bloqueio preventivo por `auth status` e o residual de T-A01 |
+| H-22 | Confirmada | Flag existe (só `-p`); `--resume` da sessão falha antes do modelo, sem custo |
+| H-23 | Não executada | Documentação: muda o local de `.credentials.json` (login separado). Decisão pendente (GCL-1) |
+| H-24 | Confirmada | `--settings` aceita `ask`/`deny`/`disableAllHooks`; deny prevalece sobre allow de qualquer fonte |
+| H-25 | Confirmada | WinGet instala `claude.exe` nativo |
+
+Riscos novos (detalhes no README do spike): `authMethod` enganoso com API Key; Slop iniciado dentro de outra sessão Claude Code herda `CLAUDECODE`/`CLAUDE_CODE_*`/`ANTHROPIC_BASE_URL`; comandos aprovados e o MCP recebem `CLAUDE_CODE_MESSAGING_TOKEN`; tools sem pedido incluem `Agent`, `SendMessage`, `CronCreate`, `RemoteTrigger`; `--setting-sources ""` não remove skills, agentes e auto memória; espera indefinida sem `MCP_TOOL_TIMEOUT`.
+
 ## Riscos residuais que exigem decisão do usuário
 
-Estes riscos não são eliminados pelas mitigações e precisam de aceite explícito registrado antes do GCL-3 (não presumido por este documento):
+Estes riscos não são eliminados pelas mitigações e precisam de aceite explícito registrado antes do GCL-3 (não presumido por este documento).
 
-1. **Comando aprovado roda com o usuário do SO** [A3]: pode ler o cofre do SO (credenciais MongoDB, API Keys, credencial do broker), o LiteDB e qualquer arquivo acessível, e contorna registry, read-only, grants e auditoria MongoDB (T-F02, T-F06). O diálogo, o texto de risco e as regras `deny` reduzem, mas não isolam.
-2. **Sem firewall no Slop**: um comando aprovado pode enviar dados a qualquer destino (T-N02), salvo se H-14 permitir sandbox.
+**Decisão do usuário em 25/09/2026: riscos 1 e 2 NÃO ACEITOS.** Ver [ADR-054 revisada](../../10-decisoes-arquiteturais.md#revisão-de-25092026-mesma-data-decisão-posterior-do-usuário--riscos-residuais-do-threat-model-não-aceitos-escopo-revertido) e a nota no topo deste documento. Consequência: as ferramentas que geravam esses riscos (`Bash`, `PowerShell`, `Edit`, `Write`, `NotebookEdit`, `WebFetch`, `WebSearch`, `Agent`) ficam ausentes por construção no modo Claude Code, não apenas atrás de um diálogo de aprovação. Riscos 3–8 continuam registrados; risco 3 (semântica do shell) deixa de se aplicar por não haver mais `Bash` disponível.
+
+1. ~~Comando aprovado roda com o usuário do SO~~ [A3]: risco eliminado pela ausência da ferramenta, não apenas mitigado — não há mais `Bash`/`PowerShell`/`Edit`/`Write` para ler o cofre do SO, o LiteDB ou contornar registry/grants/auditoria (T-F02, T-F06 tornam-se não aplicáveis).
+2. ~~Sem firewall no Slop~~: risco eliminado pela ausência de `WebFetch`/`WebSearch`/`Bash` com acesso a rede (T-N01/T-N02 tornam-se não aplicáveis).
 3. **Semântica do shell** (aliases, funções, scripts de projeto) pode divergir do texto exibido (T-U02).
 4. **Transcript em disco** com dados MongoDB aprovados (T-C05), já aceito pela regra 8 do plano 23.
 5. **Exceções que a CLI não submete ao diálogo** (configurações gerenciadas, leituras sem pedido, tools consideradas seguras) conforme o resultado de H-01, H-09, H-12 e H-20; leitura sem pedido equivale a envio à Anthropic [A4].
@@ -248,4 +286,4 @@ Nenhum desses modos ganha ferramentas nativas por causa deste documento. Qualque
 3. Revisão independente do code-review-agent sobre este documento e, depois, sobre o diff dos passos CL4/CL5.
 4. Testes automatizados listados acima existentes e verdes com CLI falso (P7-CL6-01); casos manuais C-08..C-12, C-14, C-15 e propostas CP aceitas executados pelo usuário (GCL-8, separado).
 
-Estado em 25/09/2026: **GCL-3 pendente**; nenhuma dessas condições foi cumprida.
+Estado em 25/09/2026: **GCL-3 pendente**; nenhuma dessas condições foi cumprida. O spike P7-CL0-01 foi executado no Windows e marcou H-01..H-25 ([resultado](#resultado-do-spike-p7-cl0-01-25092026-windows-11-claude-code-21268)), mas as tabelas ainda não foram revistas e H-13/H-23 e Linux seguem abertos.

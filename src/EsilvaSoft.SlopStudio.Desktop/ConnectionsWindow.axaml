@@ -60,8 +60,6 @@
             <CheckBox Content="{local:Loc Key=favorite}" IsChecked="{Binding NewProfileIsFavorite}" Margin="0,0,20,0"/>
             <CheckBox Content="{local:Loc Key=readOnly}" IsChecked="{Binding NewProfileIsReadOnly}"/>
           </WrapPanel>
-          <CheckBox x:Name="AllowLocalAiConnectionContext" Content="{local:Loc Key=allowLocalAiConnectionContext}" IsChecked="{Binding NewProfileLocalAiContextEnabled}"/>
-          <TextBlock Text="{local:Loc Key=localAiConnectionContextScope}" Classes="metadata" TextWrapping="Wrap" Margin="24,0,0,4"/>
           <local:UuidRepresentationPanel x:Name="ProfileUuidPanel" IsVisible="False" Margin="0,8,0,0"/>
           
         </StackPanel>

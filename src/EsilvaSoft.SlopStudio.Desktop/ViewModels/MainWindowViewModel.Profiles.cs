@@ -59,6 +59,8 @@ public sealed partial class MainWindowViewModel
     [ObservableProperty]
     private bool _newProfileIsFavorite;
 
+    // No UI and no consumer since the per-tab assistant was removed (ADR-055): editing a profile carries its persisted
+    // value through unchanged; new profiles keep the historical default.
     [ObservableProperty]
     private bool _newProfileLocalAiContextEnabled = true;
 

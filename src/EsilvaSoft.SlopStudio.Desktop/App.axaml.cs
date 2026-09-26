@@ -9,6 +9,7 @@ using EsilvaSoft.SlopStudio.Desktop.ViewModels;
 using EsilvaSoft.SlopStudio.Infrastructure;
 using EsilvaSoft.SlopStudio.Infrastructure.Agents;
 using EsilvaSoft.SlopStudio.Infrastructure.Agents.Anthropic;
+using EsilvaSoft.SlopStudio.Infrastructure.Agents.ClaudeCode;
 using EsilvaSoft.SlopStudio.Infrastructure.Agents.OpenAi;
 using EsilvaSoft.SlopStudio.Infrastructure.LocalAi;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,7 +38,8 @@ public partial class App : Avalonia.Application
         var services = new ServiceCollection();
         services.AddSlopStudioInfrastructure(LocalWorkspacePaths.GetDatabasePath());
         services.AddSlopStudioLocalAiInfrastructure();
-        AddDesktopAgentServices(services);
+        // The Claude (assinatura) mode reads the Files panel folder only when a session is created (fixed per session).
+        AddDesktopAgentServices(services, () => _serviceProvider?.GetService<WorkspaceViewModel>()?.WorkspaceRootPath);
         services.AddSingleton<WorkspaceService>();
         services.AddSingleton<WorkspaceViewModel>();
         _serviceProvider = services.BuildServiceProvider();
@@ -61,11 +63,14 @@ public partial class App : Avalonia.Application
     /// awaits: without a stored API Key, network or reachable service each provider only reports itself unavailable
     /// with a safe code through the same runtime/catalog (AC-15).
     /// </summary>
-    public static void AddDesktopAgentServices(IServiceCollection services)
+    public static void AddDesktopAgentServices(IServiceCollection services, Func<string?>? workspaceDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         services.AddSlopStudioOpenAiAgentProvider();
         services.AddSlopStudioClaudeAgentProvider(new ClaudeAgentProviderOptions { ApiKeyReference = ClaudeApiKeySlot });
+        // "Claude (assinatura)": the user's own Claude Code binary (ADR-053), a separate provider from the API mode above.
+        // Lazy: nothing is located, started or authenticated until the user checks the status or opens a session.
+        services.AddSlopStudioClaudeCodeAgentProvider(new ClaudeCodeAgentProviderOptions { WorkspaceDirectory = workspaceDirectory });
         // Production, provider-neutral view for the chat UI (AC-04/AC-09): built only from the shared
         // AgentProviderCatalog/capabilities, with no branch by provider brand.
         services.AddSingleton<IAgentProviderCatalog>(

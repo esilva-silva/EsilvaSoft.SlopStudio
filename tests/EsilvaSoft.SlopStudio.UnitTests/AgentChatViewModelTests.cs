@@ -16,7 +16,8 @@ namespace EsilvaSoft.SlopStudio.UnitTests;
 public sealed class AgentChatViewModelTests
 {
     private static readonly string[] OnlyUserMessage = ["oi"];
-    private static readonly string[] OfficialMethods = ["None", "ApiKey"];
+    // OfficialCliDelegated: login delegado ao binário oficial do Claude Code (ADR-053); nenhum OAuth próprio do app.
+    private static readonly string[] OfficialMethods = ["None", "ApiKey", "OfficialCliDelegated"];
 
     private static Task<bool> RunOnUiAsync(Func<Task> body)
     {

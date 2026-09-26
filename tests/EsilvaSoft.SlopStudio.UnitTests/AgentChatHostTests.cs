@@ -10,6 +10,7 @@ using EsilvaSoft.SlopStudio.Desktop.Agents;
 using EsilvaSoft.SlopStudio.Desktop.ViewModels;
 using EsilvaSoft.SlopStudio.Infrastructure;
 using EsilvaSoft.SlopStudio.Infrastructure.Agents.Anthropic;
+using EsilvaSoft.SlopStudio.Infrastructure.Agents.ClaudeCode;
 using EsilvaSoft.SlopStudio.Infrastructure.Agents.OpenAi;
 using EsilvaSoft.SlopStudio.Infrastructure.LocalAi;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,6 +49,13 @@ public sealed class AgentChatHostTests
             services.AddSlopStudioLocalAiInfrastructure();
             services.AddSingleton<ISecretStore>(vault);
             App.AddDesktopAgentServices(services);
+            // The Claude (assinatura) mode would locate and run the user's real Claude Code on the explicit check; the
+            // unit test points it at a missing executable so no external process is ever started.
+            services.Remove(services.Single(static d => d.ServiceType == typeof(ClaudeCodeAgentProvider)));
+            services.AddSingleton(new ClaudeCodeAgentProvider(new ClaudeCodeAgentProviderOptions
+            {
+                ExecutablePath = Path.Combine(workspace.Path, "sem-claude", OperatingSystem.IsWindows() ? "claude.exe" : "claude"),
+            }));
             services.AddSingleton<WorkspaceService>();
             services.AddSingleton<WorkspaceViewModel>();
             await using var provider = services.BuildServiceProvider();
@@ -81,7 +89,7 @@ public sealed class AgentChatHostTests
                     "P7-L10-WIRE: approval details come only from the composed write approval coordinator.");
                 Assert.That(chatServices.Credentials, Is.InstanceOf<DesktopAgentApiKeyStore>());
                 Assert.That(chat.Providers.Select(option => option.ProviderId),
-                    Is.EquivalentTo(new[] { LocalAgentProvider.Id, OpenAiAgentProvider.Id, ClaudeAgentProvider.Id }));
+                    Is.EquivalentTo(new[] { LocalAgentProvider.Id, OpenAiAgentProvider.Id, ClaudeAgentProvider.Id, ClaudeCodeAgentProvider.Id }));
                 Assert.That(chat.Providers.All(option => option.IsNotChecked), Is.True, "Listing is cache-only before a check.");
                 Assert.That(chat.ShowRefreshProviders, Is.True);
                 Assert.That(AgentSlotReads(), Is.Zero, "Opening the panel lists without reading the vault.");
@@ -91,8 +99,13 @@ public sealed class AgentChatHostTests
             Assert.That(AgentSlotReads(), Is.GreaterThan(0), "The explicit check reads vault presence.");
             var openAi = chat.Providers.Single(option => option.ProviderId == OpenAiAgentProvider.Id);
             var claude = chat.Providers.Single(option => option.ProviderId == ClaudeAgentProvider.Id);
+            var claudeCode = chat.Providers.Single(option => option.ProviderId == ClaudeCodeAgentProvider.Id);
             Assert.Multiple(() =>
             {
+                Assert.That(claudeCode.Presentation.IsAvailable, Is.False);
+                // BlockedEnvironment when the suite itself runs inside a Claude Code session (CLAUDECODE is checked first).
+                Assert.That(claudeCode.Presentation.UnavailableReason, Is.AnyOf("ExecutableNotFound", "BlockedEnvironment"));
+                Assert.That(claudeCode.RequiresApiKey, Is.False, "Subscription mode never offers an API key (no silent fallback).");
                 Assert.That(openAi.Presentation.AuthState, Is.EqualTo(AgentProviderAuthState.NotConfigured));
                 Assert.That(claude.Presentation.AuthState, Is.EqualTo(AgentProviderAuthState.NotConfigured),
                     "Claude now has a vault slot in the composition root; without a key it reports the missing key.");

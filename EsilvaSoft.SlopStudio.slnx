@@ -11,4 +11,5 @@
   <Project Path="tests/EsilvaSoft.SlopStudio.UnitTests/EsilvaSoft.SlopStudio.UnitTests.csproj" />
   <Project Path="tests/EsilvaSoft.SlopStudio.Benchmarks/EsilvaSoft.SlopStudio.Benchmarks.csproj" />
   <Project Path="tests/EsilvaSoft.SlopStudio.Infrastructure.Agents.Tests/EsilvaSoft.SlopStudio.Infrastructure.Agents.Tests.csproj" />
+  <Project Path="tests/EsilvaSoft.SlopStudio.FakeClaudeCode/EsilvaSoft.SlopStudio.FakeClaudeCode.csproj" />
 </Solution>

@@ -198,45 +198,6 @@ public partial class WorkspaceTabView : UserControl
         await window.ShowDialog(owner);
     }
 
-    private async void ApplyAiProposal(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not WorkspaceTabViewModel tab || tab.AiProposal is not { } proposal || TopLevel.GetTopLevel(this) is not Window owner) return;
-        if (proposal.RequiresAdditionalConfirmation)
-        {
-            var warning = string.IsNullOrWhiteSpace(proposal.Warning)
-                ? T("aiProposalSafety")
-                : proposal.Warning;
-            if (await Dialogs.ChooseCancelableAsync(owner, T("proposalConfirmTitle"), warning + "\n\n" + T("insertProposalPrompt"), CancellationToken.None, T("apply"), T("cancel")) != T("apply"))
-                return;
-        }
-        if (!tab.CanApplyAiProposal(proposal))
-        {
-            tab.ChatStatusMessage = T("proposalStaleEditorTarget");
-            tab.AiProposal = null;
-            return;
-        }
-
-        var selectionStart = CodeEditor.SelectionStart;
-        var selectionEnd = CodeEditor.SelectionEnd;
-        var caret = CodeEditor.CaretIndex;
-        _acceptingCompletion = true;
-        try
-        {
-            // Replace through the editor's selected-text path so the normal undo stack remains available.
-            CodeEditor.SelectionStart = 0;
-            CodeEditor.SelectionEnd = (CodeEditor.Text ?? "").Length;
-            CodeEditor.SelectedText = proposal.ProposedContent;
-            var newLength = proposal.ProposedContent.Length;
-            var restoredStart = Math.Clamp(selectionStart, 0, newLength);
-            var restoredEnd = Math.Clamp(selectionEnd, restoredStart, newLength);
-            CodeEditor.SelectionStart = restoredStart;
-            CodeEditor.SelectionEnd = restoredEnd;
-            CodeEditor.CaretIndex = Math.Clamp(caret, 0, newLength);
-        }
-        finally { _acceptingCompletion = false; }
-        if (tab.CommitAiProposal(proposal)) CodeEditor.Focus();
-    }
-
     private async void OpenHistory(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not WorkspaceTabViewModel tab || TopLevel.GetTopLevel(this) is not Window owner) return;

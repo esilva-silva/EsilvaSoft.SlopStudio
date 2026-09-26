@@ -25,7 +25,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAutocompleteDiagnostics, AutocompleteDiagnostics>();
         services.AddSingleton<AiAutocompleteProvider>(provider => new(provider.GetRequiredService<ILocalAiModelService>()));
         services.AddSingleton<IAutocompleteService, AutocompleteService>();
-        services.AddSingleton<IAiChatService, LocalModelAiChatService>();
         // Provider local: só cria sessão quando há modelo utilizável; sem rede, conta ou fallback externo.
         services.AddSingleton<LocalAgentProvider>();
         services.AddSingleton<IAgentProvider>(provider => provider.GetRequiredService<LocalAgentProvider>());

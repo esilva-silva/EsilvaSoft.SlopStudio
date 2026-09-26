@@ -60,7 +60,7 @@ Não fixar um modelo comercial no domínio. Guardar seleção por configuração
 
 ## Reuso local e novos adapters
 
-`LocalModelAiChatService` já produz propostas revisáveis usando `IAiChatService`, e `ILocalModelRuntime.StreamAsync` admite implementação que entrega um único bloco. Reusar `ILocalAiModelService`, catálogo, prioridades e cancelamento; criar fachada para eventos de runtime sem declarar tool calling universal. O assistente existente continua disponível sem rede, conta, MCP ou modelo externo.
+`LocalModelAiChatService` já produzia propostas revisáveis usando `IAiChatService` (ambos **removidos em 25/09/2026 pela [ADR-055](../../10-decisoes-arquiteturais.md#adr-055--remoção-do-assistente-ia-por-aba-25092026)**), e `ILocalModelRuntime.StreamAsync` admite implementação que entrega um único bloco. Reusar `ILocalAiModelService`, catálogo, prioridades e cancelamento; criar fachada para eventos de runtime sem declarar tool calling universal. O assistente existente continua disponível sem rede, conta, MCP ou modelo externo.
 
 Um provider futuro registra factory e descritor em DI, implementa sessão e tradução de eventos, valida credenciais/capabilities, executa a suíte comum e documenta licença. Core/Agents e Application/Agents não referenciam seus DTOs. Implementações externas ficam em `Infrastructure.Agents`, com namespaces separados; a UI permanece consumidora do runtime. Não incluir `LocalAi.Core` como requisito de providers externos.
 

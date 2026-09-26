@@ -124,12 +124,11 @@ public sealed partial class WorkspaceViewModel
         tab.CompletionUsage = CompletionUsage;
         tab.Commands = Commands;
         tab.Shortcuts = KeyBindings;
-        tab.AiChat = AiChatService;
         tab.KnownAutocompleteNames = () => KnownAutocompleteNames(tab);
         tab.UuidPolicy = CaptureUuidPolicy(); Tabs.Add(tab); tab.DraftChanged += OnDraftChanged;
     }
 
-    private WorkspaceTabViewModel CreateTab() => new(_workspace) { CodeFontSize = CodeFontSize, AiChat = AiChatService };
+    private WorkspaceTabViewModel CreateTab() => new(_workspace) { CodeFontSize = CodeFontSize };
 
     private void OnDraftChanged(object? sender, EventArgs e) => ScheduleSave();
 
